@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, symlink } from 'node:fs
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { snapshot, validateSnapshot, withHistory, SOURCES } from '../lib/canvas-snapshot.mjs';
-import { lessonFingerprint, parseLessons } from '../practices/night/files/scripts/keel/lib.mjs';
+import { lessonFingerprint, parseLessons } from '../practices/night/files/scripts/plates/lib.mjs';
 
 const NOW = '2026-10-08T12:00:00Z', SHA = 'a'.repeat(40), KEY = 'acme-project';
 const phasePath = 'docs/phases/01-acme.md';
@@ -15,7 +15,7 @@ async function put(root, path, value) { await mkdir(dirname(join(root, path)), {
 async function fixture(t, cfg = {}, files = {}) {
   const root = await mkdtemp(join(tmpdir(), 'acme-canvas-snapshot-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await put(root, '.keel/keel.json', { name: 'Acme', repo: 'acme/app', canvas: { projectKey: KEY }, ...cfg });
+  await put(root, '.plates/plates.json', { name: 'Acme', repo: 'acme/app', canvas: { projectKey: KEY }, ...cfg });
   await put(root, 'docs/goals.json', [{ id: 'G0', title: 'Acme exports', outcome: 'Export works.' }]);
   await put(root, phasePath, phase());
   for (const [path, value] of Object.entries(files)) await put(root, path, value);
@@ -29,13 +29,13 @@ test('local collection is fresh, source-backed, covers every lifecycle area and 
   const lessons = '| # | Shape | Cost | Guard |\n| --- | --- | --- | --- |\n| 1 | Acme drops exports | Rework | Export check |\n';
   const fingerprint = lessonFingerprint('acme/app', parseLessons(lessons).rows[0]);
   const root = await fixture(t, { lessons: 'notes/lessons.md', health: 'notes/health', check: 'never-run-this-command', paths: { retros: 'notes/retros' } }, {
-    'notes/lessons.md': lessons, '.keel/sent.json': { [fingerprint]: { issue: 1, at: '2026-10-06' } },
+    'notes/lessons.md': lessons, '.plates/sent.json': { [fingerprint]: { issue: 1, at: '2026-10-06' } },
     'notes/health/2026-10-07.md': '# Health — 2026-10-07\n\n| Measure | Value | Bound | State | Detail |\n| --- | --- | --- | --- | --- |\n| `gate` — gate fails | 0 | ≤ 0 | ok | Saved Acme gate |\n\n## Reconciliation (manual review)\n\n```json\n{"findings":[],"unknown":[]}\n```\n',
     'docs/phases/README.md': 'This is not a phase.',
     'docs/inbox/acme.md': '---\nkind: lesson\nfrom: acme/app\nstatus: accepted\noutcome: lesson\n---\n# Acme proposal\n## Claim\n```\nAcme guard\n```\n## Decision\nAccepted.\n',
     'notes/retros/acme.json': { schema: 1, id: 'acme-retro', date: '2026-10-07', provider: 'manual', coverage: 'manual', candidates: [], session: '/private/acme-secret-transcript', counts: { madeUp: 99 } },
   });
-  const env = { ...process.env, KEEL_GH: '/not/an/executable', KEEL_STITCH: '/not/an/executable' };
+  const env = { ...process.env, PLATES_GH: '/not/an/executable', PLATES_STITCH: '/not/an/executable' };
   const s = await snapshot({ root, now: NOW, env });
   assert.equal(validateSnapshot(s), s);
   assert.equal(s.entities.filter(e => e.kind === 'phase').length, 1);
@@ -95,7 +95,7 @@ test('project-shaped phase anchors are distinct per project and unknown vocabula
 
 test('duplicate finding aliases and identical copied test runs do not inflate outcomes', async t => {
   const run = { date: '2026-10-07T10:00:00Z', commit: SHA, dirty: false, tree: SHA, tests: [{ name: 'Acme exports', file: 'tests/acme.test.mjs', outcome: 'pass', ms: 2 }] };
-  const root = await fixture(t, {}, { 'docs/loop/a.md': finding('done'), 'docs/loop/b.md': finding('accepted'), '.keel/test-runs/a.json': run, '.keel/test-runs/b.json': run });
+  const root = await fixture(t, {}, { 'docs/loop/a.md': finding('done'), 'docs/loop/b.md': finding('accepted'), '.plates/test-runs/a.json': run, '.plates/test-runs/b.json': run });
   const s = await snapshot({ root, now: NOW });
   assert.equal(s.entities.filter(e => e.kind === 'loop').length, 1);
   assert.equal(coverage(s, 'loop').status, 'unavailable');
@@ -108,11 +108,11 @@ test('explicit GitHub read can observe merge without accepting the phase; offlin
   const fake = join(root, 'fake-gh');
   await writeFile(fake, `#!${process.execPath}\nconsole.log(JSON.stringify(${JSON.stringify({ state: 'closed', draft: false, merged_at: '2026-10-07T12:00:00Z', merge_commit_sha: SHA })}));\n`);
   await chmod(fake, 0o755);
-  const s = await snapshot({ root, now: NOW, github: true, env: { ...process.env, KEEL_GH: fake } });
+  const s = await snapshot({ root, now: NOW, github: true, env: { ...process.env, PLATES_GH: fake } });
   assert.equal(s.entities.find(e => e.kind === 'pr').facts.merged.value, true);
   assert.equal(s.entities.find(e => e.kind === 'phase').status, 'partial');
   assert.equal(metric(s, 'phases-accepted-with-evidence').value, 0);
-  const offline = await snapshot({ root, now: NOW, github: true, env: { ...process.env, KEEL_GH: '/missing/acme-gh' } });
+  const offline = await snapshot({ root, now: NOW, github: true, env: { ...process.env, PLATES_GH: '/missing/acme-gh' } });
   assert.equal(coverage(offline, 'github').status, 'unavailable');
   assert.equal(offline.entities.some(e => e.kind === 'pr'), false);
 });
@@ -191,7 +191,7 @@ test('unknown shapes, unsafe paths, schemas, duplicates and dangling references 
   assert.throws(() => validateSnapshot({ ...s, warnings: ['https://user:fake@acme.test/path'] }), /unsafe embedded URL/);
   await mkdir(join(root, 'notes'), { recursive: true });
   await symlink(join(root, 'docs/goals.json'), join(root, 'notes/lessons.md'));
-  await put(root, '.keel/keel.json', { name: 'Acme', lessons: 'notes/lessons.md' });
+  await put(root, '.plates/plates.json', { name: 'Acme', lessons: 'notes/lessons.md' });
   assert.match(coverage(await snapshot({ root, now: NOW }), 'lessons').reason, /symlink/);
 });
 
@@ -282,7 +282,7 @@ test('milestone source is an explicit canvas gap, never a local built or empty p
 test('milestone canvas suppresses archived goals and phases and discloses unsupported coverage for both', async t => {
   const root = await fixture(t, { phases: { source: 'milestones' } });
   const before = await Promise.all(['docs/goals.json', phasePath].map(p => readFile(join(root, p), 'utf8')));
-  const s = await snapshot({ root, now: NOW, env: { ...process.env, KEEL_GH: '/no-real-gh' } });
+  const s = await snapshot({ root, now: NOW, env: { ...process.env, PLATES_GH: '/no-real-gh' } });
   assert.deepEqual(s.entities.filter(e => ['goal', 'phase'].includes(e.kind)), []);
   for (const source of ['goals', 'phases']) assert.equal(coverage(s, source).status, 'unsupported');
   assert.deepEqual(await Promise.all(['docs/goals.json', phasePath].map(p => readFile(join(root, p), 'utf8'))), before);

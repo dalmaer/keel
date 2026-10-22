@@ -100,14 +100,17 @@ shape keeps execution and schedule writes off while declaring a minute ceiling:
 Proof dates are operator assertions, not evidence by themselves. A restored
 job store must reconcile outstanding operations before effects are enabled;
 an empty restored table is not proof of unused budget. The fixed callback origin
-comes from the approved `KEEL_WEB_ORIGIN` repository variable, never a workflow
+comes from the approved `PLATES_WEB_ORIGIN` repository variable (with `KEEL_WEB_ORIGIN` as a
+transition fallback), never a workflow
 input. Private registrations pin numeric project/workflow identities and the
-trusted workflow, bridge and runtime source bytes.
+trusted workflow, bridge and runtime source bytes. Previously registered legacy
+Keel workflow bytes remain accepted only as the exact reviewed legacy template;
+all immutable source pins are still checked.
 
 ## Prepare a private worker registration
 
 The initial dispatch adapter accepts the exact canonical contributor workflow in
-Keel's [typecheck workflow](../../.github/workflows/typecheck.yml), together with
+Plates's [typecheck workflow](../../.github/workflows/typecheck.yml), together with
 its [bridge](../../scripts/web-worker.mjs) and
 [worker runtime](../../lib/web/job-worker.mjs). These are not installed by a
 managed practice. Review and copy all three into the approved project at those
@@ -178,7 +181,7 @@ minutes remain separate owner-approved setup steps.
 A separate schedule-only adapter can expose an existing project-owned typecheck
 cron without enabling dispatch. Its supported source shape has a known timeout
 and constant concurrency group that does not cancel in-progress runs. It preserves
-unrelated bytes. Keel-managed workflow paths remain unavailable for direct editing
+unrelated bytes. Plates-managed workflow paths remain unavailable for direct editing
 because their generator owns the source.
 
 The real exercise separately verifies one approved bounded dispatch, reconnect

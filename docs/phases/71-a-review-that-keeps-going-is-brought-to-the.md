@@ -6,7 +6,7 @@ since: 2026-10-12
 goal: G0
 spec: 2
 depends: [48]
-note: "Built 2026-10-12: keel review counts rounds, exits 3 at the limit with findings sorted by the merge rule, and --class sorts a finding without answering it. The owner's read of the first real PR past three rounds remains."
+note: "Built 2026-10-12: plates review counts rounds, exits 3 at the limit with findings sorted by the merge rule, and --class sorts a finding without answering it. The owner's read of the first real PR past three rounds remains."
 evidence: ["evidence/2026-10-12-review-rounds.md"]
 issue: 114
 ---
@@ -15,43 +15,43 @@ issue: 114
 
 ## Done when
 
-keel counts a PR's review rounds, and past the limit (three by default) `keel review` stops the fix-and-push loop and gives the owner the choice (merge with the rest tracked, split, or close), with each open finding sorted by the merge rule.
+plates counts a PR's review rounds, and past the limit (three by default) `plates review` stops the fix-and-push loop and gives the owner the choice (merge with the rest tracked, split, or close), with each open finding sorted by the merge rule.
 
 ## Scope
 
 The design is [Claims, and reviews that end](../research/2026-10-12-claims-and-review-rounds.md), phase 71. On 2026-10-10 #59 went about ten review rounds, and #85, #95 and #98 four or more.
 
-- **A round**: one push answered by a reviewer with at least one finding, counted from the reviews `keel review` already reads.
-- **The limit**: `"review": {"rounds": 3}` in `.keel/keel.json`; three when unset.
-- **Past the limit**: `keel review <pr>` exits 3 and prints the choice. Under "merge with the rest tracked" it lists each open finding as **fix first** (a security hole, overwrites the owner's files, or skips an approval) or **track** (needs an issue with its known limit).
-- **The class**: a session that has read a finding names its kind with `keel review <pr> --class security|overwrite|approval|other <ids>`, which records the class and leaves the finding unanswered. `--close` takes `--class` too. keel records and shows it, and never infers it from the text.
+- **A round**: one push answered by a reviewer with at least one finding, counted from the reviews `plates review` already reads.
+- **The limit**: `"review": {"rounds": 3}` in `.plates/plates.json`; three when unset.
+- **Past the limit**: `plates review <pr>` exits 3 and prints the choice. Under "merge with the rest tracked" it lists each open finding as **fix first** (a security hole, overwrites the owner's files, or skips an approval) or **track** (needs an issue with its known limit).
+- **The class**: a session that has read a finding names its kind with `plates review <pr> --class security|overwrite|approval|other <ids>`, which records the class and leaves the finding unanswered. `--close` takes `--class` too. plates records and shows it, and never infers it from the text.
 - **The board**: a PR past its limit is the owner's item, with the round count and open findings.
 - **The skill**: the conduct skill stops pushing fixes at the limit and reports. It never merges.
 
-Not in scope: keel merging anything, or judging a finding's class.
+Not in scope: plates merging anything, or judging a finding's class.
 
 ## Acceptance
 
-- [x] `keel review` counts rounds: a push with findings is one, a push the reviewer passed is none, and two reviewers on one push are one round. `tests/review-rounds.test.mjs`
-- [x] At the limit, `keel review <pr>` exits 3 with the three choices; under it, exit codes are as before. `"review": {"rounds": N}` changes the limit, and a bad value is refused naming the key. `tests/review-rounds.test.mjs`
+- [x] `plates review` counts rounds: a push with findings is one, a push the reviewer passed is none, and two reviewers on one push are one round. `tests/review-rounds.test.mjs`
+- [x] At the limit, `plates review <pr>` exits 3 with the three choices; under it, exit codes are as before. `"review": {"rounds": N}` changes the limit, and a bad value is refused naming the key. `tests/review-rounds.test.mjs`
 - [x] `--class` alone records the class and leaves the finding unanswered: `--gate` still fails on it. With `--close` it is recorded with the answer. `tests/review-rounds.test.mjs`
 - [x] A finding that arrives in the round that reaches the limit, classed and unanswered, is listed under "fix first" or "track"; an open finding with no class is listed as unsorted, never as "track". `tests/review-rounds.test.mjs`
 - [x] The board shows a PR past its limit as the owner's, and the conduct skill names the rule. `tests/board.test.mjs`, `tests/skill.test.mjs`
-- [ ] ⚑ by hand: the next keel PR to pass three rounds reaches the owner with a sorted list, and the owner says whether the list was enough to decide.
+- [ ] ⚑ by hand: the next plates PR to pass three rounds reaches the owner with a sorted list, and the owner says whether the list was enough to decide.
 
 ## Your part
 
-- **Ask:** The next time a keel change is still drawing review comments after three rounds, read the list keel gives you and pick one: merge with the rest tracked, split it, or close it.
+- **Ask:** The next time a plates change is still drawing review comments after three rounds, read the list plates gives you and pick one: merge with the rest tracked, split it, or close it.
 - **Why:** On 2026-10-10 one change went ten rounds before anyone decided; this puts the decision in front of you at three.
-- **Look at:** `keel review <the PR>`, which prints the choice and the sorted findings.
+- **Look at:** `plates review <the PR>`, which prints the choice and the sorted findings.
 - **Choices:** The list was enough to decide | I had to read the threads myself
 - **Takes:** 10 minutes.
 - **Then:** Enough: the phase is built. Not enough: what was missing goes into the list.
-- **Ready when:** a keel PR has passed three review rounds after this ships.
+- **Ready when:** a plates PR has passed three review rounds after this ships.
 
 ## Real surfaces
 
-- Owner's machine: `keel review` on keel's own PRs.
+- Owner's machine: `plates review` on plates's own PRs.
 - GitHub API: the reviews it already reads.
 
 ## Proof
@@ -62,9 +62,9 @@ By hand: one real PR past the limit, read by the owner.
 ## Deliberately open
 
 - **Three** is a guess from one day's PRs. Settled by the first few PRs that reach it.
-- **Whether the limit also holds the release's review gate**: no, for now. `keel review --gate` still asks only that every comment is answered and the head is reviewed. Revisited after the owner's walk.
+- **Whether the limit also holds the release's review gate**: no, for now. `plates review --gate` still asks only that every comment is answered and the head is reviewed. Revisited after the owner's walk.
 - **Known limit**: the class is the classifying session's word. A finding wrongly marked "other" is tracked instead of fixed; the owner reads the list before merging. A reviewer that reviews every push makes three rounds pass in an hour; the limit counts rounds, not time.
 
 ## Next action
 
-⚑ Owner: the walk in Your part, on the next keel PR that passes three review rounds. The build is done and its five automated boxes are proven by `tests/review-rounds.test.mjs`, `tests/board.test.mjs` and `tests/skill.test.mjs`.
+⚑ Owner: the walk in Your part, on the next plates PR that passes three review rounds. The build is done and its five automated boxes are proven by `tests/review-rounds.test.mjs`, `tests/board.test.mjs` and `tests/skill.test.mjs`.

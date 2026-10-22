@@ -1,17 +1,17 @@
-// The night in a box's world (keel phase 86), loaded with --import into every
+// The night in a box's world (plates phase 86), loaded with --import into every
 // node a box's workflow step starts (NODE_OPTIONS): a frozen clock and no
 // network. tests/night-box.test.mjs runs the shipped workflows' own shell, in
 // which node reads the clock (the morning decides by it, improve and climb
 // date their pages and picks by it), so the clock is frozen where it is read
-// rather than passed in: KEEL_BOX_NOW, an ISO time, is what `new Date()` and
+// rather than passed in: PLATES_BOX_NOW, an ISO time, is what `new Date()` and
 // `Date.now()` say. Any socket to a host, a DNS lookup or a fetch throws: a
 // box that reaches the network fails, naming it, instead of passing on a
 // machine that happens to be online.
 import net from 'node:net';
 import dns from 'node:dns';
 
-const at = Date.parse(process.env.KEEL_BOX_NOW ?? '');
-if (!Number.isFinite(at)) throw new Error(`night box: KEEL_BOX_NOW is not a time (${JSON.stringify(process.env.KEEL_BOX_NOW)})`);
+const at = Date.parse(process.env.PLATES_BOX_NOW ?? '');
+if (!Number.isFinite(at)) throw new Error(`night box: PLATES_BOX_NOW is not a time (${JSON.stringify(process.env.PLATES_BOX_NOW)})`);
 
 const Real = Date;
 class Frozen extends Real {

@@ -5,18 +5,18 @@
   "requires": [],
   "files": [
     {
-      "path": "scripts/keel/reconcile.mjs",
-      "from": "scripts/keel/reconcile.mjs",
+      "path": "scripts/plates/reconcile.mjs",
+      "from": "scripts/plates/reconcile.mjs",
       "kind": "managed"
     },
     {
-      "path": "scripts/keel/decision-context.mjs",
-      "from": "scripts/keel/decision-context.mjs",
+      "path": "scripts/plates/decision-context.mjs",
+      "from": "scripts/plates/decision-context.mjs",
       "kind": "managed"
     },
     {
-      "path": ".github/workflows/keel-impact.yml",
-      "from": ".github/workflows/keel-impact.yml",
+      "path": ".github/workflows/plates-impact.yml",
+      "from": ".github/workflows/plates-impact.yml",
       "kind": "managed"
     },
     {

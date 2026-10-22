@@ -149,7 +149,7 @@ test('writer lock, lost receipts, symlink state, unsafe URLs and legacy canvases
   f.remote.native = false;
   await assert.rejects(f.attach(), { code: 'unsupported' });
   f.remote.native = true; await f.attach();
-  const lock = join(f.root, '.keel/canvas/sync.lock');
+  const lock = join(f.root, '.plates/canvas/sync.lock');
   await writeFile(lock, '{}');
   await assert.rejects(canvasSync({ root: f.root, cards: cards(), yes: true }, { transport: f.transport }), { code: 'locked' });
   await rm(lock);
@@ -203,7 +203,7 @@ test('real collector → renderer → sync ignores only collection clocks and pu
   const initial = await read(manifestPath(f.root));
   assert.ok(initial.items.snapshot);
   assert.equal(initial.history.length, 1);
-  const savedPath = join(f.root, '.keel/canvas/history', initial.lastSuccess.snapshot.path);
+  const savedPath = join(f.root, '.plates/canvas/history', initial.lastSuccess.snapshot.path);
   const savedBytes = await readFile(savedPath, 'utf8');
   assert.equal(JSON.parse(savedBytes).generatedAt, first.generatedAt);
   assert.equal(initial.receipts.filter(r => r.kind === 'add').at(-1).key, 'pulse');
@@ -222,7 +222,7 @@ test('real collector → renderer → sync ignores only collection clocks and pu
   assert.notEqual(updated.items.snapshot.itemId, initial.items.snapshot.itemId);
   assert.equal(updated.history.length, 2);
   assert.equal(await readFile(savedPath, 'utf8'), savedBytes);
-  const enriched = await read(join(f.root, '.keel/canvas/history', updated.lastSuccess.snapshot.path));
+  const enriched = await read(join(f.root, '.plates/canvas/history', updated.lastSuccess.snapshot.path));
   assert.equal(enriched.history.firstObservedAt, first.generatedAt, 'persisted historical origins are factual');
   assert.equal(enriched.history.snapshots, 1, 'saved observations feed the real collector reducer');
   const changedAdds = f.remote.adds;
@@ -238,7 +238,7 @@ test('history is integrity-checked, belongs to the binding, and is pruned locall
   const earlier = await snapshot({ root: f.root, now: '2026-06-01T12:00:00Z' });
   await sync({ root: f.root, snapshot: earlier, yes: true }, { transport: f.transport });
   const first = await read(manifestPath(f.root));
-  const oldFile = join(f.root, '.keel/canvas/history', first.lastSuccess.snapshot.path);
+  const oldFile = join(f.root, '.plates/canvas/history', first.lastSuccess.snapshot.path);
   const bytes = await readFile(oldFile, 'utf8');
   await writeFile(oldFile, bytes + ' ');
   await assert.rejects(loadCanvasHistory({ root: f.root, manifest: first, projectKey: earlier.project.key, at: '2026-06-02T12:00:00Z' }), { code: 'conflict' });
@@ -264,7 +264,7 @@ test('successful saved source snapshots become a real accepted Loop cohort on th
   assert.equal(current.metrics.find(m => m.id === 'loop-completion-rate').value, null);
   await sync({ root: f.root, snapshot: current, yes: true }, { transport: f.transport });
   const manifest = await read(manifestPath(f.root));
-  const enriched = await read(join(f.root, '.keel/canvas/history', manifest.lastSuccess.snapshot.path));
+  const enriched = await read(join(f.root, '.plates/canvas/history', manifest.lastSuccess.snapshot.path));
   const rate = enriched.metrics.find(m => m.id === 'loop-completion-rate');
   assert.equal(rate.value, 1); assert.equal(rate.denominator, 1);
   assert.equal(rate.baselineAt, earlier.generatedAt);
@@ -340,7 +340,7 @@ test('moving to live is previewed and writes only the binding; the first live pu
   const sent = f.remote.edits[0];
   assert.equal(sent.ifVersion, journal.items.pulse.versionId);
   assert.equal(sent.ifMeta.title, 'Acme pulse');
-  assert.match(sent.ifMeta.properties.file, /\.md$/, 'the expected metadata is what the card carries, not only what keel set');
+  assert.match(sent.ifMeta.properties.file, /\.md$/, 'the expected metadata is what the card carries, not only what plates set');
   assert.equal(sent.title, undefined, 'an unchanged title is not rewritten');
   const after = await read(manifestPath(f.root));
   assert.equal(after.items.pulse.itemId, journal.items.pulse.itemId, 'one stable item id');
@@ -357,7 +357,7 @@ test('moving to live is previewed and writes only the binding; the first live pu
   const second = await f.publish(retitled);
   assert.equal(second.data.state, 'published');
   assert.deepEqual(second.data.changes.map(c => c.action), ['edit-live']);
-  assert.equal(f.remote.edits[1].ifVersion, after.items.pulse.versionId, 'the next edit is conditional on the version keel recorded');
+  assert.equal(f.remote.edits[1].ifVersion, after.items.pulse.versionId, 'the next edit is conditional on the version plates recorded');
   assert.deepEqual(f.remote.edits[1].ifMeta, after.items.pulse.meta);
   assert.equal(f.remote.edits[1].ifMeta.properties['keel.operation'], sent.operationId);
   assert.equal(f.remote.edits[1].title, 'Acme pulse, week 42', 'title rides in the same act');
@@ -403,7 +403,7 @@ test('conflict by version: a person\'s edit wins, nothing more is written, the r
   const f = await liveFixture(t); await f.goLive();
   await f.publish(pulseAt(41));
   const pulse = await f.pulse(), base = pulse.currentVersionId;
-  // The person lands their version after keel's read and before its edit.
+  // The person lands their version after plates's read and before its edit.
   f.remote.beforeEdit = async () => { pulse.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); pulse.currentVersionId = 'ver_person'; };
   const next = pulseAt(42); next[0].source += 'New evidence.\n';
   const refused = await f.publish(next);
@@ -413,9 +413,9 @@ test('conflict by version: a person\'s edit wins, nothing more is written, the r
   const seen = refused.data.attention[0];
   assert.deepEqual([seen.key, seen.itemId, seen.reason, seen.seen, seen.expectedVersionId, seen.currentVersionId, seen.title], ['pulse', pulse.id, 'version', 'edit', base, 'ver_person', 'Acme pulse']);
   assert.deepEqual(seen.properties, pulse.properties);
-  assert.match(seen.next, /keel canvas rebase --onto ver_person --yes/);
+  assert.match(seen.next, /plates canvas rebase --onto ver_person --yes/);
   assert.match(refused.text, /conflict/);
-  assert.equal(pulse.currentVersionId, 'ver_person'); assert.equal(pulse.versions.length, 3, 'keel stacked nothing over the person');
+  assert.equal(pulse.currentVersionId, 'ver_person'); assert.equal(pulse.versions.length, 3, 'plates stacked nothing over the person');
   const journal = await read(manifestPath(f.root));
   assert.equal(journal.pending, null);
   assert.equal(journal.items.pulse.versionId, base, 'the person\'s version did not become the base');
@@ -452,7 +452,7 @@ test('conflict by version: a person\'s edit wins, nothing more is written, the r
   assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).data.state, 'unchanged');
 });
 
-test('conflict by metadata: a rename or re-tag refuses even though the version is the one keel read', async t => {
+test('conflict by metadata: a rename or re-tag refuses even though the version is the one plates read', async t => {
   await t.test('caught by the home, mid-edit', async t => {
     const f = await liveFixture(t); await f.goLive();
     await f.publish(pulseAt(41));
@@ -647,7 +647,7 @@ test('a replayed edit records the version that landed, and a person\'s change ma
   assert.equal(f.remote.edits.length, 2); assert.equal(pulse.versions.length, 3);
 });
 
-test('an applied edit a person changes before keel reads it back is not reported as a clean publication', async t => {
+test('an applied edit a person changes before plates reads it back is not reported as a clean publication', async t => {
   const f = await liveFixture(t); await f.goLive({ keep: 2 });
   const pulse = await f.pulse(), before = (await read(manifestPath(f.root))).lastSuccess;
   f.remote.afterEdit = async () => { pulse.title = 'A person renamed this at once'; };
@@ -666,7 +666,7 @@ test('a pulse a person changes after live is enabled, before its first live sync
   const pulse = await f.pulse(), journal = await read(manifestPath(f.root));
   pulse.versions.push({ id: 'ver_person', blobHash: digest('A person wrote this') }); pulse.currentVersionId = 'ver_person'; pulse.title = 'A person renamed this';
   const frozen = snapshotOf(f.remote);
-  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /plates canvas rebase --onto <version-id> --yes/); return true; });
   assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).exitCode, 3, 'the refusal has a way out');
   const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
   assert.deepEqual([preview.data.state, preview.data.changes[0].action, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].recorded.versionId, preview.data.changes[0].current.versionId, preview.data.changes[0].current.title],
@@ -703,23 +703,23 @@ test('a property a person adds before the first live sync refuses adoption and i
   const pulse = await f.pulse(), journal = await read(manifestPath(f.root));
   pulse.properties = { ...pulse.properties, reviewed: 'yes' };
   const frozen = snapshotOf(f.remote);
-  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /A person changed the pulse card.*keel canvas rebase --onto <version-id> --yes/); return true; });
+  await assert.rejects(f.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /A person changed the pulse card.*plates canvas rebase --onto <version-id> --yes/); return true; });
   assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, 0); assert.equal(f.remote.adds, 2);
   assert.deepEqual(await read(manifestPath(f.root)), journal, 'the changed metadata did not become the base');
   const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
   assert.deepEqual([preview.exitCode, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].current.properties.reviewed], [3, true, 'yes']);
   assert.equal((await canvasRebase({ root: f.root, yes: true, onto: pulse.currentVersionId }, { transport: f.transport })).data.state, 'rebased');
   assert.equal(snapshotOf(f.remote), frozen, 're-basing writes nothing remote');
-  assert.equal((await f.publish(cards())).data.state, 'unchanged', 'keel\'s content is still on the card: nothing to send');
+  assert.equal((await f.publish(cards())).data.state, 'unchanged', 'plates\'s content is still on the card: nothing to send');
   assert.equal(f.remote.edits.length, 0);
   assert.equal((await f.publish(pulseAt(41))).data.state, 'published');
   assert.equal(f.remote.edits[0].ifMeta.properties.reviewed, 'yes');
-  assert.deepEqual(Object.keys(f.remote.edits[0].properties).sort(), ['keel.hash', 'keel.operation'], 'keel sets only its own properties');
-  assert.equal(pulse.properties.reviewed, 'yes', 'the person\'s property survives keel\'s edit');
+  assert.deepEqual(Object.keys(f.remote.edits[0].properties).sort(), ['keel.hash', 'keel.operation'], 'plates sets only its own properties');
+  assert.equal(pulse.properties.reviewed, 'yes', 'the person\'s property survives plates\'s edit');
   assert.match(pulse.properties.file, /\.md$/); assert.equal(f.remote.adds, 2);
 });
 
-test('a receipt from before keel recorded full metadata is never assumed unchanged: adoption needs the explicit re-base', async t => {
+test('a receipt from before plates recorded full metadata is never assumed unchanged: adoption needs the explicit re-base', async t => {
   const f = await liveFixture(t);
   const old = await read(manifestPath(f.root));
   delete old.items.pulse.meta; for (const r of old.receipts) delete r.meta;
@@ -727,7 +727,7 @@ test('a receipt from before keel recorded full metadata is never assumed unchang
   const enabling = await f.goLive();
   assert.deepEqual(enabling.data.changes.map(c => [c.action, c.reason]), [['set-mode', undefined], ['rebase-before-first-sync', 'unrecorded-metadata']]);
   const pulse = await f.pulse(), frozen = snapshotOf(f.remote);
-  for (const next of [cards(), pulseAt(41)]) await assert.rejects(f.publish(next), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /before keel recorded its full metadata.*keel canvas rebase --onto <version-id> --yes/); return true; });
+  for (const next of [cards(), pulseAt(41)]) await assert.rejects(f.publish(next), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /before plates recorded its full metadata.*plates canvas rebase --onto <version-id> --yes/); return true; });
   assert.equal(snapshotOf(f.remote), frozen); assert.equal(f.remote.edits.length, 0); assert.equal(f.remote.adds, 2);
   const preview = await canvasRebase({ root: f.root }, { transport: f.transport });
   assert.deepEqual([preview.exitCode, preview.data.changes[0].awaitingAdoption, preview.data.changes[0].unrecordedMetadata, preview.data.changes[0].current.versionId], [3, true, true, pulse.currentVersionId]);
@@ -746,7 +746,7 @@ test('a receipt with recorded, unchanged metadata adopts on the first live sync 
   assert.deepEqual((await f.goLive()).data.changes.map(c => c.action), ['set-mode', 'adopt-live-on-first-sync']);
   assert.equal((await canvasRebase({ root: f.root }, { transport: f.transport })).data.state, 'unchanged', 'nothing to re-base');
   assert.equal((await f.publish(pulseAt(41))).data.state, 'published');
-  assert.deepEqual(f.remote.edits[0].ifMeta, journal.items.pulse.meta, 'the condition is what keel recorded, not what it finds');
+  assert.deepEqual(f.remote.edits[0].ifMeta, journal.items.pulse.meta, 'the condition is what plates recorded, not what it finds');
   assert.equal(f.remote.edits.length, 1); assert.equal(f.remote.adds, 2);
 });
 
@@ -779,7 +779,7 @@ test('live --card is previewed, validated and replaces the list; without it the 
   // No --card: the list is left alone.
   assert.equal((await f.goLive({ keep: 5 })).data.changes.some(c => c.action === 'set-live-cards'), false);
   assert.deepEqual((await read(configPath(f.root))).canvas.liveKeys, [LOOP]);
-  // A hand-edited list keel cannot read is refused, never guessed at.
+  // A hand-edited list plates cannot read is refused, never guessed at.
   const config = await read(configPath(f.root));
   await writeFile(configPath(f.root), JSON.stringify({ ...config, canvas: { ...config.canvas, liveKeys: 'loop' } }));
   await assert.rejects(f.publish(week('2026-10-12')), { code: 'state' });
@@ -790,7 +790,7 @@ test('live --card is previewed, validated and replaces the list; without it the 
   assert.equal((await read(configPath(g.root))).canvas.liveKeys, undefined);
 });
 
-test('a caller-supplied live key is created exactly once, then edited in place week after week with keel\'s own changing title; an unlisted key in the same sync is still a new card', async t => {
+test('a caller-supplied live key is created exactly once, then edited in place week after week with plates\'s own changing title; an unlisted key in the same sync is still a new card', async t => {
   const f = await loopFixture(t); await f.goLive({ cards: [LOOP] });
   const legacy = f.remote.items.get('itm_card_1'), legacyBefore = JSON.stringify(legacy);
   const first = await f.publish(week('2026-10-12'));
@@ -809,7 +809,7 @@ test('a caller-supplied live key is created exactly once, then edited in place w
   assert.deepEqual([f.remote.edits[0].ifVersion, f.remote.edits[0].ifMeta.title, f.remote.edits[0].title], [created.versionId, 'Loop across projects · 2026-10-12', 'Loop across projects · 2026-10-19']);
   assert.equal(card.title, 'Loop across projects · 2026-10-19'); assert.equal(card.versions.length, 2);
 
-  // Keel's own retitle last week is the recorded base, not a person's rename.
+  // Plates's own retitle last week is the recorded base, not a person's rename.
   const third = await f.publish(week('2026-10-26'));
   assert.equal(third.data.state, 'published'); assert.equal(third.exitCode, 0);
   assert.deepEqual([f.remote.edits[1].ifMeta.title, f.remote.edits[1].title], ['Loop across projects · 2026-10-19', 'Loop across projects · 2026-10-26']);
@@ -867,7 +867,7 @@ test('live --off after a person edited a live card retires it: status clears and
   assert.equal((await canvasLive({ root: f.root, off: true, yes: true }, { transport: f.transport })).data.state, 'immutable');
   assert.equal(snapshotOf(f.remote), frozen, 'turning live off writes nothing remote');
   const after = await read(manifestPath(f.root));
-  assert.equal(after.items.pulse, undefined, 'keel no longer owns the card a person kept');
+  assert.equal(after.items.pulse, undefined, 'plates no longer owns the card a person kept');
   assert.deepEqual([after.retired.length, after.retired[0].itemId, after.retired[0].conflict.currentVersionId], [1, pulse.id, 'ver_person']);
   assert.deepEqual(after.receipts, journal.receipts, 'its receipts are kept');
   const status = await canvasStatus({ root: f.root });
@@ -918,13 +918,13 @@ test('an add that lands and then times out in live mode recovers as the live car
   assert.equal(f.remote.adds, 2); assert.equal(f.remote.edits.length, 1); assert.equal(pulse.versions.length, 2);
 
   // The card sat unobserved between landing and recovery. A property that is
-  // neither keel's nor isocan's own file tag is not assumed to be nobody's.
+  // neither plates's nor isocan's own file tag is not assumed to be nobody's.
   const g = await fixture(t); await g.attach(); await g.goLive();
   g.remote.afterAdd = async () => { if (g.remote.adds === 2) throw new CanvasError('timeout', 'timeout', 1); };
   await assert.rejects(g.publish(cards()), { code: 'timeout' });
   g.remote.afterAdd = null;
   const tagged = g.remote.items.get('itm_card_2'); tagged.properties = { ...tagged.properties, reviewed: 'yes' };
-  await assert.rejects(g.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+  await assert.rejects(g.publish(pulseAt(41)), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /plates canvas rebase --onto <version-id> --yes/); return true; });
   assert.equal((await read(manifestPath(g.root))).items.pulse.meta, undefined);
   assert.equal(g.remote.adds, 2); assert.equal(g.remote.edits.length, 0); assert.equal(tagged.properties.reviewed, 'yes');
 });
@@ -974,7 +974,7 @@ test('a live key dropped after a property-only edit, with no sync in between, re
     card.properties = { ...card.properties, reviewed: 'yes' };
     const enabling = await f.goLive({ cards: [LOOP] });
     assert.deepEqual(enabling.data.changes.filter(c => c.key === LOOP).map(c => [c.action, c.reason]), [['rebase-before-first-sync', 'changed']]);
-    await assert.rejects(f.publish(week('2026-10-19')), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /keel canvas rebase --onto <version-id> --yes/); return true; });
+    await assert.rejects(f.publish(week('2026-10-19')), error => { assert.equal(error.code, 'conflict'); assert.match(error.message, /plates canvas rebase --onto <version-id> --yes/); return true; });
     assert.equal(f.remote.edits.length, 0); assert.equal(card.versions.length, 1); assert.equal(card.properties.reviewed, 'yes');
   });
 });
@@ -1000,7 +1000,7 @@ test('phase 77: tonight\'s plan renders as one live card night-plan, each tick e
   const card = f.remote.items.get(owned.itemId);
   assert.equal(owned.live, true); assert.equal(card.title, `Tonight's plan · ${NIGHT}`);
   assert.equal((await publish()).data.state, 'unchanged', 'an unticked plan writes nothing');
-  // Each tick: the same card, one conditional edit against the version keel recorded.
+  // Each tick: the same card, one conditional edit against the version plates recorded.
   for (const [id, status, n] of [['measures', 'done', 1], ['climb-perf', 'running', 2], ['climb-perf', 'done', 3]]) {
     await tick({ root: f.root, id, status, ...(status === 'done' && id === 'climb-perf' ? { link: 'https://github.com/acme/anvils/pull/21' } : {}) });
     const out = await publish();

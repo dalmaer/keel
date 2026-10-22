@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G4
 spec: 2
 depends: [33]
-note: "Built: scripts/keel/test-ledger.mjs --junit reads bun's and vitest's JUnit XML into the node ledger's record (plus runner and a hash of the file), with the same no-tests rule and hygiene block; the runner is in the config hash and the lane; adopt records the runner and proposes the gate line; doctor lints \"tests\". Owes the walk: a week of records on one bun project and one vitest project, read by the owner. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "Built: scripts/plates/test-ledger.mjs --junit reads bun's and vitest's JUnit XML into the node ledger's record (plus runner and a hash of the file), with the same no-tests rule and hygiene block; the runner is in the config hash and the lane; adopt records the runner and proposes the gate line; doctor lints \"tests\". Owes the walk: a week of records on one bun project and one vitest project, read by the owner. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 46
 ---
@@ -20,8 +20,8 @@ A project whose tests run on `bun test` or vitest gets the same ledger records a
 
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 2.
 
-- **The runners**: `.keel/keel.json` `"tests": { "runner": "node" | "bun" | "vitest", "junit": "<path>" }`. Adopt detects it (a `bun test` or `vitest` in the gate) and records it.
-- **The record**: `scripts/keel/test-ledger.mjs --junit <file>` turns JUnit XML (`bun test --reporter=junit --reporter-outfile`, vitest's `--reporter=junit --outputFile`) into the ledger's record, with the same `commit`, `tree`, `dirty`, `machine`, `config` and `setting` as a node run. "No tests ran" holds the same way.
+- **The runners**: `.plates/plates.json` `"tests": { "runner": "node" | "bun" | "vitest", "junit": "<path>" }`. Adopt detects it (a `bun test` or `vitest` in the gate) and records it.
+- **The record**: `scripts/plates/test-ledger.mjs --junit <file>` turns JUnit XML (`bun test --reporter=junit --reporter-outfile`, vitest's `--reporter=junit --outputFile`) into the ledger's record, with the same `commit`, `tree`, `dirty`, `machine`, `config` and `setting` as a node run. "No tests ran" holds the same way.
 - **The gate**: adopt proposes the reporter flags for the project's gate (it never rewrites the gate silently).
 - **Unchanged for node**: the node reporter stays as it is.
 
@@ -36,7 +36,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 ## Your part
 
 - **Ask:** After a week, read the test-hygiene line on one project that uses Bun and one that uses vitest, and say whether it named the right flaky or slow tests.
-- **Why:** It is the first time keel's test memory works outside Node's own runner.
+- **Why:** It is the first time plates's test memory works outside Node's own runner.
 - **Look at:** Each project's newest health page, the flaky and slow tests line.
 - **Choices:** Right | Missed some | Wrong
 - **Takes:** 10 minutes.

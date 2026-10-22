@@ -5,10 +5,48 @@ import { projectHarness } from './helpers/web-projects.mjs';
 import { createProjectReader } from '../lib/web/projects.mjs';
 import { createHomeStore } from '../lib/web/home-store.mjs';
 import { dailyBudget, draftProblems, planRecord, homeDaily } from '../lib/web/daily-model.mjs';
-import { readiness, furthestItems } from '../practices/night/files/scripts/keel/morning.mjs';
+import { readiness, furthestItems } from '../practices/night/files/scripts/plates/morning.mjs';
 import { gitBlob } from '../lib/web/decision-github.mjs';
 const inspect = h => h.daily.inspect(h.access, token, h.project, '2026-10-21');
 const branch = (h, name, plan, digit) => { h.source.branches[name] = { head: digit.repeat(40), files: { [name === 'keel-night-plan' ? '.keel/night/plan.json' : `docs/night/${plan.date}.json`]: JSON.stringify(plan) } }; };
+
+test('daily config prefers Plates, falls back only on tree absence and preserves configured health paths', async () => {
+  for (const legacy of [false, true]) {
+    const h = dailyHarness(), cfg = JSON.parse(h.source.files['.plates/plates.json']);
+    cfg.health = 'observations/health';
+    h.source.files[legacy ? '.keel/keel.json' : '.plates/plates.json'] = JSON.stringify(cfg);
+    if (legacy) delete h.source.files['.plates/plates.json'];
+    else h.source.files['.keel/keel.json'] = '{invalid legacy';
+    for (const date of ['2026-10-21', '2026-10-22']) {
+      h.source.files[`observations/health/${date}.md`] = h.source.files[`docs/health/${date}.md`];
+      delete h.source.files[`docs/health/${date}.md`];
+    }
+    const model = await inspect(h);
+    assert.equal(model.budget.lanes.find(l => l.id === 'climb').configuredMinutes, 45);
+    assert.equal(model.measurements.before.rows[0].value, 30);
+    assert.equal(model.measurements.after.rows[0].value, 18);
+    assert.equal(model.capabilities.cli, 'plates goodnight');
+  }
+});
+
+test('daily never falls back from malformed or denied canonical config to a legacy budget', async () => {
+  const { createDaily } = await import('../lib/web/daily.mjs');
+  for (const failure of ['malformed', 403, 404]) {
+    const h = dailyHarness();
+    h.source.files['.keel/keel.json'] = JSON.stringify({ climb: { jobs: ['test-time'], budget: { minutes: 999 } } });
+    if (failure === 'malformed') h.source.files['.plates/plates.json'] = '{broken';
+    const canonical = gitBlob(h.source.files['.plates/plates.json']), legacy = gitBlob(h.source.files['.keel/keel.json']);
+    let legacyReads = 0;
+    const daily = createDaily(h.config, { now: () => h.state.now, fetcher: (url, options) => {
+      if (url.endsWith('/git/blobs/' + legacy)) legacyReads++;
+      if (failure !== 'malformed' && url.endsWith('/git/blobs/' + canonical)) return Promise.resolve(Response.json({}, { status: failure }));
+      return h.fetcher(url, options);
+    } });
+    await assert.rejects(daily.inspect(h.access, token, h.project, '2026-10-21'), e => e.code === (failure === 'malformed' ? 'configuration_unavailable' : 'access_denied'));
+    assert.equal(legacyReads, 0);
+    assert.deepEqual(h.source.writes, []);
+  }
+});
 
 test('daily reads canonical sources at immutable revisions and preserves overdue work, original ticks and measured values', async () => {
   const h = dailyHarness(), model = await inspect(h);

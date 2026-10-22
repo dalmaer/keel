@@ -1,4 +1,4 @@
-# Try operating the fleet from the web
+# Try looking after your plates from the web
 
 This is the phase108 owner worksheet. Use it with the
 [visual tour](web-tour.md), [operation coverage guide](web-operation-experience.md)
@@ -15,7 +15,7 @@ provider spending, repository access or a backup destination.
 ## Start from Home
 
 On the phone, open Home and find a decision, a guided test and a recent addition.
-Switch to each selected project and back to Fleet. Follow source links and note
+Switch to each selected project and back to All plates. Follow source links and note
 stale or unavailable coverage. Keep a card open while a refresh becomes available;
 check that you can review it before adopting new data. Repeat on desktop using
 the same records. Record where you needed a terminal or could not find a next
@@ -66,7 +66,7 @@ Never manufacture a production failure merely to tick a box. If a condition
 cannot be exercised safely within the approved trial, record **Cannot check yet**
 and the prerequisite.
 
-## Restore the fleet records
+## Restore the project records
 
 Follow the [workspace recovery procedure](web-recovery.md) first. Include worker
 jobs/fences, update stages, model tasks/reservations, native retry requests and

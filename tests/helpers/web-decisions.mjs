@@ -6,7 +6,7 @@ export const shapeRecord=()=>({version:1,id:'acme-shape',revision:1,date:'2026-1
 export function decisionHarness() {
  const h=harness(),db=decisionDatabase(()=>h.state.now),config={...h.config,decisionWrites:true};
  const state={repoId:102,repositoryNodeId:'R_acme_102',branchNodeId:'REF_acme_102_main',repoName:'acme/studio',refMissing:false,graphRequests:[],oldNameReads:0,head:'b'.repeat(40),private:false,push:true,mode:'success',writes:[],commits:[],revisions:{},hold:null,
-  files:{'.keel/keel.json':JSON.stringify({name:'Acme Studio',repo:'acme/studio',practices:['shaping']}),'docs/health/2026-10-21.md':'# Acme health\n\n## Proposal\n\nImprove the Acme search order.\n\n## Notes\n\nKeep the original context.\n','design/acme-shape.json':JSON.stringify(shapeRecord())}};
+  files:{'.plates/plates.json':JSON.stringify({name:'Acme Studio',repo:'acme/studio',practices:['shaping']}),'docs/health/2026-10-21.md':'# Acme health\n\n## Proposal\n\nImprove the Acme search order.\n\n## Notes\n\nKeep the original context.\n','design/acme-shape.json':JSON.stringify(shapeRecord())}};
  h.state.contentsPermission='write';
  const access={userId:1,contentsPermission:'write',workspace:{id:'acme',name:'Acme'},sourceRevision:'a'.repeat(40),projects:[{id:'studio',repoId:102,repo:'acme/studio'}]},project=access.projects[0];
  const fetcher=async(url,options)=>{

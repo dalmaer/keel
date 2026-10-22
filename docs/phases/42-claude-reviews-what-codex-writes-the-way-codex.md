@@ -4,7 +4,7 @@ since: 2026-10-07
 goal: G2
 spec: 2
 depends: [39, 41]
-note: "Built and used: the cross-review practice (read-only tools, findings as JSON keel posts, a COMMENT review, budgeted). Its first real review (Claude on Codex's ledger#92) found a valid P2, a token escape in the tend agent, fixed in 10c59b5; the owner judged it (2026-10-07). Since phase 45 Codex reviews Claude's PRs too."
+note: "Built and used: the cross-review practice (read-only tools, findings as JSON plates posts, a COMMENT review, budgeted). Its first real review (Claude on Codex's ledger#92) found a valid P2, a token escape in the tend agent, fixed in 10c59b5; the owner judged it (2026-10-07). Since phase 45 Codex reviews Claude's PRs too."
 evidence: ["evidence/2026-10-06-cross-review.md"]
 issue: 24
 ---
@@ -19,10 +19,10 @@ On ledger, a Codex PR (a `codex/` branch) opened after the practice is switched 
 
 The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
-- **The practice `cross-review`** (optional): `keel-cross-review.yml`, `.agents/cross-review/REVIEW.md`, the claude practice's two secrets declared for it; until one is set, the run ends green with a notice.
+- **The practice `cross-review`** (optional): `plates-cross-review.yml`, `.agents/cross-review/REVIEW.md`, the claude practice's two secrets declared for it; until one is set, the run ends green with a notice.
 - **Config**: `"crossReview": { "for": [prefixes], "budget": { "minutes": N } }`, validated; no key, no reviews.
 - **Triggers**: `pull_request` opened and ready_for_review on a matching head branch; an issue comment `/review` from a person with write access on such a PR. Never on the PR's own pushes, never on a branch that doesn't match.
-- **The review**: claude-code-action with the brief and the project's context (AGENTS.md, its lessons, docs/keel-lessons.md, the cited phase); inline comments with P1/P2/P3 and a summary review posted as COMMENT. Tools: read-only (Read, Grep, Glob, `gh pr diff`, `gh pr view`) plus the inline-comment and PR-comment tools. No push, no approve, no merge, no request-changes.
+- **The review**: claude-code-action with the brief and the project's context (AGENTS.md, its lessons, docs/plates-lessons.md, the cited phase); inline comments with P1/P2/P3 and a summary review posted as COMMENT. Tools: read-only (Read, Grep, Glob, `gh pr diff`, `gh pr view`) plus the inline-comment and PR-comment tools. No push, no approve, no merge, no request-changes.
 - **The rule**: the brief says validate before writing a comment, and no style nits.
 - **Measured**: `cross_review_valid` on the night once ten reviewed comments have been answered: the share answered valid (phase 41's replies), recorded, no bound.
 
@@ -36,7 +36,7 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 
 ## Real surfaces
 
-- Workflow shell: keel-cross-review.yml on GitHub Actions, run for real on ledger.
+- Workflow shell: plates-cross-review.yml on GitHub Actions, run for real on ledger.
 - GitHub API: inline comments and a COMMENT review on a real PR.
 - Adopted project: ledger, switched on through its config with CLAUDE_CODE_OAUTH_TOKEN already set.
 
@@ -49,7 +49,7 @@ The design is [Cross-review](../research/2026-10-06-cross-review.md).
 ## Deliberately open
 
 - **Re-review on new pushes.** Not by default (cost); `/review` asks again. Settled after a few weeks of use.
-- **Codex answering Claude's comments.** Codex's own behaviour; keel's night counts unanswered comments whoever reviewed.
+- **Codex answering Claude's comments.** Codex's own behaviour; plates's night counts unanswered comments whoever reviewed.
 
 ## Next action
 

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { jobsHarness, token } from "./helpers/web-jobs.mjs";
 import { createJobs } from "../lib/web/jobs.mjs";
-import { scheduleWorkflow } from "../lib/web/job-schedules.mjs";
+import { inspectSchedule, scheduleWorkflow } from "../lib/web/job-schedules.mjs";
 const project = (h) => h.access.projects[0];
 const opts = (h) => ({ reauthorize: h.refreshAccess });
 const preview = (h) =>
@@ -253,4 +253,29 @@ test("provider termination preserves a claimed worker whose final result is unav
   assert.equal(ended.worker.state, "result-unavailable");
   assert.equal(ended.worker.result, null);
   assert.equal(ended.worker.deadline, new Date(held.deadline).toISOString());
+});
+
+
+test("schedule ownership follows canonical locks and refuses unavailable canonical evidence", async () => {
+  for (const path of [".plates/lock.json", ".keel/lock.json"]) {
+    const h = await jobsHarness({ schedule: true });
+    h.source.files[path] = JSON.stringify({ files: { [h.routineId]: { practice: "night" } } });
+    await assert.rejects(h.jobs.schedulePreview(h.access, token, project(h), { routineId: h.routineId, cron: "17 9 * * 1" }), { code: "schedule_managed_source" });
+    assert.equal(h.source.writes.length, 0);
+  }
+  for (const mode of ["malformed", "missing-blob", "denied"]) {
+    const h = await jobsHarness({ schedule: true });
+    const reads = [];
+    const checked = { registry: h.registration, content: h.source.files[h.routineId], snapshot: {
+      entries: new Map([[".plates/lock.json", {}], [".keel/lock.json", {}]]),
+      reader: { async readFile(path) {
+        reads.push(path);
+        if (path === ".keel/lock.json") return Buffer.from('{"files":{}}');
+        if (mode === "malformed") return Buffer.from('{invalid');
+        throw Object.assign(new Error("unavailable"), mode === "denied" ? { status: 401 } : { code: "ENOENT" });
+      } },
+    } };
+    await assert.rejects(inspectSchedule(checked, "17 9 * * 1"), mode === "denied" ? { status: 401 } : { code: "schedule_ownership_unavailable" });
+    assert.deepEqual(reads, [".plates/lock.json"]);
+  }
 });

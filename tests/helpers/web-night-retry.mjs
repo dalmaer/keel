@@ -1,5 +1,5 @@
 // Acme source + actual encrypted RPC transport; no provider writes.
-import { readFileSync, readdirSync } from "node:fs";
+import legacyNightSource from "./web-night-legacy.mjs";
 import { jobsHarness, token } from "./web-jobs.mjs";
 import { createNightRetry } from "../../lib/web/night-retry.mjs";
 import { createDecisionGitHub } from "../../lib/web/decision-github.mjs";
@@ -9,24 +9,9 @@ import {
   NIGHT_REVIEW,
   NIGHT_EFFECTS,
 } from "../../lib/web/night-retry-source.mjs";
-import { NIGHT_CANONICAL } from "../../lib/web/night-retry-canonical.mjs";
 export { token };
 export function canonicalFiles() {
-  const root = new URL("../../practices/", import.meta.url),
-    out = {};
-  for (const path of Object.keys(NIGHT_CANONICAL)) {
-    for (const practice of readdirSync(root)) {
-      try {
-        out[path] = readFileSync(
-          new URL(`${practice}/files/${path}`, root),
-          "utf8",
-        );
-        break;
-      } catch {}
-    }
-    if (!out[path]) throw new Error(`missing canonical fixture ${path}`);
-  }
-  return out;
+  return structuredClone(legacyNightSource.files);
 }
 export async function nightRetryHarness() {
   const h = await jobsHarness();

@@ -1,8 +1,8 @@
 # Decisions survive the work, and feedback reaches the next change
 
 Authorized for implementation, 2026-10-20. This document specifies intended
-behavior; phase evidence records what is implemented. Baseline: keel `3d7afc95ec8e482c217bac537151bc8a41fc9658`.
-This spec uses keel's public contracts and synthetic examples.
+behavior; phase evidence records what is implemented. Baseline: plates `3d7afc95ec8e482c217bac537151bc8a41fc9658`.
+This spec uses plates's public contracts and synthetic examples.
 
 ## Outcome
 
@@ -45,14 +45,14 @@ All references below were read at the baseline revision.
   records. Extend those patterns rather than introducing another work queue.
 
 The gap proposed here is a connected path through these mechanisms, not a
-claim that keel lacks decisions, plans, a board or feedback altogether.
+claim that plates lacks decisions, plans, a board or feedback altogether.
 
 ## 90. Resolve decisions into the work
 
 ### Read contract
 
-Add proposed `keel decision context --phase <id> --json` and
-`keel decision context --issue <owner/repo#n> --json`. These are read-only.
+Add proposed `plates decision context --phase <id> --json` and
+`plates decision context --issue <owner/repo#n> --json`. These are read-only.
 The phase form reads explicit reconciliation references. The issue form reads
 explicit decision references from the rubric/impact metadata, never inferred
 from arbitrary issue prose. No repository-wide semantic search or private
@@ -105,10 +105,10 @@ record ordinary implementation choices as recommendations with reasons.
 
 Proposed commands, all with `--json`:
 
-- `keel shape check <file>` validates without writing.
-- `keel shape render <file> --output <new-directory>` renders a local review.
-- `keel shape plan <file>` previews phase drafts and/or robot rubrics.
-- `keel shape plan <file> --yes` writes the exact reviewed drafts locally.
+- `plates shape check <file>` validates without writing.
+- `plates shape render <file> --output <new-directory>` renders a local review.
+- `plates shape plan <file>` previews phase drafts and/or robot rubrics.
+- `plates shape plan <file> --yes` writes the exact reviewed drafts locally.
 
 A version-1 record has an ID, revision, goal, bounded source references,
 questions, answers, proposed decisions and work items. Each question has a
@@ -146,10 +146,10 @@ board, or require a new visual editor.
 
 ## 92. Feedback is about a particular result
 
-Proposed `keel feedback capture <file>` previews a version-1 record;
-`--yes` stores it in `.keel/feedback/` with restricted local permissions.
-`keel feedback list --json` reports pending, linked, declined, superseded and
-unavailable items. `keel feedback propose <id>` prepares a reviewed follow-up
+Proposed `plates feedback capture <file>` previews a version-1 record;
+`--yes` stores it in `.plates/feedback/` with restricted local permissions.
+`plates feedback list --json` reports pending, linked, declined, superseded and
+unavailable items. `plates feedback propose <id>` prepares a reviewed follow-up
 through the existing robot rubric, with no issue creation or model launch.
 
 A record contains a stable ID, project identity, explicit author/source,
@@ -204,7 +204,7 @@ revision and routing logic must remain usable with a different private store for
 phase 98; filesystem and provider adapters are separate.
 
 An authored schema-1 capture names its project repository (matching the local
-Keel config), stable source ID, manual author attribution, observed UTC time,
+Plates config), stable source ID, manual author attribution, observed UTC time,
 words, revision and previous digest. Its result names a full source commit,
 artifact ID, immutable version, content hash, optional exact local file, optional
 phase/issue/PR reference and anchor. Explicit accepted-decision conflict references
@@ -226,13 +226,13 @@ An interrupted writer may leave the lock behind. This slice fails closed with
 `writer_busy`; elapsed time is not evidence that a writer stopped. A lock alone
 does not block reads; incomplete records or temporary files remain explicit gaps.
 Recovery requires the owner to confirm all feedback writers stopped
-before removing only the empty `.keel/feedback/.lock` directory. Preserve every
+before removing only the empty `.plates/feedback/.lock` directory. Preserve every
 observation, snapshot and temporary file for inspection; no automatic cleanup or
 lock takeover is implied.
 A verified retained snapshot survives deletion/change of the original pathname.
 A missing or corrupted retained snapshot is a gap and prevents a proposal.
 
-The private store defaults to `.keel/feedback/`. Before persisting any raw bytes,
+The private store defaults to `.plates/feedback/`. Before persisting any raw bytes,
 verify that every actual destination (including snapshots, revisions and temporary
 files) is untracked and Git-ignored, adding only a local Git exclude when needed.
 A single ignored sentinel does not cover negated descendant rules. Seed a private
@@ -266,7 +266,7 @@ the existing shaping validator and require every conflicted canonical decision
 in its item decision references or proposed supersession references. Resolve all
 canonical references in that draft freshly as well. Preserve supplied manual
 answers as attribution, never authentication or acceptance. The read-only output
-returns the unchanged validated draft and `keel shape check` handoff; saving it,
+returns the unchanged validated draft and `plates shape check` handoff; saving it,
 reviewing it and approving any shaping output remain separate actions. Missing
 drafts report `shaping_draft_required`. Prove the returned draft through the
 existing phase-91 inspection/preview path, not just a new output tag.

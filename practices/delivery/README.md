@@ -7,16 +7,16 @@ Or a deploy follows `main` itself, so a commit reaches production before (or
 without) its gate passing.
 
 **The rule.** Verify in parallel, publish one at a time, skip the superseded
-(isocan's `scripts/release-order.sh`, keel's
+(isocan's `scripts/release-order.sh`, plates's
 `docs/research/2026-10-16-delivery.md`, items 1, 2 and 6):
 
-- `.github/workflows/keel-publish.yml` starts when the project's gate workflow
+- `.github/workflows/plates-publish.yml` starts when the project's gate workflow
   finishes on `main` (`workflow_run`, a push, success) or by hand. It has one
   fixed concurrency group, `publish`, never cancelled. A run that will not
   publish (a failed gate, a pull request's run) has a group of its own, so it
   never displaces a queued publisher.
 - GitHub keeps only one *pending* run per group, so a late trigger can
-  replace a newer one. `scripts/keel/publish.mjs` therefore never trusts the
+  replace a newer one. `scripts/plates/publish.mjs` therefore never trusts the
   commit that started it: it reads `main`'s first-parent history from the
   tested ref to the tip and each commit's gate result (the night's
   `readCiGate`: the gate workflow's latest attempt on exactly that commit, a
@@ -30,25 +30,25 @@ without) its gate passing.
   it calls no API.
 - Deploys follow the tested ref, never a push to `main`. A service outside
   GitHub Actions (isocan's Cloud Build) can trigger on a push to it; an
-  Actions deploy starts on `workflow_run` of keel-publish completing, never on
+  Actions deploy starts on `workflow_run` of plates-publish completing, never on
   a push to the tested ref, because GitHub starts no workflow for a push made
   with `GITHUB_TOKEN`, which is what the publisher pushes with.
-  `docs/guide/delivery.md` in keel says how, for both.
-- `keel doctor` holds every workflow of a project with this practice to the
+  `docs/guide/delivery.md` in plates says how, for both.
+- `plates doctor` holds every workflow of a project with this practice to the
   concurrency rule (`workflow-concurrency`): a test or gate workflow has a
   per-ref group with `cancel-in-progress: true`; a publish or deploy workflow
   has a fixed group with `cancel-in-progress: false`. Only a workflow-level
   block covers a whole test workflow; otherwise every job needs its own. A
   group naming the run (`github.run_id`, `run_number`, `run_attempt`), the
-  commit or the ref is not fixed, and one keel cannot establish is named;
+  commit or the ref is not fixed, and one plates cannot establish is named;
   `${{ <condition> && '<name>' || <a per-run skip group> }}` is fixed only
   when every job it covers runs on that condition alone (its `if:`, or a job
-  it needs; keel-publish.yml's form, whose choose job's `if:` is the
+  it needs; plates-publish.yml's form, whose choose job's `if:` is the
   condition); on any other job its fallback group could deploy beside it.
 
 **Production is checked by the commit it serves** (phase 81, design items 3,
 4 and 8, after ledger's `verify-production.mjs` and live-SHA skip):
-`scripts/keel/verify.mjs <sha>` reads `delivery.version` on `delivery.site`
+`scripts/plates/verify.mjs <sha>` reads `delivery.version` on `delivery.site`
 (a JSON `sha` or `commit` field, a JSON string, or the plain hash; a full hash
 only) until production serves that commit or a descendant (ancestry read in
 the checkout) or `--within` seconds pass, then each `delivery.smoke` path's
@@ -56,23 +56,23 @@ status (redirects not followed). It passes only on what it saw, and fails
 naming each check. `verify.mjs live <sha>` (one read; exit 0 yes, 1 no) lets
 a deploy step skip a commit production already has. `--record` adds the
 result to the branch `keel-verify` (`verify.json`); a failed latest verify is
-an owner's item on `keel board`, and each failure of the day before a night
+an owner's item on `plates board`, and each failure of the day before a night
 is a line in that night's morning brief.
 
 **Promotion is a guarded gesture** (phase 82, design item 5, after isocan's
-hand-moved `prod` tag): `keel promote [<commit>]` runs
-`scripts/keel/promote.mjs`, which moves `delivery.promote` (`tag:prod` or
+hand-moved `prod` tag): `plates promote [<commit>]` runs
+`scripts/plates/promote.mjs`, which moves `delivery.promote` (`tag:prod` or
 `branch:production`) only to a commit on the tested ref whose gate passed
 (phase 79's result, `gate.mjs` `ciResult`, at any age). Default: the tested
 ref's tip. It previews first (exit 3) and moves with `--yes`, with a lease,
 then verifies production with `verify.mjs`. A failed verify suggests `--back`
-and moves nothing. `keel promote --back <commit>` rolls back to an earlier
+and moves nothing. `plates promote --back <commit>` rolls back to an earlier
 tested commit with the same checks. It passes only when production reports
 exactly that commit (`verify.mjs --exact`), since a newer commit still
 serving contains the older one. It refuses to run in GitHub Actions; no
-workflow keel installs runs it.
+workflow plates installs runs it.
 
-**Configuration** (`.keel/keel.json`): `"delivery": { "tested": "green",
+**Configuration** (`.plates/plates.json`): `"delivery": { "tested": "green",
 "gateWorkflow": "check.yml", "site": "https://anvils.acme.example",
 "version": "/api/version", "smoke": ["/", { "path": "/login", "status": 307 }],
 "promote": "tag:prod" }`. `tested` is a branch's short name, never the
@@ -86,18 +86,18 @@ code or a list of codes (default 200). `promote` is `tag:<name>`,
 needs `site` and `version`. Each error names its key. `"delivery".docsOnly` is the night's gate
 (phase 79).
 
-**Its files.** `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
-`scripts/keel/delivery.mjs`, `scripts/keel/verify.mjs` and
-`scripts/keel/promote.mjs` (managed). It
-requires `night` (the gate result reader, `scripts/keel/ci.mjs` and `lib.mjs`,
-and the morning brief, `scripts/keel/morning.mjs`, which reads the verify
-record). Optional: `keel adopt --with delivery`; its publisher pushes a branch
+**Its files.** `.github/workflows/plates-publish.yml`, `scripts/plates/publish.mjs`,
+`scripts/plates/delivery.mjs`, `scripts/plates/verify.mjs` and
+`scripts/plates/promote.mjs` (managed). It
+requires `night` (the gate result reader, `scripts/plates/ci.mjs` and `lib.mjs`,
+and the morning brief, `scripts/plates/morning.mjs`, which reads the verify
+record). Optional: `plates adopt --with delivery`; its publisher pushes a branch
 on the project's remote, and `verify.mjs --record` pushes `keel-verify`.
 
-**Lineage.** Keel phase 80, from isocan's `release-order.sh` and
+**Lineage.** Plates phase 80, from isocan's `release-order.sh` and
 `release.yml` publish job (`green`, a queued group, skip the superseded,
 refuse the diverged), and isocan's `test/workflows.test.ts` for the
-concurrency rule. Keel phase 81, from ledger's `scripts/verify-production.mjs`
+concurrency rule. Plates phase 81, from ledger's `scripts/verify-production.mjs`
 (the commit or a descendant, by ancestry, retried for a bounded time),
 `.github/workflows/verify-deploy.yml` (smoke checks by status) and its
 live-SHA deploy skip. Adapted, no code copied.

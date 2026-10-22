@@ -1,6 +1,6 @@
 # Routines and observed activity
 
-Open **Routines** or **Activity** from Home. The Fleet / project selector keeps the
+Open **Routines** or **Activity** from Home. The All plates / plate selector keeps the
 current destination and applicable time-window and outcome filters in the URL.
 A routine's workflow path is project-local, so changing projects clears that
 selector and any source-bound pagination. All controls are read-only: refreshing
@@ -47,14 +47,14 @@ Continue through provider pages and explicit attempt details when older history
 is needed. Inserts between requests can shift provider pages; a complete page is
 not a complete immutable history.
 
-Fleet reads visit at most three authorized projects sequentially in one request.
+All plates reads visit at most three authorized projects sequentially in one request.
 Unvisited projects remain visible with project links and a next-batch control.
 Each project's provider and private-receipt continuations keep their own scope.
 A cursor is not permission and cannot be moved to another project or filter.
 Changed immutable source records require restarting that receipt read.
 
 The source-collection budget is eighty calls, eight MiB and twenty-five seconds.
-Bounded, throttled, unavailable, absent and invalid sources remain gaps. Fleet
+Bounded, throttled, unavailable, absent and invalid sources remain gaps. All plates
 counts describe only deduplicated observed records. No matching results is not
 proof that nothing ran. Local-machine CLI history remains disconnected until an
 authenticated reporting bridge exists.
@@ -90,6 +90,6 @@ proof does not replace that exercise.
 
 See the [routine-history contract](../specs/web-routine-history.md),
 [phase status](../phases/102-routines-have-a-complete-observed-history.md) and
-[fleet operating plan](../specs/web-fleet-operations.md). The separate [durable worker controls](web-workers.md) require approved
+[collection operating plan](../specs/web-fleet-operations.md). The separate [durable worker controls](web-workers.md) require approved
 registration, live activation and budget; these inspection pages do not grant
 execution authority.

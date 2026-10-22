@@ -1,5 +1,3 @@
 #!/usr/bin/env node
-// keel: run projects the isocan/ledger way. Everything lives in lib/cli.mjs.
-import { main } from '../lib/cli.mjs';
-
-process.exitCode = await main(process.argv.slice(2));
+// Existing global symlinks and an already-running updater still use this path.
+import './plates.mjs';

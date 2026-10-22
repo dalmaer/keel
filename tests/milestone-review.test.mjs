@@ -6,22 +6,22 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { milestoneConfig, milestone, issue, response } from './helpers/milestones.mjs';
-import { projectMilestones, readMilestones } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { projectMilestones, readMilestones } from '../practices/night/files/scripts/plates/milestones.mjs';
 import { board, looseItems } from '../lib/board.mjs';
 import { phaseZero } from '../lib/init.mjs';
 import { render } from '../lib/practices.mjs';
 
-const cli = resolve('bin/keel.mjs');
+const cli = resolve('bin/plates.mjs');
 async function fixture(t, config = milestoneConfig) {
   const root = await mkdtemp(join(tmpdir(), 'acme-review-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
-  const setConfig = c => writeFile(join(root, '.keel/keel.json'), JSON.stringify(c));
+  await mkdir(join(root, '.plates'));
+  const setConfig = c => writeFile(join(root, '.plates/plates.json'), JSON.stringify(c));
   await setConfig(config);
-  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: join(root, 'gh'), KEEL_CLAUDE_DIR: join(root, 'claude') };
+  const env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: join(root, 'gh'), PLATES_CLAUDE_DIR: join(root, 'claude') };
   const log = join(root, 'calls');
   await writeFile(log, '');
-  await writeFile(env.KEEL_GH, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, 'called\\n'); process.exit(1);\n`, { mode: 0o755 });
+  await writeFile(env.PLATES_GH, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(${JSON.stringify(log)}, 'called\\n'); process.exit(1);\n`, { mode: 0o755 });
   const invoke = (...args) => run(process.execPath, [cli, ...args, '--json'], { cwd: root, env });
   return { root, env, log, setConfig, invoke };
 }
@@ -84,13 +84,13 @@ test('actual CLI consumer boundaries reject unsupported sources and invalid owne
   for (const phases of [ { source: 'milestone' }, { source: null }, { source: '' }, { source: false }, { source: [] }, { source: {} }, { source: 0 }, { source: 'files', ownerLabel: null }, { source: 'milestones', ownerLabel: '' }, null, [] ]) {
     const config = { ...milestoneConfig, phases };
     await f.setConfig(config);
-    const before = await readFile(join(f.root, '.keel/keel.json'), 'utf8');
+    const before = await readFile(join(f.root, '.plates/plates.json'), 'utf8');
     for (const command of commands) {
       const result = f.invoke(...command);
       assert.notEqual(result.status, 0, `${command}: ${result.stdout}`);
       assert.match(JSON.parse(result.stdout).error, /phases(?:\.source|\.ownerLabel)? (?:must|is)/, `${command}: ${result.stdout}`);
     }
-    assert.equal(await readFile(join(f.root, '.keel/keel.json'), 'utf8'), before);
+    assert.equal(await readFile(join(f.root, '.plates/plates.json'), 'utf8'), before);
     assert.equal(await readFile(join(f.root, 'docs/goals.json'), 'utf8'), '[]\n');
     assert.equal(await readFile(join(f.root, 'docs/ROADMAP.md'), 'utf8'), 'Acme archive\n');
     assert.deepEqual(await readdir(join(f.root, 'docs/phases')), []);
@@ -104,11 +104,11 @@ test('shipped readers share the source contract; default and explicit files rema
   const template = await readFile(join(f.root, 'docs/templates/phase.md'), 'utf8');
   await writeFile(join(f.root, 'docs/phases/00-acme.md'), phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-10' }));
   // The standalone roadmap carries the same tiny validator: it also ships without night.
-  const canonical = await readFile('practices/night/files/scripts/keel/planning-config.mjs', 'utf8');
+  const canonical = await readFile('practices/night/files/scripts/plates/planning-config.mjs', 'utf8');
   assert.ok((await readFile('practices/phases/files/scripts/roadmap.mjs', 'utf8')).includes(canonical));
   const roadmap = await import(pathToFileURL(join(f.root, 'scripts/roadmap.mjs')));
-  const reader = await import(pathToFileURL(join(f.root, 'scripts/keel/milestones.mjs')));
-  const generated = await import(pathToFileURL(join(f.root, 'scripts/keel/generated.mjs')));
+  const reader = await import(pathToFileURL(join(f.root, 'scripts/plates/milestones.mjs')));
+  const generated = await import(pathToFileURL(join(f.root, 'scripts/plates/generated.mjs')));
   for (const config of [null, [], { phases: null }, { phases: [] }, ...[null, '', false, [], {}, 0, 'future'].map(source => ({ phases: { source } }))]) {
     await f.setConfig(config);
     assert.throws(() => reader.milestoneSource(config), /(?:config|phases)/);
@@ -131,7 +131,7 @@ test('board fresh queries root milestones once and keeps exact query accounting'
   const f = await fixture(t);
   const source = response([milestone(1, 'OPEN', [issue(1, 'OPEN', ['keel:owner'])])]);
   source.data.rateLimit.cost = 7;
-  await writeFile(f.env.KEEL_GH, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nif (process.argv.includes('graphql')) { appendFileSync(${JSON.stringify(f.log)}, 'query\\n'); console.log(${JSON.stringify(JSON.stringify(source))}); } else process.exit(1);\n`, { mode: 0o755 });
+  await writeFile(f.env.PLATES_GH, `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nif (process.argv.includes('graphql')) { appendFileSync(${JSON.stringify(f.log)}, 'query\\n'); console.log(${JSON.stringify(JSON.stringify(source))}); } else process.exit(1);\n`, { mode: 0o755 });
   const { rememberQuota } = await import('../lib/quota.mjs');
   await rememberQuota(f.env, { remaining: 4000, resetAt: '2099-01-01T00:00:00Z' });
   for (const fresh of [true, false, true]) {

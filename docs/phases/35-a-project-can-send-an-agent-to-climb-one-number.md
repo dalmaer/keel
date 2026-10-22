@@ -6,7 +6,7 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [10, 15, 33, 39]
-note: "Built and on for keel (test-time, 45 minutes, nightly): keel-climb.yml, climb.mjs, the protocol brief; the \"Did the agent run?\" step after the first night's silent failure. The dispatched night after the token fix ran green and kept nothing. Waits on a scheduled night's PR (or its Climb line) read by the owner."
+note: "Built and on for plates (test-time, 45 minutes, nightly): plates-climb.yml, climb.mjs, the protocol brief; the \"Did the agent run?\" step after the first night's silent failure. The dispatched night after the token fix ran green and kept nothing. Waits on a scheduled night's PR (or its Climb line) read by the owner."
 evidence: ["evidence/2026-10-06-climb.md"]
 issue: 13
 ---
@@ -15,20 +15,20 @@ issue: 13
 
 ## Done when
 
-A project that opts in (keel first) gets, on a scheduled night, one `keel-climb/test-time/<date>` PR made by an agent under the shared protocol: a baseline, kept changes each with numbers measured against noise, a list of what was tried and reverted, the gate green; or, when nothing beat the noise, no PR and a line on the health page saying so. Nothing it opens merges without a person.
+A project that opts in (plates first) gets, on a scheduled night, one `keel-climb/test-time/<date>` PR made by an agent under the shared protocol: a baseline, kept changes each with numbers measured against noise, a list of what was tried and reverted, the gate green; or, when nothing beat the noise, no PR and a line on the health page saying so. Nothing it opens merges without a person.
 
 ## Scope
 
 The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 - **The `climb` practice** (optional, off by default): ships
-  `.github/workflows/keel-climb.yml`, `scripts/keel/climb.mjs` and the brief
+  `.github/workflows/plates-climb.yml`, `scripts/plates/climb.mjs` and the brief
   `.agents/climb/PROTOCOL.md` with the job paragraphs. Needs the `claude`
   practice's secret, declared the same way; until it is set, the run ends
   green with a notice (as the night does for a missing secret).
 - **Config**: `"climb": { "jobs": [...], "budget": { "minutes": N }, "schedule": "nightly"|"weekly" }`
-  in `.keel/keel.json`, validated; no key, no climb.
-- **`scripts/keel/climb.mjs`**, deterministic, no model:
+  in `.plates/plates.json`, validated; no key, no climb.
+- **`scripts/plates/climb.mjs`**, deterministic, no model:
   - `pick` chooses tonight's job: the job tied to the health page's worst
     measure, else the next in rotation; a job with an open `keel-climb/<job>/`
     PR is skipped.
@@ -44,7 +44,7 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
   the picked job, time-boxed to the budget; the agent uses `climb.mjs` for
   every measurement and every keep-or-revert, so its numbers are the
   script's, not its own. Then the PR, on its own prefix only.
-- **Its PR body** comes from `scripts/keel/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
+- **Its PR body** comes from `scripts/plates/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
 - **The first job, `test-time`**: the gate's test command timed; with the
   ledger, the slowest files first.
 
@@ -53,13 +53,13 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 - [x] `climb.mjs pick` chooses the job tied to the worst measure, rotates when none is outside its bound, and skips a job with an open PR. `tests/climb.test.mjs: "pick"`
 - [x] `climb.mjs compare` on a synthetic slow and fast candidate says keep for a real gain and revert for one inside the noise; mutation: a single round instead of two fails the test. `tests/climb.test.mjs: "compare"`
 - [x] `climb.mjs guard` fails when a test name that ran in the base did not run in the candidate. `tests/climb.test.mjs: "guard"`
-- [x] `keel-climb.yml` keeps the night's rules: pushes only `keel-climb/`, never `main`, never merges, declared secrets only, and its shell and inline scripts pass `bash -n` and `node --check`. `tests/workflows.test.mjs`
+- [x] `plates-climb.yml` keeps the night's rules: pushes only `keel-climb/`, never `main`, never merges, declared secrets only, and its shell and inline scripts pass `bash -n` and `node --check`. `tests/workflows.test.mjs`
 - [x] With no secret set, the run ends green with a notice; with no `climb` key, the workflow does nothing. `tests/climb.test.mjs: "off"`
-- [ ] ⚑ by hand: the owner turns climb on for keel, a scheduled night opens a test-time PR (or reports it kept nothing), and the owner reads it and merges or closes it.
+- [ ] ⚑ by hand: the owner turns climb on for plates, a scheduled night opens a test-time PR (or reports it kept nothing), and the owner reads it and merges or closes it.
 
 ## Your part
 
-- **Ask:** Read the pull request keel's overnight agent opens to make the test suite faster (or its note saying what it tried and kept nothing), then merge it or close it.
+- **Ask:** Read the pull request plates's overnight agent opens to make the test suite faster (or its note saying what it tried and kept nothing), then merge it or close it.
 - **Why:** It proves an agent can work on one number overnight while only a person decides what lands.
 - **Look at:** The `keel-climb/test-time/…` pull request, or the "Climb:" line on that morning's [health page](../health/).
 - **Choices:** Merged it | Closed it | Nothing kept, and that is fine
@@ -69,15 +69,15 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 
 ## Real surfaces
 
-- Workflow shell: `keel-climb.yml` on GitHub Actions, run for real on keel.
+- Workflow shell: `plates-climb.yml` on GitHub Actions, run for real on plates.
 - GitHub API: the PR it opens, on its own prefix.
-- Adopted project: none in this phase (keel only); phase 37 takes it to ledger.
+- Adopted project: none in this phase (plates only); phase 37 takes it to ledger.
 
 ## Proof
 
 - Automated: `node --test tests/climb.test.mjs tests/workflows.test.mjs`, with the mutation above; `npm run check`.
-- By hand: one real climb night on keel, its PR (or its "kept nothing" line) read by the conductor and the owner.
-- ⚑ Turning climb on for keel spends model tokens each scheduled night, within the configured minutes; the owner sets the budget.
+- By hand: one real climb night on plates, its PR (or its "kept nothing" line) read by the conductor and the owner.
+- ⚑ Turning climb on for plates spends model tokens each scheduled night, within the configured minutes; the owner sets the budget.
 
 ## Deliberately open
 

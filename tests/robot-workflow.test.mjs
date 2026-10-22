@@ -8,8 +8,8 @@ import { join,resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
 import { runBlocks,shellProblems } from './helpers/workflows.mjs';
-const workflow=resolve('practices/climb/files/.github/workflows/keel-robot.yml');
-const router=resolve('practices/climb/files/.github/workflows/keel-robot-route.yml');
+const workflow=resolve('practices/climb/files/.github/workflows/plates-robot.yml');
+const router=resolve('practices/climb/files/.github/workflows/plates-robot-route.yml');
 const git=(dir,...args)=>execFileSync('git',['-C',dir,...args],{encoding:'utf8'}).trim();
 test('robot workflow keeps build agent judge publisher boundaries and explicitly reviews within the same queue',async()=>{
  const text=await readFile(workflow,'utf8');assert.deepEqual(await shellProblems('robot',text),[]);
@@ -28,11 +28,11 @@ test('robot workflow object-only handoff executes without loading agent git hook
  const temp=join(root,'temp');await mkdir(temp);
  git(root,'init','-q','-b','main');await writeFile(join(root,'acme.txt'),'base');git(root,'add','acme.txt');git(root,'commit','-qm','base');
  const base=git(root,'rev-parse','HEAD');git(root,'switch','-qc','keel/robot-1');
- await mkdir(join(root,'.keel'));git(root,'clone','-q','--bare',join(root,'.git'),join(root,'.keel/agent-git'));
- const a=(...args)=>git(root,'--git-dir=.keel/agent-git','--work-tree=.',...args);
+ await mkdir(join(root,'.plates'));git(root,'clone','-q','--bare',join(root,'.git'),join(root,'.plates/agent-git'));
+ const a=(...args)=>git(root,'--git-dir=.plates/agent-git','--work-tree=.',...args);
  a('config','user.name','Acme');a('config','user.email','acme@example.test');await writeFile(join(root,'acme.txt'),'fixed');a('add','acme.txt');a('commit','-qm','fixed');
  // Config is syntactically invalid: any git command reading the agent directory would fail.
- await writeFile(join(root,'.keel/agent-git/config'),'[broken\n');await writeFile(join(temp,'message.txt'),'Acme corrected.');
+ await writeFile(join(root,'.plates/agent-git/config'),'[broken\n');await writeFile(join(temp,'message.txt'),'Acme corrected.');
  const script=runBlocks(await readFile(workflow,'utf8')).find(b=>b.step==='Take agent commits as objects only').script;
  const r=run('bash',['-e','-o','pipefail','-c',script],{cwd:root,env:{...process.env,RUNNER_TEMP:temp,GITHUB_SHA:base,ISSUE:'1'}});
  assert.equal(r.status,0,r.stdout+r.stderr);
@@ -80,9 +80,9 @@ let receiptBody;globalThis.fetch=async (url,options)=>{const u=new URL(url),path
  const comment = { id: 23, user, issue_url: `https://api.github.com/repos/${repo}/issues/7` };
  const event = { repository:{full_name:repo}, action:'created', issue, sender:user, comment };
  const permissionPath = `/repos/${repo}/collaborators/${user.login}/permission`, issuePath = `/repos/${repo}/issues/7`, commentPath = `/repos/${repo}/issues/comments/23`;
- const dispatchPath = `/repos/${repo}/actions/workflows/keel-robot.yml/dispatches`;
- const configPath = `/repos/${repo}/contents/.keel/keel.json?ref=release%2Facme`;
- const policyFile = config => ({status:200,data:{type:'file',path:'.keel/keel.json',encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}});
+ const dispatchPath = `/repos/${repo}/actions/workflows/plates-robot.yml/dispatches`;
+ const configPath = `/repos/${repo}/contents/.plates/plates.json?ref=release%2Facme`;
+ const policyFile = config => ({status:200,data:{type:'file',path:'.plates/plates.json',encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}});
  const receiptPath=`/repos/${repo}/issues/comments/91`, receiptPost=`/repos/${repo}/issues/7/comments`;
  const receipt={id:91,issue_url:`https://api.github.com/repos/${repo}/issues/7`,user:{type:'Bot',login:'github-actions[bot]'},body:'__receipt__'};
  const bodyHash=createHash('sha256').update(issue.body).digest('hex');
@@ -169,7 +169,7 @@ test('robot publisher receives only credential presence flags and can read the f
  assert.match(step,/ROBOT_HAS_CLAUDE: \$\{\{ secrets\.CLAUDE_CODE_OAUTH_TOKEN != '' \|\| secrets\.ANTHROPIC_API_KEY != '' \}\}/);
  assert.match(step,/ROBOT_HAS_CODEX: \$\{\{ secrets\.OPENAI_API_KEY != '' \}\}/);
  assert.doesNotMatch(step,/^\s+(?:CLAUDE_CODE_OAUTH_TOKEN|ANTHROPIC_API_KEY|OPENAI_API_KEY):/m);
- assert.match(step,/run: node scripts\/keel\/robot.mjs publish --json/);
+ assert.match(step,/run: node scripts\/plates\/robot.mjs publish --json/);
 });
 
 function providerBoundaryProblems(text) {
@@ -195,7 +195,7 @@ function providerBoundaryProblems(text) {
 }
 
 /**
- * keel#93: each provider reads its brief from robot.mjs's own folder under the runner's temp, and Claude is granted
+ * plates#93: each provider reads its brief from robot.mjs's own folder under the runner's temp, and Claude is granted
  * that folder (--add-dir) and nothing else of the runner's temp, where the trusted scripts run after it live.
  */
 function briefProblems(text) {
@@ -212,9 +212,9 @@ function briefProblems(text) {
  return problems;
 }
 
-test('robot Claude may read its brief: work and review are granted the brief\'s own folder, and nothing else of the runner\'s temp (keel#93)',async()=>{
+test('robot Claude may read its brief: work and review are granted the brief\'s own folder, and nothing else of the runner\'s temp (plates#93)',async()=>{
  const text=await readFile(workflow,'utf8');assert.deepEqual(briefProblems(text),[]);
- const {ROBOT_BRIEF}=await import('../scripts/keel/robot.mjs');
+ const {ROBOT_BRIEF}=await import('../scripts/plates/robot.mjs');
  assert.equal(ROBOT_BRIEF,'robot-brief','the folder robot.mjs writes the briefs into is the one granted');
  const grant='            --add-dir ${{ runner.temp }}/robot-brief\n';
  const [build,review]=[text.indexOf(grant),text.lastIndexOf(grant)];
@@ -279,7 +279,7 @@ test('robot publisher runs for blocked-only triage scans without a selected issu
  assert.equal(accepts('', 'false', 'true'),true);
  for(const triage of ['', 'false', undefined])assert.equal(accepts('',triage,'false'),false);
  assert.match(publish,/name: robot-plan/);
- assert.match(publish,/run: node scripts\/keel\/robot\.mjs publish --json/);
+ assert.match(publish,/run: node scripts\/plates\/robot\.mjs publish --json/);
 });
 
 test('robot publisher learns whether model or judge time was spent',async()=>{
@@ -303,7 +303,7 @@ test('robot preparation failure is the agent job output the publisher records',a
  const text=await readFile(workflow,'utf8');
  const section=name=>text.split(`\n  ${name}:\n`)[1].split(/\n  [a-z-]+:\n/)[0];
  const step=name=>section('agent').split(`      - name: ${name}\n`)[1].split(/\n      - /)[0];
- // keel#83 follow-up: the deterministic half (merge and sandbox) is its own step,
+ // plates#83 follow-up: the deterministic half (merge and sandbox) is its own step,
  // apart from the network fetch, so only its failure is recorded and a
  // transient fetch or install failure still leaves the issue for the next scan.
  assert.match(section('agent'),/^      prepared: \$\{\{ steps\.isolate\.outcome \}\}$/m);
@@ -327,5 +327,5 @@ test('robot preparation failure is the agent job output the publisher records',a
  const r=run('bash',['--noprofile','--norc','-e','-o','pipefail','-c',script],{cwd:root,env:{...process.env,RUNNER_TEMP:temp,GITHUB_SHA:sha,ISSUE:'1'}});
  assert.notEqual(r.status,0,'a conflicting merge fails the preparation step');
  assert.match(r.stdout+r.stderr,/CONFLICT/);
- assert.equal(existsSync(join(root,'.keel/agent-git')),false);
+ assert.equal(existsSync(join(root,'.plates/agent-git')),false);
 });

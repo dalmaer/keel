@@ -32,9 +32,9 @@ test('mutations reject foreign origin, absent/wrong CSRF and duplicate form inpu
 
 test('public signin/assets and signed-in scaffold are responsive, escaped and never expose tokens or config', async () => {
   const h = harness();
-  for (const path of ['/signin', '/assets/keel.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) {
+  for (const path of ['/signin', '/assets/plates.css', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css', '/assets/daily-client.mjs', '/assets/daily-views.mjs', '/assets/learning-client.mjs', '/assets/learning-views.mjs', '/assets/daily.css']) {
     const response = await h.service(h.request(path)), content = await response.text();
-    assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|KEEL_WEB_CONFIG/);
+    assert.equal(response.status, 200); assert.doesNotMatch(content, /fake-client|fake-service|fake-user|supabase\.co|PLATES_WEB_CONFIG/);
     assert.equal(response.headers.get('cache-control'), 'private, no-store');
     assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'none'/);
     assert.match(response.headers.get('content-security-policy'), /form-action 'self' https:\/\/github\.com;/);
@@ -56,12 +56,12 @@ test('configuration rejects ambient, preview, non-HTTPS and identity-less bindin
   assert.throws(() => configFromEnv({}), /invalid_service_configuration/);
   assert.throws(() => configFromEnv({ VERCEL_ENV: 'preview' }), /preview_not_configured/);
   for (const change of [value => { value.origin = 'http://localhost'; }, value => { value.origin += '/'; }, value => { value.ownerIds = ['acme']; },
-    value => { value.workspace.repoId = 'acme/keel-private'; }, value => { value.workspace.manifestPath = '../workspace.json'; },
+    value => { value.workspace.repoId = 'acme/plates-private'; }, value => { value.workspace.manifestPath = '../workspace.json'; },
     value => { value.projectRepoIds.studio = 101; }, value => { value.unknown = true; }]) {
     const value = structuredClone(h.input); change(value); assert.throws(() => webConfig(value, h.secrets), /invalid_service_configuration/);
   }
-  const config = configFromEnv({ KEEL_WEB_CONFIG: JSON.stringify(h.input), KEEL_GITHUB_CLIENT_SECRET: h.secrets.clientSecret,
-    SUPABASE_URL: h.secrets.storageUrl, SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, KEEL_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey });
+  const config = configFromEnv({ PLATES_WEB_CONFIG: JSON.stringify(h.input), PLATES_GITHUB_CLIENT_SECRET: h.secrets.clientSecret,
+    SUPABASE_URL: h.secrets.storageUrl, SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey });
   assert.equal(config.storageUrl, h.secrets.storageUrl);
 });
 
@@ -73,7 +73,7 @@ test('migration restricts public roles and deployment routes all requests throug
   const deployment = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
   assert.deepEqual(deployment.rewrites, [{ source: '/(.*)', destination: '/api' }]);
   const excluded = deployment.functions['api/index.mjs'].excludeFiles;
-  for (const path of ['tests/fixtures/improve/unhealthy/.agents/skills/conduct', 'docs/lessons.md', '.keel/keel.json']) assert.ok(matchesGlob(path, excluded), path);
+  for (const path of ['tests/fixtures/improve/unhealthy/.agents/skills/conduct', 'docs/lessons.md', '.plates/plates.json']) assert.ok(matchesGlob(path, excluded), path);
   for (const path of ['lib/web/home-client.mjs', 'lib/web/views.mjs', 'lib/board.mjs', 'practices/phases/files/scripts/roadmap.mjs']) assert.ok(!matchesGlob(path, excluded), path);
 });
 
@@ -88,16 +88,16 @@ test('extracted npm package launches with external config and serves through the
   const { join, resolve } = await import('node:path');
   const { pathToFileURL } = await import('node:url');
   const { run, runAsync } = await import('./helpers/run.mjs');
-  const temporary = await mkdtemp(join(tmpdir(), 'keel-web-package-'));
+  const temporary = await mkdtemp(join(tmpdir(), 'plates-web-package-'));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const packed = run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', temporary], { cwd: resolve('.') });
   assert.equal(packed.status, 0, packed.stderr);
   const metadata = JSON.parse(packed.stdout)[0], paths = metadata.files.map(file => file.path);
-  for (const path of ['lib/web/serve.mjs', 'lib/web/migrations/001-auth.sql', 'api/index.mjs', 'vercel.json', 'scripts/keel/climb.mjs', 'scripts/keel/lib.mjs', 'scripts/keel/tend.mjs', 'scripts/keel/test-ledger.mjs']) assert.ok(paths.includes(path), path);
+  for (const path of ['lib/web/serve.mjs', 'lib/web/migrations/001-auth.sql', 'api/index.mjs', 'vercel.json', 'scripts/plates/climb.mjs', 'scripts/plates/lib.mjs', 'scripts/plates/tend.mjs', 'scripts/plates/test-ledger.mjs']) assert.ok(paths.includes(path), path);
   assert.equal(paths.some(path => /(^|\/)(\.env|members\.json|instance\.json)$/.test(path)), false);
   assert.equal(run('tar', ['-xzf', join(temporary, metadata.filename), '-C', temporary]).status, 0);
   // Model the function's excluded development/source-data trees before loading it.
-  for (const path of ['tests', 'docs', '.agents', '.claude', '.keel', '.github']) await rm(join(temporary, 'package', path), { recursive: true, force: true });
+  for (const path of ['tests', 'docs', '.agents', '.claude', '.plates', '.github']) await rm(join(temporary, 'package', path), { recursive: true, force: true });
   const h = harness(), configPath = join(temporary, 'instance.json');
   await writeFile(configPath, JSON.stringify(h.input), { mode: 0o600 });
   const script = join(temporary, 'probe.mjs');
@@ -107,8 +107,8 @@ import { request } from 'node:http';
 const server = await serve(['--config', ${JSON.stringify(configPath)}, '--port', '0', '--json']);
 try {
   const responses = [];
-  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css']) responses.push(await new Promise((resolve, reject) => {
-    const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'keel.acme.test' } }, res => {
+  for (const path of ['/signin', '/assets/home-client.mjs', '/assets/home-views.mjs', '/assets/decision-client.mjs', '/assets/decision-views.mjs', '/assets/decision.css', '/assets/walk-client.mjs', '/assets/walk-views.mjs', '/assets/walk.css', '/assets/change-client.mjs', '/assets/change-views.mjs', '/assets/media-client.mjs', '/assets/media-views.mjs', '/assets/change.css', '/assets/daily-client.mjs', '/assets/daily-views.mjs', '/assets/learning-client.mjs', '/assets/learning-views.mjs', '/assets/daily.css']) responses.push(await new Promise((resolve, reject) => {
+    const req = request({ host: '127.0.0.1', port: server.address().port, path, headers: { host: 'plates.acme.test' } }, res => {
       let text = ''; res.on('data', value => { text += value; }); res.on('end', () => resolve({ status: res.statusCode, text, cookies: res.headers['set-cookie'] }));
     }); req.on('error', reject); req.end();
   }));
@@ -116,8 +116,8 @@ try {
 } finally { await new Promise(resolve => server.close(resolve)); }
 `);
   const launched = await runAsync(process.execPath, [script], { cwd: temporary, timeout: 30000, env: {
-    PATH: process.env.PATH, KEEL_GITHUB_CLIENT_SECRET: h.secrets.clientSecret, SUPABASE_URL: h.secrets.storageUrl,
-    SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, KEEL_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
+    PATH: process.env.PATH, PLATES_GITHUB_CLIENT_SECRET: h.secrets.clientSecret, SUPABASE_URL: h.secrets.storageUrl,
+    SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey, PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
   } });
   assert.equal(launched.status, 0, launched.stderr);
   const responses=JSON.parse(launched.stdout);

@@ -9,7 +9,7 @@ night PR has arrived and you want to know what it is and whether to merge it.
 
 ## What it does, and why it works that way
 
-Every project with the `night` practice runs `keel-night.yml` once a night
+Every project with the `night` practice runs `plates-night.yml` once a night
 (the schedule is in that workflow). It measures the project, writes a dated
 health page, opens at most one PR holding that page, and drains older night
 PRs. The rules come from isocan's night shift, and each one was paid for:
@@ -25,7 +25,7 @@ PRs. The rules come from isocan's night shift, and each one was paid for:
   broken measure first, else the one furthest outside its bound, and the
   smallest change that would move it. The night writes no issue, opens no
   code PR and edits no phase. A person decides.
-- **Bounds only tighten.** `.keel/bounds.json` is seeded on the first
+- **Bounds only tighten.** `.plates/bounds.json` is seeded on the first
   report and is the project's to edit. When a value beats its bound, the
   bound moves to it; it never loosens. Some measures, where any count is
   news (flaky tests, lost proofs, unsent lessons), are held at zero with no
@@ -42,12 +42,12 @@ PRs. The rules come from isocan's night shift, and each one was paid for:
   description with its new evidence as well as updating the report. A failed
   PR lookup or description update fails the workflow.
 - **Projects run on their own.** The night runs scripts shipped into the
-  project (`scripts/keel/`), never a keel checkout or a keel token.
+  project (`scripts/plates/`), never a plates checkout or a plates token.
 
 ### What the night measures, and why
 
 The full list, with each measure's unit, bound and what it counts, is what
-`keel improve --json` prints for your project, and `keel --agent-help
+`plates improve --json` prints for your project, and `plates --agent-help
 improve` is its reference. By family:
 
 - **Is the gate real?** `gate` runs the project's `check` and fails when it
@@ -59,8 +59,8 @@ improve` is its reference. By family:
   `proofs_hold`: a built phase whose cited test is gone, whose cited test
   failed in its newest recorded run, or whose evidence file is missing. Proof
   lost is named, never fixed by the night: it never steps a phase back.
-- **Has the project changed keel's files?** `drift` and `lint`, as
-  `keel doctor` reads them (see [When something is red](when-something-is-red.md)).
+- **Has the project changed plates's files?** `drift` and `lint`, as
+  `plates doctor` reads them (see [When something is red](when-something-is-red.md)).
 - **Are the tests healthy?** `flaky_tests` and `slow_tests`, from the test
   ledger (below).
 - **Is the work reaching people?** `ci_red_streak`, `machine_prs` (each
@@ -69,14 +69,14 @@ improve` is its reference. By family:
   reviewer's newest word, or a comment that quotes or links it; resolving
   alone is not one); these read GitHub and are n/a without a `repo` or gh
   auth, saying which, and n/a, never a number, when a read is incomplete.
-- **Is the project teaching keel?** `lessons_unsent`: lesson rows not yet
+- **Is the project teaching plates?** `lessons_unsent`: lesson rows not yet
   sent home. The night only counts; sending is the owner's
   ([Lessons and learning](lessons-and-learning.md)).
 - **Is rigour paying?** `escapes`: defects found after a phase was built,
   since the last release, attributed to the phase their text names. Its
   bound is no rise release over release. If ceremony rises and escapes do
   not fall, the ceremony is the thing to cut. Its detail also notes the
-  `fix:` commits that carry no `Proven-by:` trailer (`keel prove`): a note,
+  `fix:` commits that carry no `Proven-by:` trailer (`plates prove`): a note,
   not counted.
 - **Optional rows** appear when their source exists: `build_time` with a
   climb `build` command, `dependency_age` with a lockfile,
@@ -85,8 +85,8 @@ improve` is its reference. By family:
 ### The test ledger, and why a hygiene note is work
 
 On a node project, `npm test` runs a second reporter,
-`scripts/keel/test-ledger.mjs`, beside the usual one. It changes nothing
-about the run's output. It remembers every run in `.keel/test-runs/` (which
+`scripts/plates/test-ledger.mjs`, beside the usual one. It changes nothing
+about the run's output. It remembers every run in `.plates/test-runs/` (which
 ignores itself) and ends each run with a hygiene block: one line when
 clean, else each **flaky** test (passed and failed on one clean tree: a
 fact, no threshold) and each **slower** one (well above its own median on
@@ -98,7 +98,7 @@ newest runs, so a busy lane never pushes out a quiet one's history.
 
 **Never rerun until green.** A rerun hides the flake, and the next person
 pays for it. Fix the test, or file it. The thresholds for "slower" are in
-`.keel/keel.json` `tests` (the defaults are in `keel --agent-help improve`).
+`.plates/plates.json` `tests` (the defaults are in `plates --agent-help improve`).
 
 CI keeps each run's ledger as an artifact, and the night reads them before
 it measures, so the history spans every machine the suite ran on. A run that
@@ -106,7 +106,7 @@ executed no test exits 1, "no tests ran"; a project with no tests yet sets
 `"tests": {"allowEmpty": true}`.
 
 On `bun test` or vitest, the runner writes a JUnit file and the ledger reads
-it, as a command right after the tests in the gate. `keel adopt` finds the
+it, as a command right after the tests in the gate. `plates adopt` finds the
 runner and proposes the exact line; it never changes the gate itself. The
 records, the hygiene block and the "no tests ran" rule are the same, and the
 command to run a test alone is the runner's own. Runs of two runners are
@@ -116,20 +116,20 @@ never compared with each other.
 
 A test that waits real time and then checks how long it took passes on a
 quiet machine and fails on a busy one. Giving it a longer sleep only makes
-every run slower. `keel test` finds such a test by making the machine busy on
+every run slower. `plates test` finds such a test by making the machine busy on
 purpose:
 
 ```bash
-keel test tests/acme.test.mjs --stalls            # names each test that judges the wall clock
-keel test tests/acme.test.mjs --stalls --seed 42  # the same stalls again
-keel test tests/acme.test.mjs --name '^a crate' --stalls
+plates test tests/acme.test.mjs --stalls            # names each test that judges the wall clock
+plates test tests/acme.test.mjs --stalls --seed 42  # the same stalls again
+plates test tests/acme.test.mjs --name '^a crate' --stalls
 ```
 
 It runs the file paused at random moments (the whole process group, 50 to
 500 ms, about once a second, from a seed it prints) and again without, and
 names each test that passed without and failed with. Paused time does not
 count against the time limit. Give a named test its clock (`mock.timers` in
-`node:test`, or a clock passed in), then pin the file in `.keel/keel.json`:
+`node:test`, or a clock passed in), then pin the file in `.plates/plates.json`:
 `"tests": {"stalls": ["tests/acme.test.mjs"]}`. The test ledger then runs it
 with stalls on every gate, from a fresh seed, and a failure prints the seed
 and the command that replays it. A test that judges real time on purpose (a
@@ -143,28 +143,28 @@ The night runs itself. You run the same measures by hand when you want to
 see them now:
 
 ```bash
-keel improve            # the measures and the one proposal; writes no page
-keel improve --report   # also writes today's health page and .keel/bounds.json
-keel improve --selftest # every measure against a fixture built to fail
+plates improve            # the measures and the one proposal; writes no page
+plates improve --report   # also writes today's health page and .plates/bounds.json
+plates improve --selftest # every measure against a fixture built to fail
 ```
 
-- `keel improve`, bare, when you want the morning's answer before morning.
+- `plates improve`, bare, when you want the morning's answer before morning.
   It runs the gate, so it takes as long as the gate does.
 - `--report` when you want the page itself: it writes
-  `<health>/<date>.md`, where `<health>` is `health` in `.keel/keel.json`
+  `<health>/<date>.md`, where `<health>` is `health` in `.plates/plates.json`
   (default `docs/health`).
 - `--transcripts <dir>` when you want the cost of conducting: whole-suite
   runs by builders, and minutes per kind of command, from Claude Code
   subagent transcripts.
 - `--selftest` when you doubt an instrument: it exits 1 unless every
-  measure reports `outside` on keel's own unhealthy fixture.
+  measure reports `outside` on plates's own unhealthy fixture.
 
-Without keel installed, the project's own copy runs the same measures:
-`node scripts/keel/improve.mjs --report`. What the project cannot read alone
-(whether a file is merely behind keel's template, keel's inbox) it reports
-as keel-side only, never as zero.
+Without plates installed, the project's own copy runs the same measures:
+`node scripts/plates/improve.mjs --report`. What the project cannot read alone
+(whether a file is merely behind plates's template, plates's inbox) it reports
+as plates-side only, never as zero.
 
-`keel drain <prefix>` is the queue rule by hand: `keel drain keel-night/`
+`plates drain <prefix>` is the queue rule by hand: `plates drain keel-night/`
 shows what it would merge or close and exits 3; add `--yes` to act.
 `--gate-passed` is for the workflow, which passes it only when the gate
 passed on the newest PR's tree.
@@ -176,12 +176,12 @@ say what the night meant to do and what came of it (phase 73; the design is
 [Nightwatch](../research/2026-10-14-nightwatch.md)).
 
 ```bash
-keel night plan                     # keel's default plan for the next night, to .keel/night/plan.json
-keel night plan --date 2026-10-15   # for a named night (UTC)
-keel night tick climb-test-time --status done --note "12% faster" --link https://github.com/acme/anvils/pull/21
+plates night plan                     # plates's default plan for the next night, to .plates/night/plan.json
+plates night plan --date 2026-10-15   # for a named night (UTC)
+plates night tick climb-test-time --status done --note "12% faster" --link https://github.com/acme/anvils/pull/21
 ```
 
-- **The default plan** is what keel would do anyway, written down: the
+- **The default plan** is what plates would do anyway, written down: the
   night's measure item, the newest earlier health page's proposal (to
   review), the climb job `climb.mjs pick` would choose, the robot's next
   admissible `keel:agent` issue and Loop's untriaged findings (to triage),
@@ -204,9 +204,9 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   after is for the next. In California, an evening plan is for the next UTC
   date; in Berlin, too.
 - **Where it travels.** The night reads the branch `keel-night-plan` (one
-  file, `.keel/night/plan.json`): a valid plan dated for tonight is used;
+  file, `.plates/night/plan.json`): a valid plan dated for tonight is used;
   none, another night's, or a refused one means the default plan, and the
-  step's log says which and why. The owner shapes it with `keel goodnight
+  step's log says which and why. The owner shapes it with `plates goodnight
   --yes` (below). A night that ran the default plan writes it there too, from
   the PR step that already writes (phase 78), so climb and the robot tick a
   default night as they tick yours: only when the branch holds no plan for
@@ -217,7 +217,7 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
   item; climb and the robot tick theirs on the plan branch as they publish,
   each tick carrying the item's lane and number as the pass admitted it, so
   an item you reshape mid-run under the same id is never ticked with the old
-  one's outcome (the tick is refused and named); `keel night tick` refuses an id the plan does not hold and a move back
+  one's outcome (the tick is refused and named); `plates night tick` refuses an id the plan does not hold and a move back
   from `done`.
 - **The record.** The night's PR commits the plan as it ended,
   `docs/night/<date>.json`, which the drain treats as data; the health page's
@@ -225,26 +225,26 @@ keel night tick climb-test-time --status done --note "12% faster" --link https:/
 
 ### Goodnight: you shape tonight's plan
 
-Without you, the night runs keel's default plan. When you want to say what
+Without you, the night runs plates's default plan. When you want to say what
 tonight is for, ask for it: `/goodnight` in a session (the conduct skill runs
 the commands below and talks them through), or the commands yourself. Nothing
 offers a plan unasked (phase 74; isocan's night watch gave the rules).
 
 ```bash
-keel goodnight                                   # the opening; changes nothing
-keel goodnight add persona-perf--bundle-size     # one of the things to try
-keel goodnight add --title "Anvil search back under 300 ms" --measure slow_tests --bound 12 --better lower --lane climb:test-time --budget 40
-keel goodnight drop loop-broken-link
-keel goodnight edit climb-test-time --title "Only the search tests tonight"
-keel goodnight budget climb-test-time 30
-keel goodnight skip lib/anvil.mjs                # will not touch: a path or an item's id
-keel goodnight --yes                             # "that's the plan": write it and push it
+plates goodnight                                   # the opening; changes nothing
+plates goodnight add persona-perf--bundle-size     # one of the things to try
+plates goodnight add --title "Anvil search back under 300 ms" --measure slow_tests --bound 12 --better lower --lane climb:test-time --budget 40
+plates goodnight drop loop-broken-link
+plates goodnight edit climb-test-time --title "Only the search tests tonight"
+plates goodnight budget climb-test-time 30
+plates goodnight skip lib/anvil.mjs                # will not touch: a path or an item's id
+plates goodnight --yes                             # "that's the plan": write it and push it
 ```
 
 - **The opening** says what was settled today (PRs merged, phases whose
   status moved, Loop findings decided), what was left open (open PRs, and
   from the board the unanswered reviews and your items), tonight's plan (your
-  draft, else keel's default plan), and up to three things to try: a
+  draft, else plates's default plan), and up to three things to try: a
   persona's missed goal the plan had no room for, an accepted Loop finding,
   and the health page's proposal as a build for the climb job that measures
   it. A Loop finding whose note names a measure in backticks is the robot's
@@ -257,9 +257,9 @@ keel goodnight --yes                             # "that's the plan": write it a
   cannot read, or read only in part, is a "not read" line, never an empty or
   partial list shown as whole, and the plan keeps it: any board source your
   items come from (the roadmap, loose ends, reviews, the health page, the
-  inbox, claims). The inbox is keel's own, so elsewhere it is quiet. Personas are read
+  inbox, claims). The inbox is plates's own, so elsewhere it is quiet. Personas are read
   from their newest review pages, not run.
-- **Shaping** changes a draft, `.keel/night/draft.json`, never written through
+- **Shaping** changes a draft, `.plates/night/draft.json`, never written through
   a link, started from the default plan. Your words are kept as you wrote
   them. Refused, naming why, with the draft left as it was: a sixth build
   item (counted with the robot's open PRs), a build item with no number (a
@@ -268,9 +268,9 @@ keel goodnight --yes                             # "that's the plan": write it a
   title, a decided Loop finding, a merged robot PR). A build with no `--lane`
   takes the climb job that measures its number, or is refused. A climb lane
   is always one of the jobs this project runs (`climb.jobs` in
-  `.keel/keel.json`), and none when climb is off.
-- **Saying it.** `keel goodnight --yes` checks the plan again, fills in what
-  was settled and left open, writes `.keel/night/plan.json` shaped by the
+  `.plates/plates.json`), and none when climb is off.
+- **Saying it.** `plates goodnight --yes` checks the plan again, fills in what
+  was settled and left open, writes `.plates/night/plan.json` shaped by the
   owner, and force-pushes it to `keel-night-plan`: one commit holding that one
   file, made from git's object store, so your working tree, your index and
   every other branch (main above all) are untouched. That push is the only
@@ -278,7 +278,7 @@ keel goodnight --yes                             # "that's the plan": write it a
   push failed: the night then runs the default plan.
 - **A Loop finding's issue** is made only here: for each `robot:pending`
   item, `--yes` reads the finding again, drafts its rubric again, and opens
-  its `keel:agent` issue the way `keel issue new --agent --yes` does (a
+  its `keel:agent` issue the way `plates issue new --agent --yes` does (a
   durable intent first, so a second `--yes` finds the same issue, never a
   second). The item's lane becomes `robot:#<n>` and the robot builds it
   tonight. A finding no longer accepted stops `--yes` before anything is
@@ -291,10 +291,10 @@ sends it: the brief is an issue assigned to you, so its notification is the
 email.
 
 ```bash
-keel morning                        # the brief for the night that last started, markdown
-keel morning --date 2026-10-15      # for a named night
-keel morning --send                 # the issue "Good morning, <date>", once a night
-keel morning --card --yes           # the plan as the live canvas card night-plan
+plates morning                        # the brief for the night that last started, markdown
+plates morning --date 2026-10-15      # for a named night
+plates morning --send                 # the issue "Good morning, <date>", once a night
+plates morning --card --yes           # the plan as the live canvas card night-plan
 ```
 
 - **The brief** reads the plan as it finished (the night's record and the
@@ -307,12 +307,12 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   record was: while the night's PR is unmerged, from that PR's branch, and
   linked there.
 - **Sending** needs `"morning": { "assignee": "<your GitHub login>" }` in
-  `.keel/keel.json`; without it `--send` refuses, naming the key. It labels
+  `.plates/plates.json`; without it `--send` refuses, naming the key. It labels
   the issue `keel:morning` and closes yesterday's. A second send for the same
   night does nothing. In a workflow run its issues go to the run's own
   repository, the one the brief links into (a fork, a renamed repo);
-  elsewhere to `.keel/keel.json` `repo`.
-- **When.** `keel-morning.yml` sends it once every build item in the plan is
+  elsewhere to `.plates/plates.json` `repo`.
+- **When.** `plates-morning.yml` sends it once every build item in the plan is
   done, failed, skipped or left alone, or at the plan's `readyBy` (default
   17:00 UTC), marking anything unfinished "not finished by" that time, never
   done. It starts when the night, climb or the robot finishes, and once a
@@ -327,18 +327,18 @@ keel morning --card --yes           # the plan as the live canvas card night-pla
   finishes after the brief still reaches the archive; a run with nothing new
   commits nothing, but opens that PR if an earlier run pushed its branch
   and failed to open it. The next night's drain merges it with the series.
-- **The card.** With a canvas in live mode that lists `night-plan` (`keel
-  canvas live --card pulse --card night-plan --yes`), `keel morning --card
+- **The card.** With a canvas in live mode that lists `night-plan` (`plates
+  canvas live --card pulse --card night-plan --yes`), `plates morning --card
   --yes` publishes the plan as one card, edited in place each time an item
-  ticks. If you edit the card yourself, keel stops updating it until you
-  re-base it (`keel canvas rebase --card night-plan`).
-- **The card ticks on its own** (phase 78). `keel-morning.yml`'s card job
+  ticks. If you edit the card yourself, plates stops updating it until you
+  re-base it (`plates canvas rebase --card night-plan`).
+- **The card ticks on its own** (phase 78). `plates-morning.yml`'s card job
   republishes it after every pass when the canvas is set for nightly
-  publishing (`canvas.enabled` and `cadence: "nightly"`, what `keel canvas
+  publishing (`canvas.enabled` and `cadence: "nightly"`, what `plates canvas
   night` needs) and lists `night-plan` live; otherwise its log says so and it
   does nothing. It uses what the night's canvas step uses and nothing more:
-  your setup's pinned `keel` and `isocan`, the dedicated isocan home
-  (`KEEL_CANVAS_ISOCAN_HOME`), the same checks before anything is touched,
+  your setup's pinned `plates` and `isocan`, the dedicated isocan home
+  (`PLATES_CANVAS_ISOCAN_HOME`), the same checks before anything is touched,
   and the job's own token, which only reads. The night and the card keep one
   canvas journal between runs (each restores the newest of the other's and
   its own), so a card edit is never mistaken for yours. While a night is
@@ -355,14 +355,14 @@ record and any bound that tightened. Its body is Summary, Evidence and Merge dan
 ([Reviews and PRs](reviews-and-prs.md)) with the page's proposal as its
 note. Merging it is safe: it is data, and the drain would merge it anyway.
 
-`keel improve` exits:
+`plates improve` exits:
 
 - **0**: every measure within its bound.
 - **1**: one or more outside. Read the proposal.
 - **2**: an instrument is broken. Fix the instrument before trusting any
   number beside it.
 
-`keel drain` exits 3 when it would merge or close something and has no
+`plates drain` exits 3 when it would merge or close something and has no
 `--yes`, and 1 when a GitHub call failed.
 
 ## What it never does
@@ -385,17 +385,17 @@ note. Merging it is safe: it is data, and the drain would merge it anyway.
 
 ## Where time goes
 
-`keel time --weeks 8` reads the retained ledger; `--json` includes weekly
+`plates time --weeks 8` reads the retained ledger; `--json` includes weekly
 medians isolated by machine, config and runner, usual times, failure memory,
 and missing coverage. Node suite timing is never called full-gate timing.
-Keel’s `npm run check` and the night measure the entire configured gate,
+Plates’s `npm run check` and the night measure the entire configured gate,
 without changing its command order. Nested wrappers record only the outer gate. Locally, use
-`node scripts/keel/test-ledger.mjs --gate` to record that same boundary.
+`node scripts/plates/test-ledger.mjs --gate` to record that same boundary.
 Do not put this wrapper inside the configured check itself (that recurses).
 
-The wrapper supplies `KEEL_USUAL` before the runner starts: a JSON file in
-`.keel/test-runs/usual`, with each test's last-ten-pass median and its lane.
-Keel's own runner ordering stays unchanged. Runs with load above cores are
+The wrapper supplies `PLATES_USUAL` before the runner starts: a JSON file in
+`.plates/test-runs/usual`, with each test's last-ten-pass median and its lane.
+Plates's own runner ordering stays unchanged. Runs with load above cores are
 omitted from flaky/slow findings; missing load context is explicitly unknown.
 Linux records CPU pressure totals and their delta; other platforms report it
 unavailable. Windows load average is unsupported and remains unknown.
@@ -414,7 +414,7 @@ test commands given ≥120-second timeouts, background runs, or interruptions.
 Only repo-relative test paths or known test/check script names and counts are
 reported, with an unknown-identity bucket. No command text is exported. CI never reads transcripts. Retention can leave
 holes in the requested weeks; the report names them rather than inventing
-history. See `keel --agent-help time` for the JSON contract.
+history. See `plates --agent-help time` for the JSON contract.
 
 Gate reports and the board show only root-project gates (`dir: "."`).
 Historical subproject gates stay on disk and appear as explicit exclusions.
@@ -431,8 +431,8 @@ invoice or a universal tariff**. `ci.runnerWeights` can supply explicit weights
 for custom runner labels. Reports separate public standard-hosted free usage,
 self-hosted usage, private plan-dependent billing, larger/custom runners and
 unknown runner coverage. Free billing does not erase compute usage. Workflow
-ownership comes from `.keel/lock.json` paths, including managed `check.yml` and
-`claude.yml`; an unowned `keel-*` name is labeled keel-named, not keel-owned.
+ownership comes from `.plates/lock.json` paths, including managed `check.yml` and
+`claude.yml`; an unowned `plates-*` name is labeled plates-named, not plates-owned.
 Direct `readCiUsage` callers can pass `ownedWorkflows` paths explicitly.
 
 Set `"ci": { "weeklyMinutes": 1000 }` to choose a weekly bound; without one
@@ -454,7 +454,7 @@ age: an old run can have a new rerun. A long-lived repository or workflow can
 exhaust that lifetime-history bound even when recent runs are visible. Its
 weekly total and adoption estimate remain unknown; the report retains observed
 usage and names the limits. The production reader is exported as `readCiUsage`
-from `scripts/keel/ci.mjs` for read-only API walks.
+from `scripts/plates/ci.mjs` for read-only API walks.
 
 `ci.gateWorkflow` names the existing workflow to reuse. The top-level
 `gateWorkflow` alias still works; conflicting values are an error. Discovery
@@ -468,7 +468,7 @@ errors. This skips the gate, not the night: production collection, Loop pulls,
 reviews and other time-dependent observations still run. Expired/deleted
 artifacts or unavailable GitHub reads force a real gate; no separate last-tested
 marker can substitute for evidence. Since phase 79 the
-evidence is the run's `keel-test-runs` artifact, read through the test
+evidence is the run's `plates-test-runs` artifact, read through the test
 history's bounded ZIP reader: it must hold exactly one gate record for this
 commit (`kind: gate`, from `gate.mjs --ci` or `test-ledger.mjs --gate`) on the
 same tree, clean, for the same configured `check` (its command hash), exit 0,
@@ -483,35 +483,35 @@ wall-time records.
 
 ### One gate result per commit (phase 79)
 
-`scripts/keel/gate.mjs` is the one function every pass asks before running
-the gate. `node scripts/keel/gate.mjs` reuses CI's result as above, else skips
+`scripts/plates/gate.mjs` is the one function every pass asks before running
+the gate. `node scripts/plates/gate.mjs` reuses CI's result as above, else skips
 a docs-only commit, else runs the check through the test ledger's launcher,
 and says which (`--json`: `action` reused, skipped or ran, and why).
 
 | Pass | Uses it | Why not, where it does not |
 | --- | --- | --- |
 | The night's gate measure | reuse (improve.mjs `gateRun`) | — |
-| The loop's gate step | `node scripts/keel/gate.mjs` | a pull that changed findings is a dirty tree: never reused, so it runs |
-| A pre-push hook | `"pre-push": "node scripts/keel/gate.mjs"`, the project's choice | — |
+| The loop's gate step | `node scripts/plates/gate.mjs` | a pull that changed findings is a dirty tree: never reused, so it runs |
+| A pre-push hook | `"pre-push": "node scripts/plates/gate.mjs"`, the project's choice | — |
 | CI's own gate step (check.yml) | `gate.mjs --ci`: docs-only skip or run, never reuse | it is the result the others reuse |
 | climb's and tend's guards, the robot's judge (candidate) | no | a candidate branch is a tree CI never tested |
 | climb's guard and the robot's judge (base) | not yet | the base is the commit CI tested, but the judge job holds no token by design (the agent's code runs in it) and the robot's judge strips `GITHUB_*` from the gate's env, so CI's run is not like for like; it runs its own |
 
 `"delivery": { "docsOnly": ["docs/", "README.md", "**/*.md"] }` in
-`.keel/keel.json` names the paths whose change needs no suite: an entry ending
+`.plates/plates.json` names the paths whose change needs no suite: an entry ending
 in `/` is a directory, one with `*` a glob (`**` crosses folders), else one
 file. A clean commit whose every changed path since the **last fully tested
 commit** is in the list records `skipped: docs only` (a `gate-skip` record in
-`.keel/test-runs`, never read as a test run or a gate time). The last fully
+`.plates/test-runs`, never read as a test run or a gate time). The last fully
 tested commit is the newest first-parent ancestor (at most 20 back) with a
 result of reuse grade, at any age, never simply the parent: a code commit
 whose run was cancelled is never covered by a docs commit after it (ledger's
 lesson). List only paths no part of the gate reads (a roadmap check reads
 `docs/phases/`). Some paths are never docs only, whatever the list says: all
-of `.github/` (workflows and actions) and `scripts/keel/`, `.keel/keel.json`,
-`.keel/lock.json`, `.nvmrc`, `.node-version`, `.tool-versions`, a
+of `.github/` (workflows and actions) and `scripts/plates/`, `.plates/plates.json`,
+`.plates/lock.json`, `.nvmrc`, `.node-version`, `.tool-versions`, a
 `package.json`, lockfile or package-manager config at any depth, and every file
-keel manages as HEAD's committed `.keel/lock.json` names it (the committed lock,
+plates manages as HEAD's committed `.plates/lock.json` names it (the committed lock,
 so a commit cannot drop a file from it and skip in one go; a changed lock is
 itself protected). A change to one runs the suite. An entry that reaches one is
 refused at config time, exit 2: a directory entry or a glob's literal head
@@ -532,7 +532,7 @@ runs without it.
 
 Both adoption paths preview only workflows they would create, with triggers,
 history source/window and monthly weighted-minute estimates. They query the
-same production reader for each workflow's history in `dalmaer/keel` (override
+same production reader for each workflow's history in `dalmaer/plates` (override
 with `ci.historyRepo`). Daily/weekly scheduled runs use the proposed schedule
 and observed mean cost including retries. Completed logical runs whose jobs
 are all positively skipped at known in-window times supply zero-cost samples;
@@ -559,12 +559,12 @@ dates, workflow identity, and arithmetic. Repository-wide cached history cannot
 supply workflow event exposure. Unsupported schedules or incomplete/missing history yield
 unknown estimates and an unknown total. Preview installs no schedules.
 
-For offline preview, `.keel/ci-history.json` may hold
+For offline preview, `.plates/ci-history.json` may hold
 `{ "version": 1, "repo": "owner/repo", "workflows": { ".github/workflows/check.yml": REPORT } }`,
 where each `REPORT` is an unmodified `readCiUsage({repo, workflow: 'check.yml', days: 28})`
 result. Cache windows must match their day count, end within the past 30 days,
 and use the current weight maps; malformed or stale caches are discarded.
-`KEEL_CI_OFFLINE=1` prevents remote history reads. No estimate is a claim about
+`PLATES_CI_OFFLINE=1` prevents remote history reads. No estimate is a claim about
 actual monthly billing; the metered-project month comparison remains required.
 
 ## Timing proposals and fresh comparisons
@@ -577,7 +577,7 @@ comparisons require successful, unfiltered, explicitly quiet observations in
 one project/runner/config/flags/machine/command lane. Missing load context,
 incomplete runs and future timestamps do not supply quiet samples. Reused CI
 supplies no local wall time. These thresholds suggest investigations, not causes. An explicit positive
-`gate_time` value in `.keel/bounds.json` overrides the historical gate bound.
+`gate_time` value in `.plates/bounds.json` overrides the historical gate bound.
 
 A configured gate is measured by the outer `test-ledger.mjs --gate` launcher
 (or improve's existing configured-gate caller). It times the whole configured
@@ -644,12 +644,12 @@ The existing health report also covers `stale_worktrees`, `drafts_waiting` and
 `long_files`. These are observations with proposed actions; a decision or merge
 alone does not establish that the work helped.
 
-Worktrees are measured by the local Keel CLI and are unavailable in CI. The
+Worktrees are measured by the local Plates CLI and are unavailable in CI. The
 report distinguishes local main reachability from recent filesystem activity,
 and logical bytes from physical space that deletion might reclaim. Current,
 primary, locked, dirty or incompletely inspected worktrees are protected. Any
 removal commands are individual suggestions for the owner to inspect and run.
-Keel does not delete worktrees.
+Plates does not delete worktrees.
 
 Drafts are currently open draft PRs older than the configured age since creation.
 This is not continuous time spent in draft. Reads are bounded, cached and subject
@@ -665,12 +665,12 @@ the repository's path filters (including line-ending conversion); a separate
 SHA-256 digest preserves exact working-byte freshness. Filter failures leave
 coverage unavailable. Generated-file markers count only in a leading header.
 
-These use the existing health page and `keel walk decide` flow. An accepted file
+These use the existing health page and `plates walk decide` flow. An accepted file
 split can use the robot's recoverable issue flow only with an approved project
-and budget. Keel's robot remains off until that approval. An uncertain issue
+and budget. Plates's robot remains off until that approval. An uncertain issue
 write is recovered through the existing journal rather than repeated.
 
-Filter settings live in `.keel/keel.json` under `hygiene`: `draftHours` defaults
+Filter settings live in `.plates/plates.json` under `hygiene`: `draftHours` defaults
 to 24, `longFileLines` to 1500, and `worktreeDays` to 7. Each is a positive finite
 number. The existing measure count bounds are separate and default to zero;
 these measures do not ratchet. Missing or truncated evidence remains explicit.
@@ -683,23 +683,23 @@ acceptance time, not a guarantee against later branch changes.
 
 ## Personas: goals a project sets itself
 
-The night's measures are keel's. A persona holds the project's own: "the
+The night's measures are plates's. A persona holds the project's own: "the
 entry bundle stays under 250 kB", "an interaction stays under 100 ms". Turn
-on the optional practice with `keel adopt --with personas`; it installs
-`scripts/keel/persona.mjs` and an example `.agents/personas/performance.md`.
+on the optional practice with `plates adopt --with personas`; it installs
+`scripts/plates/persona.mjs` and an example `.agents/personas/performance.md`.
 
 A persona is a lens in prose, with goals in its front matter. Each goal is a
 name, a bound (`at most:` or `at least:`), the command that prints the number
 (`measured by:`), and once someone has taken a first reading, a `baseline:`.
 The example's two commands are placeholders that exit 1 with a message, so
 until you replace them the run says `broken`: an example is never met by
-accident. A key keel does not know, a goal with no command, or a bound that is
+accident. A key plates does not know, a goal with no command, or a bound that is
 not a number is refused, naming it.
 
 ```bash
-keel persona run performance     # one persona
-keel persona run --all --json    # every one; what the night will read
-node scripts/keel/persona.mjs run --all   # the same, from the project's own copy
+plates persona run performance     # one persona
+plates persona run --all --json    # every one; what the night will read
+node scripts/plates/persona.mjs run --all   # the same, from the project's own copy
 ```
 
 Each command runs as the project's other commands do: `sh -c` in the project
@@ -714,9 +714,9 @@ is met, 1 when one is missed, 2 when one is broken.
 Personas measure; they never build. Each missed goal becomes a candidate item
 for the night's plan, naming its number (`persona:<name>:<goal>`): a `build`
 for the enabled climb job that measures that number, and with none (climb's
-jobs measure keel's own numbers, so usually none) a `triage` item saying so,
+jobs measure plates's own numbers, so usually none) a `triage` item saying so,
 because a build no pass takes would sit in the plan all night. Each broken
-goal is a `review` item. A goal is only as good as its command: keel
+goal is a `review` item. A goal is only as good as its command: plates
 checks that it prints one number, not that the number is the right one.
 
 ## Production error evidence

@@ -1,4 +1,4 @@
-// Read this before touching that (phase 65): .keel/keel.json "contracts" maps
+// Read this before touching that (phase 65): .plates/plates.json "contracts" maps
 // path patterns to the document to read first. Render writes them into the
 // agents-md block as a table (and leaves the block's bytes alone without
 // them), seeds the Claude Code hook that names the document before an edit,
@@ -14,13 +14,13 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { load, fill, contractsTable, blockBody } from '../lib/practices.mjs';
-import { contractsFor, contractProblems, hookLines } from '../practices/agents-md/files/scripts/keel/contract-hook.mjs';
+import { contractsFor, contractProblems, hookLines } from '../practices/agents-md/files/scripts/plates/contract-hook.mjs';
 import { hookGap } from '../lib/doctor.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const HOOK = join(KEEL, 'practices', 'agents-md', 'files', 'scripts', 'keel', 'contract-hook.mjs');
-const keel = (args, cwd) => run(process.execPath, [BIN, ...args], { cwd });
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const HOOK = join(PLATES, 'practices', 'agents-md', 'files', 'scripts', 'plates', 'contract-hook.mjs');
+const plates = (args, cwd) => run(process.execPath, [BIN, ...args], { cwd });
 const git = (cwd, ...args) => run('git', args, { cwd });
 
 const CONTRACTS = [
@@ -28,15 +28,15 @@ const CONTRACTS = [
   { paths: ['src/store/*.mjs', 'src/store/schema.json'], read: 'docs/engine/store.md', why: 'every field has a reader elsewhere' },
 ];
 
-/** One keel init'd project, made once and copied per test. */
+/** One plates init'd project, made once and copied per test. */
 let template;
 async function project(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-contracts-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-contracts-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   if (!template) {
-    template = await realpath(await mkdtemp(join(tmpdir(), 'keel-contracts-template-')));
+    template = await realpath(await mkdtemp(join(tmpdir(), 'plates-contracts-template-')));
     process.on('exit', () => rmSync(template, { recursive: true, force: true }));
-    const r = keel(['init', join(template, 'acme-index'), '--description', 'Acme Index finds notes by their words.', '--kind', 'node'], template);
+    const r = plates(['init', join(template, 'acme-index'), '--description', 'Acme Index finds notes by their words.', '--kind', 'node'], template);
     assert.equal(r.status, 0, r.stderr);
   }
   await cp(join(template, 'acme-index'), join(dir, 'acme-index'), { recursive: true, verbatimSymlinks: true });
@@ -44,7 +44,7 @@ async function project(t) {
 }
 
 async function setConfig(root, change) {
-  const path = join(root, '.keel', 'keel.json');
+  const path = join(root, '.plates', 'plates.json');
   const config = JSON.parse(await readFile(path, 'utf8'));
   change(config);
   await writeFile(path, `${JSON.stringify(config, null, 2)}\n`);
@@ -62,7 +62,7 @@ async function contractFiles(root) {
 }
 
 const exists = path => stat(path).then(() => true, () => false);
-const doctorJson = root => { const r = keel(['doctor', '--json'], root); return { code: r.status, data: JSON.parse(r.stdout), err: r.stderr }; };
+const doctorJson = root => { const r = plates(['doctor', '--json'], root); return { code: r.status, data: JSON.parse(r.stdout), err: r.stderr }; };
 
 /** Run the hook as Claude Code does: the PreToolUse JSON on stdin. */
 const hook = (input, env = {}) => run(process.execPath, [HOOK], { input: typeof input === 'string' ? input : JSON.stringify(input), env: { ...process.env, ...env } });
@@ -90,26 +90,26 @@ test('contracts render into the guide as a table; without them the block is the 
   const root = await project(t);
   const before = await readFile(join(root, 'AGENTS.md'), 'utf8');
   assert.equal(blockBody(before, 'agents-md'), block.template, 'an init\'d project without contracts has the template\'s block');
-  assert.equal(await exists(join(root, 'scripts/keel/contract-hook.mjs')), false, 'no contracts: no hook script');
+  assert.equal(await exists(join(root, 'scripts/plates/contract-hook.mjs')), false, 'no contracts: no hook script');
   assert.equal(await exists(join(root, '.claude/settings.json')), false, 'no contracts: no settings');
 
   await contractFiles(root);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  const r = keel(['render', '--json'], root);
+  const r = plates(['render', '--json'], root);
   assert.equal(r.status, 0, r.stderr);
   const body = blockBody(await readFile(join(root, 'AGENTS.md'), 'utf8'), 'agents-md');
   assert.ok(body.startsWith(block.template), 'the table follows the block\'s own text');
   assert.match(body, /\| Paths \| Read first \| Why \|/);
   assert.match(body, /\| `src\/index\/\*\*` \| `docs\/engine\/indexing\.md` \| the index format is measured, not guessed \|/);
   assert.match(body, /\| `src\/store\/\*\.mjs`, `src\/store\/schema\.json` \| `docs\/engine\/store\.md` \|/);
-  assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), await readFile(HOOK, 'utf8'), 'the hook script is keel\'s');
+  assert.equal(await readFile(join(root, 'scripts/plates/contract-hook.mjs'), 'utf8'), await readFile(HOOK, 'utf8'), 'the hook script is plates\'s');
   const settings = JSON.parse(await readFile(join(root, '.claude/settings.json'), 'utf8'));
   const entry = settings.hooks.PreToolUse[0];
   assert.equal(entry.matcher, 'Edit|Write|MultiEdit');
-  assert.match(entry.hooks[0].command, /scripts\/keel\/contract-hook\.mjs/);
-  assert.equal(keel(['render', '--check'], root).status, 0, 'rendered: render --check is clean');
-  const lock = JSON.parse(await readFile(join(root, '.keel/lock.json'), 'utf8'));
-  assert.ok(lock.files['scripts/keel/contract-hook.mjs'], 'the lock knows the hook script');
+  assert.match(entry.hooks[0].command, /scripts\/plates\/contract-hook\.mjs/);
+  assert.equal(plates(['render', '--check'], root).status, 0, 'rendered: render --check is clean');
+  const lock = JSON.parse(await readFile(join(root, '.plates/lock.json'), 'utf8'));
+  assert.ok(lock.files['scripts/plates/contract-hook.mjs'], 'the lock knows the hook script');
 });
 
 test('render leaves a project\'s own .claude/settings.json alone, and doctor says the hook is not in it', async t => {
@@ -119,7 +119,7 @@ test('render leaves a project\'s own .claude/settings.json alone, and doctor say
   const own = `${JSON.stringify({ permissions: { allow: ['Bash(npm test)'] } }, null, 2)}\n`;
   await writeFile(join(root, '.claude/settings.json'), own);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(plates(['render'], root).status, 0);
   assert.equal(await readFile(join(root, '.claude/settings.json'), 'utf8'), own, 'seeded: never written over');
   const { data } = doctorJson(root);
   assert.deepEqual(data.notes.filter(n => n.rule.startsWith('contract-')).map(n => n.rule), ['contract-hook']);
@@ -129,12 +129,12 @@ test('doctor notes a missing document and a pattern no tracked file matches, and
   const root = await project(t);
   await contractFiles(root);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(plates(['render'], root).status, 0);
   let { data } = doctorJson(root);
   assert.deepEqual(data.notes.filter(n => n.rule.startsWith('contract-')), [], 'docs exist, patterns match: no note');
 
   await setConfig(root, c => { c.contracts = [...CONTRACTS, { paths: ['src/search/**'], read: 'docs/engine/search.md', why: 'ranking is tuned' }]; });
-  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(plates(['render'], root).status, 0);
   ({ data } = doctorJson(root));
   const notes = data.notes.filter(n => n.rule.startsWith('contract-'));
   assert.deepEqual(notes.map(n => n.rule).sort(), ['contract-doc-missing', 'contract-unmatched']);
@@ -143,22 +143,22 @@ test('doctor notes a missing document and a pattern no tracked file matches, and
   assert.equal(data.lint.filter(l => l.rule.startsWith('contract')).length, 0, 'notes, never findings');
 });
 
-test('contracts keel cannot read: doctor finds them, and render refuses with the reason', async t => {
+test('contracts plates cannot read: doctor finds them, and render refuses with the reason', async t => {
   const root = await project(t);
   await setConfig(root, c => { c.contracts = [{ paths: 'src/**', read: 'docs/a.md', why: 'x' }]; });
   const { code, data } = doctorJson(root);
   assert.equal(code, 1);
-  assert.deepEqual(data.lint.filter(l => l.rule === 'contracts-config').map(l => l.path), ['.keel/keel.json']);
-  const r = keel(['render'], root);
+  assert.deepEqual(data.lint.filter(l => l.rule === 'contracts-config').map(l => l.path), ['.plates/plates.json']);
+  const r = plates(['render'], root);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /"contracts"\[0\]: "paths"/);
 });
 
 test('the hook prints the document for a matching path, and stays silent otherwise; it never blocks', async t => {
-  const root = await realpath(await mkdtemp(join(tmpdir(), 'keel-contract-hook-')));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'plates-contract-hook-')));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', contracts: CONTRACTS }));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', contracts: CONTRACTS }));
   const env = { CLAUDE_PROJECT_DIR: root };
 
   const hit = hook({ hook_event_name: 'PreToolUse', cwd: root, tool_name: 'Edit', tool_input: { file_path: join(root, 'src/index/build.mjs') } }, env);
@@ -187,7 +187,7 @@ test('the hook prints the document for a matching path, and stays silent otherwi
   }
 
   // A config it cannot read: silent, exit 0.
-  await writeFile(join(root, '.keel/keel.json'), '{ broken');
+  await writeFile(join(root, '.plates/plates.json'), '{ broken');
   const broken = hook({ cwd: root, tool_name: 'Edit', tool_input: { file_path: join(root, 'src/index/build.mjs') } }, env);
   assert.equal(broken.status, 0);
   assert.equal(broken.stdout, '');
@@ -195,27 +195,27 @@ test('the hook prints the document for a matching path, and stays silent otherwi
 });
 
 test('doctor counts the hook only when settings run it as a PreToolUse hook on Edit, Write and MultiEdit (review of PR 58)', async () => {
-  const seeded = await readFile(join(KEEL, 'practices', 'agents-md', 'files', '.claude', 'settings.json'), 'utf8');
-  assert.equal(hookGap(seeded), null, 'what keel seeds runs it');
-  const hook = (matcher, command = 'node "$CLAUDE_PROJECT_DIR"/scripts/keel/contract-hook.mjs', extra = {}) =>
+  const seeded = await readFile(join(PLATES, 'practices', 'agents-md', 'files', '.claude', 'settings.json'), 'utf8');
+  assert.equal(hookGap(seeded), null, 'what plates seeds runs it');
+  const hook = (matcher, command = 'node "$CLAUDE_PROJECT_DIR"/scripts/plates/contract-hook.mjs', extra = {}) =>
     JSON.stringify({ ...extra, hooks: { PreToolUse: [{ ...(matcher === undefined ? {} : { matcher }), hooks: [{ type: 'command', command }] }] } });
   assert.equal(hookGap(hook('Edit|Write|MultiEdit')), null);
   assert.equal(hookGap(hook(undefined)), null, 'no matcher: every tool');
   assert.equal(hookGap(hook('Edit|MultiEdit|Write|NotebookEdit')), null);
-  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'cd "$CLAUDE_PROJECT_DIR" && NODE_NO_WARNINGS=1 node --no-deprecation scripts/keel/contract-hook.mjs')), null);
-  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'node ./scripts/keel/contract-hook.mjs # contracts')), null);
+  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'cd "$CLAUDE_PROJECT_DIR" && NODE_NO_WARNINGS=1 node --no-deprecation scripts/plates/contract-hook.mjs')), null);
+  assert.equal(hookGap(hook('Edit|Write|MultiEdit', 'node ./scripts/plates/contract-hook.mjs # contracts')), null);
   for (const [why, text] of [
-    ['named only in a permission', JSON.stringify({ permissions: { allow: ['Bash(node scripts/keel/contract-hook.mjs)'] } })],
-    ['on another event', JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command: 'node scripts/keel/contract-hook.mjs' }] }] } })],
+    ['named only in a permission', JSON.stringify({ permissions: { allow: ['Bash(node scripts/plates/contract-hook.mjs)'] } })],
+    ['on another event', JSON.stringify({ hooks: { PostToolUse: [{ matcher: 'Edit|Write|MultiEdit', hooks: [{ type: 'command', command: 'node scripts/plates/contract-hook.mjs' }] }] } })],
     ['a matcher that misses Write', hook('Edit|MultiEdit')],
     ['a matcher for Bash', hook('Bash')],
-    ['another script', hook('Edit|Write|MultiEdit', 'node scripts/keel/contract-hook.mjs.bak')],
+    ['another script', hook('Edit|Write|MultiEdit', 'node scripts/plates/contract-hook.mjs.bak')],
     ['every hook off', hook('Edit|Write|MultiEdit', undefined, { disableAllHooks: true })],
     ['not JSON', '{ hooks'],
     // Review of PR 58, round 6: a command that only mentions the path does not run it.
-    ['an echo of the path', hook('Edit|Write|MultiEdit', 'echo scripts/keel/contract-hook.mjs')],
-    ['the path in a comment', hook('Edit|Write|MultiEdit', 'true # node scripts/keel/contract-hook.mjs')],
-    ['node running another script that names it', hook('Edit|Write|MultiEdit', 'node scripts/other.mjs scripts/keel/contract-hook.mjs')],
+    ['an echo of the path', hook('Edit|Write|MultiEdit', 'echo scripts/plates/contract-hook.mjs')],
+    ['the path in a comment', hook('Edit|Write|MultiEdit', 'true # node scripts/plates/contract-hook.mjs')],
+    ['node running another script that names it', hook('Edit|Write|MultiEdit', 'node scripts/other.mjs scripts/plates/contract-hook.mjs')],
   ]) assert.ok(hookGap(text), why);
 });
 
@@ -223,26 +223,26 @@ test('a conditional target turned off keeps its lock row, so an edit made while 
   const root = await project(t);
   await contractFiles(root);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  assert.equal(keel(['render'], root).status, 0);
-  const lockOf = async () => JSON.parse(await readFile(join(root, '.keel/lock.json'), 'utf8')).files;
-  const row = (await lockOf())['scripts/keel/contract-hook.mjs'];
+  assert.equal(plates(['render'], root).status, 0);
+  const lockOf = async () => JSON.parse(await readFile(join(root, '.plates/lock.json'), 'utf8')).files;
+  const row = (await lockOf())['scripts/plates/contract-hook.mjs'];
   assert.ok(row);
 
   // Contracts off: the file stays where it is, and so does its row.
   await setConfig(root, c => { delete c.contracts; });
-  const off = keel(['render'], root);
+  const off = plates(['render'], root);
   assert.equal(off.status, 0, off.stderr);
-  assert.deepEqual((await lockOf())['scripts/keel/contract-hook.mjs'], row, 'the dormant target keeps its row');
-  assert.equal(await exists(join(root, 'scripts/keel/contract-hook.mjs')), true);
+  assert.deepEqual((await lockOf())['scripts/plates/contract-hook.mjs'], row, 'the dormant target keeps its row');
+  assert.equal(await exists(join(root, 'scripts/plates/contract-hook.mjs')), true);
 
   // The project edits it while it is dormant, then turns contracts back on: render refuses, naming it.
   const edited = `${await readFile(HOOK, 'utf8')}// Acme's own line\n`;
-  await writeFile(join(root, 'scripts/keel/contract-hook.mjs'), edited);
+  await writeFile(join(root, 'scripts/plates/contract-hook.mjs'), edited);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  const on = keel(['render'], root);
+  const on = plates(['render'], root);
   assert.equal(on.status, 1, on.stdout + on.stderr);
-  assert.match(on.stderr, /refusing to overwrite what the project changed \(scripts\/keel\/contract-hook\.mjs edited\)/);
-  assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), edited, 'the edit is kept');
+  assert.match(on.stderr, /refusing to overwrite what the project changed \(scripts\/plates\/contract-hook\.mjs edited\)/);
+  assert.equal(await readFile(join(root, 'scripts/plates/contract-hook.mjs'), 'utf8'), edited, 'the edit is kept');
 });
 
 test('a brace alternative is a glob of its own, so src/{*.js,*.ts} matches and never crashes doctor or silences the hook (review of PR 58)', async t => {
@@ -258,7 +258,7 @@ test('a brace alternative is a glob of its own, so src/{*.js,*.ts} matches and n
   const root = await project(t);
   await contractFiles(root);
   await setConfig(root, c => { c.contracts = [{ paths: ['src/{index/*.mjs,store/*.json}'], read: 'docs/engine/indexing.md', why: 'the index format is measured' }]; });
-  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(plates(['render'], root).status, 0);
   const { code, data, err } = doctorJson(root);
   assert.equal(code, 0, err);
   assert.deepEqual(data.notes.filter(n => n.rule.startsWith('contract-')), [], 'both alternatives match tracked files');
@@ -272,10 +272,10 @@ test('where adopt skipped the agents-md block, doctor names the contract rows AG
   await contractFiles(root);
   // The project's AGENTS.md states the agents-md rule in its own words: adopt skipped the block.
   const agents = await readFile(join(root, 'AGENTS.md'), 'utf8');
-  const own = agents.replace(/<!-- keel:begin agents-md -->[\s\S]*?<!-- keel:end agents-md -->\n?/, 'Acme asks before spending money.\n');
+  const own = agents.replace(/<!-- plates:begin agents-md -->[\s\S]*?<!-- plates:end agents-md -->\n?/, 'Acme asks before spending money.\n');
   await writeFile(join(root, 'AGENTS.md'), own);
   await setConfig(root, c => { c.blocksSkipped = ['agents-md']; c.contracts = CONTRACTS; });
-  assert.equal(keel(['render'], root).status, 0);
+  assert.equal(plates(['render'], root).status, 0);
   assert.equal(await readFile(join(root, 'AGENTS.md'), 'utf8'), own, 'the project\'s prose is untouched');
   let { data } = doctorJson(root);
   const note = data.notes.find(n => n.rule === 'contract-guide');
@@ -295,21 +295,21 @@ test('where adopt skipped the agents-md block, doctor names the contract rows AG
   const plain = await project(t);
   await contractFiles(plain);
   await setConfig(plain, c => { c.contracts = CONTRACTS; });
-  assert.equal(keel(['render'], plain).status, 0);
+  assert.equal(plates(['render'], plain).status, 0);
   assert.equal(doctorJson(plain).data.notes.find(n => n.rule === 'contract-guide'), undefined);
 });
 
-test('a project\'s own scripts/keel/contract-hook.mjs survives the first contract: render refuses it as edited, doctor names it (review of PR 58)', async t => {
+test('a project\'s own scripts/plates/contract-hook.mjs survives the first contract: render refuses it as edited, doctor names it (review of PR 58)', async t => {
   const root = await project(t);
   await contractFiles(root);
   const own = '// Acme\'s own pre-edit hook.\nconsole.log("acme");\n';
-  await mkdir(join(root, 'scripts', 'keel'), { recursive: true });
-  await writeFile(join(root, 'scripts/keel/contract-hook.mjs'), own);
+  await mkdir(join(root, 'scripts', 'plates'), { recursive: true });
+  await writeFile(join(root, 'scripts/plates/contract-hook.mjs'), own);
   await setConfig(root, c => { c.contracts = CONTRACTS; });
-  const r = keel(['render'], root);
+  const r = plates(['render'], root);
   assert.equal(r.status, 1, r.stdout + r.stderr);
-  assert.match(r.stderr, /refusing to overwrite what the project changed \(scripts\/keel\/contract-hook\.mjs edited\)/);
-  assert.equal(await readFile(join(root, 'scripts/keel/contract-hook.mjs'), 'utf8'), own, 'byte-identical');
+  assert.match(r.stderr, /refusing to overwrite what the project changed \(scripts\/plates\/contract-hook\.mjs edited\)/);
+  assert.equal(await readFile(join(root, 'scripts/plates/contract-hook.mjs'), 'utf8'), own, 'byte-identical');
   const { data } = doctorJson(root);
-  assert.deepEqual(data.drift.filter(d => d.path === 'scripts/keel/contract-hook.mjs').map(d => d.state), ['edited']);
+  assert.deepEqual(data.drift.filter(d => d.path === 'scripts/plates/contract-hook.mjs').map(d => d.state), ['edited']);
 });

@@ -3,7 +3,7 @@ status: built
 since: 2026-10-04
 goal: G5
 depends: [4, 11]
-note: "keel fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent."
+note: "plates fleet shows all four projects adopted, with duo and cajones correctly one release behind; silent is proven on the stub, as no project has gone silent."
 evidence: ["evidence/2026-10-02-fleet.md"]
 ---
 
@@ -11,12 +11,12 @@ evidence: ["evidence/2026-10-02-fleet.md"]
 
 ## Done when
 
-`keel fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `fleet.json` and `gh`, in under ten seconds.
+`plates fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `plates.json` and `gh`, in under ten seconds.
 
 ## Scope
 
-`fleet.json` on keel (repo, kind, adopted-at). Read-only. `--json`. Optionally
-a nightly page on keel, `docs/fleet/<date>.md`, as part of keel's own night.
+`plates.json` on plates (repo, kind, adopted-at). Read-only. `--json`. Optionally
+a nightly page on plates, `docs/fleet/<date>.md`, as part of plates's own night.
 
 ## Acceptance
 

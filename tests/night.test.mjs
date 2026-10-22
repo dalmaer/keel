@@ -1,4 +1,4 @@
-// keel drain: one open PR per machine queue, the newest. gh is stubbed at the
+// plates drain: one open PR per machine queue, the newest. gh is stubbed at the
 // boundary the way real gh behaves (lesson 8): `pr list --json <fields>` prints
 // a JSON array of exactly those fields, `mergeable` is MERGEABLE, CONFLICTING or
 // UNKNOWN (GitHub computes it lazily, so a first ask can say UNKNOWN), `files`
@@ -13,14 +13,14 @@ import { fileURLToPath } from 'node:url';
 import { run, cleanEnv } from './helpers/run.mjs';
 import { plan, isData, extraData, checkPrefix, SUPERSEDED } from '../lib/night.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const REPO = 'acme/notes';
 
 const files = (...paths) => paths.map(path => ({ path, additions: 1, deletions: 0 }));
 const pr = (number, headRefName, day, mergeable, paths, extra = {}) =>
   ({ number, headRefName, createdAt: `2026-09-${String(day).padStart(2, '0')}T07:30:00Z`, mergeable, files: files(...paths), isCrossRepository: false, ...extra });
-const PAGE = d => [`docs/health/2026-09-${d}.md`, '.keel/bounds.json'];
+const PAGE = d => [`docs/health/2026-09-${d}.md`, '.plates/bounds.json'];
 
 /** The queue every test starts from: three nights, a stray, a fork, a person's PR. */
 const SEED = () => [
@@ -34,17 +34,17 @@ const SEED = () => [
 ];
 
 async function scratch(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-night-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
-/** Acme Notes (a keel project naming its repo) and a gh over a JSON state file. */
+/** Acme Notes (a plates project naming its repo) and a gh over a JSON state file. */
 async function setup(t, { prs = SEED(), unknownOnce = [], failMerge = [], failClose = [], config = {} } = {}) {
   const dir = await scratch(t);
   const root = join(dir, 'acme-notes');
-  await mkdir(join(root, '.keel'), { recursive: true });
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Notes', repo: REPO, practice: '0.1.0', practices: ['base'], ...config }));
+  await mkdir(join(root, '.plates'), { recursive: true });
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Notes', repo: REPO, practice: '0.1.0', practices: ['base'], ...config }));
   const state = join(dir, 'state.json'), log = join(dir, 'gh.log'), gh = join(dir, 'gh');
   await writeFile(state, JSON.stringify({ prs: prs.map(p => ({ ...p, state: 'OPEN' })), unknownOnce, failMerge, failClose, lists: 0 }));
   await writeFile(gh, `#!${process.execPath}
@@ -79,10 +79,10 @@ if (a === 'pr' && b === 'list') {
 } else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(gh, 0o755);
-  const env = { ...cleanEnv(), KEEL_GH: gh, KEEL_DRAIN_WAIT_MS: '0' };
+  const env = { ...cleanEnv(), PLATES_GH: gh, PLATES_DRAIN_WAIT_MS: '0' };
   return {
     root,
-    keel: (args, extra = {}) => {
+    plates: (args, extra = {}) => {
       const r = run(process.execPath, [BIN, ...args], { cwd: root, env: { ...env, ...extra } });
       return { code: r.status, out: r.stdout, err: r.stderr };
     },
@@ -94,11 +94,11 @@ if (a === 'pr' && b === 'list') {
 const writes = calls => calls.filter(c => c[0] === 'pr' && ['merge', 'close'].includes(c[1]));
 
 test('isData and checkPrefix', () => {
-  for (const p of ['docs/health/2026-09-30.md', 'docs/inbox/x.md', 'docs/INBOX.md', '.keel/bounds.json']) assert.ok(isData(p), p);
-  for (const p of ['docs/healthy.md', 'docs/INBOX.md.bak', '.keel/keel.json', 'lib/acme.mjs', 'docs/health']) assert.ok(!isData(p), p);
+  for (const p of ['docs/health/2026-09-30.md', 'docs/inbox/x.md', 'docs/INBOX.md', '.plates/bounds.json']) assert.ok(isData(p), p);
+  for (const p of ['docs/healthy.md', 'docs/INBOX.md.bak', '.plates/plates.json', 'lib/acme.mjs', 'docs/health']) assert.ok(!isData(p), p);
   assert.equal(checkPrefix('keel-night/'), 'keel-night/');
   assert.equal(checkPrefix('keel/update-v'), 'keel/update-v');
-  for (const bad of ['', 'keel', '/', '/x', 'a b/']) assert.throws(() => checkPrefix(bad), e => e.exitCode === 2, bad);
+  for (const bad of ['', 'plates', '/', '/x', 'a b/']) assert.throws(() => checkPrefix(bad), e => e.exitCode === 2, bad);
 });
 
 test('plan: older data PRs that merge are merged, the rest superseded; strays, forks and other prefixes untouched', () => {
@@ -124,21 +124,21 @@ test('plan: the newest is left when it is not data or not mergeable, even after 
 
 test('without --yes: the plan, exit 3, and gh only listed', async t => {
   const s = await setup(t);
-  const r = s.keel(['drain', 'keel-night/', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--json']);
   assert.equal(r.code, 3, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.equal(out.needs, 'yes');
   assert.equal(out.newest, 14);
   assert.deepEqual(out.actions.map(a => a.action), ['merge', 'close', 'close', 'leave']);
   assert.deepEqual(writes(await s.calls()), [], 'nothing merged or closed');
-  const text = s.keel(['drain', 'keel-night/']);
+  const text = s.plates(['drain', 'keel-night/']);
   assert.equal(text.code, 3);
   assert.match(text.out, /needs a yes/);
 });
 
 test('--yes: oldest first, merge squashes and keeps the branch, close says how to recover; nothing outside the queue is touched', async t => {
   const s = await setup(t);
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.deepEqual(out.actions.map(a => [a.number, a.action, a.done]), [[11, 'merge', true], [12, 'close', true], [13, 'close', true], [14, 'leave', false]]);
@@ -148,54 +148,54 @@ test('--yes: oldest first, merge squashes and keeps the branch, close says how t
   const st = await s.state();
   const by = n => st.prs.find(p => p.number === n);
   assert.equal(by(12).comment, SUPERSEDED(14));
-  assert.equal(by(12).comment, 'Superseded by #14 (keel drain). The branch is kept: reopen to recover.');
+  assert.equal(by(12).comment, 'Superseded by #14 (plates drain). The branch is kept: reopen to recover.');
   for (const n of [14, 20, 21, 22]) assert.equal(by(n).state, 'OPEN', `#${n} untouched`);
   const list = (await s.calls()).find(c => c[1] === 'list');
   assert.equal(list[list.indexOf('--json') + 1], 'number,headRefName,createdAt,mergeable,files,isCrossRepository');
 });
 
-test('a project whose .keel/keel.json names `health`: PRs holding only pages there are data, beside the default', async t => {
-  const OWN = d => [`.keel/health/2026-09-${d}.md`, '.keel/bounds.json'];
-  const extra = extraData({ health: '.keel/health' }, 'keel-night/');
+test('a project whose .plates/plates.json names `health`: PRs holding only pages there are data, beside the default', async t => {
+  const OWN = d => [`.plates/health/2026-09-${d}.md`, '.plates/bounds.json'];
+  const extra = extraData({ health: '.plates/health' }, 'keel-night/');
   assert.equal(extra.length, 1);
-  assert.ok(isData('.keel/health/2026-09-30.md', 'keel-night/', extra));
+  assert.ok(isData('.plates/health/2026-09-30.md', 'keel-night/', extra));
   assert.ok(isData('docs/health/2026-09-30.md', 'keel-night/', extra), 'the default stays data');
   // Codex on 0.8.4: the default directory is dated pages only too: a shared index there is not the night's.
   for (const p of ['docs/health/index.md', 'docs/health/README.md', 'docs/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/'), p);
-  for (const p of ['.keel/healthy.md', '.keel/keel.json', '.keel/health', '.keel/health/notes.md', '.keel/health/2026-09-30.md.bak', '.keel/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/', extra), p);
+  for (const p of ['.plates/healthy.md', '.plates/plates.json', '.plates/health', '.plates/health/notes.md', '.plates/health/2026-09-30.md.bak', '.plates/health/x/2026-09-30.md']) assert.ok(!isData(p, 'keel-night/', extra), p);
   // A shared directory (ledger #76: "health": "scripts" or "docs"): only its dated pages are the night's, never its other files.
   const shared = extraData({ health: 'scripts' }, 'keel-night/');
   assert.ok(isData('scripts/2026-09-30.md', 'keel-night/', shared));
-  for (const p of ['scripts/deploy.mjs', 'scripts/keel/lib.mjs', 'scripts/README.md']) assert.ok(!isData(p, 'keel-night/', shared), p);
+  for (const p of ['scripts/deploy.mjs', 'scripts/plates/lib.mjs', 'scripts/README.md']) assert.ok(!isData(p, 'keel-night/', shared), p);
   for (const bad of [':(top)x', ':!scripts']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
-  for (const bad of ['../x', '/x', '.keel', 'a b', 'docs/health']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
-  assert.deepEqual(extraData({ health: '.keel/health' }, 'keel-loop/'), [], 'the loop queue keeps its own data');
+  for (const bad of ['../x', '/x', '.plates', 'a b', 'docs/health']) assert.deepEqual(extraData({ health: bad }, 'keel-night/'), [], bad);
+  assert.deepEqual(extraData({ health: '.plates/health' }, 'keel-loop/'), [], 'the loop queue keeps its own data');
   const prs = () => [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', OWN(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', OWN(30))];
-  const s = await setup(t, { prs: prs(), config: { health: '.keel/health' } });
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const s = await setup(t, { prs: prs(), config: { health: '.plates/health' } });
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['merge', '11'], ['merge', '14']]);
   // Without the setting, the same pages are not data: superseded and left.
   const u = await setup(t, { prs: prs() });
-  const ru = u.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const ru = u.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(ru.code, 0, ru.err || ru.out);
   assert.deepEqual(writes(await u.calls()).map(c => [c[1], c[2]]), [['close', '11']]);
 });
 
 test('--gate-passed merges the newest too, leaving the queue empty', async t => {
   const s = await setup(t, { prs: [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', PAGE(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', PAGE(30))] });
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['merge', '11'], ['merge', '14']]);
   assert.ok((await s.state()).prs.every(p => p.state === 'MERGED'));
-  const again = s.keel(['drain', 'keel-night/']);
+  const again = s.plates(['drain', 'keel-night/']);
   assert.equal(again.code, 0, 'nothing left: no yes needed');
   assert.match(again.out, /Nothing to drain/);
 });
 
 test('UNKNOWN mergeability is asked again once, then decided on what GitHub says', async t => {
   const s = await setup(t, { prs: [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', PAGE(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', PAGE(30))], unknownOnce: [11, 14] });
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   assert.equal((await s.calls()).filter(c => c[1] === 'list').length, 2);
   assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['merge', '11'], ['merge', '14']]);
@@ -203,7 +203,7 @@ test('UNKNOWN mergeability is asked again once, then decided on what GitHub says
 
 test('still UNKNOWN: an older PR is superseded and the newest left, never merged', async t => {
   const s = await setup(t, { prs: [pr(11, 'keel-night/2026-09-27', 27, 'UNKNOWN', PAGE(27)), pr(14, 'keel-night/2026-09-30', 30, 'UNKNOWN', PAGE(30))] });
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['close', '11']]);
   assert.equal((await s.state()).prs.find(p => p.number === 14).state, 'OPEN');
@@ -211,14 +211,14 @@ test('still UNKNOWN: an older PR is superseded and the newest left, never merged
 
 test('a merge that fails: an older PR is superseded instead, the newest is left; a close that fails is exit 1', async t => {
   const s = await setup(t, { prs: [pr(11, 'keel-night/2026-09-27', 27, 'MERGEABLE', PAGE(27)), pr(14, 'keel-night/2026-09-30', 30, 'MERGEABLE', PAGE(30))], failMerge: [11, 14] });
-  const r = s.keel(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
+  const r = s.plates(['drain', 'keel-night/', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   const out = JSON.parse(r.out);
   assert.deepEqual(out.actions.map(a => [a.number, a.action, a.done]), [[11, 'close', true], [14, 'leave', false]]);
   assert.match(out.actions[1].why, /merge failed.*left for a person/);
 
   const f = await setup(t, { failClose: [12] });
-  const bad = f.keel(['drain', 'keel-night/', '--yes', '--json']);
+  const bad = f.plates(['drain', 'keel-night/', '--yes', '--json']);
   assert.equal(bad.code, 1, bad.out);
   const o = JSON.parse(bad.out);
   assert.equal(o.ok, false);
@@ -227,36 +227,36 @@ test('a merge that fails: an older PR is superseded instead, the newest is left;
 });
 
 test('the update queue: older update PRs are superseded, the newest never merged (not data)', async t => {
-  const s = await setup(t, { prs: [pr(31, 'keel/update-v0.1.0', 1, 'MERGEABLE', ['.keel/keel.json', 'AGENTS.md']), pr(32, 'keel/update-v0.2.0', 8, 'MERGEABLE', ['.keel/keel.json', 'AGENTS.md']), pr(33, 'keel-night/2026-09-30', 30, 'MERGEABLE', PAGE(30))] });
-  const r = s.keel(['drain', 'keel/update-v', '--yes', '--gate-passed', '--json']);
+  const s = await setup(t, { prs: [pr(31, 'keel/update-v0.1.0', 1, 'MERGEABLE', ['.plates/plates.json', 'AGENTS.md']), pr(32, 'keel/update-v0.2.0', 8, 'MERGEABLE', ['.plates/plates.json', 'AGENTS.md']), pr(33, 'keel-night/2026-09-30', 30, 'MERGEABLE', PAGE(30))] });
+  const r = s.plates(['drain', 'keel/update-v', '--yes', '--gate-passed', '--json']);
   assert.equal(r.code, 0, r.err || r.out);
   assert.deepEqual(writes(await s.calls()).map(c => [c[1], c[2]]), [['close', '31']]);
 });
 
 test('usage: a prefix is required and names a namespace', async t => {
   const s = await setup(t);
-  assert.equal(s.keel(['drain']).code, 2);
-  assert.equal(s.keel(['drain', 'keel-night']).code, 2);
-  assert.equal(s.keel(['drain', 'keel-night/', '--merge-all']).code, 2);
+  assert.equal(s.plates(['drain']).code, 2);
+  assert.equal(s.plates(['drain', 'plates-night']).code, 2);
+  assert.equal(s.plates(['drain', 'keel-night/', '--merge-all']).code, 2);
   assert.deepEqual(writes(await s.calls()), []);
 });
 
-test('one source: keel\'s verbs are the night practice\'s shipped modules, and a drifted copy fails render --check', async t => {
-  const night = await import('../lib/night.mjs'), drainSrc = await import('../practices/night/files/scripts/keel/drain.mjs');
-  const improve = await import('../lib/improve.mjs'), improveSrc = await import('../practices/night/files/scripts/keel/improve.mjs');
-  assert.equal(night.drain, drainSrc.drain, 'keel drain is the shipped drain');
+test('one source: plates\'s verbs are the night practice\'s shipped modules, and a drifted copy fails render --check', async t => {
+  const night = await import('../lib/night.mjs'), drainSrc = await import('../practices/night/files/scripts/plates/drain.mjs');
+  const improve = await import('../lib/improve.mjs'), improveSrc = await import('../practices/night/files/scripts/plates/improve.mjs');
+  assert.equal(night.drain, drainSrc.drain, 'plates drain is the shipped drain');
   assert.equal(night.plan, drainSrc.plan);
-  assert.equal(improve.MEASURES, improveSrc.MEASURES, 'keel improve measures with the shipped measures');
-  // keel's own rendered copies are byte-identical, and a changed one is caught.
+  assert.equal(improve.MEASURES, improveSrc.MEASURES, 'plates improve measures with the shipped measures');
+  // plates's own rendered copies are byte-identical, and a changed one is caught.
   for (const f of ['improve.mjs', 'drain.mjs', 'lib.mjs']) {
-    assert.equal(await readFile(join(KEEL, 'scripts', 'keel', f), 'utf8'), await readFile(join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', f), 'utf8'), f);
+    assert.equal(await readFile(join(PLATES, 'scripts', 'plates', f), 'utf8'), await readFile(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', f), 'utf8'), f);
   }
   const dir = join(await scratch(t), 'acme');
   const made = run(process.execPath, [BIN, 'init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme'], { env: { ...cleanEnv(), GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test', GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' } });
   assert.equal(made.status, 0, made.stderr);
   assert.equal(run(process.execPath, [BIN, 'render', '--check'], { cwd: dir }).status, 0);
-  await writeFile(join(dir, 'scripts', 'keel', 'drain.mjs'), `${await readFile(join(dir, 'scripts', 'keel', 'drain.mjs'), 'utf8')}// a local fix\n`);
+  await writeFile(join(dir, 'scripts', 'plates', 'drain.mjs'), `${await readFile(join(dir, 'scripts', 'plates', 'drain.mjs'), 'utf8')}// a local fix\n`);
   const check = run(process.execPath, [BIN, 'render', '--check', '--json'], { cwd: dir });
   assert.equal(check.status, 1);
-  assert.deepEqual(JSON.parse(check.stdout).differs, ['scripts/keel/drain.mjs']);
+  assert.deepEqual(JSON.parse(check.stdout).differs, ['scripts/plates/drain.mjs']);
 });

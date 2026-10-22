@@ -5,13 +5,13 @@ import { mkdtemp, mkdir, writeFile, rm, symlink, readFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { decisionContext, refreshDecisionContext, decisionExitCode } from '../practices/reconciliation/files/scripts/keel/decision-context.mjs';
+import { decisionContext, refreshDecisionContext, decisionExitCode } from '../practices/reconciliation/files/scripts/plates/decision-context.mjs';
 const ref = id => `docs/decisions/${id}.md#${id}`;
 async function world(t, refs = [ref('old')]) {
   const root = await mkdtemp(join(tmpdir(), 'acme-decisions-'));
   t.after(() => rm(root, {recursive:true, force:true}));
-  for (const dir of ['docs/phases','docs/decisions','.keel']) await mkdir(join(root,dir),{recursive:true});
-  await writeFile(join(root,'.keel/keel.json'),JSON.stringify({name:'Acme',repo:'acme/app'}));
+  for (const dir of ['docs/phases','docs/decisions','.plates']) await mkdir(join(root,dir),{recursive:true});
+  await writeFile(join(root,'.plates/plates.json'),JSON.stringify({name:'Acme',repo:'acme/app'}));
   await writeFile(join(root,'docs/phases/00-acme.md'),`# Acme\n## Reconciliation\n\`\`\`keel-reconciliation\n${JSON.stringify({version:1,decisions:refs})}\n\`\`\`\n`);
   execFileSync('git',['init','-q'],{cwd:root});execFileSync('git',['add','.'],{cwd:root});execFileSync('git',['commit','-qm','Acme'],{cwd:root});
   const put = async (id, extra = {}) => writeFile(join(root,`docs/decisions/${id}.md`),`<a id="${id}"></a>\n# ${id}\nAcme choice ${id}.\n\`\`\`keel-decision\n${JSON.stringify({version:1,id,status:'accepted',scope:['authored-data','cache'],decided_by:'Acme owner',decided_at:'2026-01-01',supersedes:[],superseded_by:[],...extra})}\n\`\`\`\n`);

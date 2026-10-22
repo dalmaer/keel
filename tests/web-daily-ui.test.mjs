@@ -25,7 +25,7 @@ test('actual authenticated learning routes preview private copies, verify receip
   response=await post(h,login,'/api/projects/studio/learning/export/preview',{selection,text:'Approved Acme lesson.\nOnly these bytes.'});
   assert.equal(response.status,200,await response.clone().text());const exp=await response.json();
   response=await post(h,login,'/api/projects/studio/learning/export/download',{previewId:exp.id,digest:exp.digest});
-  assert.equal(response.status,200,await response.clone().text());assert.equal(response.headers.get('content-disposition'),'attachment; filename="keel-reviewed-lessons.txt"');assert.match(response.headers.get('cache-control'),/no-store/);assert.equal(await response.text(),exp.text);
+  assert.equal(response.status,200,await response.clone().text());assert.equal(response.headers.get('content-disposition'),'attachment; filename="plates-reviewed-lessons.txt"');assert.match(response.headers.get('cache-control'),/no-store/);assert.equal(await response.text(),exp.text);
   assert.equal(h.source.writes.length,0,'project records are never changed');
 });
 
@@ -45,7 +45,7 @@ test('learning routes retain current auth, CSRF, project selection scope and saf
 test('daily source rendering separates allowance allocation and unknown usage, including invalid preview',async()=>{
   const h=dailyHarness();const model=await h.daily.inspect(h.access,'fake-user-access-token-for-tests',h.project,'2026-10-21');
   const html=dailyView(model,{...h.access,csrf:'Acme'});
-  assert.match(html,/45 min/);assert.match(html,/10 min/);assert.match(html,/Actual cost unknown/);assert.match(html,/Exact original plan and statuses/);
+  assert.match(html,/plates goodnight/);assert.match(html,/45 min/);assert.match(html,/10 min/);assert.match(html,/Actual cost unknown/);assert.match(html,/Exact original plan and statuses/);
   const invalid=renderDailyPreview({valid:false,problems:['Acme invalid plan'],plan:null,budget:null});assert.match(invalid,/Acme invalid plan/);assert.match(invalid,/not a zero budget/);
   const editor=renderPlanEditor(model.plan,[{id:'climb',targets:['climb:test-time','climb:lint']}]);assert.match(editor,/value="climb:lint"/);assert.doesNotMatch(editor,/value="climb"/);
   model.items[0].resultUrl='https://preview.acme.test/result';assert.match(dailyView(model,{...h.access,csrf:'Acme'}),/href="https:\/\/preview.acme.test\/result"/);
@@ -54,7 +54,7 @@ test('daily source rendering separates allowance allocation and unknown usage, i
 test('new daily and learning browser modules and setup are served by the real handler',async()=>{
   const h=learningHarness(),login=await h.login();
   for(const path of ['daily-client.mjs','daily-views.mjs','learning-client.mjs','learning-views.mjs','daily.css']){const response=await h.service(h.request(`/assets/${path}`));assert.equal(response.status,200,path);assert.match(response.headers.get('content-type'),path.endsWith('.css')?/text\/css/:/javascript/);}
-  for(const path of ['/daily','/setup','/learning']){const response=await h.service(h.request(path,{cookie:login.cookie}));assert.equal(response.status,200,path);const body=await response.text();assert.doesNotMatch(body,/fake-user-access-token|BEGIN PRIVATE KEY/);}
+  for(const path of ['/daily','/setup','/learning']){const response=await h.service(h.request(path,{cookie:login.cookie}));assert.equal(response.status,200,path);const body=await response.text();assert.doesNotMatch(body,/fake-user-access-token|BEGIN PRIVATE KEY/);assert.match(body,/<title>[^<]* · Plates<\/title>/);assert.match(body,/href="\/assets\/plates\.css"/);assert.match(body,/<summary class="nav-project">All plates<\/summary>/);}
 });
 
 test('source prose and exact files are escaped and unverified copy is never called success',()=>{

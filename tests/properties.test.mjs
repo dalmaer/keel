@@ -1,12 +1,12 @@
-// Properties over the code that holds keel's state (phase 85): the night
+// Properties over the code that holds plates's state (phase 85): the night
 // plan's validator, tick merging, claims and phase front matter. Each is a
 // claim over every input its generator makes (tests/helpers/property.mjs);
 // a failure reports its smallest case and the seed that reproduces it
-// (KEEL_PROPERTY_SEED). Each property is written over its subject, so the
+// (PLATES_PROPERTY_SEED). Each property is written over its subject, so the
 // same property also runs against a planted bug of its kind and must catch
 // it: a property that passes on the bug guards nothing (lesson 38).
 //
-// The gate runs a small count; KEEL_PROPERTY_RUNS=<n> runs more.
+// The gate runs a small count; PLATES_PROPERTY_RUNS=<n> runs more.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -167,7 +167,7 @@ const PLANTED_VALIDATORS = {
 };
 
 test('the plan validator: every plan it accepts round-trips through write and read, as the working plan and as the record', async t => {
-  const root = await mkdtemp(join(tmpdir(), 'keel-prop-plan-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-prop-plan-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await property('accepted plans round-trip', planGen, roundTrips(validatePlan, root), { runs: 60 });
 });
@@ -357,10 +357,10 @@ const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encodi
 
 /** One bare Acme origin and `n` clones of it; phase 1 is ready. gh is a stub listing no PRs. */
 async function origin(n) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-prop-claim-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-prop-claim-'));
   const seed = join(dir, 'seed'), bare = join(dir, 'origin.git');
   const w = async (p, body) => { await mkdir(dirname(join(seed, p)), { recursive: true }); await writeFile(join(seed, p), body); };
-  await w('.keel/keel.json', JSON.stringify({ name: 'Acme', repo: 'acme/app', practices: ['phases'] }));
+  await w('.plates/plates.json', JSON.stringify({ name: 'Acme', repo: 'acme/app', practices: ['phases'] }));
   await w('docs/goals.json', JSON.stringify([{ id: 'G0', title: 'Anvils', outcome: 'They land.' }]));
   await w('docs/evidence/acme-0.md', '# Evidence: phase 0\n');
   await w('docs/phases/00-start.md', phaseFile({ status: 'built', evidence: '["evidence/acme-0.md"]', title: 'Start' }));
@@ -385,7 +385,7 @@ const oneHolds = claimFn => async racers => {
   const x = await origin(racers.length);
   try {
     const results = await Promise.all(racers.map((r, i) => {
-      const env = { ...process.env, KEEL_GH: x.gh, KEEL_MACHINE: r.machine, KEEL_PROVIDER: r.provider, KEEL_SESSION: '' };
+      const env = { ...process.env, PLATES_GH: x.gh, PLATES_MACHINE: r.machine, PLATES_PROVIDER: r.provider, PLATES_SESSION: '' };
       for (const k of Object.keys(env)) if (/^(CLAUDE|CODEX_)/.test(k)) delete env[k];
       return claimFn({ root: x.clones[i], phase: '1', provider: r.provider }, { env, ...(r.frozen ? { now: NOW } : {}), beforePush: () => new Promise(res => setTimeout(res, r.delay)) });
     }));
@@ -454,7 +454,7 @@ const bodyFor = m => {
     : m.owes === 'walk' ? ['- [x] Built. `tests/anvil.test.mjs`', '- [ ] ⚑ by hand: walk the anvil.'] : ['- [ ] Build it. `tests/anvil.test.mjs`'];
   return ['', '# The anvil lands', '', '## Done when', '', 'It lands.', '', '## Scope', '', 'Small.', '', '## Acceptance', '', ...boxes, '', '## Proof', '', 'A command.', '', '## Deliberately open', '', 'Nothing.', '', '## Next action', '', 'Build it.', ''].join('\n');
 };
-/** The phase file a writer makes: each field set by keel's own setField (keel walk's), in the order given. */
+/** The phase file a writer makes: each field set by plates's own setField (plates walk's), in the order given. */
 const renderPhase = (meta, order, quote) => order.filter(k => Object.hasOwn(meta, k))
   .reduce((raw, k, i) => setField(raw, k, scalar(k, meta[k], quote[i % quote.length])), `---\nstatus: planned\n---\n${bodyFor(meta)}`);
 

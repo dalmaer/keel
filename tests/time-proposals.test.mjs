@@ -4,8 +4,8 @@ import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from 'node:fs/promis
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
-import { makeTimeProposal,formatTimeProposal,parseTimeProposal,mergeHealthPage,writeHealthReport,withTimeProposal,readTimeProposals,selectableTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
-const inputs={measure:'gate_time',identity:{kind:'timing',scope:'.',runner:'node',configHash:'acme-config',flagsHash:'acme-flags',machineClass:'acme-machine',commandHash:'acme-command',target:'gate'},candidate:{title:'Acme gate cleanup',rubric:{version:1,problem:'Acme gate exceeds its bound',reproduction:'npm test',acceptance:'gate inside frozen bound',change:'remove duplicate work',prerequisites:[],ownerBlockers:[]},remeasureCommand:'keel time --json'},baseline:{windowStart:'2026-09-01T00:00:00Z',windowEnd:'2026-09-29T00:00:00Z',value:1000,unit:'ms',runIds:['acme-run'],revisionShas:['a'.repeat(40)]},threshold:{contractVersion:1,rule:'gate_time',parameters:{maxMs:1250}},coverage:{retained:12,eligible:12,omitted:0,dates:['2026-09-01'],sampled:true,gaps:[]},at:'2026-10-01T00:00:00Z'};
+import { makeTimeProposal,formatTimeProposal,parseTimeProposal,mergeHealthPage,writeHealthReport,withTimeProposal,readTimeProposals,selectableTimeProposal } from '../practices/night/files/scripts/plates/time-proposals.mjs';
+const inputs={measure:'gate_time',identity:{kind:'timing',scope:'.',runner:'node',configHash:'acme-config',flagsHash:'acme-flags',machineClass:'acme-machine',commandHash:'acme-command',target:'gate'},candidate:{title:'Acme gate cleanup',rubric:{version:1,problem:'Acme gate exceeds its bound',reproduction:'npm test',acceptance:'gate inside frozen bound',change:'remove duplicate work',prerequisites:[],ownerBlockers:[]},remeasureCommand:'plates time --json'},baseline:{windowStart:'2026-09-01T00:00:00Z',windowEnd:'2026-09-29T00:00:00Z',value:1000,unit:'ms',runIds:['acme-run'],revisionShas:['a'.repeat(40)]},threshold:{contractVersion:1,rule:'gate_time',parameters:{maxMs:1250}},coverage:{retained:12,eligible:12,omitted:0,dates:['2026-09-01'],sampled:true,gaps:[]},at:'2026-10-01T00:00:00Z'};
 const proposal=()=>makeTimeProposal(inputs);
 const page=p=>`# Acme health\n\n## Proposal\n\n**\`${p.measure}\`**\n${formatTimeProposal(p)}\n\n## Other measurements\n\nAcme findings.\n`;
 async function root(t){const r=await mkdtemp(join(tmpdir(),'acme-proposals-'));t.after(()=>rm(r,{recursive:true,force:true}));return r;}
@@ -82,10 +82,10 @@ test('health refresh migrates verified embedded non-time proposals and does not 
 });
 
 test('configured health alias and canonical path share proposal lock while other paths remain refused',async t=>{
- const r=await root(t),p=proposal(),alias='.keel/health/2026-10-01.md',canonical='acme-pages/2026-10-01.md';
- await mkdir(join(r,'.keel'));await mkdir(join(r,'acme-pages'));
- await writeFile(join(r,'.keel/keel.json'),JSON.stringify({health:'.keel/health'}));
- await symlink('../acme-pages',join(r,'.keel/health'));
+ const r=await root(t),p=proposal(),alias='.plates/health/2026-10-01.md',canonical='acme-pages/2026-10-01.md';
+ await mkdir(join(r,'.plates'));await mkdir(join(r,'acme-pages'));
+ await writeFile(join(r,'.plates/plates.json'),JSON.stringify({health:'.plates/health'}));
+ await symlink('../acme-pages',join(r,'.plates/health'));
  await writeHealthReport({root:r,path:alias,generated:page(p)});
  let entered,release;const arrived=new Promise(done=>entered=done),hold=new Promise(done=>release=done);
  const decision=withTimeProposal({root:r,path:alias,expectedInstance:p.instanceId},async({proposal,saveLifecycle})=>{entered();await hold;await saveLifecycle({...proposal.lifecycle,state:'accepting',decidedAt:inputs.at});});
@@ -93,9 +93,9 @@ test('configured health alias and canonical path share proposal lock while other
  const update=writeHealthReport({root:r,path:canonical,generated:page(p)+'Fresh Acme values.\n'});
  release();await Promise.all([decision,update]);
  const text=await readFile(join(r,canonical),'utf8');assert.equal(parseTimeProposal(text).proposal.lifecycle.state,'accepting');assert.match(text,/Fresh Acme values/);
- const history=await readTimeProposals({root:r,healthDir:'.keel/health'});assert.deepEqual(history.gaps,[]);assert.equal(history.proposals.length,1);
+ const history=await readTimeProposals({root:r,healthDir:'.plates/health'});assert.deepEqual(history.gaps,[]);assert.equal(history.proposals.length,1);
  await mkdir(join(r,'unrelated'));await symlink('acme-pages',join(r,'other-alias'));
  for(const path of ['unrelated/2026-10-01.md','other-alias/2026-10-01.md'])await assert.rejects(writeHealthReport({root:r,path,generated:page(p)}),/unsafe health path/);
  await symlink(join(r,canonical),join(r,'acme-pages/2026-10-02.md'));
- await assert.rejects(writeHealthReport({root:r,path:'.keel/health/2026-10-02.md',generated:page(p)}),/unsafe health path/);
+ await assert.rejects(writeHealthReport({root:r,path:'.plates/health/2026-10-02.md',generated:page(p)}),/unsafe health path/);
 });

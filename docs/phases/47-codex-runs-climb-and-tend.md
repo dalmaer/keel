@@ -6,7 +6,7 @@ since: 2026-10-08
 goal: G4
 spec: 2
 depends: [45, 46]
-note: "Built (Path A): Codex runs climb and tend with workspace-write and drop-sudo, TMPDIR pinned to /tmp/keel-codex, commits to .keel/agent-git; keel takes only objects from that git dir (no git command reads it) into a fresh repo, then the judge and publish jobs as before. Owes one real Codex night of each pass, read by the owner."
+note: "Built (Path A): Codex runs climb and tend with workspace-write and drop-sudo, TMPDIR pinned to /tmp/plates-codex, commits to .plates/agent-git; plates takes only objects from that git dir (no git command reads it) into a fresh repo, then the judge and publish jobs as before. Owes one real Codex night of each pass, read by the owner."
 evidence: ["evidence/2026-10-08-codex-climb-tend.md"]
 issue: 33
 ---
@@ -23,14 +23,14 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 - **The spike first**: on GitHub Actions with `openai/codex-action@v1`, `sandbox: workspace-write`, `safety-strategy: drop-sudo`: can Codex run `git commit` against a git dir that is not `.git` (`GIT_DIR` inside the workspace under another name)? Its result decides the path, recorded in Trajectory.
 - **Path A (the spike holds)**: the agent job gives Codex that git dir; the climb protocol and tend's commits are unchanged.
-- **Path B (it does not)**: Codex edits the tree and writes `.keel/climb/plan.json` (what changed and why); a keel step after the agent, still in the read-only agent job, commits the tree as one change citing the plan; climb's `compare` and the guards run as today. A Codex climb night keeps at most one change; a tend pass is one commit citing every finding the plan names. The brief and the PR say which path ran.
+- **Path B (it does not)**: Codex edits the tree and writes `.plates/climb/plan.json` (what changed and why); a plates step after the agent, still in the read-only agent job, commits the tree as one change citing the plan; climb's `compare` and the guards run as today. A Codex climb night keeps at most one change; a tend pass is one commit citing every finding the plan names. The brief and the PR say which path ran.
 - **Config**: `"agent": "codex"` stops being a config error on climb and tend; the adapter gains `editTree`.
 - **Unchanged**: agent and judge jobs read-only, publish runs nothing from the branch, the guard, the budget, "Did the agent run?".
 
 ## Acceptance
 
-- [x] The spike's result is recorded with its run: a Codex step on GitHub committing (or failing to) to a git dir other than `.git` under workspace-write and drop-sudo. `gh run view <id> -R dalmaer/keel --log`
-- [x] With `"agent": "codex"`, keel-climb.yml and keel-tend.yml run Codex's step with `sandbox: workspace-write` and `safety-strategy: drop-sudo`, and every sandbox rule holds as for Claude; mutation: `danger-full-access` fails the test. `tests/workflows.test.mjs`
+- [x] The spike's result is recorded with its run: a Codex step on GitHub committing (or failing to) to a git dir other than `.git` under workspace-write and drop-sudo. `gh run view <id> -R dalmaer/plates --log`
+- [x] With `"agent": "codex"`, plates-climb.yml and plates-tend.yml run Codex's step with `sandbox: workspace-write` and `safety-strategy: drop-sudo`, and every sandbox rule holds as for Claude; mutation: `danger-full-access` fails the test. `tests/workflows.test.mjs`
 - [x] The chosen path's commit step (A: the git dir; B: the plan commit) produces commits the climb and tend guards judge as they judge Claude's, refusing the same things. `tests/climb.test.mjs`
 - [ ] ⚑ by hand: one Codex climb night and one Codex tend pass on a project, each PR read by the owner.
 
@@ -43,12 +43,12 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 - **Keeps it open:** Something was wrong | Not run yet
 - **Takes:** 20 minutes, once both have run; each run bills the OpenAI API account per token, up to its minutes budget
 - **Then:** Both held: recorded, and the conductor writes the evidence and marks the work done. Something was wrong: recorded with what you saw in the note; the conductor fixes it and asks again. Not run yet: nothing changes.
-- **Ready when:** you have set `"agent": "codex"` on `climb` and on `tend` in a project's `.keel/keel.json` (keel or ledger), listed `codex` in `"agents"`, set the `OPENAI_API_KEY` secret, and one Codex climb night and one Codex tend pass have run
+- **Ready when:** you have set `"agent": "codex"` on `climb` and on `tend` in a project's `.plates/plates.json` (plates or ledger), listed `codex` in `"agents"`, set the `OPENAI_API_KEY` secret, and one Codex climb night and one Codex tend pass have run
 
 ## Real surfaces
 
-- Workflow shell: keel-climb.yml and keel-tend.yml running Codex on GitHub Actions.
-- Adopted project: the project the owner picks for the Codex nights (keel or ledger).
+- Workflow shell: plates-climb.yml and plates-tend.yml running Codex on GitHub Actions.
+- Adopted project: the project the owner picks for the Codex nights (plates or ledger).
 
 ## Proof
 

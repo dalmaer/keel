@@ -11,7 +11,7 @@ export async function runsUiHarness({projectCount=4,receiptAt='2026-10-21T18:00:
     const provider=runsHarness();provider.state.now=h.state.now;
     Object.assign(provider.source,{repoId:project.repoId,repoName:project.repo,repositoryNodeId:`R_acme_${project.repoId}`,branchNodeId:`REF_acme_${project.repoId}_main`});
     provider.source.files['docs/night/2026-10-21.json']=JSON.stringify(nightRecord());
-    provider.source.files['.keel/test-runs/acme.json']=JSON.stringify(stallsRecord());
+    provider.source.files['.plates/test-runs/acme.json']=JSON.stringify(stallsRecord());
     provider.actions.runs=[runFixture({repository:{id:project.repoId},run_attempt:2,conclusion:index===0?'failure':'skipped'})];
     provider.actions.attempts.set('9001:1',runFixture({repository:{id:project.repoId},conclusion:'failure'}));
     provider.actions.jobs.set('9001:2',[jobFixture({run_attempt:2,conclusion:index===0?'failure':'skipped',steps:[{number:1,name:'Check Acme ordering',status:'completed',conclusion:'failure',started_at:'2026-10-21T10:00:00Z',completed_at:'2026-10-21T10:01:01Z'}]})]);

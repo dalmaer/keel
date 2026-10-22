@@ -5,12 +5,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve, win32, posix } from 'node:path';
 import { run } from './helpers/run.mjs';
 import * as timing from '../lib/time.mjs';
-import { timeSummary, keelTime, workedAround, testIdentities } from '../lib/time.mjs';
-import { timedCommand, readRuns } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { timeSummary, platesTime, workedAround, testIdentities } from '../lib/time.mjs';
+import { timedCommand, readRuns } from '../practices/night/files/scripts/plates/test-ledger.mjs';
 const quiet = { start: { load: [1, 1, 1], cores: 4 }, end: { load: [2, 2, 2], cores: 4 } };
 const machine = { os: 'linux', arch: 'x64', cpus: 4 };
 const at = (date, extra = {}) => ({ date, dir: '.', machine, config: 'acme', tests: [{ file: 'a.test.mjs', name: 'Acme ships', outcome: 'pass', ms: 10 }], busy: quiet, ...extra });
-async function scratch(t) { const p = await mkdtemp(join(tmpdir(), 'keel-time-')); t.after(() => rm(p, { recursive: true, force: true })); return p; }
+async function scratch(t) { const p = await mkdtemp(join(tmpdir(), 'plates-time-')); t.after(() => rm(p, { recursive: true, force: true })); return p; }
 
 test('weeks separate full gates, subsets, machines and configs; no duration is fabricated', () => {
   const runs = [at('2026-09-28T12:00:00Z', { wallMs: 9999 }), at('2026-10-05T12:00:00Z'),
@@ -28,9 +28,9 @@ test('weeks separate full gates, subsets, machines and configs; no duration is f
   assert.match(data.coverage.note, /retention/);
 });
 
-test('wrapper provides KEEL_USUAL before runner starts and records the whole command, with its exit status', async t => {
+test('wrapper provides PLATES_USUAL before runner starts and records the whole command, with its exit status', async t => {
   const root = await scratch(t);
-  await writeFile(join(root, 'runner.mjs'), `import {readFileSync} from 'node:fs'; const data = JSON.parse(readFileSync(process.env.KEEL_USUAL)); console.log(JSON.stringify({version:data.version, tests:data.tests})); process.exitCode=7;`);
+  await writeFile(join(root, 'runner.mjs'), `import {readFileSync} from 'node:fs'; const data = JSON.parse(readFileSync(process.env.PLATES_USUAL)); console.log(JSON.stringify({version:data.version, tests:data.tests})); process.exitCode=7;`);
   const result = await timedCommand('node runner.mjs', { cwd: root });
   assert.equal(result.status, 7);
   assert.equal(JSON.parse(result.stdout).version, 1);
@@ -41,7 +41,7 @@ test('wrapper provides KEEL_USUAL before runner starts and records the whole com
   assert.ok(runs[0].ms >= 0);
   assert.ok(runs[0].busy.start.cores > 0);
   assert.ok(runs[0].busy.end.cores > 0);
-  const report = await keelTime({ root, env: { CI: 'true' } });
+  const report = await platesTime({ root, env: { CI: 'true' } });
   assert.equal(report.data.coverage.gateRuns, 1);
   assert.equal(report.data.workedAround.available, false);
 });
@@ -75,9 +75,9 @@ test('fixture Claude transcript reports timeout/background/interrupt counts, no 
 
 test('public time command returns JSON and validates its week window', async t => {
   const root = await scratch(t);
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
-  const cli = resolve('bin/keel.mjs');
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  const cli = resolve('bin/plates.mjs');
   const r = run(process.execPath, [cli, 'time', '--weeks', '2', '--json'], { cwd: root, env: { ...process.env, CI: 'true' } });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(JSON.parse(r.stdout).weeks.length, 2);
@@ -98,7 +98,7 @@ test('worked-around identities retain only safe test paths or known test/check s
 
 test('nested gate wrappers record only the outer boundary', async t => {
   const root = await scratch(t);
-  const ledger = new URL('../practices/night/files/scripts/keel/test-ledger.mjs', import.meta.url).href;
+  const ledger = new URL('../practices/night/files/scripts/plates/test-ledger.mjs', import.meta.url).href;
   await writeFile(join(root, 'inner.mjs'), `import {timedCommand} from ${JSON.stringify(ledger)}; const result = await timedCommand('node -e "console.log(123)"'); process.stdout.write(result.stdout); process.exitCode=result.status;`);
   const result = await timedCommand('node inner.mjs', { cwd: root });
   assert.equal(result.status, 0, result.stderr);
@@ -109,16 +109,16 @@ test('nested gate wrappers record only the outer boundary', async t => {
 
 test('wrapped JUnit records local start/end context; omitted start ignores the outer gate sample', async t => {
   const root = await scratch(t);
-  const ledger = new URL('../practices/night/files/scripts/keel/test-ledger.mjs', import.meta.url).href;
+  const ledger = new URL('../practices/night/files/scripts/plates/test-ledger.mjs', import.meta.url).href;
   await writeFile(join(root, 'test-ledger.mjs'), await readFile(new URL(ledger), 'utf8'));
   await writeFile(join(root, 'time-receipts.mjs'), await readFile(new URL('./time-receipts.mjs', ledger), 'utf8'));
   await writeFile(join(root, 'runner.mjs'), `import {writeFileSync} from 'node:fs'; writeFileSync('acme.xml', '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.01"/></testsuite></testsuites>');`);
-  await writeFile(join(root, 'producer.sh'), `keel_status=0
+  await writeFile(join(root, 'producer.sh'), `plates_status=0
 rm -f acme.xml
-keel_start="$(node test-ledger.mjs --sample)" || keel_start=
-node runner.mjs || keel_status=$?
-printf '%s' "$keel_start" > acme-start.json
-node test-ledger.mjs --junit acme.xml --runner vitest --status "$keel_status" --start "$keel_start"
+plates_start="$(node test-ledger.mjs --sample)" || plates_start=
+node runner.mjs || plates_status=$?
+printf '%s' "$plates_start" > acme-start.json
+node test-ledger.mjs --junit acme.xml --runner vitest --status "$plates_status" --start "$plates_start"
 `);
   const result = await timedCommand('sh producer.sh', { cwd: root });
   assert.equal(result.status, 0, result.stderr);
@@ -269,19 +269,19 @@ test('streamed transcripts skip oversized rows, bound total bytes and rows, and 
 
 test('CLI reports absent gate timing as unavailable and excludes negative durations from medians', async t => {
   const root = await scratch(t), date = new Date().toISOString();
-  await mkdir(join(root, '.keel', 'test-runs'), { recursive: true });
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  await mkdir(join(root, '.plates', 'test-runs'), { recursive: true });
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', practices: [] }));
   const gate = { kind: 'gate', status: 0, dir: '.', tests: [], date, machine, config: 'acme' };
-  await writeFile(join(root, '.keel', 'test-runs', 'missing.json'), JSON.stringify(gate));
-  await writeFile(join(root, '.keel', 'test-runs', 'negative.json'), JSON.stringify({ ...gate, ms: -100 }));
-  const cli = resolve('bin/keel.mjs');
+  await writeFile(join(root, '.plates', 'test-runs', 'missing.json'), JSON.stringify(gate));
+  await writeFile(join(root, '.plates', 'test-runs', 'negative.json'), JSON.stringify({ ...gate, ms: -100 }));
+  const cli = resolve('bin/plates.mjs');
   const shown = run(process.execPath, [cli, 'time', '--weeks', '1'], { cwd: root, env: { ...process.env, CI: 'true' } });
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /gate unavailable/);
   assert.doesNotMatch(shown.stdout, /gate (?:0|-100) ms/);
-  assert.equal((await keelTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, null);
-  await writeFile(join(root, '.keel', 'test-runs', 'valid.json'), JSON.stringify({ ...gate, ms: 100 }));
-  assert.equal((await keelTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, 100);
+  assert.equal((await platesTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, null);
+  await writeFile(join(root, '.plates', 'test-runs', 'valid.json'), JSON.stringify({ ...gate, ms: 100 }));
+  assert.equal((await platesTime({ root, weeks: 1, env: { CI: 'true' } })).data.weeks[0].lanes[0].gateMs, 100);
 });
 
 
@@ -365,10 +365,10 @@ test('review: Vitest outside targets are omissions and local targets retain iden
 
 test('review: time CLI rejects typo positional and missing week arguments', async t => {
   const root = await scratch(t);
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', practices: [] }));
   for (const args of [['--week', '2'], ['2'], ['--weeks'], ['--weeks', '--json'], ['--weeks', '0'], ['--weeks', '53'], ['--weeks', '1.5']]) {
-    const got = run(process.execPath, [resolve('bin/keel.mjs'), 'time', ...args, '--json'], { cwd: root, env: { ...process.env, CI: 'true' } });
+    const got = run(process.execPath, [resolve('bin/plates.mjs'), 'time', ...args, '--json'], { cwd: root, env: { ...process.env, CI: 'true' } });
     assert.equal(got.status, 2, JSON.stringify(args));
     assert.match(JSON.parse(got.stdout).error, /unexpected argument|weeks/);
   }
@@ -384,7 +384,7 @@ test('review: transcript window includes both boundaries and excludes future use
     use('2026-10-09T12:00:00Z', 'end'), use('2026-10-09T12:00:00.001Z', 'future'),
     { timestamp: '2026-10-09T12:00:00.001Z', cwd: root, toolUseResult: { interrupted: true }, message: { content: [{ type: 'tool_result', tool_use_id: 'end', content: 'Acme private output' }] } }];
   await writeFile(join(dir, 'acme.jsonl'), rows.map(r => JSON.stringify(r)).join('\n'));
-  const { data, text } = await keelTime({ root, home, env: {}, weeks: 1, now });
+  const { data, text } = await platesTime({ root, home, env: {}, weeks: 1, now });
   assert.equal(data.workedAround.counts.workedAround, 2);
   assert.equal(data.workedAround.counts.interrupted, 0);
   assert.equal(data.workedAround.coverage.outOfWindow, 3);
@@ -392,20 +392,20 @@ test('review: transcript window includes both boundaries and excludes future use
   assert.match(text, /3 records out of window/);
   assert.doesNotMatch(JSON.stringify({ data, text }), /Acme private output/);
   await writeFile(join(dir, 'acme.jsonl'), JSON.stringify(rows[3]));
-  const futureOnly = await keelTime({ root, home, env: {}, weeks: 1, now });
+  const futureOnly = await platesTime({ root, home, env: {}, weeks: 1, now });
   assert.equal(futureOnly.data.workedAround.counts, null);
   assert.equal(futureOnly.data.workedAround.coverage.outOfWindow, 1);
 });
 
 test('review: human timing shows bounded named medians usual times failures and diagnosis with lane and window', async t => {
-  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  const root = await scratch(t), dir = join(root, '.plates', 'test-runs');
   await mkdir(dir, { recursive: true });
   const tests = Array.from({ length: 12 }, (_, i) => ({ file: `tests/acme-${i}.test.mjs`, name: `Acme case ${i}`, outcome: 'pass', ms: 10 + i }));
   const first = at('2026-10-08T00:00:00Z', { tests, dirty: false, tree: 'acme-tree', runner: 'vitest' });
   const second = at('2026-10-09T00:00:00Z', { tests: [{ ...tests[11], outcome: 'fail', error: 'Acme expected shipment, received delay\nAcme detail' }], dirty: false, tree: 'acme-tree', runner: 'vitest' });
   await writeFile(join(dir, 'first.json'), JSON.stringify(first));
   await writeFile(join(dir, 'second.json'), JSON.stringify(second));
-  const { text, data } = await keelTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
+  const { text, data } = await platesTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
   assert.match(text, /2026-10-05 through 2026-10-09T12:00:00.000Z/);
   assert.match(text, /runner=vitest dir=\. config=acme machine=linux-x64-4cpu/);
   assert.match(text, /tests\/acme-11.test.mjs — Acme case 11: median 21 ms/);
@@ -419,7 +419,7 @@ test('review: human timing shows bounded named medians usual times failures and 
   assert.match(text, /disabled in CI/);
   second.tests = Array.from({ length: 12 }, (_, i) => ({ ...tests[i], outcome: 'fail', error: i === 11 ? null : 'Acme '.repeat(100) }));
   await writeFile(join(dir, 'second.json'), JSON.stringify(second));
-  const bounded = await keelTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
+  const bounded = await platesTime({ root, env: { CI: 'true' }, weeks: 1, now: Date.parse('2026-10-09T12:00:00Z') });
   assert.match(bounded.text, /Acme case 11: unavailable/);
   assert.match(bounded.text, /characters omitted/);
   assert.equal((bounded.text.match(/2 entries omitted/g) ?? []).length, 4);
@@ -443,14 +443,14 @@ test('round3: Vitest related and bench runs disclose omissions without naming so
 });
 
 test('round3: usual times include older retained passes outside the weekly window and exclude future history', async t => {
-  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  const root = await scratch(t), dir = join(root, '.plates', 'test-runs');
   await mkdir(dir, { recursive: true });
   const sample = (date, ms, name = 'Acme ships', extra = {}) => at(date, { tests: [{ file: 'acme.test.mjs', name, outcome: 'pass', ms }], ...extra });
   const runs = [sample('2026-09-01T00:00:00Z', 20), sample('2026-09-10T00:00:00Z', 40),
     sample('2026-10-08T00:00:00Z', 900), sample('2026-09-10T00:00:00Z', 55, 'Acme older only'),
     sample('2026-10-10T00:00:00Z', 9999), sample('2026-09-10T00:00:00Z', 9999, 'Acme ships', { kind: 'gate', status: 0 })];
   for (const [i, r] of runs.entries()) await writeFile(join(dir, `${i}.json`), JSON.stringify(r));
-  const { data, text } = await keelTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
+  const { data, text } = await platesTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
   const usual = data.usual.find(t => t.name === 'Acme ships');
   assert.equal(usual.median, 40);
   assert.equal(usual.passes, 3);
@@ -466,13 +466,13 @@ test('round3: usual times include older retained passes outside the weekly windo
 });
 
 test('round3: gate median excludes fast failures and reports outcome counts with unavailable all-failed lanes', async t => {
-  const root = await scratch(t), dir = join(root, '.keel', 'test-runs');
+  const root = await scratch(t), dir = join(root, '.plates', 'test-runs');
   await mkdir(dir, { recursive: true });
   const gate = (status, ms, config = 'acme') => at('2026-10-08T00:00:00Z', { kind: 'gate', runner: 'gate', tests: [], status, ms, config });
   const runs = [gate(0, 1000), gate(0, 3000), gate(1, 1), gate(1, 2), gate(1, 3),
     gate(1, 4, 'acme-failed'), gate(undefined, 5, 'acme-unknown'), gate(0, null, 'acme-untimed')];
   for (const [i, r] of runs.entries()) await writeFile(join(dir, `${i}.json`), JSON.stringify(r));
-  const { data, text } = await keelTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
+  const { data, text } = await platesTime({ root, weeks: 1, now: Date.parse('2026-10-09'), env: { CI: 'true' } });
   const lanes = data.weeks[0].lanes, mixed = lanes.find(l => l.lane === '.\0acme\0gate');
   assert.equal(mixed.gateMs, 2000);
   assert.equal(mixed.successful, 2);

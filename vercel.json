@@ -6,7 +6,7 @@
   "functions": {
     "api/index.mjs": {
       "maxDuration": 60,
-      "excludeFiles": "{tests,docs,.agents,.claude,.keel,.github}/{**,**/.*,**/.*/**,**/.*/**/.*}"
+      "excludeFiles": "{tests,docs,.agents,.claude,.plates,.github}/{**,**/.*,**/.*/**,**/.*/**/.*}"
     }
   },
   "rewrites": [

@@ -8,7 +8,7 @@ import {
 } from "./helpers/web-connections.mjs";
 import { createConnections } from "../lib/web/connections.mjs";
 import { validatePolicy } from "../lib/web/connection-policy.mjs";
-import { webConfig } from "../lib/web/config.mjs";
+import { configFromEnv, webConfig } from "../lib/web/config.mjs";
 import { unseal } from "../lib/web/common.mjs";
 const requestId = (n) => n.toString(16).padStart(64, "0");
 const options = (h) => ({ reauthorize: async () => h.refreshAccess() });
@@ -27,7 +27,7 @@ test("connection policy previews exact private bytes, conditionally commits, and
   assert.equal(p.files[0].path, "connections/acme-openai.json");
   assert.equal(
     p.commitMessage,
-    `Update Keel connection policy\n\nKeel-Operation: ${p.operationId}`,
+    `Update Plates connection policy\n\nKeel-Operation: ${p.operationId}`,
   );
   assert.equal(JSON.parse(p.files[0].content).secretRef.length, 64);
   const r = await h.connections.policyApply(h.access, token, p.previewId, {
@@ -649,4 +649,23 @@ test("null mutation responses are malformed and only exact metadata can confirm 
   );
   assert.equal(result.state, "uncertain");
   assert.equal(h.vault.rows.size, 0);
+});
+
+
+test("connection environment rename keeps explicit activation and absent-only legacy fallback", () => {
+  const h = connectionsHarness();
+  const canonical = Buffer.alloc(32, 103).toString("base64");
+  const legacy = Buffer.alloc(32, 104).toString("base64");
+  const env = {
+    PLATES_WEB_CONFIG: JSON.stringify({ ...h.input, connections: h.config.connections }),
+    PLATES_GITHUB_CLIENT_SECRET: h.secrets.clientSecret,
+    SUPABASE_URL: h.secrets.storageUrl,
+    SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey,
+    PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
+    KEEL_CONNECTION_ENCRYPTION_KEY: legacy,
+  };
+  assert.deepEqual(configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: canonical }).connectionEncryptionKey, Buffer.from(canonical, "base64"));
+  assert.deepEqual(configFromEnv(env).connectionEncryptionKey, Buffer.from(legacy, "base64"));
+  assert.throws(() => configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: "" }), { code: "invalid_service_configuration" });
+  assert.equal(configFromEnv({ ...env, PLATES_WEB_CONFIG: JSON.stringify(h.input) }).connections, undefined);
 });

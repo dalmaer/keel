@@ -6,12 +6,12 @@ secret store, connect a provider or spend on inference.
 
 ## What the owner sees
 
-Fleet and project Connections show configured accounts, effective project
+Workspace and project Connections show configured accounts, effective project
 access, key validation, capacity observations and their gaps. Creating a
 connection first previews its nonsecret policy in the private workspace repo.
 After that policy is committed and read back, the owner can set a key once.
-Rotation replaces a key with a version check. “Remove key from Keel” removes
-Keel's usable copy; it does not delete the provider's key. Link to provider key
+Rotation replaces a key with a version check. “Remove key from Plates” removes
+the copy held by Plates; it does not delete the provider's key. Link to provider key
 management for that separate action. No form redisplays an existing key.
 
 Subscription windows, API rate limits, billing/spend and runner availability
@@ -23,7 +23,7 @@ Conflicting readings remain a conflict; unrelated units are never added.
 Project views cannot broaden a grant. Connections granted to other projects
 are not exposed. Editing a shared connection policy requires current access to
 every project named by its existing and proposed policy; the project view links
-to that fleet management flow rather than silently editing a shared grant.
+to that workspace management flow rather than silently editing a shared grant.
 
 ## Dated provider capability matrix
 
@@ -37,7 +37,7 @@ live verification remains a separate activation requirement.
 | Anthropic API key | Fixed `GET https://api.anthropic.com/v1/models`, required version header and explicit workspace scope where supported | Metadata validation only. Preserve authoritative workspace identity when returned; an owner-entered label is not that identity. [API overview](https://platform.claude.com/docs/en/api/overview) |
 | Anthropic API limits | Allowlisted applicable response headers | Requests, input tokens and output tokens stay distinct. Rounded readings retain that limitation. A most-restrictive token reading is not another additive pool. [Rate limits](https://platform.claude.com/docs/en/api/rate-limits) |
 | Anthropic organization limits and cost | Not enabled | Configured limit groups require an Admin credential and do not establish remaining quota. Historical usage/cost is not subscription capacity. No Admin credential is requested by this phase. [Limits API](https://platform.claude.com/docs/en/manage-claude/rate-limits-api), [usage and cost](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) |
-| Codex subscription | Future approved local reporter | Local `account/rateLimits/read` supports a pool map and window durations. Prefer that map over its legacy duplicate. Do not assume primary means five hours. Local app-server authentication is not a hosted-service auth mechanism; never copy managed OAuth credentials into Keel. Account labels/email do not establish a stable pool identity. [App server](https://learn.chatgpt.com/docs/app-server) |
+| Codex subscription | Future approved local reporter | Local `account/rateLimits/read` supports a pool map and window durations. Prefer that map over its legacy duplicate. Do not assume primary means five hours. Local app-server authentication is not a hosted-service auth mechanism; never copy managed OAuth credentials into Plates. Account labels/email do not establish a stable pool identity. [App server](https://learn.chatgpt.com/docs/app-server) |
 | Claude subscription | Future approved local reporter | Statusline input can supply five-hour/seven-day usage and reset observations after a response. Windows may independently be absent or expired. No auth-token extraction or automatic statusline installation. [Statusline](https://code.claude.com/docs/en/statusline) |
 
 The initial web adapter performs no generation request to discover quota.
@@ -59,7 +59,8 @@ refuse mutation and remain coverage gaps.
 
 The selected optional secret store is an encrypted vault in the existing
 private runtime database. Vercel injects a separate 32-byte
-`KEEL_CONNECTION_ENCRYPTION_KEY`; the session key is not reused. This deliberately
+`PLATES_CONNECTION_ENCRYPTION_KEY` (the old `KEEL_CONNECTION_ENCRYPTION_KEY` is
+accepted only when the canonical key is absent); the session key is not reused. This deliberately
 extends the workspace's initial storage division: the deployment store owns the
 wrapping key, while the external runtime owns authenticated ciphertext. Keys
 never enter Git, frontend bundles, URLs, browser storage, logs or exports.

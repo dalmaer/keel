@@ -6,15 +6,15 @@ Record actual owner words and their source; actor fields are manual provenance,
 not authentication. The tool never turns a recommendation into an answer.
 
 Copy `docs/templates/shaping.json` to `idea.json`. The synthetic Acme fixture
-uses the initial G0 and phase 0 from `keel init`; select a free explicit phase
+uses the initial G0 and phase 0 from `plates init`; select a free explicit phase
 number and a real goal in an existing project. Its proof command is a declaration,
 not evidence that a test exists or passes. The conductor judges sufficiency.
 
 ```sh
-keel shape check idea.json --json
-keel shape render idea.json --output review-acme --json
-keel shape plan idea.json --json
-keel shape plan idea.json --yes --digest <digest-from-reviewed-preview> --json
+plates shape check idea.json --json
+plates shape render idea.json --output review-acme --json
+plates shape plan idea.json --json
+plates shape plan idea.json --yes --digest <digest-from-reviewed-preview> --json
 ```
 
 All file and output paths are repository-relative, without symlinks. Render
@@ -50,7 +50,7 @@ source records and reciprocal scoped replacement links, preserving history,
 then review a new shaping revision. No answer implicitly accepts a proposal.
 
 Preview and render retain immutable content-addressed receipts under
-`.keel/shaping/reviews/`. `--yes` requires the exact reviewed `--digest` and
+`.plates/shaping/reviews/`. `--yes` requires the exact reviewed `--digest` and
 cannot substitute new content after an input change. Receipts include source
 hashes, exact output bytes and stable item-to-path mappings. Git revision alone
 and the receipt's own newly seeded files do not invalidate recovery; source
@@ -61,7 +61,7 @@ files exclusively, and recover by hash. Retry the identical command after an
 interruption. Existing files are never replaced; changed destinations stop
 recovery. Resolve those conflicts manually, preserving concurrent work.
 Do not delete recovery journals to force a retry. Receipt storage is local
-project data; exclude `.keel/shaping/` from publication if it contains private
+project data; exclude `.plates/shaping/` from publication if it contains private
 owner words. This practice does not automatically modify your ignore rules.
 
 Milestone-backed projects get remote-work previews only, without reading or

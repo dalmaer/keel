@@ -1,4 +1,4 @@
-# Explore the Keel web workspace
+# Explore the Plates web workspace
 
 Start with Home: each project should tell you what needs your decision, what is
 ready to test and what changed recently. Open a project to keep that lens while
@@ -45,7 +45,7 @@ that flow, then read [Guided walks](web-walks.md) for source and acceptance rule
 Use your approved HTTPS deployment and sign in with the GitHub account authorized
 by its private membership record. Home is `/`; project views use
 `/projects/<project-id>`. The source-defined **Try it** links belong to individual
-changes and point at their actual preview or serving surface. Keel does not invent
+changes and point at their actual preview or serving surface. Plates does not invent
 a preview URL when none has been provided.
 
 Publishing source, running a workflow, sending text to a model and uploading a

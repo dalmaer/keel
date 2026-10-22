@@ -1,4 +1,4 @@
-// One gate result per commit, shared by every pass (phase 79): scripts/keel/gate.mjs.
+// One gate result per commit, shared by every pass (phase 79): scripts/plates/gate.mjs.
 // Synthetic Acme repositories and a gh stub that answers the Actions API and an
 // artifact's ZIP bytes from fixtures; no network, nobody's git settings.
 import { test } from 'node:test';
@@ -9,21 +9,21 @@ import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { deflateRawSync, crc32 } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import * as gateModule from '../practices/night/files/scripts/keel/gate.mjs';
+import * as gateModule from '../practices/night/files/scripts/plates/gate.mjs';
 const { gate, gateLine, ciResult, ledgerEvidence, docsOnlyOf, docsOnlySkip, DOCS_ONLY } = gateModule;
-// Read through the namespace, so this file loads without it and its tests fail on behaviour (keel prove).
+// Read through the namespace, so this file loads without it and its tests fail on behaviour (plates prove).
 const protectedPath = (...args) => gateModule.protectedPath?.(...args) ?? false;
-import { readRuns, sha12 } from '../practices/night/files/scripts/keel/test-ledger.mjs';
-import { ranOn } from '../scripts/keel/climb.mjs';
-import { MEASURES, measure } from '../practices/night/files/scripts/keel/improve.mjs';
+import { readRuns, sha12 } from '../practices/night/files/scripts/plates/test-ledger.mjs';
+import { ranOn } from '../scripts/plates/climb.mjs';
+import { MEASURES, measure } from '../practices/night/files/scripts/plates/improve.mjs';
 import { scratch, ENV } from './helpers/improve.mjs';
 import { run } from './helpers/run.mjs';
 
 const repo = 'acme/anvils';
 const CHECK = "node -e \"require('fs').writeFileSync('ran','yes')\"";
 const CONFIG = { name: 'Acme', repo, ci: { gateWorkflow: 'check.yml' }, check: CHECK };
-const NIGHT = resolve('practices/night/files/scripts/keel');
-const LOOP = resolve('practices/loop/files/.github/workflows/keel-loop.yml');
+const NIGHT = resolve('practices/night/files/scripts/plates');
+const LOOP = resolve('practices/loop/files/.github/workflows/plates-loop.yml');
 const CHECK_YML = resolve('practices/ci/files/.github/workflows/check.yml');
 const ago = minutes => new Date(Date.now() - minutes * 60000).toISOString();
 
@@ -51,7 +51,7 @@ function records({ sha, tree, command = CHECK, status = 0, id = '00000000-0000-4
 
 /**
  * The Actions API for `commits` ({ sha, tree, records?, conclusion?, minutes?, artifacts?, event? }):
- * each a push run on main with one job and, unless `artifacts` says otherwise, one keel-test-runs artifact.
+ * each a push run on main with one job and, unless `artifacts` says otherwise, one plates-test-runs artifact.
  */
 function actions(commits) {
   const routes = { [`repos/${repo}`]: { private: false, default_branch: 'main' }, [`repos/${repo}/actions/workflows`]: { workflows: [{ id: 7, name: 'check', path: '.github/workflows/check.yml' }], total_count: 1 } };
@@ -61,7 +61,7 @@ function actions(commits) {
     routes[`repos/${repo}/actions/workflows/7/runs?head_sha=${c.sha}`] = { workflow_runs: [{ id, workflow_id: 7, run_attempt: 1, head_sha: c.sha, head_branch: 'main', event: c.event ?? 'push', head_repository: { full_name: repo }, status: 'completed', conclusion: c.conclusion ?? 'success', created_at: ago(minutes + 10), updated_at: ago(minutes) }], total_count: 1 };
     routes[`repos/${repo}/actions/runs/${id}/attempts/1/jobs`] = { jobs: [{ id: id * 10, run_id: id, run_attempt: 1, name: 'check', head_sha: c.sha, status: 'completed', conclusion: c.conclusion ?? 'success', started_at: ago(minutes + 3), completed_at: ago(minutes) }], total_count: 1 };
     const bytes = zip((c.records ?? records(c)).map((r, j) => ({ name: `2026-10-16T00-00-0${j}-acme.json`, body: JSON.stringify(r) })));
-    const artifacts = c.artifacts ?? [{ id: id * 100, name: 'keel-test-runs', expired: false, size_in_bytes: bytes.length, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, workflow_run: { id, head_sha: c.sha } }];
+    const artifacts = c.artifacts ?? [{ id: id * 100, name: 'plates-test-runs', expired: false, size_in_bytes: bytes.length, digest: `sha256:${createHash('sha256').update(bytes).digest('hex')}`, workflow_run: { id, head_sha: c.sha } }];
     routes[`repos/${repo}/actions/runs/${id}/artifacts`] = { artifacts, total_count: artifacts.length };
     for (const a of artifacts) zips[a.id] = (c.zip ?? bytes).toString('base64');
   });
@@ -70,7 +70,7 @@ function actions(commits) {
 
 /** A gh stub: `gh api <path>` answers from the fixture (a ZIP's bytes for an artifact), logging each path. */
 async function ghStub(t, fixture) {
-  const dir = await scratch(t, 'keel-gate-gh-');
+  const dir = await scratch(t, 'plates-gate-gh-');
   const gh = join(dir, 'gh'), data = join(dir, 'fixture.json'), log = join(dir, 'log');
   await writeFile(data, JSON.stringify(fixture));
   await writeFile(gh, `#!${process.execPath}
@@ -85,18 +85,18 @@ if (!Object.hasOwn(routes, p) || routes[p] === null) { console.error('gh: Not Fo
 console.log(JSON.stringify(routes[p]));
 `);
   await chmod(gh, 0o755);
-  return { gh, env: { ...ENV, KEEL_GH: gh }, asked: async () => (existsSync(log) ? await readFile(log, 'utf8') : '').split('\n').filter(Boolean) };
+  return { gh, env: { ...ENV, PLATES_GH: gh }, asked: async () => (existsSync(log) ? await readFile(log, 'utf8') : '').split('\n').filter(Boolean) };
 }
 
-/** An Acme repository: .keel/keel.json, a source file, committed on main; `scripts` copies the night's scripts in. */
+/** An Acme repository: .plates/plates.json, a source file, committed on main; `scripts` copies the night's scripts in. */
 async function acme(t, { config = CONFIG, scripts = false } = {}) {
-  const root = await scratch(t, 'keel-gate-');
+  const root = await scratch(t, 'plates-gate-');
   const git = (...args) => execFileSync('git', args, { cwd: root, env: ENV, encoding: 'utf8' }).trim();
   git('init', '-q', '-b', 'main');
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   await writeFile(join(root, 'anvil.mjs'), 'export const anvil = 1;\n');
-  if (scripts) await cp(NIGHT, join(root, 'scripts/keel'), { recursive: true });
+  if (scripts) await cp(NIGHT, join(root, 'scripts/plates'), { recursive: true });
   git('add', '-A'); git('commit', '-qm', 'Acme');
   const head = () => ({ sha: git('rev-parse', 'HEAD'), tree: git('rev-parse', 'HEAD^{tree}') });
   const commit = async (path, text = 'Acme\n') => { await mkdir(join(root, path, '..'), { recursive: true }); await writeFile(join(root, path), text); git('add', '-A'); git('commit', '-qm', `Acme ${path}`); return head(); };
@@ -113,7 +113,7 @@ test('the gate reuses an exact, clean, successful CI result for HEAD and says so
   assert.equal(reused.status, 0);
   assert.equal(reused.tests, 1, 'the tests CI ran, from its ledger records');
   assert.equal(a.ran(), false, 'not run here');
-  assert.match(gateLine(reused), /^keel gate: reused CI's result for [0-9a-f]{7} \(\.github\/workflows\/check\.yml run 100, attempt 1, 5 minutes old\): .* passed with 1 tests; not run here$/);
+  assert.match(gateLine(reused), /^plates gate: reused CI's result for [0-9a-f]{7} \(\.github\/workflows\/check\.yml run 100, attempt 1, 5 minutes old\): .* passed with 1 tests; not run here$/);
   assert.ok((await stub.asked()).includes(`repos/${repo}/actions/artifacts/10000/zip`), 'the artifact\'s contents are the evidence');
   // No result for this commit: the gate runs, and says why it did not reuse.
   const none = await ghStub(t, actions([]));
@@ -121,7 +121,7 @@ test('the gate reuses an exact, clean, successful CI result for HEAD and says so
   assert.equal(ran.action, 'ran');
   assert.equal(ran.status, 0);
   assert.equal(a.ran(), true);
-  assert.match(gateLine(ran), /^keel gate: ran `node -e .*`: exit 0 \(not reused: .+\)$/);
+  assert.match(gateLine(ran), /^plates gate: ran `node -e .*`: exit 0 \(not reused: .+\)$/);
 });
 
 const UNTIL_CHANGE = { ...CONFIG, ci: { ...CONFIG.ci, gateReuse: 'until-change' } };
@@ -255,21 +255,21 @@ test('the loop\'s gate step and the pre-push helper: the shipped shell reuses fo
   const shell = () => run('bash', ['-e', '-c', block], { cwd: a.root, env: { ...stub.env, GITHUB_OUTPUT: output } });
   const unchanged = shell();
   assert.equal(unchanged.status, 0, unchanged.stderr);
-  assert.match(unchanged.stdout, /keel gate: reused CI's result/);
+  assert.match(unchanged.stdout, /plates gate: reused CI's result/);
   assert.match(await readFile(output, 'utf8'), /^gate=ok$/m);
   assert.equal(a.ran(), false, 'a pull that changed nothing is the commit CI tested');
   await mkdir(join(a.root, 'docs/loop'), { recursive: true });
   await writeFile(join(a.root, 'docs/loop/acme.md'), 'a finding\n');
   const pulled = shell();
   assert.equal(pulled.status, 0, pulled.stderr);
-  assert.match(pulled.stdout, /keel gate: ran .*not reused: revision is dirty/);
+  assert.match(pulled.stdout, /plates gate: ran .*not reused: revision is dirty/);
   assert.equal(a.ran(), true, 'a pull that changed findings is a tree CI never tested');
   // The pre-push helper is the same command; --json says which, the check's own output kept off stdout.
   await a.commit('docs/loop/acme.md', 'a finding\n');
-  const json = run(process.execPath, ['scripts/keel/gate.mjs', '--json'], { cwd: a.root, env: stub.env });
+  const json = run(process.execPath, ['scripts/plates/gate.mjs', '--json'], { cwd: a.root, env: stub.env });
   assert.equal(json.status, 0, json.stderr);
   assert.equal(JSON.parse(json.stdout).action, 'ran', 'a new commit CI has not tested runs');
-  const bad = run(process.execPath, ['scripts/keel/gate.mjs', '--acme'], { cwd: a.root, env: stub.env });
+  const bad = run(process.execPath, ['scripts/plates/gate.mjs', '--acme'], { cwd: a.root, env: stub.env });
   assert.equal(bad.status, 2, 'usage');
 });
 
@@ -316,12 +316,12 @@ test('CI runs that are not an exact, completed, successful, recent result of the
     ['a cancelled run', { conclusion: 'cancelled' }, /no completed success/],
     ['older than 24 hours', { minutes: 25 * 60 }, /24-hour/],
     ['a pull request run', { event: 'pull_request' }, /no completed success/],
-    ['no artifact', { artifacts: [] }, /kept no keel-test-runs artifact/],
-    ['two artifacts', { artifacts: [1, 2].map(id => ({ id, name: 'keel-test-runs', expired: false, size_in_bytes: 10, workflow_run: { id: 100, head_sha: sha } })) }, /2 keel-test-runs artifacts/],
-    ['an expired artifact', { artifacts: [{ id: 9, name: 'keel-test-runs', expired: true, size_in_bytes: 10, workflow_run: { id: 100, head_sha: sha } }] }, /expired/],
-    ['another run\'s artifact', { artifacts: [{ id: 9, name: 'keel-test-runs', expired: false, size_in_bytes: 10, workflow_run: { id: 99, head_sha: sha } }] }, /not this run's/],
-    ['a digest mismatch', { artifacts: [{ id: 9, name: 'keel-test-runs', expired: false, size_in_bytes: 10, digest: `sha256:${'0'.repeat(64)}`, workflow_run: { id: 100, head_sha: sha } }] }, /digest/],
-    ['an unreadable archive', { zip: bytes, artifacts: [{ id: 9, name: 'keel-test-runs', expired: false, size_in_bytes: bytes.length, workflow_run: { id: 100, head_sha: sha } }] }, /unreadable/],
+    ['no artifact', { artifacts: [] }, /kept no plates-test-runs artifact/],
+    ['two artifacts', { artifacts: [1, 2].map(id => ({ id, name: 'plates-test-runs', expired: false, size_in_bytes: 10, workflow_run: { id: 100, head_sha: sha } })) }, /2 plates-test-runs artifacts/],
+    ['an expired artifact', { artifacts: [{ id: 9, name: 'plates-test-runs', expired: true, size_in_bytes: 10, workflow_run: { id: 100, head_sha: sha } }] }, /expired/],
+    ['another run\'s artifact', { artifacts: [{ id: 9, name: 'plates-test-runs', expired: false, size_in_bytes: 10, workflow_run: { id: 99, head_sha: sha } }] }, /not this run's/],
+    ['a digest mismatch', { artifacts: [{ id: 9, name: 'plates-test-runs', expired: false, size_in_bytes: 10, digest: `sha256:${'0'.repeat(64)}`, workflow_run: { id: 100, head_sha: sha } }] }, /digest/],
+    ['an unreadable archive', { zip: bytes, artifacts: [{ id: 9, name: 'plates-test-runs', expired: false, size_in_bytes: bytes.length, workflow_run: { id: 100, head_sha: sha } }] }, /unreadable/],
   ];
   for (const [why, commit, pattern] of refused) {
     for (const config of why === 'older than 24 hours' ? [CONFIG] : [CONFIG, UNTIL_CHANGE]) {
@@ -348,7 +348,7 @@ test('a docs-only commit records "skipped: docs only"; a commit touching anythin
   assert.equal(skipped.action, 'skipped');
   assert.equal(skipped.base, tested.sha, 'against the last fully tested commit');
   assert.equal(a.ran(), false);
-  assert.match(gateLine(skipped), new RegExp(`^keel gate: ${DOCS_ONLY}: the 1 path changed since [0-9a-f]{7}`));
+  assert.match(gateLine(skipped), new RegExp(`^plates gate: ${DOCS_ONLY}: the 1 path changed since [0-9a-f]{7}`));
   const all = (await readRuns(a.root, undefined, { gates: true })).runs;
   assert.deepEqual(all.map(r => [r.kind, r.skipped, r.commit, r.base, r.tests.length]), [['gate-skip', DOCS_ONLY, docs.sha, tested.sha, 0]], 'recorded, as a skip');
   assert.deepEqual((await readRuns(a.root)).runs, [], 'never a test run: climb\'s and the robot\'s records of what ran never count it');
@@ -404,25 +404,25 @@ test('delivery.docsOnly is a list of repo-relative paths that never covers code 
 test('check.yml\'s gate step runs gate.mjs --ci with a read-only token it keeps from the check, and still records a red gate', async t => {
   const yml = await readFile(CHECK_YML, 'utf8');
   assert.match(yml, /\n {6}actions: read\n/, 'reads its own runs and artifacts, nothing more');
-  assert.match(yml, /- name: Run the configured gate\n {8}env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: \|\n {10}if \[ -f scripts\/keel\/gate\.mjs \]; then\n {12}node scripts\/keel\/gate\.mjs --ci\n/);
+  assert.match(yml, /- name: Run the configured gate\n {8}env:\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n {8}run: \|\n {10}if \[ -f scripts\/plates\/gate\.mjs \]; then\n {12}node scripts\/plates\/gate\.mjs --ci\n/);
   const a = await acme(t, { config: { ...CONFIG, check: 'node -e "process.exit(process.env.GH_TOKEN ? 9 : 7)"' }, scripts: true });
   const block = yml.split('      - name: Run the configured gate\n')[1].split('        run: |\n')[1].split('      # The test ledger')[0].split('\n').map(l => l.slice(10)).join('\n');
   const r = run('bash', ['-e', '-c', block.replace('{{check}}', 'exit 3')], { cwd: a.root, env: { ...ENV, GH_TOKEN: 'acme-read-token' } });
   assert.equal(r.status, 7, 'the check\'s own exit, and the token never reached it');
   const gates = (await readRuns(a.root, undefined, { gates: true })).runs.filter(x => x.kind === 'gate');
   assert.deepEqual(gates.map(g => g.status), [7]);
-  assert.deepEqual(await readdir(join(a.root, '.keel/test-runs')).then(n => n.some(x => x.endsWith('.json'))), true, 'what Keep the test ledger uploads');
+  assert.deepEqual(await readdir(join(a.root, '.plates/test-runs')).then(n => n.some(x => x.endsWith('.json'))), true, 'what Keep the test ledger uploads');
 });
 
-// PR #174 review: a list naming one executable file (keel's own scripts, a workflow) was accepted, and a clean
+// PR #174 review: a list naming one executable file (plates's own scripts, a workflow) was accepted, and a clean
 // commit changing only that file skipped the gate. A protected path is never docs only, whatever the list says.
-const PROTECTED = ['scripts/keel/test-ledger.mjs', '.github/workflows/keel-night.yml', '.github/actions/acme/action.yml', 'package.json', 'web/package.json', 'package-lock.json', 'web/pnpm-lock.yaml', 'bun.lockb', 'yarn.lock', '.keel/keel.json', '.keel/lock.json', '.nvmrc', '.node-version', '.tool-versions'];
+const PROTECTED = ['scripts/plates/test-ledger.mjs', '.github/workflows/plates-night.yml', '.github/actions/acme/action.yml', 'package.json', 'web/package.json', 'package-lock.json', 'web/pnpm-lock.yaml', 'bun.lockb', 'yarn.lock', '.plates/plates.json', '.plates/lock.json', '.nvmrc', '.node-version', '.tool-versions'];
 
 test('a docs-only list that reaches a protected path is refused at config time, structurally', () => {
-  for (const entry of [...PROTECTED, 'scripts/keel/', 'scripts/', '.github/', '.github/workflows/*.yml', 'scripts/keel/*.mjs', '**/package.json', '**/*.lock', '**/*.mjs', '*.json', '**', '*']) {
+  for (const entry of [...PROTECTED, 'scripts/plates/', 'scripts/', '.github/', '.github/workflows/*.yml', 'scripts/plates/*.mjs', '**/package.json', '**/*.lock', '**/*.mjs', '*.json', '**', '*']) {
     assert.throws(() => docsOnlyOf({ delivery: { docsOnly: ['docs/', entry] } }), e => e.exitCode === 2 && /never covers/.test(e.message), entry);
   }
-  // A path keel manages, named in the project's .keel/lock.json, is refused by name too.
+  // A path plates manages, named in the project's .plates/lock.json, is refused by name too.
   assert.throws(() => docsOnlyOf({ delivery: { docsOnly: ['docs/templates/evidence.md'] } }, { managed: ['docs/templates/evidence.md'] }), /never covers/);
   for (const ok of [['docs/'], ['README.md'], ['**/*.md'], ['docs/**/*.md', 'CHANGELOG.md']]) assert.ok(docsOnlyOf({ delivery: { docsOnly: ok } }), JSON.stringify(ok));
 });
@@ -433,7 +433,7 @@ test('a protected path is never docs only when changed, even if a pattern slippe
   assert.equal(protectedPath('AGENTS.md', ['AGENTS.md']), true, 'a managed file');
   // A list that slipped past the config check (a broad prefix holds a nested package.json; a glob reaches .github/).
   const config = { ...CONFIG, delivery: { docsOnly: ['docs/', '**/*.md'] } };
-  for (const path of ['docs/package.json', '.github/ISSUE_TEMPLATE/bug.md', 'scripts/keel/notes.md']) {
+  for (const path of ['docs/package.json', '.github/ISSUE_TEMPLATE/bug.md', 'scripts/plates/notes.md']) {
     const a = await acme(t, { config });
     const tested = a.head();
     await a.commit(path, '{}\n');
@@ -441,11 +441,11 @@ test('a protected path is never docs only when changed, even if a pattern slippe
     assert.equal(r.skip, false, path);
     assert.match(r.reason, /protected/, path);
   }
-  // Keel's managed files, read from the committed .keel/lock.json, are protected too.
+  // Plates's managed files, read from the committed .plates/lock.json, are protected too.
   const m = await acme(t, { config });
   await mkdir(join(m.root, 'docs/templates'), { recursive: true });
   await writeFile(join(m.root, 'docs/templates/evidence.md'), 'Acme\n');
-  await writeFile(join(m.root, '.keel/lock.json'), JSON.stringify({ practice: '0.0.0', files: { 'docs/templates/evidence.md': {}, 'AGENTS.md#night': {} } }));
+  await writeFile(join(m.root, '.plates/lock.json'), JSON.stringify({ practice: '0.0.0', files: { 'docs/templates/evidence.md': {}, 'AGENTS.md#night': {} } }));
   m.git('add', '-A'); m.git('commit', '-qm', 'Acme lock');
   const base = m.head();
   await m.commit('docs/templates/evidence.md', 'Acme changed\n');
@@ -457,8 +457,8 @@ test('a protected path is never docs only when changed, even if a pattern slippe
 // PR #174 review, second finding: the code-extension guard tested a glob against one basename, so an exact entry
 // (src/anvil.mjs), a narrow glob (src/anvil*.mjs) or a directory holding code (docs/build.mjs) let a code change
 // skip the gate. Each changed file is now judged by its own extension and git mode, whatever the list says; held
-// for the practice's copy and keel's rendered one alike.
-const COPIES = [['practice', gateModule], ['rendered', await import('../scripts/keel/gate.mjs')]];
+// for the practice's copy and plates's rendered one alike.
+const COPIES = [['practice', gateModule], ['rendered', await import('../scripts/plates/gate.mjs')]];
 
 test('only a text doc, or an image under docs/, is ever docs only, in both copies', () => {
   for (const [copy, m] of COPIES) {
@@ -474,7 +474,7 @@ test('only a text doc, or an image under docs/, is ever docs only, in both copie
   }
 });
 
-// keel#177: a changed file was judged by HEAD's mode alone, so deleting an executable or symlinked docs/*.md, or
+// plates#177: a changed file was judged by HEAD's mode alone, so deleting an executable or symlinked docs/*.md, or
 // removing an executable bit, passed as a text doc. Both sides' modes are read: either one not a plain file refuses.
 test('deleting an executable or symlinked doc, or removing its executable bit, runs the suite, in both copies', async t => {
   const config = { ...CONFIG, delivery: { docsOnly: ['docs/', '**/*.md'] } };

@@ -58,7 +58,7 @@ that hash against the current phase rather than trusting a remembered checkbox
 number. Define one to twenty steps, with stable IDs and acyclic prerequisites.
 Use a not-ready readiness state with a reason while the result is unavailable.
 The optional preview URL is a link to try, never proof of what is currently
-served. Keel verifies the repository result bytes at the named immutable commit;
+served. Plates verifies the repository result bytes at the named immutable commit;
 you separately confirm the version and actual environment you tested.
 
 Configure [private sign-in and the database](web-auth-service.md) first. Guided
@@ -97,7 +97,7 @@ After every current step passes, write a final observation and answer any choice
 authored by the phase. A choice that keeps acceptance open cannot publish a
 successful walk. **Review acceptance change** shows the exact phase, evidence
 and, when changed, roadmap files, plus the commit message and destination.
-The source change uses the same acceptance plan as `keel walk done`; the browser
+The source change uses the same acceptance plan as `plates walk done`; the browser
 never runs project scripts or marks unrelated acceptance items.
 
 Private draft notes are not all published. Review the exact selected final

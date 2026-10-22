@@ -1,4 +1,4 @@
-// What tests/improve.test.mjs and tests/improve-measures.test.mjs share: keel
+// What tests/improve.test.mjs and tests/improve-measures.test.mjs share: plates
 // run from its bin, scratch projects, and a gh stub.
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, readdir, chmod } from 'node:fs/promises';
@@ -7,25 +7,25 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from './run.mjs';
 
-export const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-export const BIN = join(KEEL, 'bin', 'keel.mjs');
+export const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const BIN = join(PLATES, 'bin', 'plates.mjs');
 export const ENV = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test', GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
-export const keel = (args, cwd, env = ENV) => {
+export const plates = (args, cwd, env = ENV) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
 export const byId = (data, id) => data.measures.find(m => m.id === id);
 
-export async function scratch(t, prefix = 'keel-improve-') {
+export async function scratch(t, prefix = 'plates-improve-') {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
-/** A fresh, healthy keel project (keel init), with no repo. */
+/** A fresh, healthy plates project (plates init), with no repo. */
 export async function project(t) {
   const dir = join(await scratch(t), 'acme');
-  const r = keel(['init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme'], tmpdir());
+  const r = plates(['init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme'], tmpdir());
   assert.equal(r.code, 0, r.err + r.out);
   return dir;
 }
@@ -56,7 +56,7 @@ export const NO_REVIEWS = JSON.stringify({ data: { repository: { open: { pageInf
  * it) to the JSON it prints, or null for a 404; each path asked is logged to <gh>.api.log.
  */
 export async function ghStub(t, { auth = true, runs = '[]', prs = '[]', issues = '[]', reviews = NO_REVIEWS, failRuns = false, api = {} } = {}) {
-  const dir = await scratch(t, 'keel-gh-');
+  const dir = await scratch(t, 'plates-gh-');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}
 const a = process.argv.slice(2);
@@ -90,7 +90,7 @@ else process.exit(1);
 }
 
 export const setConfig = async (dir, patch) => {
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const c = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, `${JSON.stringify({ ...c, ...patch }, null, 2)}\n`);
 };

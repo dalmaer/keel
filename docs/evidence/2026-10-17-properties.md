@@ -1,7 +1,7 @@
 # Evidence: phase 85 — properties guard keel's plan, tick and claim code
 
 - Date: 2026-10-17
-- Phase: [85](../phases/85-properties-guard-keel-s-plan-tick-and-claim-code.md)
+- Phase: [85](../phases/85-properties-guard-plates-s-plan-tick-and-claim-code.md)
 - Revision: base `b8b86c6` (main, phase 80 merged) and working tree on
   `claude/phase-85`.
 - Claim being checked: a seeded, shrinking, zero-dependency property runner

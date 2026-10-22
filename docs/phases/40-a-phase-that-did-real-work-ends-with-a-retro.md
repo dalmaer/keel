@@ -13,14 +13,14 @@ issue: 18
 
 ## Done when
 
-`/conduct` ends every phase whose commit changed code, tests or shipped practice files with a retro: a worksheet built by `keel retro --worksheet` from the session's transcript, and a short list of candidates in the phase report (a check, an AGENTS or skill line, or a lesson), most serious first; the owner has picked from at least two phases' retros, and at least one picked candidate shipped as a deterministic check.
+`/conduct` ends every phase whose commit changed code, tests or shipped practice files with a retro: a worksheet built by `plates retro --worksheet` from the session's transcript, and a short list of candidates in the phase report (a check, an AGENTS or skill line, or a lesson), most serious first; the owner has picked from at least two phases' retros, and at least one picked candidate shipped as a deterministic check.
 
 ## Scope
 
 The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md).
 
-- **`keel retro --worksheet [--since <commit>]`**: reads the session's
-  transcript the way `keel loose-ends` does (KEEL_CLAUDE_DIR in tests) and
+- **`plates retro --worksheet [--since <commit>]`**: reads the session's
+  transcript the way `plates loose-ends` does (PLATES_CLAUDE_DIR in tests) and
   writes counts and pointers only, never transcript text: failed commands
   that were retried, tool errors, permission denials, files read three or
   more times, tool calls over a minute, edits reverted.
@@ -31,7 +31,7 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
   each typed check / AGENTS line / lesson, into the phase report. The
   candidates live in the report, not in the repo, until picked.
 - **Picking**: the owner picks; a picked check is built as its own small
-  change (or a phase); a picked lesson goes through `keel learn`; a picked
+  change (or a phase); a picked lesson goes through `plates learn`; a picked
   AGENTS line is a docs change. Nothing is applied unpicked.
 - **Never from the night or a climb**: an unattended retro finds false
   positives and keeps fixing them.
@@ -56,7 +56,7 @@ The design is [The retro after real work](../research/2026-10-06-pr-and-retro.md
 ## Deliberately open
 
 - **Retro for non-conducted sessions** (a long chat that did real work
-  without `/conduct`): `keel retro` on demand covers it; whether loose-ends
+  without `/conduct`): `plates retro` on demand covers it; whether loose-ends
   should suggest it is settled after a few retros.
 
 ## Next action

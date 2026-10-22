@@ -8,13 +8,13 @@ import { tmpdir } from 'node:os';
 import { join,resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { robotAssociation as deliveryAssociation,robotGithub } from '../practices/night/files/scripts/keel/robot-delivery.mjs';
-import { checkImpact } from '../practices/reconciliation/files/scripts/keel/reconcile.mjs';
-import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
+import { robotAssociation as deliveryAssociation,robotGithub } from '../practices/night/files/scripts/plates/robot-delivery.mjs';
+import { checkImpact } from '../practices/reconciliation/files/scripts/plates/reconcile.mjs';
+import { formatRobotRubric } from '../practices/climb/files/scripts/plates/robot-rubric.mjs';
 // Load exactly the shipped sibling layout, as adopted projects do.
 const runtime = await mkdtemp(join(tmpdir(), 'acme-robot-runtime-'));
 after(() => rm(runtime, {recursive:true, force:true}));
-for (const dir of ['practices/night/files/scripts/keel', 'practices/climb/files/scripts/keel', 'practices/reconciliation/files/scripts/keel']) {
+for (const dir of ['practices/night/files/scripts/plates', 'practices/climb/files/scripts/plates', 'practices/reconciliation/files/scripts/plates']) {
   for (const name of await readdir(dir)) if (name.endsWith('.mjs')) await cp(join(dir,name),join(runtime,name));
 }
 const { prepareRobot,publishRobotTriage,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,prepareRobotReview,robotSandbox,robotFetch,robotClosingProblems } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
@@ -36,7 +36,7 @@ function policyResponses(current=config) {
  return {
   [`/repos/${repo}`]:{full_name:repo,default_branch:'main'},
   [`/repos/${repo}/git/ref/heads/main`]:{ref:'refs/heads/main',object:{type:'commit',sha}},
-  [`/repos/${repo}/contents/.keel/keel.json?ref=${sha}`]:{type:'file',path:'.keel/keel.json',encoding:'base64',content:bytes.toString('base64'),size:bytes.length,sha:createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')},
+  [`/repos/${repo}/contents/.plates/plates.json?ref=${sha}`]:{type:'file',path:'.plates/plates.json',encoding:'base64',content:bytes.toString('base64'),size:bytes.length,sha:createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')},
  };
 }
 async function addGhAuthorization(gh) {
@@ -49,7 +49,7 @@ async function addGhAuthorization(gh) {
 }
 
 async function publisherPresenceEnv() {
- const workflow=await readFile('practices/climb/files/.github/workflows/keel-robot.yml','utf8');
+ const workflow=await readFile('practices/climb/files/.github/workflows/plates-robot.yml','utf8');
  const step=workflow.split('      - name: Publish verified candidate or explicit blocked outcome\n')[1].split('\n  review-agent:')[0];
  const flags={ROBOT_HAS_CLAUDE:undefined,ROBOT_HAS_CODEX:undefined};
  // Evaluate only these two known presence expressions against synthetic
@@ -99,7 +99,8 @@ function api({body=formatRobotRubric(rubric),comments=[],permission='write',pull
  if(path.includes('/reviews?'))return {status:200,data:reviews};
  if(path.includes('/pulls?'))return {status:200,data:pulls};
  if(path.endsWith('/pulls/2'))return {status:200,data:pr};
- if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+ if(path.endsWith('/workflows/keel-robot.yml'))return {status:404,data:{}};
+ if(path.endsWith('/workflows/plates-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/plates-robot.yml'}};
  if(path.includes('/workflows/7/runs?'))return {status:200,data:{total_count:0,workflow_runs:[]}};
  throw new Error(`unexpected ${path}`);
  };return {github,writes,issue};
@@ -135,18 +136,18 @@ test('robot continuation carries only unseen permitted comments and refuses a hu
  assert.match((await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:b.github})).reason,/continuation head/);
 });
 test('robot judge executes real full gates and refuses dropped tests or sandbox edits',async t=>{
- const root=await project(t);await mkdir(join(root,'scripts/keel'),{recursive:true});await mkdir(join(root,'.keel'));
- await cp(resolve('practices/night/files/scripts/keel/test-ledger.mjs'),join(root,'scripts/keel/test-ledger.mjs'));
- await cp(resolve('practices/night/files/scripts/keel/time-receipts.mjs'),join(root,'scripts/keel/time-receipts.mjs'));
- const check='node --test --test-reporter=./scripts/keel/test-ledger.mjs acme.test.mjs';
- await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check}));
+ const root=await project(t);await mkdir(join(root,'scripts/plates'),{recursive:true});await mkdir(join(root,'.plates'));
+ await cp(resolve('practices/night/files/scripts/plates/test-ledger.mjs'),join(root,'scripts/plates/test-ledger.mjs'));
+ await cp(resolve('practices/night/files/scripts/plates/time-receipts.mjs'),join(root,'scripts/plates/time-receipts.mjs'));
+ const check='node --test --test-reporter=./scripts/plates/test-ledger.mjs acme.test.mjs';
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check}));
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});test('Acme subtracts',()=>{});\n");
  git(root,'add','.');git(root,'commit','-qm','gate');const baseSha=git(root,'rev-parse','HEAD');
  await writeFile(join(root,'acme.txt'),'fixed');git(root,'add','.');git(root,'commit','-qm','fix');
  assert.equal((await judgeRobot({root,config:{check},baseSha,headSha:git(root,'rev-parse','HEAD')})).ok,true);
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});\n");git(root,'add','.');git(root,'commit','-qm','drop');
  assert.match((await judgeRobot({root,config:{check},baseSha,headSha:git(root,'rev-parse','HEAD')})).problems.join(' '),/dropped.*Acme subtracts/);
- await writeFile(join(root,'.keel/keel.json'),'{}');git(root,'add','.');git(root,'commit','-qm','change config');
+ await writeFile(join(root,'.plates/plates.json'),'{}');git(root,'add','.');git(root,'commit','-qm','change config');
  assert.match((await judgeRobot({root,config:{check:'exit 99'},baseSha,headSha:git(root,'rev-parse','HEAD')})).problems.join(' '),/off limits/);
 });
 test('robot reviewer posts COMMENT for the exact published head and cannot self-review or follow a moved head',async()=>{
@@ -161,8 +162,8 @@ test('robot reviewer posts COMMENT for the exact published head and cannot self-
 
 test('robot publisher pushes only the judged issue branch and refuses a moved continuation', async t => {
   const root = await project(t);
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   git(root, 'add', '.'); git(root, 'commit', '-qm', 'policy');
   const remote = await mkdtemp(join(tmpdir(), 'acme-robot-remote-'));
   t.after(() => rm(remote, {recursive:true, force:true}));
@@ -194,7 +195,7 @@ test('robot publisher pushes only the judged issue branch and refuses a moved co
   const gh=join(root,'fake-gh'), responseFile=join(root,'response.json');
   await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs');const r=JSON.parse(fs.readFileSync(${JSON.stringify(responseFile)},'utf8'));process.stdout.write('HTTP/2.0 '+r.status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(r.data));`);
   await chmod(gh,0o755);
-  const before=process.env.KEEL_GH;process.env.KEEL_GH=gh;t.after(()=>{if(before===undefined)delete process.env.KEEL_GH;else process.env.KEEL_GH=before;});
+  const before=process.env.PLATES_GH;process.env.PLATES_GH=gh;t.after(()=>{if(before===undefined)delete process.env.PLATES_GH;else process.env.PLATES_GH=before;});
   const github=async request=>{await writeFile(responseFile,JSON.stringify(await fixture(request)));return robotGithub(request);};
   await assert.rejects(publishRobot({root,repo,baseSha,plan,headSha,message:'Acme fixed.',github}),/publication ambiguous/);
   assert.equal(git(remote,'rev-parse','refs/heads/keel/robot-1'),headSha);
@@ -225,10 +226,10 @@ test('robot publisher pushes only the judged issue branch and refuses a moved co
 test('robot shipped CLI stays OFF before any GitHub call or model preparation', async t => {
   const root = await project(t), temp = await mkdtemp(join(tmpdir(),'acme-robot-off-'));
   t.after(()=>rm(temp,{recursive:true,force:true}));
-  await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),'{}');
+  await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),'{}');
   await writeFile(join(temp,'event.json'),JSON.stringify(event));
   const { run } = await import('./helpers/run.mjs');
-  const r=run(process.execPath,[join(runtime,'robot.mjs'),'prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'issues',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,KEEL_GH:join(temp,'must-not-run')}});
+  const r=run(process.execPath,[join(runtime,'robot.mjs'),'prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'issues',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,PLATES_GH:join(temp,'must-not-run')}});
   assert.equal(r.status,0,r.stdout+r.stderr);
   assert.equal(JSON.parse(await readFile(join(temp,'robot-plan.json'),'utf8')).reason,'robot is off');
   assert.match(await readFile(join(temp,'outputs'),'utf8'),/^ready=false$/m);
@@ -251,7 +252,7 @@ test('robot weekly recovery notices a corrected rubric without replaying an unch
 
 test('robot failed agent preserves its redacted final message without treating failure as success', async t => {
   const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-robot-failure-'));
-  t.after(()=>rm(temp,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),'{}');
+  t.after(()=>rm(temp,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),'{}');
   const file=join(temp,'execution.json');await writeFile(file,JSON.stringify([{type:'assistant',text:'Acme transcript must not escape'},{type:'result',is_error:true,result:'Acme needs clarification; token=fake-acme'}]));
   const {run}=await import('./helpers/run.mjs');
   const r=run(process.execPath,[join(runtime,'robot.mjs'),'message','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,RUNNER_TEMP:temp,ROBOT_PROVIDER:'claude',ROBOT_OUTCOME:'failure',ROBOT_MESSAGE_FILE:file}});
@@ -302,7 +303,7 @@ test('robot sandbox rejects root and nested repository instruction files',async 
 
 test('robot review prompt uses merge base when the default branch advances',async t=>{
  const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-review-base-'));t.after(()=>rm(temp,{recursive:true,force:true}));
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
  git(root,'switch','-qc','keel/robot-1');await writeFile(join(root,'acme.txt'),'candidate correction');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
  git(root,'update-ref','refs/pull/2/head',headSha);git(root,'switch','-q','main');await writeFile(join(root,'unrelated.txt'),'new default branch work');git(root,'add','.');git(root,'commit','-qm','default advances');const baseSha=git(root,'rev-parse','HEAD');
  git(root,'remote','add','origin',root);
@@ -313,20 +314,20 @@ test('robot review prompt uses merge base when the default branch advances',asyn
    [`/repos/${repo}`]:{full_name:repo,default_branch:'main'},
    [`/repos/${repo}/pulls/2`]:pr,
    [`/repos/${repo}/pulls/2/reviews`]:[],
-   [`/repos/${repo}/actions/workflows/keel-robot.yml`]:{id:7,path:'.github/workflows/keel-robot.yml'},
+   [`/repos/${repo}/actions/workflows/plates-robot.yml`]:{id:7,path:'.github/workflows/plates-robot.yml'},
    [`/repos/${repo}/actions/workflows/7/runs`]:{total_count:1,workflow_runs:[{id:11,workflow_id:7,repository:{full_name:repo},head_sha:baseSha,run_attempt:1,updated_at:stamp,status:'in_progress'}]},
    [`/repos/${repo}/actions/runs/11/attempts/1/jobs`]:{total_count:2,jobs:[{id:31,run_id:11,head_sha:baseSha,name:'agent',status:'completed',steps:['Robot build Claude','Robot build Codex'].map(name=>({name,status:'completed',conclusion:'skipped'}))},{id:32,run_id:11,head_sha:baseSha,name:'review-agent',status:'in_progress',steps:[]}]},
  };
  const gh=join(temp,'gh');await writeFile(gh,`#!${process.execPath}\nconst responses=${JSON.stringify(responses)};const path=process.argv[process.argv.indexOf('--method')+2].split('?')[0];const data=responses[path];process.stdout.write('HTTP/2.0 '+(data?200:404)+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data??{}));`);await addGhAuthorization(gh);await chmod(gh,0o755);
  const {run}=await import('./helpers/run.mjs');
- const r=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_RUN_ID:'11',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'review-agent',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url,ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh}});
+ const r=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_RUN_ID:'11',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'review-agent',GITHUB_OUTPUT:join(temp,'outputs'),RUNNER_TEMP:temp,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url,ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',PLATES_GH:gh}});
  assert.equal(r.status,0,r.stdout+r.stderr);
  const prompt=await readFile(join(temp,'robot-brief','robot-review-prompt.md'),'utf8');assert.match(prompt,/candidate correction/);assert.doesNotMatch(prompt,/unrelated.txt|new default branch work/);
 });
 
 
 test('robot trusted fetch authenticates real private HTTP git without retaining credentials',async t=>{
- const workflow=await readFile('practices/climb/files/.github/workflows/keel-robot.yml','utf8');
+ const workflow=await readFile('practices/climb/files/.github/workflows/plates-robot.yml','utf8');
  const prepare=workflow.split("      - name: Fetch the robot branch's recorded head")[1].split(/\n      - /)[0];
  assert.match(prepare,/GH_TOKEN: \$\{\{ github.token \}\}/);
  assert.match(prepare,/ROBOT_FETCH_REF="refs\/heads\/\$BRANCH" node "\$RUNNER_TEMP\/trusted\/robot.mjs" fetch --json/);
@@ -335,7 +336,7 @@ test('robot trusted fetch authenticates real private HTTP git without retaining 
  const before=await readFile(join(root,'.git/config'),'utf8');
  const env={...process.env,GH_TOKEN:'acme-synthetic-token',GITHUB_SERVER_URL:server.url};
  // Exercise the shipped CLI, so the same command serves continuation shell and reviewer.
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),'{}');
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),'{}');
  const temp=await mkdtemp(join(tmpdir(),'acme-fetch-'));t.after(()=>rm(temp,{recursive:true,force:true}));
  const {run}=await import('./helpers/run.mjs');
  const result=run(process.execPath,[join(runtime,'robot.mjs'),'fetch','--json'],{cwd:root,env:{...env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,ROBOT_FETCH_REF:'refs/heads/main'}});
@@ -350,14 +351,14 @@ test('robot trusted fetch authenticates real private HTTP git without retaining 
 test('robot failed recovered review posts blocked notice for verified old-base publication',async t=>{
  const root=await project(t),a=api(),baseSha=git(root,'rev-parse','HEAD');
  const plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','default advances');
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','default advances');
  const headSha='b'.repeat(40),recovered={...plan,state:'recover',baseSha,recoveryHead:headSha};
  const temp=await mkdtemp(join(tmpdir(),'acme-recovered-review-'));t.after(()=>rm(temp,{recursive:true,force:true}));await mkdir(join(temp,'plan'));await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(recovered));
  const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  const data=join(temp,'pr.json'),posted=join(temp,'posted.json'),gh=join(temp,'gh');await writeFile(data,JSON.stringify(pr));
  await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs');const method=process.argv[process.argv.indexOf('--method')+1];const path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=path==='/repos/acme/anvils'?{full_name:repo,default_branch:'main'}:path.includes('/comments?')?[]:JSON.parse(fs.readFileSync(${JSON.stringify(data)},'utf8'));if(method==='POST'){fs.writeFileSync(${JSON.stringify(posted)},fs.readFileSync(0,'utf8'));status=201;data={id:100};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await addGhAuthorization(gh);await chmod(gh,0o755);
  const {run}=await import('./helpers/run.mjs');
- const invoke=()=>run(process.execPath,[join(runtime,'robot.mjs'),'review-post','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_REVIEW_OK:'false',KEEL_GH:gh}});
+ const invoke=()=>run(process.execPath,[join(runtime,'robot.mjs'),'review-post','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_REVIEW_OK:'false',PLATES_GH:gh}});
  const result=invoke();assert.equal(result.status,1);assert.match(result.stderr,/other-provider review failed/);
  assert.match(JSON.parse(await readFile(posted,'utf8')).body,/Other-provider review failed/);
  await rm(posted);await writeFile(data,JSON.stringify({...pr,head:{...pr.head,sha:'c'.repeat(40)}}));
@@ -400,7 +401,7 @@ test('robot triage preserves the published head through malformed rubric and own
 });
 
 test('robot resumes exact-head missing review after published state without another builder or completed-review spend',async t=>{
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
  const a=api(),headSha=git(root,'rev-parse','HEAD');
  const plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
  await robotComment({plan,result:{state:'published',headSha},github:a.github,now});
@@ -415,7 +416,7 @@ test('robot resumes exact-head missing review after published state without anot
  const temp=await mkdtemp(join(tmpdir(),'acme-review-resume-'));t.after(()=>rm(temp,{recursive:true,force:true}));await mkdir(join(temp,'plan'));await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(recovery));
  const gh=join(temp,'gh');await writeFile(gh,`#!${process.execPath}\nif(process.argv[process.argv.indexOf('--method')+1]!=='GET')process.exit(1);process.stdout.write('HTTP/2.0 200 OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(process.argv[process.argv.indexOf('--method')+2]==='/repos/acme/anvils'?{full_name:repo,default_branch:'main'}:${JSON.stringify(pr)}));`);await addGhAuthorization(gh);await chmod(gh,0o755);
  const {run}=await import('./helpers/run.mjs');const out=join(temp,'outputs');
- const result=run(process.execPath,[join(runtime,'robot.mjs'),'publish','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_OUTPUT:out,RUNNER_TEMP:temp,...await publisherPresenceEnv(),KEEL_GH:gh}});
+ const result=run(process.execPath,[join(runtime,'robot.mjs'),'publish','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_OUTPUT:out,RUNNER_TEMP:temp,...await publisherPresenceEnv(),PLATES_GH:gh}});
  assert.equal(result.status,0,result.stderr);assert.match(await readFile(out,'utf8'),/^pr=2$/m);assert.equal(git(root,'rev-parse','HEAD'),headSha);
  for(const wrong of [
    {...completedReview(headSha),commit_id:'c'.repeat(40)},
@@ -434,7 +435,7 @@ test('robot resumes exact-head missing review after published state without anot
  await writeFile(gh,`#!${process.execPath}\nconst path=process.argv[process.argv.indexOf('--method')+2];const data=path==='/repos/acme/anvils'?{full_name:repo,default_branch:'main'}:path.includes('/reviews?')?${JSON.stringify([completedReview(headSha)])}:path.endsWith('/pulls/2')?${JSON.stringify(pr)}:null;process.stdout.write('HTTP/2.0 '+(data?200:404)+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data??{}));`);
  await addGhAuthorization(gh);
  const completeOut=join(temp,'complete-outputs');
- const cli=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_OUTPUT:completeOut,RUNNER_TEMP:temp,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh}});
+ const cli=run(process.execPath,[join(runtime,'robot.mjs'),'review-prepare','--json'],{cwd:root,env:{...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,GITHUB_OUTPUT:completeOut,RUNNER_TEMP:temp,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',ROBOT_PR:'2',ROBOT_HEAD:headSha,ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',PLATES_GH:gh}});
  assert.equal(cli.status,0,cli.stderr);assert.match(await readFile(completeOut,'utf8'),/^complete=true$/m);assert.match(await readFile(completeOut,'utf8'),/^reviewer=$/m);
 
  const moved=api({comments:[intent,published],pulls:[{number:2}],pr:{...pr,head:{...pr.head,sha:'c'.repeat(40)}}});
@@ -442,7 +443,7 @@ test('robot resumes exact-head missing review after published state without anot
 });
 
 test('robot human retarget blocks admission publication recovery and both review boundaries',async t=>{
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
  const a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github}),baseSha=plan.baseSha;
  await writeFile(join(root,'acme.txt'),'candidate');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
  const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'release',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
@@ -518,7 +519,7 @@ test('robot queue skips unauthorized or unverifiable labels with rejection reaso
 
 
 test('robot fresh pinned default policy revokes queued admission publication and review authorization',async t=>{
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','enabled checkout');
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','enabled checkout');
  const a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
  await writeFile(join(root,'acme.txt'),'candidate');git(root,'add','.');git(root,'commit','-qm','candidate');const headSha=git(root,'rev-parse','HEAD');
  const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:{type:'Bot',login:'github-actions[bot]'},head:{sha:headSha,ref:plan.branch,repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
@@ -639,10 +640,10 @@ test('robot publication and review reject a triage relabel despite an unchanged 
 
 test('robot publish CLI returns OFF and no-action plans quietly but triage still checks current policy',async t=>{
  const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-publish-off-'));t.after(()=>rm(temp,{recursive:true,force:true}));
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),'{}');
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),'{}');
  await mkdir(join(temp,'plan'));
  const {run}=await import('./helpers/run.mjs');
- const env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,...await publisherPresenceEnv(),KEEL_GH:join(temp,'must-not-run')};
+ const env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,...await publisherPresenceEnv(),PLATES_GH:join(temp,'must-not-run')};
  const invoke=()=>run(process.execPath,[join(runtime,'robot.mjs'),'publish','--json'],{cwd:root,env});
  for(const plan of [{state:'blocked',reason:'robot is off'},{state:'blocked',repo,issueNumber:1,reason:'unapproved issue'},{state:'blocked',triage:true,reason:'no issue'}]){
    await writeFile(join(temp,'plan/robot-plan.json'),JSON.stringify(plan));
@@ -760,7 +761,7 @@ test('robot scan triage rechecks each approval and refuses changed policy body l
 test('robot scan triage CLI publishes blocked-only and mixed ready plans through real shell invocations',async t=>{
  for(const mixed of [false,true]){
  const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-scan-triage-'));t.after(()=>rm(temp,{recursive:true,force:true}));
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));
  await mkdir(join(root,'.agents/robot'),{recursive:true});await writeFile(join(root,'.agents/robot/PROTOCOL.md'),'Acme synthetic protocol.');
  await mkdir(join(temp,'plan'));await writeFile(join(temp,'event.json'),JSON.stringify({repository:{full_name:repo}}));
  const body='Acme missing rubric',store=join(temp,'comments.json');await writeFile(store,JSON.stringify({1:[receipt(body)],2:[receipt(formatRobotRubric(rubric),2)]}));
@@ -772,16 +773,16 @@ test('robot scan triage CLI publishes blocked-only and mixed ready plans through
    [`/repos/${repo}/issues/1/events?per_page=100&page=1`]:label,
    [`/repos/${repo}/issues/2/events?per_page=100&page=1`]:label,
    [`/repos/${repo}/collaborators/acme/permission`]:{permission:'write',user},
-   [`/repos/${repo}/actions/workflows/keel-robot.yml`]:{id:7,path:'.github/workflows/keel-robot.yml'},
+   [`/repos/${repo}/actions/workflows/plates-robot.yml`]:{id:7,path:'.github/workflows/plates-robot.yml'},
    [`/repos/${repo}/actions/workflows/7/runs?per_page=100&page=1`]:{total_count:1,workflow_runs:[{id:7,workflow_id:7,repository:{full_name:repo},head_sha:headSha,run_attempt:1,status:'in_progress',updated_at:new Date(Date.now()-1000).toISOString()}]},
    [`/repos/${repo}/actions/runs/7/attempts/1/jobs?per_page=100&page=1`]:{total_count:1,jobs:[{id:8,run_id:7,head_sha:headSha,name:'agent',status:'in_progress',steps:[]}]},
  };
  const gh=join(temp,'gh');
  await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs'),map=${JSON.stringify(responses)},file=${JSON.stringify(store)};const method=process.argv[process.argv.indexOf('--method')+1],path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=map[path];if(path.includes('/pulls?'))data=[];const n=path.split('/issues/')[1]?.split('/')[0];if(path.includes('/comments?'))data=JSON.parse(fs.readFileSync(file))[n];if(method==='POST'&&['/repos/acme/anvils/issues/1/comments','/repos/acme/anvils/issues/2/comments'].includes(path)){const rows=JSON.parse(fs.readFileSync(file));data={id:100+rows[n].length,user:{type:'Bot',login:'github-actions[bot]'},body:JSON.parse(fs.readFileSync(0,'utf8')).body};rows[n].push(data);fs.writeFileSync(file,JSON.stringify(rows));status=201;}if(data===undefined){status=404;data={};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await chmod(gh,0o755);
- const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'true',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
+ const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'true',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',PLATES_GH:gh};
  const {run}=await import('./helpers/run.mjs'),invoke=command=>run(process.execPath,[join(runtime,'robot.mjs'),command,'--json'],{cwd:root,env});
  const prepared=invoke('prepare');assert.equal(prepared.status,0,prepared.stderr);
- // keel#93: a ready plan's brief is alone in the folder the workflow grants Claude.
+ // plates#93: a ready plan's brief is alone in the folder the workflow grants Claude.
  if(mixed)assert.match(await readFile(join(temp,'robot-brief','robot-prompt.md'),'utf8'),/## Trusted allocation and untrusted issue data/);
  const outputs=await readFile(out,'utf8');assert.match(outputs,mixed?/^issue=2$/m:/^issue=$/m);assert.match(outputs,mixed?/^ready=true$/m:/^ready=false$/m);assert.match(outputs,/^triage=true$/m);assert.match(outputs,/^triage_count=1$/m);
  await cp(join(temp,'robot-plan.json'),join(temp,'plan/robot-plan.json'));
@@ -885,7 +886,7 @@ test('robot runtime package policy and gate scripts stay protected',async t=>{
    git(root,'reset','--hard',base);await writeFile(join(root,'package.json'),JSON.stringify({...pkg,[field]:value}));git(root,'add','.');git(root,'commit','-qm',`Acme changed ${field}`);
    assert.match(robotSandbox(root,base,git(root,'rev-parse','HEAD')).join('\n'),/only "scripts" may change/);
  }
- // keel#74 follow-up: unlike climb, the robot may not edit a gate script, nested or not.
+ // plates#74 follow-up: unlike climb, the robot may not edit a gate script, nested or not.
  for(const path of ['package.json','packages/acme/package.json']){
    git(root,'reset','--hard',base);await mkdir(join(root,'packages/acme'),{recursive:true});await writeFile(join(root,'packages/acme/package.json'),JSON.stringify(pkg));git(root,'add','.');git(root,'commit','-qm','Acme nested package');const from=git(root,'rev-parse','HEAD');
    await writeFile(join(root,path),JSON.stringify({...pkg,scripts:{test:'node --test tests/acme.test.mjs'}}));git(root,'add','.');git(root,'commit','-qm','Acme gate script');
@@ -899,7 +900,7 @@ test('robot runtime package policy and gate scripts stay protected',async t=>{
 test('robot compares package scripts by name and value, not key order',async t=>{
  const root=await project(t),scripts={build:'node build.mjs',lint:'node lint.mjs',test:'node --test'};
  await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts},null,2));git(root,'add','.');git(root,'commit','-qm','Acme package');const base=git(root,'rev-parse','HEAD');
- // keel#83 follow-up: a formatter that sorts or reorders unchanged scripts changes nothing.
+ // plates#83 follow-up: a formatter that sorts or reorders unchanged scripts changes nothing.
  await writeFile(join(root,'package.json'),JSON.stringify({private:true,scripts:{test:'node --test',build:'node build.mjs',lint:'node lint.mjs'}},null,2));git(root,'add','.');git(root,'commit','-qm','Acme reordered scripts');
  assert.deepEqual(robotSandbox(root,base,git(root,'rev-parse','HEAD')),[]);
  // Reordered and changed is still a change.
@@ -923,7 +924,7 @@ test('robot judge refuses a gate script edit before either gate runs',async t=>{
 });
 
 test('robot refuses commit messages that would close another issue in the judge and before any push',async t=>{
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');
  const remote=await mkdtemp(join(tmpdir(),'acme-closing-remote-'));t.after(()=>rm(remote,{recursive:true,force:true}));git(remote,'init','-q','--bare');git(root,'remote','add','origin',remote);
  const a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github}),baseSha=plan.baseSha;
  const candidate=async(...messages)=>{git(root,'reset','-q','--hard',baseSha);for(const [i,m] of messages.entries()){await writeFile(join(root,'acme.txt'),`Acme ${i} ${m}`);git(root,'add','.');git(root,'commit','-qm',m);}return git(root,'rev-parse','HEAD');};
@@ -953,19 +954,19 @@ test('robot refuses commit messages that would close another issue in the judge 
 });
 
 test('robot judge refuses a candidate gate that plants an extra test-ledger record',async t=>{
- const root=await project(t);await mkdir(join(root,'scripts/keel'),{recursive:true});await mkdir(join(root,'.keel'));
- await cp(resolve('practices/night/files/scripts/keel/test-ledger.mjs'),join(root,'scripts/keel/test-ledger.mjs'));
- await cp(resolve('practices/night/files/scripts/keel/time-receipts.mjs'),join(root,'scripts/keel/time-receipts.mjs'));
- const check='node --test --test-reporter=./scripts/keel/test-ledger.mjs acme.test.mjs';
- await writeFile(join(root,'.keel/keel.json'),JSON.stringify({check}));
+ const root=await project(t);await mkdir(join(root,'scripts/plates'),{recursive:true});await mkdir(join(root,'.plates'));
+ await cp(resolve('practices/night/files/scripts/plates/test-ledger.mjs'),join(root,'scripts/plates/test-ledger.mjs'));
+ await cp(resolve('practices/night/files/scripts/plates/time-receipts.mjs'),join(root,'scripts/plates/time-receipts.mjs'));
+ const check='node --test --test-reporter=./scripts/plates/test-ledger.mjs acme.test.mjs';
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check}));
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});test('Acme subtracts',()=>{});\n");
  git(root,'add','.');git(root,'commit','-qm','gate');const baseSha=git(root,'rev-parse','HEAD');
  // The candidate drops a test; its remaining test writes a record saying the dropped one passed.
  await writeFile(join(root,'acme.test.mjs'),`import {test} from 'node:test';import {mkdirSync,writeFileSync} from 'node:fs';import {execFileSync} from 'node:child_process';
 test('Acme adds',()=>{
   const commit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-  mkdirSync('.keel/test-runs',{recursive:true});
-  writeFileSync('.keel/test-runs/0000-acme-forged.json',JSON.stringify({date:new Date().toISOString(),commit,tests:[{file:'acme.test.mjs',name:'Acme subtracts',outcome:'pass',ms:1}]}));
+  mkdirSync('.plates/test-runs',{recursive:true});
+  writeFileSync('.plates/test-runs/0000-acme-forged.json',JSON.stringify({date:new Date().toISOString(),commit,tests:[{file:'acme.test.mjs',name:'Acme subtracts',outcome:'pass',ms:1}]}));
 });
 `);
  git(root,'add','.');git(root,'commit','-qm','drop');
@@ -974,7 +975,7 @@ test('Acme adds',()=>{
 });
 
 test('robot follow-up without a new commit records the reply and leaves the issue answerable',async t=>{
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');const baseSha=git(root,'rev-parse','HEAD');
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));git(root,'add','.');git(root,'commit','-qm','policy');const baseSha=git(root,'rev-parse','HEAD');
  git(root,'switch','-qc','keel/robot-1');await writeFile(join(root,'acme.txt'),'first');git(root,'add','.');git(root,'commit','-qm','Acme first');const headSha=git(root,'rev-parse','HEAD');git(root,'switch','-q','main');
  const remote=await mkdtemp(join(tmpdir(),'acme-reply-remote-'));t.after(()=>rm(remote,{recursive:true,force:true}));git(remote,'init','-q','--bare');git(root,'remote','add','origin',remote);git(root,'push','-q','origin',`${headSha}:refs/heads/keel/robot-1`);
  const a=api(),initial=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
@@ -1009,7 +1010,7 @@ test('robot follow-up without a new commit records the reply and leaves the issu
 // with a stub gh holding the issue's comments in a file.
 async function scanHarness(t) {
  const root=await project(t),temp=await mkdtemp(join(tmpdir(),'acme-infra-'));t.after(()=>rm(temp,{recursive:true,force:true}));
- await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+ await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));
  await mkdir(join(root,'.agents/robot'),{recursive:true});await writeFile(join(root,'.agents/robot/PROTOCOL.md'),'Acme synthetic protocol.');
  await mkdir(join(temp,'plan'));await writeFile(join(temp,'event.json'),JSON.stringify({repository:{full_name:repo}}));
  const store=join(temp,'comments.json'),headSha=git(root,'rev-parse','HEAD');
@@ -1018,13 +1019,13 @@ async function scanHarness(t) {
    [`/repos/${repo}/issues/1`]:{number:1,html_url:`https://github.com/${repo}/issues/1`,body:formatRobotRubric(rubric),state:'open',labels:[{name:'keel:agent'}]},
    [`/repos/${repo}/issues/1/events?per_page=100&page=1`]:[{id:1,event:'labeled',label:{name:'keel:agent'},actor:user,created_at:'2026-10-09T00:00:00Z'}],
    [`/repos/${repo}/collaborators/acme/permission`]:{permission:'write',user},
-   [`/repos/${repo}/actions/workflows/keel-robot.yml`]:{id:7,path:'.github/workflows/keel-robot.yml'},
+   [`/repos/${repo}/actions/workflows/plates-robot.yml`]:{id:7,path:'.github/workflows/plates-robot.yml'},
    [`/repos/${repo}/actions/workflows/7/runs?per_page=100&page=1`]:{total_count:1,workflow_runs:[{id:7,workflow_id:7,repository:{full_name:repo},head_sha:headSha,run_attempt:1,status:'in_progress',updated_at:new Date(Date.now()-1000).toISOString()}]},
    [`/repos/${repo}/actions/runs/7/attempts/1/jobs?per_page=100&page=1`]:{total_count:1,jobs:[{id:8,run_id:7,head_sha:headSha,name:'agent',status:'in_progress',steps:[]}]},
  };
  const gh=join(temp,'gh');
  await writeFile(gh,`#!${process.execPath}\nconst fs=require('node:fs'),map=${JSON.stringify(responses)},file=${JSON.stringify(store)};const method=process.argv[process.argv.indexOf('--method')+1],path=process.argv[process.argv.indexOf('--method')+2];let status=200,data=map[path];if(path.includes('/pulls?'))data=[];if(path.includes('/issues/1/comments?'))data=JSON.parse(fs.readFileSync(file))[1];if(method==='POST'&&path==='/repos/acme/anvils/issues/1/comments'){const rows=JSON.parse(fs.readFileSync(file));data={id:100+rows[1].length,user:{type:'Bot',login:'github-actions[bot]'},body:JSON.parse(fs.readFileSync(0,'utf8')).body};rows[1].push(data);fs.writeFileSync(file,JSON.stringify(rows));status=201;}if(data===undefined){status=404;data={};}process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));`);await chmod(gh,0o755);
- const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'false',ROBOT_JUDGE_RAN:'false',ROBOT_PREPARED:'skipped',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',KEEL_GH:gh};
+ const out=join(temp,'outputs'),env={...process.env,GITHUB_WORKSPACE:root,GITHUB_REPOSITORY:repo,RUNNER_TEMP:temp,GITHUB_EVENT_PATH:join(temp,'event.json'),GITHUB_EVENT_NAME:'schedule',GITHUB_OUTPUT:out,GITHUB_RUN_ID:'7',GITHUB_RUN_ATTEMPT:'1',GITHUB_JOB:'agent',ROBOT_JUDGE_OK:'false',ROBOT_MODEL_RAN:'false',ROBOT_JUDGE_RAN:'false',ROBOT_PREPARED:'skipped',ROBOT_HAS_CLAUDE:'true',ROBOT_HAS_CODEX:'true',PLATES_GH:gh};
  const {run}=await import('./helpers/run.mjs'),invoke=(command,extra={})=>run(process.execPath,[join(runtime,'robot.mjs'),command,'--json'],{cwd:root,env:{...env,...extra}});
  const ready=async()=>{await rm(out,{force:true});const r=invoke('prepare');assert.equal(r.status,0,r.stderr);await cp(join(temp,'robot-plan.json'),join(temp,'plan/robot-plan.json'));return /^ready=true$/m.test(await readFile(out,'utf8'));};
  const notes=async()=>JSON.parse(await readFile(store,'utf8'))[1].slice(1);
@@ -1052,7 +1053,7 @@ test('robot preparation that fails deterministically is recorded until a writer 
  const {store,invoke,ready,notes}=await scanHarness(t);
  await writeFile(store,JSON.stringify({1:[receipt()]}));
  assert.equal(await ready(),true);
- // keel#83 follow-up: the merge of the default branch conflicted. Every retry
+ // plates#83 follow-up: the merge of the default branch conflicted. Every retry
  // would conflict again and keep this oldest issue ahead of later ones.
  const recorded=invoke('publish',{ROBOT_PREPARED:'failure'});assert.equal(recorded.status,0,recorded.stderr);assert.equal(JSON.parse(recorded.stdout).state,'failed');
  assert.equal((await notes()).length,1);
@@ -1073,10 +1074,10 @@ test('robot sandbox checks every commit the bundle carries and a merge only for 
  await commit({'docs/evidence/01-acme.md':'Acme forged evidence'},'Acme evidence');await commit({'docs/evidence/01-acme.md':null},'Acme tidy');let head=await commit({'acme.txt':'fixed'},'Acme fix');
  assert.equal(git(root,'diff','--name-only',base,head),'acme.txt');
  assert.match(robotSandbox(root,base,head).join('\n'),/record changes require owner reconciliation/);
- // A scripts/keel edit later reverted.
- git(root,'reset','-q','--hard',base);await commit({'scripts/keel/acme.mjs':'Acme judge override'},'Acme judge');head=await commit({'scripts/keel/acme.mjs':null},'Acme revert');
+ // A scripts/plates edit later reverted.
+ git(root,'reset','-q','--hard',base);await commit({'scripts/plates/acme.mjs':'Acme judge override'},'Acme judge');head=await commit({'scripts/plates/acme.mjs':null},'Acme revert');
  assert.equal(git(root,'diff','--name-only',base,head),'');
- assert.match(robotSandbox(root,base,head).join('\n'),/scripts\/keel\/acme\.mjs: changed on the agent's branch/);
+ assert.match(robotSandbox(root,base,head).join('\n'),/scripts\/plates\/acme\.mjs: changed on the agent's branch/);
  // A follow-up that merges a main which changed records is accepted.
  git(root,'reset','-q','--hard',base);git(root,'switch','-qc','keel/robot-1');await commit({'acme.txt':'first'},'Acme first');
  git(root,'switch','-q','main');const main=await commit({'docs/phases/01-acme.md':'Acme owner phase'},'Acme phase');
@@ -1155,10 +1156,10 @@ test('with a plan, the robot judge refuses a change to a willNotTouch path',asyn
 });
 
 // Phase 78: an accepted Loop finding's issue is built by the robot under a rubric drafted from the finding.
-test('robot admits the issue keel goodnight drafts from an accepted Loop finding, and triages one whose rubric it refuses',async t=>{
+test('robot admits the issue plates goodnight drafts from an accepted Loop finding, and triages one whose rubric it refuses',async t=>{
  const { loopRubric, loopDraft } = await import('../lib/goodnight.mjs');
  const { previewRobotIssue } = await import('../lib/robot-issue.mjs');
- const { robotPolicy } = await import('../practices/climb/files/scripts/keel/robot-policy.mjs');
+ const { robotPolicy } = await import('../practices/climb/files/scripts/plates/robot-policy.mjs');
  const root=await project(t);
  const finding={slug:'lighter-anvils',title:'Lighter anvils',note:'Brings `slow_tests` back within its bound.',body:"> **Loop says** (P2/S1): The anvil tests wait on a sleep.\n\n- `lib/anvil.mjs`"};
  const number={measure:'slow_tests',bound:0,better:'lower'};
@@ -1177,7 +1178,7 @@ test('robot admits the issue keel goodnight drafts from an accepted Loop finding
 });
 
 test('robot decision admission refuses missing sources and retains digest in its trusted report', async t => {
- const root=await project(t);await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify({repo,...config}));
+ const root=await project(t);await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify({repo,...config}));
  await mkdir(join(root,'docs/decisions'),{recursive:true});
  const ref='docs/decisions/store.md#store';
  const a=api({body:formatRobotRubric({...rubric,decisions:[ref]})});
@@ -1187,4 +1188,33 @@ test('robot decision admission refuses missing sources and retains digest in its
  const plan=await prepare();assert.equal(plan.state,'ready',plan.reason);assert.equal(plan.decisionBundle.state,'complete');assert.equal(plan.decisionDigest,plan.decisionBundle.digest);
  await robotComment({plan,result:{state:'failed',reason:'Acme fixture'},github:a.github,now});
  assert.ok(a.writes.at(-1).body.body.includes(`Decision digest used: ${plan.decisionDigest}`));
+});
+
+test('renamed robot admits old issue authorization and continues old state without rewriting receipts', async t => {
+ const root=await project(t),old='acme/previous',headSha=git(root,'rev-parse','HEAD');
+ const issueMark={version:1,repo:old,instanceId:'acme-origin',subject:'d'.repeat(64)};
+ const body=formatRobotRubric(rubric)+`\n\n<!-- keel:robot-issue ${JSON.stringify(issueMark)} -->`;
+ const state={issueHash:'a'.repeat(64),repo:old,issueNumber:1,cursor:10,instanceId:issueMark.instanceId,headSha,completedAt:'2026-10-09T00:00:00Z'};
+ const bot={type:'Bot',login:'github-actions[bot]'};
+ const comments=[receipt(body,1,{repo:old}),{id:11,user:bot,body:`<!-- keel:robot-note ${'a'.repeat(64)} -->\n<!-- keel:robot-state ${JSON.stringify(state)} -->\nDone.`},{id:12,user,body:'Continue Acme correction.'}];
+ const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:bot,head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...state,author:'claude',authorization:authorized(body)})};
+ const original=JSON.stringify({body,comments,pr}),a=api({body,comments,receipts:false,pulls:[{number:2}],pr,reviews:[completedReview(headSha)]});
+ const github=async request=>request.path===`/repos/${old}`||request.path===`/repos/${repo}`?{status:200,data:{...policyResponses()[`/repos/${repo}`],id:7}}:a.github(request);
+ const plan=await prepareRobot({root,repo,config,event:{...event,action:'created',comment:{id:12}},eventName:'issue_comment',has,now,github});
+ assert.equal(plan.state,'ready',plan.reason);assert.equal(plan.repo,repo);assert.equal(plan.instanceId,'acme-origin');assert.equal(plan.previousHead,headSha);assert.deepEqual(plan.comments.map(c=>c.id),[12]);assert.equal(JSON.stringify({body,comments,pr}),original);assert.equal(a.writes.length,0);
+ for(const result of [{status:403},{status:200,data:{id:8,full_name:old}}]){
+  const denied=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:r=>r.path===`/repos/${old}`?result:github(r)});assert.equal(denied.state,'blocked');assert.equal(a.writes.length,0);
+ }
+});
+
+test('renamed robot recovers an original publication plan through verified repository identity only', async t => {
+ const root=await project(t),old='acme/previous',a=api(),headSha='b'.repeat(40);
+ const plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ const legacy={...plan,repo:old},bot={type:'Bot',login:'github-actions[bot]'};
+ const fields=['state','repo','baseSha','issueNumber','issueHash','authorization','cursor','instanceId','author','reviewer','previousHead','prNumber','branch','decisionDigest'];
+ const pending={id:100,user:bot,body:`<!-- keel:robot-publication ${JSON.stringify({version:1,plan:Object.fromEntries(fields.map(k=>[k,legacy[k]])),headSha})} -->\nTrusted publication intent; recovery may publish only this judged head.`};
+ const original=pending.body,b=api({comments:[pending]});
+ const github=async request=>request.path===`/repos/${old}`||request.path===`/repos/${repo}`?{status:200,data:{...policyResponses()[`/repos/${repo}`],id:7}}:request.path.endsWith('/git/ref/heads/keel/robot-1')?{status:200,data:{ref:'refs/heads/keel/robot-1',object:{type:'commit',sha:headSha}}}:b.github(request);
+ const recovered=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github});assert.equal(recovered.state,'recover',recovered.reason);assert.equal(recovered.repo,repo);assert.equal(recovered.recoveryHead,headSha);assert.equal(pending.body,original);assert.equal(b.writes.length,0);
+ const denied=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:r=>r.path===`/repos/${old}`?{status:403}:github(r)});assert.equal(denied.state,'blocked');assert.match(denied.reason,/publication intent unavailable/);
 });

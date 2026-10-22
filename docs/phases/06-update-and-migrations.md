@@ -3,7 +3,7 @@ status: built
 since: 2026-10-04
 goal: G2
 depends: [2, 5]
-note: "keel update and release work, and update PRs reach projects for real: keel fleet update took duo and cajones to 0.5.2 (#48, #23), green and merged, and left ledger alone because nothing applied."
+note: "plates update and release work, and update PRs reach projects for real: plates fleet update took duo and cajones to 0.5.2 (#48, #23), green and merged, and left ledger alone because nothing applied."
 evidence: ["evidence/2026-10-02-update.md"]
 ---
 
@@ -11,22 +11,22 @@ evidence: ["evidence/2026-10-02-update.md"]
 
 ## Done when
 
-A project on practice version N runs `keel update` and gets one pull request that brings it to N+1 through a migration, passes its check, and is idempotent when run again.
+A project on practice version N runs `plates update` and gets one pull request that brings it to N+1 through a migration, passes its check, and is idempotent when run again.
 
 ## Scope
 
 Practice versions as tags; `migrations/NNNN-*.mjs` exporting `applies` and
-`up` (returns edits, does not perform them); `keel update` updates the CLI
+`up` (returns edits, does not perform them); `plates update` updates the CLI
 first, then applies pending migrations in order, stops at the first that does
 not apply cleanly, re-renders managed files, runs check, bumps
-`.keel/keel.json`, and opens a PR (`--local` leaves a working-tree diff).
-`keel release` on keel cuts a version with a WHATSNEW entry written for the
+`.plates/plates.json`, and opens a PR (`--local` leaves a working-tree diff).
+`plates release` on plates cuts a version with a WHATSNEW entry written for the
 person receiving it.
 
 ## Acceptance
 
 - [x] An old CLI refuses a project on a newer practice, and says how to update.
-- [x] A project on practice 0.0.0 holding the pre-`7227f325` conduct skill comes out of `keel update` on the current one (a managed re-render, no migration needed).
+- [x] A project on practice 0.0.0 holding the pre-`7227f325` conduct skill comes out of `plates update` on the current one (a managed re-render, no migration needed).
 - [x] The first real migration, `0001-milestone-to-goal`, converts a ritmo-shaped project's phases (milestones → goals), shown as a diff, and after it adopt finds `phases` on.
 - [x] Running update twice makes no second change.
 - [x] A failing migration leaves the project as it was and says which one.

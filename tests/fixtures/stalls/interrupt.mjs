@@ -6,7 +6,7 @@
 import { spawnSync } from 'node:child_process';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runFiles } from '../../../practices/night/files/scripts/keel/stalls.mjs';
+import { runFiles } from '../../../practices/night/files/scripts/plates/stalls.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const shape = { firstMs: [200, 200], gapMs: [60_000, 60_000], stallMs: [60_000, 60_000] };

@@ -80,6 +80,19 @@ test("missing or malformed deployment revision stays unavailable and never refle
       .deploymentRevision,
     "c".repeat(40),
   );
+  const canonical = {
+    ...env,
+    PLATES_WEB_CONFIG: JSON.stringify({ ...h.input, recovery }),
+    PLATES_GITHUB_CLIENT_SECRET: h.secrets.clientSecret,
+    PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
+    VERCEL_GIT_COMMIT_SHA: "c".repeat(40),
+  };
+  const configured = configFromEnv(canonical);
+  assert.deepEqual(configured.recovery, recovery);
+  assert.equal(configured.deploymentRevision, "c".repeat(40));
+  for (const key of ["PLATES_WEB_CONFIG", "PLATES_GITHUB_CLIENT_SECRET", "PLATES_SESSION_ENCRYPTION_KEY"]) {
+    assert.throws(() => configFromEnv({ ...canonical, [key]: "" }), { code: "invalid_service_configuration" });
+  }
   assert.equal(
     configFromEnv({ ...env, VERCEL_GIT_COMMIT_SHA: "private text" })
       .deploymentRevision,
@@ -151,6 +164,9 @@ test("authenticated recovery HTML has narrow layout, keyboard access, honest lab
   for (const expected of [
     'name="viewport"',
     "Skip to recovery status",
+    "Workspace recovery · Plates",
+    "Plates · Workspace recovery",
+    "Plates CLI",
     'id="main"',
     "Restore verification is in progress",
     "Old workers may still exist",

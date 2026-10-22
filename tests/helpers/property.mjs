@@ -4,8 +4,8 @@
 // and, on the first that fails, shrinks it and throws a report naming the
 // smallest case and the seed that reproduces it.
 //
-//   KEEL_PROPERTY_SEED=<n>   the run's seed (default: a fresh one, printed on failure)
-//   KEEL_PROPERTY_RUNS=<n>   inputs per property (default: each property's own, small for the gate)
+//   PLATES_PROPERTY_SEED=<n>   the run's seed (default: a fresh one, printed on failure)
+//   PLATES_PROPERTY_RUNS=<n>   inputs per property (default: each property's own, small for the gate)
 //
 // A generator is { make(rng) → tree }; a tree is { value, shrinks() → trees },
 // each shrink a smaller value of the same generator, so map and records shrink
@@ -134,20 +134,20 @@ export function permutation(xs) {
 
 // ---- running ------------------------------------------------------------------
 
-/** The run's seed: KEEL_PROPERTY_SEED, else one chosen now (the same for every property in the process). */
+/** The run's seed: PLATES_PROPERTY_SEED, else one chosen now (the same for every property in the process). */
 const FRESH = (Date.now() ^ (process.pid << 16)) >>> 0;
 export function seedOf(env = process.env) {
-  const s = env.KEEL_PROPERTY_SEED;
+  const s = env.PLATES_PROPERTY_SEED;
   if (s === undefined || s === '') return FRESH;
-  if (!/^\d+$/.test(s) || Number(s) > 0xffffffff) throw new Error(`KEEL_PROPERTY_SEED is an integer in [0, 4294967295] (got ${JSON.stringify(s)})`);
+  if (!/^\d+$/.test(s) || Number(s) > 0xffffffff) throw new Error(`PLATES_PROPERTY_SEED is an integer in [0, 4294967295] (got ${JSON.stringify(s)})`);
   return Number(s);
 }
 
-/** How many inputs: KEEL_PROPERTY_RUNS divided by the property's `cost` (at least 1), else its own `runs`. */
+/** How many inputs: PLATES_PROPERTY_RUNS divided by the property's `cost` (at least 1), else its own `runs`. */
 export function runsOf({ runs = 100, cost = 1 } = {}, env = process.env) {
-  const r = env.KEEL_PROPERTY_RUNS;
+  const r = env.PLATES_PROPERTY_RUNS;
   if (r === undefined || r === '') return runs;
-  if (!/^[1-9]\d*$/.test(r)) throw new Error(`KEEL_PROPERTY_RUNS is a positive integer (got ${JSON.stringify(r)})`);
+  if (!/^[1-9]\d*$/.test(r)) throw new Error(`PLATES_PROPERTY_RUNS is a positive integer (got ${JSON.stringify(r)})`);
   return Math.max(1, Math.round(Number(r) / cost));
 }
 
@@ -189,7 +189,7 @@ export async function check(g, predicate, { seed = seedOf(), runs = runsOf(), ma
 /** A failure as the report a person reads: the smallest case, the seed, how to rerun it. */
 export function report(name, r) {
   return [
-    `property "${name}" failed on input ${r.run} of ${r.runs} (seed ${r.seed}; rerun with KEEL_PROPERTY_SEED=${r.seed}).`,
+    `property "${name}" failed on input ${r.run} of ${r.runs} (seed ${r.seed}; rerun with PLATES_PROPERTY_SEED=${r.seed}).`,
     `Smallest failing case (${r.shrinks} shrink${r.shrinks === 1 ? '' : 's'}): ${show(r.value)}`,
     `It failed with: ${r.error?.message ?? show(r.error)}`,
     `Original case: ${show(r.original)}`,

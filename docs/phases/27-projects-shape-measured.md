@@ -11,17 +11,17 @@ evidence: ["evidence/2026-10-05-projects-shape-measured.md"]
 
 ## Done when
 
-`keel improve` on a projects-shaped repo (isocan) reports `phases_stuck`,
+`plates improve` on a projects-shaped repo (isocan) reports `phases_stuck`,
 `phases_without_issue` and the new record measures with values, not `n/a`,
 and every new measure is `n/a` with a reason, never a zero, where the project
 has nothing for it to read.
 
 ## Scope
 
-isocan's `scripts/practice.mjs` (2 Oct 2026) measured, nightly, what keel's
+isocan's `scripts/practice.mjs` (2 Oct 2026) measured, nightly, what plates's
 improve skips for the projects shape. Bring what holds for any project into
-`practices/night/files/scripts/keel/improve.mjs` (and `lib.mjs`), the module
-`keel improve` and `keel-night.yml` both run:
+`practices/night/files/scripts/plates/improve.mjs` (and `lib.mjs`), the module
+`plates improve` and `plates-night.yml` both run:
 
 - **Projects shape read** for the existing phase measures: a phase is a
   `## Phase` section of `docs/projects/<p>/phases.md` with a `**Status:**`
@@ -57,8 +57,8 @@ ratchets). Those stay isocan's own checks.
 
 ## Proof
 
-`npm run check`. `node bin/keel.mjs improve --selftest`.
-`node bin/keel.mjs improve --json` run in an isocan checkout.
+`npm run check`. `node bin/plates.mjs improve --selftest`.
+`node bin/plates.mjs improve --json` run in an isocan checkout.
 
 ## Deliberately open
 

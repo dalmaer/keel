@@ -2,7 +2,7 @@
 
 Phase107 binding design, 22 October 2026 UTC. This refines the
 [fleet contract](web-fleet-operations.md) without declaring full fleet execution
-complete. [Phase107](../phases/107-mobile-and-desktop-cover-keel-operations.md)
+complete. [Phase107](../phases/107-mobile-and-desktop-cover-plates-operations.md)
 retains its Done when and acceptance. A mapped limitation is coverage evidence,
 not evidence that an operation can run from the web.
 
@@ -155,7 +155,7 @@ uncertain POST cannot still execute; retain its charge and unresolved lane until
 an expressly designed settlement can establish otherwise. For a durably recorded201 only, a fresh latest-run read showing a completed
 successor beyond the parent attempt may release the active lane. Keep the full
 60-minute charge for seven days from that observation. This is provider-request
-settlement, not proof that Keel caused that particular successor or that its work
+settlement, not proof that Plates caused that particular successor or that its work
 was accepted. Sending/uncertain requests never use this settlement shortcut.
 External/scheduled runs
 are outside web admission and are not represented as budget-controlled. V1 does

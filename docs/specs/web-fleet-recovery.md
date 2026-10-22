@@ -1,4 +1,4 @@
-# Fleet restore and reconnect verification
+# Restore and reconnect verification across plates
 
 Phase108 binding design, 22 October 2026 UTC. This extends the
 [workspace restore boundary](web-restore.md); it does not replace the owner's

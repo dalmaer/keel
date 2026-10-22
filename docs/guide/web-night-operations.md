@@ -4,7 +4,7 @@ Phase107 adds two distinct controls: publish a reviewed plan from **Daily**, or
 request a retry from a retained failed night attempt. Both start disabled. Local
 implementation and synthetic proof do not enable production writes or approve
 Actions usage. The [operation contract](../specs/web-operation-experience.md#night-controls-bounded-first-adapters)
-records the scope and the [phase](../phases/107-mobile-and-desktop-cover-keel-operations.md)
+records the scope and the [phase](../phases/107-mobile-and-desktop-cover-plates-operations.md)
 tracks remaining verification.
 
 ## Publish the plan you reviewed
@@ -45,7 +45,7 @@ operation remains uncertain when the source cannot establish what happened.
 Open a retained attempt in Activity, then inspect its retry eligibility. The
 initial adapter supports explicitly registered canonical **adopted-project**
 night workflows. It is not arbitrary workflow execution and does not support the
-Keel mothership's intake step, robot/climb/model work, secret-dependent setup,
+Plates mothership's intake step, robot/climb/model work, secret-dependent setup,
 optional production/canvas effects or undeclared downstream workflows.
 
 A private profile binds the numeric repository/workflow identities, original
@@ -65,7 +65,7 @@ immutable replay of yesterday's plan.
 Approve only that reviewed request. A `201` response means GitHub accepted the
 request; it does not mean the night passed. Later attempts are shown as observed
 successors with unverified attribution, because GitHub's rerun API provides no
-idempotency or correlation key. External and scheduled runs remain outside Keel's
+idempotency or correlation key. External and scheduled runs remain outside Plates's
 web admission and cannot be described as controlled by its budget.
 
 An acknowledged request may settle after a fresh read finds a completed successor.

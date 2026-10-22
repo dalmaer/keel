@@ -9,7 +9,7 @@ export const dailyPlan = (date = '2026-10-21') => ({
 });
 export function dailyHarness() {
   const h = decisionHarness();
-  h.source.files['.keel/keel.json'] = JSON.stringify({ name: 'Acme Studio', climb: { jobs: ['test-time'], budget: { minutes: 45 } }, robot: { on: false, budgetMinutes: 60 } });
+  h.source.files['.plates/plates.json'] = JSON.stringify({ name: 'Acme Studio', climb: { jobs: ['test-time'], budget: { minutes: 45 } }, robot: { on: false, budgetMinutes: 60 } });
   h.source.files['docs/night/2026-10-21.json'] = JSON.stringify(dailyPlan());
   h.source.files['docs/health/2026-10-21.md'] = '| `slow_tests` — tests | 30 | ≤ 20 | outside | Acme observation |\n';
   h.source.files['docs/health/2026-10-22.md'] = '| `slow_tests` — tests | 18 | ≤ 20 | inside | Acme observation |\n';

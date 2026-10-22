@@ -19,22 +19,22 @@ than a configuration.
 Until one is set the run ends green with a notice.
 
 **Optional: opt in with `--with claude` (owner's decision, 3 Oct 2026).**
-`keel init` and `keel adopt` leave it off unless asked (`--with claude`), or
-unless `.keel/keel.json` already lists it. It earns its place when the owner is
+`plates init` and `plates adopt` leave it off unless asked (`--with claude`), or
+unless `.plates/plates.json` already lists it. It earns its place when the owner is
 away: it runs Claude on GitHub, from an issue or a review, with nobody at a
 terminal. With the owner at hand, Claude Code does the same work locally, so
 the workflow adds a second way to spend, not a second capability; each
 mention spends model tokens. Adopt still marks it local where the project
 runs its own claude-code-action workflow.
 
-**Its files.** `.github/workflows/claude.yml` (managed). `keel adopt` keeps
+**Its files.** `.github/workflows/claude.yml` (managed). `plates adopt` keeps
 the practice local where a project already runs `anthropics/claude-code-action`
 in a workflow of its own, so two Claudes never answer one mention.
 
-**Lineage.** Keel phase 10, from duo's `.github/workflows/claude.yml`, with
+**Lineage.** Plates phase 10, from duo's `.github/workflows/claude.yml`, with
 git narrowed from `git *` to the subcommands that cannot push.
 
-**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+**Ancestors (phase 16, 3 Oct 2026).** What plates decided for the projects this
 practice came from, where each keeps a version of its own:
 
 - **isocan**: *stays local*. `changelog.yml` already runs

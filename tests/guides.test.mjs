@@ -10,7 +10,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { verbs, FLAGS, CLI_ROOT } from '../lib/cli.mjs';
-import { MEASURES } from '../scripts/keel/improve.mjs';
+import { MEASURES } from '../scripts/plates/improve.mjs';
 
 const GUIDES = join(CLI_ROOT, 'docs', 'guide');
 const README = join(CLI_ROOT, 'README.md');
@@ -46,7 +46,7 @@ async function scripts() {
   const out = new Map();
   for (const p of await readdir(join(CLI_ROOT, 'practices'), { withFileTypes: true })) {
     if (!p.isDirectory()) continue;
-    for (const dir of ['scripts/keel', 'scripts']) {
+    for (const dir of ['scripts/plates', 'scripts']) {
       const at = join(CLI_ROOT, 'practices', p.name, 'files', dir);
       const files = await readdir(at).catch(() => []);
       for (const f of files.filter(f => f.endsWith('.mjs'))) {
@@ -72,24 +72,24 @@ export function codeOf(text) {
 
 const SEPARATORS = new Set(['&&', '||', '|', ';', '#']);
 
-/** Each `keel …` and `node scripts/….mjs …` command in a piece of code: its words up to a separator. */
+/** Each `plates …` and `node scripts/….mjs …` command in a piece of code: its words up to a separator. */
 export function commandsIn(code) {
   const words = code.trim().split(/\s+/);
   const out = [];
   words.forEach((w, i) => {
-    const keel = w === 'keel' || /\/keel$/.test(w);
+    const plates = w === 'plates' || /\/plates$/.test(w);
     const script = w === 'node' && /^scripts\/.+\.mjs$/.test(words[i + 1] ?? '');
-    if (!keel && !script) return;
+    if (!plates && !script) return;
     const rest = [];
     for (const x of words.slice(i + 1)) { if (SEPARATORS.has(x)) break; rest.push(x); }
-    out.push(keel ? { kind: 'keel', words: rest } : { kind: 'script', script: rest[0], words: rest.slice(1) });
+    out.push(plates ? { kind: 'plates', words: rest } : { kind: 'script', script: rest[0], words: rest.slice(1) });
   });
   return out;
 }
 
 const flagsOf = words => words.map(w => /^(--[a-z][a-z-]*)/.exec(w)?.[1]).filter(Boolean);
 
-/** Which registered command a `keel` command's words name, or null when its first word isn't a verb's shape. */
+/** Which registered command a `plates` command's words name, or null when its first word isn't a verb's shape. */
 function resolveVerb(words, known) {
   const [a, b] = words;
   if (a === undefined) return { verb: null };
@@ -100,7 +100,7 @@ function resolveVerb(words, known) {
   return { verb: null, unknown: a };
 }
 
-/** Every disagreement between the guides (and README links) and what keel registers and ships. */
+/** Every disagreement between the guides (and README links) and what plates registers and ships. */
 export function guideGaps(docs, { known, flagsFor, scriptFlags, measures, exists }) {
   const gaps = [];
   const said = new Set();
@@ -119,15 +119,15 @@ export function guideGaps(docs, { known, flagsFor, scriptFlags, measures, exists
           continue;
         }
         const { verb, owner, unknown } = resolveVerb(c.words, known);
-        if (unknown) { gaps.push(`${doc.name}: names an unregistered verb: keel ${unknown}`); continue; }
+        if (unknown) { gaps.push(`${doc.name}: names an unregistered verb: plates ${unknown}`); continue; }
         if (!verb) continue;
         said.add(verb);
         const allowed = flagsFor(owner ?? verb);
         for (const f of flagsOf(c.words.slice(verb.split(' ').length))) {
-          if (f !== '--json' && !allowed.has(f)) gaps.push(`${doc.name}: keel ${verb} has no ${f}`);
+          if (f !== '--json' && !allowed.has(f)) gaps.push(`${doc.name}: plates ${verb} has no ${f}`);
         }
       }
-      // A bare flag (`--with <practice>`) must be one keel or a shipped script knows.
+      // A bare flag (`--with <practice>`) must be one plates or a shipped script knows.
       if (!commands.length) {
         const bare = /^(--[a-z][a-z-]*)/.exec(code.trim())?.[1];
         if (bare && !universe.has(bare)) gaps.push(`${doc.name}: names a flag nothing has: ${bare}`);
@@ -200,17 +200,17 @@ test('each kind of drift fails (mutations of the guide text, in memory)', async 
   // A removed flag: init has no --frobnicate.
   const start = docs.find(d => d.name === 'docs/guide/start-a-project.md').text;
   assert.ok(start.includes('--kind node'));
-  assert.deepEqual(added(swap('--kind node', '--frobnicate node')), ['docs/guide/start-a-project.md: keel init has no --frobnicate']);
+  assert.deepEqual(added(swap('--kind node', '--frobnicate node')), ['docs/guide/start-a-project.md: plates init has no --frobnicate']);
   // A flag that belongs to another verb: --with is init's and adopt's, never update's.
   const fleet = 'docs/guide/keep-the-fleet-current.md';
-  assert.deepEqual(added(swap('keel update --local', 'keel update --with', fleet)), [`${fleet}: keel update has no --with`]);
+  assert.deepEqual(added(swap('plates update --local', 'plates update --with', fleet)), [`${fleet}: plates update has no --with`]);
   // A bare flag nothing has.
   assert.deepEqual(added(swap('`--tagline <t>`', '`--slogan <t>`')), ['docs/guide/start-a-project.md: names a flag nothing has: --slogan']);
   // An unregistered verb.
-  assert.deepEqual(added(swap('cd acme-notes && keel next', 'cd acme-notes && keel frobnicate')), ['docs/guide/start-a-project.md: names an unregistered verb: keel frobnicate']);
+  assert.deepEqual(added(swap('cd acme-notes && plates next', 'cd acme-notes && plates frobnicate')), ['docs/guide/start-a-project.md: names an unregistered verb: plates frobnicate']);
   // A script flag that isn't the script's.
   const climb = 'docs/guide/climb-and-tend.md';
-  assert.deepEqual(added(swap('climb.mjs pick ', 'climb.mjs pick --everything ', climb)), [`${climb}: scripts/keel/climb.mjs has no --everything`]);
+  assert.deepEqual(added(swap('climb.mjs pick ', 'climb.mjs pick --everything ', climb)), [`${climb}: scripts/plates/climb.mjs has no --everything`]);
   // A measure the night doesn't take.
   const night = 'docs/guide/the-night-shift.md';
   assert.deepEqual(added(swap('`flaky_tests`', '`flakey_tests`', night)), [`${night}: names a measure the night does not take: flakey_tests`]);
@@ -219,11 +219,11 @@ test('each kind of drift fails (mutations of the guide text, in memory)', async 
 
   const before = unguided(base.said, ctx.known);
   const missing = (said, known = ctx.known) => unguided(said, known).filter(n => !before.includes(n));
-  // A verb missing from every guide: drop every mention of keel retro.
-  const noRetro = docs.map(d => ({ ...d, text: d.text.replaceAll('keel retro', 'keel status') }));
+  // A verb missing from every guide: drop every mention of plates retro.
+  const noRetro = docs.map(d => ({ ...d, text: d.text.replaceAll('plates retro', 'plates status') }));
   assert.deepEqual(missing(run(noRetro).said), ['retro', 'retro capture', 'retro sessions']);
-  // A subcommand missing: no guide names keel loose-ends mark.
-  const noMark = docs.map(d => ({ ...d, text: d.text.replaceAll('keel loose-ends mark', 'keel loose-ends') }));
+  // A subcommand missing: no guide names plates loose-ends mark.
+  const noMark = docs.map(d => ({ ...d, text: d.text.replaceAll('plates loose-ends mark', 'plates loose-ends') }));
   assert.deepEqual(missing(run(noMark).said), ['loose-ends mark']);
   // A newly registered verb with no guide.
   const more = new Map([...ctx.known, ['frobnicate', 'frobnicate']]);

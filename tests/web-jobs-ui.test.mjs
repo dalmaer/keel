@@ -91,8 +91,8 @@ test('lost dispatch retains original bookmark and only explicit reconciliation c
     return Response.json(receipt);
   });
   await fixture.client.review();assert.match(fixture.output.innerHTML,/Review this exact run/);
-  assert.equal(fixture.document.title,'Review operation · Keel');assert.deepEqual(fixture.focused,['heading','scroll']);
-  const pending=fixture.client.start();assert.equal(fixture.document.title,'Original operation · Keel');assert.deepEqual(fixture.focused.slice(-2),['heading','scroll']);assert.equal(calls.length,2);await fixture.client.start();assert.equal(calls.length,2);
+  assert.equal(fixture.document.title,'Review operation · Plates');assert.deepEqual(fixture.focused,['heading','scroll']);
+  const pending=fixture.client.start();assert.equal(fixture.document.title,'Original operation · Plates');assert.deepEqual(fixture.focused.slice(-2),['heading','scroll']);assert.equal(calls.length,2);await fixture.client.start();assert.equal(calls.length,2);
   resolve(Response.json({error:'request_unavailable'},{status:503}));await pending;assert.match(fixture.output.innerHTML,/uncertain/);
   await fixture.client.start();assert.equal(calls.length,2);await fixture.client.act('reconcile');assert.equal(calls.length,3);assert.ok(calls[2].url.endsWith(`/jobs/${id}/reconcile`));assert.deepEqual(Object.keys(calls[2].body),['csrf']);
 });

@@ -22,12 +22,12 @@ fetches the manifest and membership file at the same current default-branch
 commit through the signed-in user's GitHub App token. The private repository
 must remain private and accessible through the selected App installation.
 
-Set `KEEL_WEB_CONFIG` to an explicit JSON object in the production deployment:
+Set `PLATES_WEB_CONFIG` to an explicit JSON object in the production deployment:
 
 ```json
 {
   "version": 1,
-  "origin": "https://keel.example.com",
+  "origin": "https://plates.example.com",
   "ownerIds": [1],
   "appId": 11,
   "clientId": "replace-with-github-app-client-id",
@@ -63,10 +63,10 @@ Set these only in the production deployment's secret store:
 
 | Variable | Purpose |
 | --- | --- |
-| `KEEL_GITHUB_CLIENT_SECRET` | GitHub App OAuth code exchange |
+| `PLATES_GITHUB_CLIENT_SECRET` | GitHub App OAuth code exchange |
 | `SUPABASE_URL` | Explicit HTTPS Supabase project origin; Marketplace name supported directly |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-only PostgREST authentication; Marketplace name supported directly |
-| `KEEL_SESSION_ENCRYPTION_KEY` | Base64 encoding of 32 cryptographically random bytes for AES-256-GCM |
+| `PLATES_SESSION_ENCRYPTION_KEY` | Base64 encoding of 32 cryptographically random bytes for AES-256-GCM |
 
 Generate the encryption key directly into the approved secret store without
 printing it or saving it in Git. Neither the anon key nor a frontend key can
@@ -81,7 +81,7 @@ to the selected private Supabase database through its owner SQL interface before
 starting the service. Home requires all three migrations. Decision previews and
 receipts add [004-decision-operations.sql](../../lib/web/migrations/004-decision-operations.sql)
 after those migrations; this does not enable GitHub writes. The optional boolean
-`decisionWrites` in `KEEL_WEB_CONFIG` defaults to disabled. Enable it only after
+`decisionWrites` in `PLATES_WEB_CONFIG` defaults to disabled. Enable it only after
 owner approval of App Contents-write access and the intended decision workflow.
 See [Review and record a decision](web-decisions.md). Guided walks additionally
 require [005-walk-drafts.sql](../../lib/web/migrations/005-walk-drafts.sql), after
@@ -121,8 +121,8 @@ Apply only the migrations for the approved features, preserving their named
 prerequisites. Migrations are transactional; the 009/010 refusal after 013 is an
 intentional protection against replacing shared admission. Vercel’s Marketplace query
 editor accepts one prepared statement: wrap the migration body (without its
-outer `begin;` and `commit;`) in `DO $keel_migration$ BEGIN ... END
-$keel_migration$;`. This keeps schema creation and permission changes atomic;
+outer `begin;` and `commit;`) in `DO $plates_migration$ BEGIN ... END
+$plates_migration$;`. This keeps schema creation and permission changes atomic;
 do not run its statements individually. Migration 001 creates a private,
 RLS-enabled table and a narrowly scoped `public.keel_web_rpc` function. The
 function has an empty search path and fully qualified table references. Public,
@@ -256,7 +256,7 @@ binding when available, actual runtime/CLI versions and operator recovery state.
 Compare that binding with Vercel's actual serving deployment before claiming
 production verification. Missing or malformed bindings remain unavailable.
 
-The optional `recovery` object in `KEEL_WEB_CONFIG` carries a fresh 32-character
+The optional `recovery` object in `PLATES_WEB_CONFIG` carries a fresh 32-character
 lowercase hexadecimal epoch, canonical past `startedAt`, and null `reconciledAt`
 until the operator's audit is complete. Keep the epoch permanently after
 reopening. This invalidates restored sessions/attempts without rotating keys

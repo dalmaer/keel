@@ -10,29 +10,29 @@ npm run roadmap   # after editing any docs/phases/*.md or docs/goals.json
 
 ## How the work is run
 
-Each shipped rule names its cause. References to Keel lessons mean the
-[Keel catalogue](https://github.com/dalmaer/keel/blob/main/docs/lessons.md);
+Each shipped rule names its cause. References to Plates lessons mean the
+[Plates catalogue](https://github.com/dalmaer/plates/blob/main/docs/lessons.md);
 this project’s own lessons live in [`{{lessons}}`]({{lessons}}).
 
-<!-- keel:begin phases -->
-<!-- keel:end phases -->
+<!-- plates:begin phases -->
+<!-- plates:end phases -->
 
-<!-- keel:begin evidence -->
-<!-- keel:end evidence -->
+<!-- plates:begin evidence -->
+<!-- plates:end evidence -->
 
-<!-- keel:begin conduct -->
-<!-- keel:end conduct -->
+<!-- plates:begin conduct -->
+<!-- plates:end conduct -->
 
-<!-- keel:begin night -->
-<!-- keel:end night -->
+<!-- plates:begin night -->
+<!-- plates:end night -->
 
-<!-- keel:begin lessons -->
-<!-- keel:end lessons -->
+<!-- plates:begin lessons -->
+<!-- plates:end lessons -->
 
-<!-- keel:begin agents-md -->
-<!-- keel:end agents-md -->
+<!-- plates:begin agents-md -->
+<!-- plates:end agents-md -->
 
 ## Rules for this project's code
 
-Write them here. Everything outside the `keel:begin`/`keel:end` regions is
-{{name}}'s own; keel never rewrites it.
+Write them here. Everything outside the `plates:begin`/`plates:end` regions is
+{{name}}'s own; plates never rewrites it.

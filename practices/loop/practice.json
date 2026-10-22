@@ -4,12 +4,12 @@
   "optional": true,
   "requires": ["base", "agents-md"],
   "secrets": [
-    { "name": "STITCH_API_KEY", "why": "the Loop key the official stitch CLI (@google/stitch, from npm) reads; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/keel-loop.yml" }
+    { "name": "STITCH_API_KEY", "why": "the Loop key the official stitch CLI (@google/stitch, from npm) reads; until it is set the nightly pull ends green with a notice", "workflow": ".github/workflows/plates-loop.yml" }
   ],
   "files": [
     { "path": "scripts/loop.mjs", "from": "scripts/loop.mjs", "kind": "managed" },
     { "path": "tests/loop.test.mjs", "from": "tests/loop.test.mjs", "kind": "managed" },
-    { "path": ".github/workflows/keel-loop.yml", "from": ".github/workflows/keel-loop.yml", "kind": "managed" },
+    { "path": ".github/workflows/plates-loop.yml", "from": ".github/workflows/plates-loop.yml", "kind": "managed" },
     { "path": ".stitch.json", "from": ".stitch.json", "kind": "seeded" },
     { "path": "docs/loop/README.md", "from": "docs/loop/README.md", "kind": "seeded" },
     { "path": "AGENTS.md", "from": "AGENTS.block.md", "kind": "block", "block": "loop" }

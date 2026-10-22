@@ -2,7 +2,7 @@
 
 Merged work can leave a draft claim, obsolete next action, or superseded decision behind. GitHub owns merge facts; phases own acceptance; decisions own architecture; evidence owns tested claims. A merge never ticks acceptance.
 
-Opt in with `keel adopt --with reconciliation` or `keel init <dir> --description "…" --with reconciliation`. This installs the standalone reconciliation runtime, its decision-context sibling, a guide, and seeded templates. Local phase formats remain local. Doctor reads annotations offline; `--github` requests read-only observations. The existing night reports manual proposals in its health queue. Records are never data eligible for automatic merging.
+Opt in with `plates adopt --with reconciliation` or `plates init <dir> --description "…" --with reconciliation`. This installs the standalone reconciliation runtime, its decision-context sibling, a guide, and seeded templates. Local phase formats remain local. Doctor reads annotations offline; `--github` requests read-only observations. The existing night reports manual proposals in its health queue. Records are never data eligible for automatic merging.
 
 Origin: the phase 26 reconciliation design in this repository, informed by Ledger delivery/record drift. No upstream code copied.
 

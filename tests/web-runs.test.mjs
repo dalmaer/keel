@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runsHarness, runFixture, jobFixture, token } from './helpers/web-runs.mjs';
 import { runIdentity, deduplicate, attemptModel } from '../lib/web/run-model.mjs';
+import { createRuns } from '../lib/web/runs.mjs';
+import { gitBlob } from '../lib/web/decision-github.mjs';
 import { createGitHub } from '../lib/web/github.mjs';
 import { routineDefinition, mergeWorkflowInventory } from '../lib/web/routines.mjs';
 const overview = (h, options) => h.runs.overview(h.access, token, h.project, options);
@@ -107,4 +109,39 @@ test('numeric Actions transport never falls back to recycled repository names', 
   await assert.rejects(overview(h), e => e.status === 404);
   assert.ok(h.actions.requests.every(request => new URL(request.url).pathname.startsWith('/repositories/102/actions/')));
   assert.equal(h.actions.requests.some(request => request.url.includes('/repos/acme/studio/')), false);
+});
+
+
+test('Routines config prefers Plates and reads legacy configuration only on confirmed tree absence', async () => {
+  for (const legacy of [false, true]) {
+    const h = runsHarness();
+    h.source.files['.keel/keel.json'] = JSON.stringify({ ci: { weeklyMinutes: 999 } });
+    if (legacy) delete h.source.files['.plates/plates.json'];
+    const context = await h.runs.source(h.access, token, h.project);
+    assert.equal(context.config.ci.weeklyMinutes, legacy ? 999 : 120);
+    assert.equal(context.coverage.gaps.some(g => g.source === 'configuration'), false);
+    assert.deepEqual(h.source.writes, []);
+  }
+});
+
+test('Routines config never substitutes legacy data after malformed or forbidden canonical reads', async () => {
+  for (const failure of ['malformed', 403, 404]) {
+    const h = runsHarness();
+    h.source.files['.keel/keel.json'] = JSON.stringify({ ci: { weeklyMinutes: 999 } });
+    if (failure === 'malformed') h.source.files['.plates/plates.json'] = '{broken';
+    const canonical = gitBlob(h.source.files['.plates/plates.json']), legacy = gitBlob(h.source.files['.keel/keel.json']);
+    let legacyReads = 0;
+    const runs = createRuns(h.config, { now: () => h.state.now, fetcher: async (url, options) => {
+      if (url.endsWith('/git/blobs/' + legacy)) legacyReads++;
+      if (failure !== 'malformed' && url.endsWith('/git/blobs/' + canonical)) return Response.json({}, { status: failure });
+      return h.fetcher(url, options);
+    } });
+    if (failure === 'malformed') {
+      const context = await runs.source(h.access, token, h.project);
+      assert.equal(context.config.ci, null);
+      assert.ok(context.coverage.gaps.some(g => g.source === 'configuration'));
+    } else await assert.rejects(runs.source(h.access, token, h.project), { code: 'access_denied' });
+    assert.equal(legacyReads, 0);
+    assert.deepEqual(h.source.writes, []);
+  }
 });

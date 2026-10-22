@@ -5,9 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inspectWorkspace, initializeWorkspace, validateManifest, WORKSPACE_LIMITS } from '../lib/web/workspace.mjs';
-const manifest = () => ({ version: 1, id: 'acme', name: 'Acme', repo: 'acme/keel-private', projects: [{ id: 'studio', repo: 'acme/studio' }] });
+const manifest = () => ({ version: 1, id: 'acme', name: 'Acme', repo: 'acme/plates-private', projects: [{ id: 'studio', repo: 'acme/studio' }] });
 async function fixture(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-workspace-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-workspace-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const options = { appRoot: join(root, 'app'), manifest: join(root, 'private', 'workspace.json'), state: join(root, 'runtime') };
   await mkdir(options.appRoot); await mkdir(join(root, 'private'));
@@ -31,7 +31,7 @@ test('bounded exact manifest schema accepts empty or 100 projects and rejects in
     { ...manifest(), projects: [{ repo: 'acme/studio' }] },
     { ...manifest(), projects: [{ id: 'studio', repo: 'acme/studio' }, { id: 'studio', repo: 'acme/other' }] },
     { ...manifest(), projects: [{ id: 'studio', repo: 'acme/studio' }, { id: 'other', repo: 'Acme/STUDIO' }] },
-    { ...manifest(), projects: [{ id: 'studio', repo: 'Acme/KEEL-PRIVATE' }] },
+    { ...manifest(), projects: [{ id: 'studio', repo: 'Acme/PLATES-PRIVATE' }] },
     ...['https://github.com/acme/app', '../app', 'acme/..', 'acme/app.git', 'acme/app?secret', `acme:${fake}/app`, 'acme/app/nested', 'ac--me/app'].map(repo => ({ ...manifest(), repo }))];
   for (const value of invalid) assert.throws(() => validateManifest(value), error => error.exitCode === 2 && !error.message.includes(fake));
 });
@@ -55,7 +55,7 @@ test('inspect is read-only and initialization has only the private ownership mar
   const initialized = await initializeWorkspace(options);
   assert.equal(initialized.state, 'ready');
   assert.deepEqual(await readdir(options.state), ['workspace.json']);
-  assert.deepEqual(JSON.parse(await readFile(join(options.state, 'workspace.json'))), { version: 1, id: 'acme', repo: 'acme/keel-private' });
+  assert.deepEqual(JSON.parse(await readFile(join(options.state, 'workspace.json'))), { version: 1, id: 'acme', repo: 'acme/plates-private' });
   if (process.platform !== 'win32') {
     assert.equal((await stat(options.state)).mode & 0o777, 0o700);
     assert.equal((await stat(join(options.state, 'workspace.json'))).mode & 0o777, 0o600);
@@ -117,7 +117,7 @@ test('unowned or mismatched state and malformed marker preserve every byte', asy
   await refuses(initializeWorkspace(options), /unowned/);
   assert.equal(await readFile(other, 'utf8'), 'Acme observations');
   const marker = join(options.state, 'workspace.json');
-  for (const bytes of ['not json fake-secret-do-not-print', JSON.stringify({ version: 1, id: 'other', repo: 'acme/keel-private' }), JSON.stringify({ version: 1, id: 'acme', repo: 'acme/other' }), JSON.stringify({ version: 1, id: 'acme', repo: 'acme/keel-private', token: 'fake-secret-do-not-print' })]) {
+  for (const bytes of ['not json fake-secret-do-not-print', JSON.stringify({ version: 1, id: 'other', repo: 'acme/plates-private' }), JSON.stringify({ version: 1, id: 'acme', repo: 'acme/other' }), JSON.stringify({ version: 1, id: 'acme', repo: 'acme/plates-private', token: 'fake-secret-do-not-print' })]) {
     await writeFile(marker, bytes, { mode: 0o600 });
     await assert.rejects(initializeWorkspace(options), error => error.exitCode === 2 && !error.message.includes('fake-secret-do-not-print'));
     assert.equal(await readFile(marker, 'utf8'), bytes);

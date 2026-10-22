@@ -32,7 +32,7 @@ Runtime validation remains necessary. No language port or speculative speedup.
 
 - [x] Profiling preserves command output and failure status, handles overlapping and failed operations, and records no sensitive payloads: `tests/profile.test.mjs`.
 - [x] Selected production state/receipt modules pass no-emit checking, and negative contract cases prove invalid states are rejected: `npm run typecheck`.
-- [x] Startup, local work, subprocesses and a real read-only network operation are measured with context and limits in the research record: `node scripts/profile-benchmark.mjs --output /tmp/keel-phase67-bench/final-github.json --samples 3 --github --json`.
+- [x] Startup, local work, subprocesses and a real read-only network operation are measured with context and limits in the research record: `node scripts/profile-benchmark.mjs --output /tmp/plates-phase67-bench/final-github.json --samples 3 --github --json`.
 - [x] The integrated runtime tests and documentation guards pass: `npm run check`.
 
 ## Real surfaces

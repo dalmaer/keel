@@ -1,6 +1,6 @@
 // The property runner (phase 85) proves its own two promises: a failure is
 // shrunk to its smallest case, and the seed it prints reproduces it — set by
-// KEEL_PROPERTY_SEED, from a fresh process.
+// PLATES_PROPERTY_SEED, from a fresh process.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve, dirname } from 'node:path';
@@ -55,28 +55,28 @@ test('the same seed makes the same inputs and the same shrunk case; the report n
   assert.deepEqual(Array.from({ length: 20 }, () => r1.int(0, 1e6)), Array.from({ length: 20 }, () => r2.int(0, 1e6)));
 
   const text = report('sums stay small', one);
-  assert.match(text, /^property "sums stay small" failed on input \d+ of 300 \(seed 424242; rerun with KEEL_PROPERTY_SEED=424242\)\./);
+  assert.match(text, /^property "sums stay small" failed on input \d+ of 300 \(seed 424242; rerun with PLATES_PROPERTY_SEED=424242\)\./);
   assert.match(text, /\nSmallest failing case \(\d+ shrinks?\): \[ \{ k: 'c', n: \d+ \}/);
   await assert.rejects(property('sums stay small', g, fails, { seed: 424242, runs: 300 }), e => e.message === text && e.property.seed === 424242);
 
   // The env sets the seed and the count; anything else in them is refused, never read as a default.
-  assert.equal(seedOf({ KEEL_PROPERTY_SEED: '77' }), 77);
+  assert.equal(seedOf({ PLATES_PROPERTY_SEED: '77' }), 77);
   assert.equal(seedOf({}), seedOf({}), 'one fresh seed for the whole process');
-  assert.throws(() => seedOf({ KEEL_PROPERTY_SEED: 'x' }), /KEEL_PROPERTY_SEED is an integer/);
+  assert.throws(() => seedOf({ PLATES_PROPERTY_SEED: 'x' }), /PLATES_PROPERTY_SEED is an integer/);
   assert.equal(runsOf({ runs: 40 }, {}), 40);
-  assert.equal(runsOf({ runs: 40 }, { KEEL_PROPERTY_RUNS: '1000' }), 1000);
-  assert.equal(runsOf({ runs: 3, cost: 25 }, { KEEL_PROPERTY_RUNS: '1000' }), 40, 'a costly property takes its share of a larger run');
-  assert.throws(() => runsOf({}, { KEEL_PROPERTY_RUNS: '0' }), /positive integer/);
+  assert.equal(runsOf({ runs: 40 }, { PLATES_PROPERTY_RUNS: '1000' }), 1000);
+  assert.equal(runsOf({ runs: 3, cost: 25 }, { PLATES_PROPERTY_RUNS: '1000' }), 40, 'a costly property takes its share of a larger run');
+  assert.throws(() => runsOf({}, { PLATES_PROPERTY_RUNS: '0' }), /positive integer/);
 });
 
-test('a fresh process given the printed seed in KEEL_PROPERTY_SEED fails on the same case', () => {
+test('a fresh process given the printed seed in PLATES_PROPERTY_SEED fails on the same case', () => {
   const url = pathToFileURL(resolve(HERE, 'property.mjs')).href;
   const script = `import { property, int, array } from ${JSON.stringify(url)};
 await property('lists stay short', array(int(0, 50), { max: 30 }), xs => xs.length < 7 || xs[6] < 25, { runs: 400 }).then(() => console.log('passed'), e => console.log(e.message));`;
-  const once = r => run(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, KEEL_PROPERTY_SEED: r } });
+  const once = r => run(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, PLATES_PROPERTY_SEED: r } });
   const a = once('31337'), b = once('31337');
   assert.equal(a.status, 0, a.stderr);
-  assert.match(a.stdout, /seed 31337; rerun with KEEL_PROPERTY_SEED=31337/);
+  assert.match(a.stdout, /seed 31337; rerun with PLATES_PROPERTY_SEED=31337/);
   assert.match(a.stdout, /Smallest failing case \(\d+ shrinks?\): \[\s*0,\s*0,\s*0,\s*0,\s*0,\s*0,\s*25\s*\]/, 'six leading zeros and the boundary');
   assert.equal(b.stdout, a.stdout, 'the same seed, the same report');
 });

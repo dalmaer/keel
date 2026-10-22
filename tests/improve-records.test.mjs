@@ -1,4 +1,4 @@
-// keel improve on a repo that keeps its phases per project (phase 27): the
+// plates improve on a repo that keeps its phases per project (phase 27): the
 // phase measures read docs/projects/<p>/phases.md, and the record measures
 // (records_disagree, status_unknown, changelog_gaps, research_unindexed,
 // verify_owed, issues_unnamed, issues_done_open, prs_stale) read the right
@@ -10,13 +10,13 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { run } from './helpers/run.mjs';
 import { measure, MEASURES } from '../lib/improve.mjs';
-import { phaseSections, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter } from '../practices/night/files/scripts/keel/lib.mjs';
+import { phaseSections, recordsDisagree, statusUnknown, changelogGaps, issuesNamed, frontMatter } from '../practices/night/files/scripts/plates/lib.mjs';
 
 const DATE = '2026-03-31';
 const NEW = ['records_disagree', 'status_unknown', 'changelog_gaps', 'research_unindexed', 'verify_owed', 'issues_unnamed', 'issues_done_open', 'prs_stale'];
 const PHASES = ['phases_without_issue', 'phases_stuck', 'roadmap_stale', 'evidence_placeholders', 'proofs_hold'];
 
-async function scratch(t, prefix = 'keel-records-') {
+async function scratch(t, prefix = 'plates-records-') {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
@@ -42,7 +42,7 @@ const commitOn = (dir, day, message) => {
 
 /** A gh stub answering the issue and PR lists. */
 async function ghStub(t, { issues = [], prs = [] } = {}) {
-  const dir = await scratch(t, 'keel-records-gh-');
+  const dir = await scratch(t, 'plates-records-gh-');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}
 const a = process.argv.slice(2);
@@ -78,7 +78,7 @@ async function acme(t, { extra = {}, shape = 'projects' } = {}) {
   await mkdir(root);
   git(root, ['init', '-q', '-b', 'main']);
   await put(root, {
-    '.keel/keel.json': `${JSON.stringify({ name: 'Acme', repo: 'acme/storefront', practices: ['base'], ...(shape === 'projects' ? { phases: { shape: 'projects' }, local: { phases: 'Acme keeps phases per project' } } : {}) }, null, 2)}\n`,
+    '.plates/plates.json': `${JSON.stringify({ name: 'Acme', repo: 'acme/storefront', practices: ['base'], ...(shape === 'projects' ? { phases: { shape: 'projects' }, local: { phases: 'Acme keeps phases per project' } } : {}) }, null, 2)}\n`,
     'docs/projects/README.md': '# Projects\n',
     ...PROJECTS,
   });
@@ -109,7 +109,7 @@ async function acme(t, { extra = {}, shape = 'projects' } = {}) {
 }
 
 const read = async (root, ids, env = process.env) => {
-  const config = JSON.parse(await readFile(join(root, '.keel', 'keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(root, '.plates', 'plates.json'), 'utf8'));
   const results = await measure({ root, config, env, date: DATE, measures: MEASURES.filter(m => ids.includes(m.id)) });
   return Object.fromEntries(results.map(r => [r.id, r]));
 };
@@ -143,7 +143,7 @@ test('on a projects-shaped repo each record measure reads the right count', asyn
     issues: [{ number: 7, title: 'anvils' }, { number: 8, title: 'rockets' }, { number: 9, title: 'traps' }, { number: 40, title: 'named' }, { number: 41, title: 'linked' }, { number: 43, title: 'only the health page names it' }, { number: 44, title: 'nobody' }],
     prs: [{ number: 1, title: 'old', createdAt: '2026-03-01T00:00:00Z' }, { number: 2, title: 'fresh', createdAt: '2026-03-25T00:00:00Z' }, { number: 3, title: 'older', createdAt: '2026-02-01T00:00:00Z' }],
   });
-  const r = await read(root, NEW, { ...process.env, KEEL_GH: gh });
+  const r = await read(root, NEW, { ...process.env, PLATES_GH: gh });
   const values = Object.fromEntries(NEW.map(id => [id, [r[id].state, r[id].value]]));
   assert.deepEqual(values, {
     records_disagree: ['outside', 2],
@@ -199,7 +199,7 @@ test('every new measure is n/a with its reason where the repo has nothing for it
   const root = join(await scratch(t), 'bare');
   await mkdir(root);
   git(root, ['init', '-q', '-b', 'main']);
-  await put(root, { '.keel/keel.json': '{"name":"Acme","practices":["base"]}\n', 'docs/research/2026-01-01-x.md': '# x\n' });
+  await put(root, { '.plates/plates.json': '{"name":"Acme","practices":["base"]}\n', 'docs/research/2026-01-01-x.md': '# x\n' });
   let r = await read(root, NEW);
   const why = {
     records_disagree: /no docs\/projects/, status_unknown: /no docs\/projects/, changelog_gaps: /no docs\/changelog/,
@@ -212,8 +212,8 @@ test('every new measure is n/a with its reason where the repo has nothing for it
     assert.match(r[id].detail, re, id);
   }
   // With a repo and gh, issues_done_open still needs docs/projects to read.
-  await put(root, { '.keel/keel.json': '{"name":"Acme","repo":"acme/storefront","practices":["base"]}\n' });
-  r = await read(root, ['issues_done_open', 'issues_unnamed'], { ...process.env, KEEL_GH: await ghStub(t) });
+  await put(root, { '.plates/plates.json': '{"name":"Acme","repo":"acme/storefront","practices":["base"]}\n' });
+  r = await read(root, ['issues_done_open', 'issues_unnamed'], { ...process.env, PLATES_GH: await ghStub(t) });
   assert.equal(r.issues_done_open.state, 'n/a');
   assert.match(r.issues_done_open.detail, /no docs\/projects/);
   assert.equal(r.issues_unnamed.state, 'ok', 'no open issues is a real zero: gh answered');
@@ -221,7 +221,7 @@ test('every new measure is n/a with its reason where the repo has nothing for it
 
 test('an instrument that cannot read is broken, not a zero: changelog_gaps outside a git repository', async t => {
   const root = join(await scratch(t), 'nogit');
-  await put(root, { '.keel/keel.json': '{"name":"Acme","practices":["base"]}\n', 'docs/changelog/README.md': '# Changelog\n' });
+  await put(root, { '.plates/plates.json': '{"name":"Acme","practices":["base"]}\n', 'docs/changelog/README.md': '# Changelog\n' });
   const r = await read(root, ['changelog_gaps'], { ...process.env, GIT_CEILING_DIRECTORIES: dirname(root) });
   assert.equal(r.changelog_gaps.state, 'broken');
   assert.equal(r.changelog_gaps.value, null);
@@ -243,7 +243,7 @@ test('the files shape is unchanged: the projects reader is not used for the phas
 test('ci_red_streak reads the gate workflow the project names (gateWorkflow), as fleet does', async t => {
   const root = join(await scratch(t), 'gated');
   await put(root, { '.github/workflows/release.yml': 'name: release\non: push\njobs: {}\n' });
-  const dir = await scratch(t, 'keel-records-gh-');
+  const dir = await scratch(t, 'plates-records-gh-');
   const gh = join(dir, 'gh');
   // Runs only for --workflow release: any other workflow is a 404, as GitHub answers.
   await writeFile(gh, `#!${process.execPath}
@@ -254,7 +254,7 @@ else if (a[0] === 'run' && a[a.indexOf('--workflow') + 1] === 'release') console
 else { console.error('HTTP 404: Not Found'); process.exit(1); }
 `);
   await chmod(gh, 0o755);
-  const env = { ...process.env, KEEL_GH: gh };
+  const env = { ...process.env, PLATES_GH: gh };
   const ci = MEASURES.filter(m => m.id === 'ci_red_streak');
   const base = { name: 'Acme', repo: 'acme/storefront', check: 'npm test && npm run typecheck' };
   let [r] = await measure({ root, config: base, env, date: DATE, measures: ci });

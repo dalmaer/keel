@@ -51,13 +51,13 @@ async function fixture(t, references = keys) {
   };
   childProcess.execFile = execFileFixture;
   syncBuiltinESMExports();
-  const engine = await import(`../practices/reconciliation/files/scripts/keel/reconcile.mjs?barriers=${imports++}`);
+  const engine = await import(`../practices/reconciliation/files/scripts/plates/reconcile.mjs?barriers=${imports++}`);
   return {
     root, path, original, engine, calls,
     get peak() { return peak; },
     get active() { return active; },
     start(method = 'reconcile', options = {}) {
-      const pending = engine[method]({ root, github: true, now, env: { KEEL_GH: 'acme-gh-fixture' }, ...options });
+      const pending = engine[method]({ root, github: true, now, env: { PLATES_GH: 'acme-gh-fixture' }, ...options });
       runs.push(pending);
       return pending;
     },

@@ -6,7 +6,7 @@ since: 2026-10-07
 goal: G2
 spec: 2
 depends: [45]
-note: "Built: a read-only review job (Claude handed the job's read-only github_token, no id-token; Codex as before) and a publish job with no agent that posts keel's validated findings from the default branch's script. Owes a real review on ledger after the update."
+note: "Built: a read-only review job (Claude handed the job's read-only github_token, no id-token; Codex as before) and a publish job with no agent that posts plates's validated findings from the default branch's script. Owes a real review on ledger after the update."
 evidence: ["evidence/2026-10-07-cross-review-split.md"]
 issue: 32
 ---
@@ -15,7 +15,7 @@ issue: 32
 
 ## Done when
 
-keel-cross-review.yml runs the agent (Claude or Codex) in a job whose token can only read, with no OIDC App token, and posts the review from a second job that runs no agent and nothing from the PR's branch; the workflows test holds that for both providers, and a real review on ledger posts its findings as before.
+plates-cross-review.yml runs the agent (Claude or Codex) in a job whose token can only read, with no OIDC App token, and posts the review from a second job that runs no agent and nothing from the PR's branch; the workflows test holds that for both providers, and a real review on ledger posts its findings as before.
 
 ## Scope
 
@@ -45,7 +45,7 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 
 ## Real surfaces
 
-- Workflow shell: keel-cross-review.yml's two jobs on ledger's Actions.
+- Workflow shell: plates-cross-review.yml's two jobs on ledger's Actions.
 - GitHub API: the COMMENT review posted by the publish job.
 - Adopted project: ledger.
 

@@ -65,7 +65,7 @@ binding and owner-chosen retention in nonsecret configuration. Verify the
 configured bucket identity and public:false on access; unavailable configuration
 or public buckets deny delivery and upload. Storage keys are server-assigned,
 opaque, and immutable. Never issue signed public/bearer delivery URLs or expose
-provider credentials. Serve through authenticated per-project Keel routes with
+provider credentials. Serve through authenticated per-project Plates routes with
 private no-store, nosniff, fixed raster MIME and bounded bytes; every request
 rechecks current project membership. Encrypt using a scoped purpose so ciphertext
 cannot be moved between projects/artifact identities and decrypted successfully.
@@ -139,6 +139,6 @@ Inspected 2026-10-21: [private buckets](https://supabase.com/docs/guides/storage
 [upload API](https://github.com/supabase/storage-js/blob/master/src/packages/StorageFileApi.ts),
 [bucket identity API](https://github.com/supabase/storage-js/blob/master/src/packages/StorageBucketApi.ts),
 and [object deletion](https://supabase.com/docs/guides/storage/management/delete-objects).
-Use the Storage API for bytes and the transactional RPC for Keel receipts;
+Use the Storage API for bytes and the transactional RPC for Plates receipts;
 neither substitutes for the other. Existing approval of the database does not
 create or configure a media bucket.

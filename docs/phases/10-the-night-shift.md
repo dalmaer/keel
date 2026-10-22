@@ -5,7 +5,7 @@ waits: owner
 since: 2026-10-11
 goal: G4
 depends: [6]
-note: "The night shift ships as practices with drain. On keel, the full cycle has run for real: measure, PR #1, gate, self-merge. Seven Keel morning queue snapshots and Ledger scheduled runs are recorded; Keel and Ledger queue snapshots are recorded; the named owner acceptance remains."
+note: "The night shift ships as practices with drain. On plates, the full cycle has run for real: measure, PR #1, gate, self-merge. Seven Plates morning queue snapshots and Ledger scheduled runs are recorded; Plates and Ledger queue snapshots are recorded; the named owner acceptance remains."
 evidence: ["evidence/2026-10-02-night-shift.md", "evidence/2026-10-11-coffee-audit.md"]
 issue: 30
 ---
@@ -14,14 +14,14 @@ issue: 30
 
 ## Done when
 
-Keel and one adopted project each run `keel-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
+Plates and one adopted project each run `plates-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 
 ## Scope
 
-Managed workflows: `check.yml`; `keel-night.yml` (runs `keel improve --report`,
+Managed workflows: `check.yml`; `plates-night.yml` (runs `plates improve --report`,
 opens one PR with the dated health page, drains its predecessors — merge if
 it still merges, close as superseded otherwise, with a recovery comment);
-`keel-update.yml` weekly (opens the practice-update PR); `claude.yml`
+`plates-update.yml` weekly (opens the practice-update PR); `claude.yml`
 (`@claude` on issues and PRs, opens PRs, never pushes `main`);
 `renovate.json` in four lanes. Every workflow touches only its own branch
 prefix. Merges run the suite on the branch, because a `GITHUB_TOKEN` PR never
@@ -31,13 +31,13 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 ## Acceptance
 
 - [x] A workflow test asserts each workflow's branch prefix, concurrency group and that none pushes to `main`.
-- [ ] ⚑ by hand: seven nights on keel, never more than one open `keel-night/` PR (the owner reads `machine_prs` each morning).
+- [ ] ⚑ by hand: seven nights on plates, never more than one open `keel-night/` PR (the owner reads `machine_prs` each morning).
 - [x] A deliberately red night produces a failed workflow (an email), not a quiet page. (Proven by a real one, not a deliberate one: ledger's Loop run on 4 Oct; see the evidence.)
 - [x] ⚑ Secrets the workflows need are listed with what they cost; none set without a yes.
 
 ## Your part
 
-- **Ask:** Check that keel's overnight run never left more than one of its own pull requests open at a time, on any of its first seven nights.
+- **Ask:** Check that plates's overnight run never left more than one of its own pull requests open at a time, on any of its first seven nights.
 - **Why:** It proves the overnight run tidies up after itself, the last thing keeping the night shift (set up on 2 October) from done.
 - **Look at:** The "open machine PRs" (`machine_prs`) row on each morning's [health page](../health/), 3 to 9 October.
 - **Choices:** All seven fine | A night had more than one
@@ -56,7 +56,7 @@ triggers CI. Commit steps use `git status --porcelain` and rebase-retry pushes
 
 ## Next action
 
-Owner: read the seven morning snapshots now recorded for 3–9 October (Keel night queue: 0, 0, 0, 1, 0, 0, 0) and confirm the walk. Ledger's configured `.keel/health` pages for 5–11 October also show night queues of 0, 0, 1, 1, 1, 0, 0. See the 11 October audit for run links and the later conflicting night PR.
+Owner: read the seven morning snapshots now recorded for 3–9 October (Plates night queue: 0, 0, 0, 1, 0, 0, 0) and confirm the walk. Ledger's configured `.plates/health` pages for 5–11 October also show night queues of 0, 0, 1, 1, 1, 0, 0. See the 11 October audit for run links and the later conflicting night PR.
 
 ## Trajectory
 

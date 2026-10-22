@@ -5,10 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { previewRobotIssue, ensureRobotIssue, recoverRobotIssue, robotTargetPolicy, robotIssueOutput } from '../lib/robot-issue.mjs';
 import { run } from './helpers/run.mjs';
-import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
 const rubric = { version: 1, problem: 'Acme drops rows.', reproduction: 'Run the Acme regression.', acceptance: 'Both rows survive.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
 const work = { repo: 'acme/app', rubric, title: 'Preserve Acme rows', policy: robotPolicy({}), subjectKey: 'acme-sort', instanceId: 'acme-sort-1' };
-async function temp(t) { const dir = await mkdtemp(join(tmpdir(), 'keel-robot-issue-')); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
+async function temp(t) { const dir = await mkdtemp(join(tmpdir(), 'plates-robot-issue-')); t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
 function remote() {
   const rows = [], calls = [];
   const row = (n, body, extra = {}) => ({ number: n, html_url: `https://github.com/acme/app/issues/${n}`, url: `https://api.github.com/repos/acme/app/issues/${n}`, state: 'open', body, ...extra });
@@ -92,12 +92,12 @@ test('robot issue active remote subject conflicts, bounded coverage and invalid 
 });
 
 test('robot issue policy rejects unknown foreign target and never borrows local enabled policy', async t => {
-  const root = await temp(t); await mkdir(join(root, '.keel')); await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ repo: 'acme/home', robot: { on: true, budgetMinutes: 10 } }));
+  const root = await temp(t); await mkdir(join(root, '.plates')); await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ repo: 'acme/home', robot: { on: true, budgetMinutes: 10 } }));
   let reads = 0;
   const unknown = await robotTargetPolicy({ root, repo: 'acme/foreign', github: async () => { reads++; return { status: 404 }; } });
   assert.equal(unknown.valid, false); assert.equal(reads, 1);
   assert.equal(previewRobotIssue({ ...work, policy: unknown }).ok, false);
-  const off = await robotTargetPolicy({ root, repo: 'acme/foreign', github: async () => ({ status: 200, data: { path: '.keel/keel.json', encoding: 'base64', content: Buffer.from('{}').toString('base64') } }) });
+  const off = await robotTargetPolicy({ root, repo: 'acme/foreign', github: async () => ({ status: 200, data: { path: '.plates/plates.json', encoding: 'base64', content: Buffer.from('{}').toString('base64') } }) });
   assert.deepEqual(previewRobotIssue({ ...work, policy: off }).labels, []);
   assert.deepEqual(previewRobotIssue({ ...work, policy: robotPolicy({ robot: { on: true, budgetMinutes: 10 } }) }).labels, ['keel:agent']);
   for (const edit of [{ repo: '../app' }, { instanceId: '../acme' }, { subjectKey: '' }, { title: '<!-- forged -->' }, { policy: { valid: true } }]) assert.equal(previewRobotIssue({ ...work, ...edit }).ok, false);
@@ -294,7 +294,7 @@ test('robot issue private intents self-ignore in default and custom state direct
   const { execFileSync } = await import('node:child_process');
   const { createHash } = await import('node:crypto');
   const repoDir = createHash('sha256').update(JSON.stringify(work.repo)).digest('hex');
-  for (const relativeDir of ['.keel/robot-issues', 'acme-notes/private-intents']) {
+  for (const relativeDir of ['.plates/robot-issues', 'acme-notes/private-intents']) {
     const root = await temp(t), stateDir = join(root, relativeDir), owned = join(stateDir, repoDir), api = remote();
     const git = args => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
     git(['init', '-q']);
@@ -370,7 +370,7 @@ test('robot issue rejects symlinked intent ancestors directories and hashed dest
   for (const mode of ['ancestor', 'state', 'repo', 'intent', 'subject', 'lock']) {
     const root = await temp(t), outside = join(root, 'outside'), api = remote();
     await mkdir(outside);
-    const stateDir = join(root, 'project', '.keel', 'robot-issues'), dir = join(stateDir, hash(work.repo));
+    const stateDir = join(root, 'project', '.plates', 'robot-issues'), dir = join(stateDir, hash(work.repo));
     const link = mode === 'ancestor' ? join(root, 'project') : mode === 'state' ? stateDir : mode === 'repo' ? dir
       : mode === 'intent' ? join(dir, `${hash(work.instanceId)}.json`)
       : mode === 'subject' ? join(dir, `subject-${hash(work.subjectKey)}.json`) : join(dir, 'writer.lock');
@@ -386,7 +386,7 @@ test('robot issue rejects symlinked intent ancestors directories and hashed dest
     if (target !== outside) assert.equal(await readFile(target, 'utf8'), 'Acme human contents');
   }
   // macOS /tmp is a system alias, not a checkout-controlled link.
-  const root = await mkdtemp('/tmp/keel-acme-intents-'); t.after(() => rm(root, { recursive: true, force: true }));
+  const root = await mkdtemp('/tmp/plates-acme-intents-'); t.after(() => rm(root, { recursive: true, force: true }));
   const api = remote(), stateDir = join(root, 'new', 'state');
   const got = await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true });
   assert.equal(got.state, 'created'); assert.equal((await recoverRobotIssue({ ...work, stateDir: await realpath(stateDir), github: api.github })).state, 'recovered');
@@ -455,4 +455,81 @@ test('robot issue full final page at 500 records permits creation and recovery b
   next = false; missingHeaders = true;
   assert.equal((await recoverRobotIssue(args)).state, 'ambiguous');
   assert.equal(api.posts().length, 1);
+});
+
+test('repository rename cannot silently skip an existing same-work issue and create a duplicate', async t => {
+  const api = remote(), stateDir = await temp(t);
+  const preview = previewRobotIssue({ ...work, repo: 'acme/old-app' });
+  api.rows.push(api.row(1, preview.body));
+  const result = await ensureRobotIssue({ ...work, stateDir, github: api.github, yes: true });
+  assert.notEqual(result.state, 'created');
+  assert.match(result.reasons.join(' '), /prior repository identity/);
+  assert.equal(api.posts().length, 0);
+});
+
+test('repository rename reuses old uncertain intent and subject identity without a second POST or journal rewrite', async t => {
+ const stateDir=await temp(t),api=remote();let renamed=false;
+ const current='acme/renamed';
+ const github=async request=>{
+   if(request.path===`/repos/${current}`||request.path==='/repos/acme/app')return {status:200,data:{id:7,full_name:renamed?current:'acme/app'}};
+   if(request.method==='POST'){await api.github(request);throw new Error('lost POST reply');}
+   const result=await api.github(request);
+   if(renamed){const change=row=>row&&({...row,html_url:row.html_url.replace('/acme/app/','/acme/renamed/'),url:row.url.replace('/acme/app/','/acme/renamed/')});return {...result,data:Array.isArray(result.data)?result.data.map(change):change(result.data)};}
+   return result;
+ };
+ assert.equal((await ensureRobotIssue({...work,stateDir,github,yes:true})).state,'recovered');
+ const directories=await readdir(stateDir),dir=join(stateDir,directories[0]);
+ const names=(await readdir(dir)).filter(name=>name.endsWith('.json')),before=await Promise.all(names.map(name=>readFile(join(dir,name),'utf8')));
+ renamed=true;
+ const after=await ensureRobotIssue({...work,repo:current,instanceId:'different-hash-after-rename',stateDir,github,yes:true});
+ assert.equal(after.state,'recovered');assert.equal(after.issue.url,`https://github.com/${current}/issues/1`);assert.equal(api.posts().length,1);
+ assert.equal((await recoverRobotIssue({...work,repo:current,stateDir,github})).state,'recovered');
+ assert.deepEqual(await readdir(stateDir),directories);assert.deepEqual(await Promise.all(names.map(name=>readFile(join(dir,name),'utf8'))),before);
+ assert.equal((await ensureRobotIssue({...work,repo:current,instanceId:'new',title:'Different work',stateDir,github,yes:true})).state,'blocked');
+ const denied=await ensureRobotIssue({...work,repo:current,stateDir,yes:true,github:async r=>r.path==='/repos/acme/app'?{status:403}:github(r)});assert.equal(denied.state,'blocked');assert.equal(api.posts().length,1);
+ const stolen=await ensureRobotIssue({...work,repo:current,stateDir,yes:true,github:async r=>r.path==='/repos/acme/app'?{status:200,data:{id:8,full_name:'acme/app'}}:github(r)});assert.equal(stolen.state,'blocked');assert.equal(api.posts().length,1);
+});
+
+test('repository rename releases a positively closed subject for a new instance without rebinding old work', async t => {
+ for(const changedWork of [false,true]){
+  const stateDir=await temp(t),api=remote(),current='acme/renamed';let renamed=false;
+  const github=async request=>{
+   if(request.path===`/repos/${current}`||request.path==='/repos/acme/app')return {status:200,data:{id:7,full_name:renamed?current:'acme/app'}};
+   const response=await api.github(request);
+   const change=row=>row&&({...row,html_url:row.html_url.replace('/acme/app/','/acme/renamed/'),url:row.url.replace('/acme/app/','/acme/renamed/')});
+   return renamed?{...response,data:Array.isArray(response.data)?response.data.map(change):change(response.data)}:response;
+  };
+  assert.equal((await ensureRobotIssue({...work,stateDir,github,yes:true})).state,'created');
+  const [directory]=await readdir(stateDir),dir=join(stateDir,directory);
+  const original=(await readdir(dir)).find(name=>name.endsWith('.json')&&!name.startsWith('subject-')),bytes=await readFile(join(dir,original));
+  renamed=true;api.rows[0].state='closed';
+  const request={...work,repo:current,instanceId:'acme-sort-2',...(changedWork?{title:'Another Acme boundary',rubric:{...rubric,change:'Fix the newly found Acme boundary.'}}:{}),stateDir,github,yes:true};
+  const next=await ensureRobotIssue(request);
+  assert.equal(next.state,'created',JSON.stringify(next));assert.equal(next.issue.number,2);assert.equal(next.issue.repo,current);assert.equal(api.posts().length,2);
+  assert.equal(api.posts()[1].path,`/repos/${current}/issues`);assert.match(api.posts()[1].body.body,/"instanceId":"acme-sort-2"/);
+  assert.equal((await ensureRobotIssue(request)).state,'recovered');assert.equal(api.posts().length,2);
+  assert.equal((await recoverRobotIssue({...work,repo:current,stateDir,github})).issue.number,1);
+  assert.deepEqual(await readFile(join(dir,original)),bytes);
+ }
+});
+
+test('repository rename never releases open unknown unavailable or inconsistent subjects for different work', async t => {
+ for(const mode of ['open','unknown','unavailable','wrong-repo','wrong-marker','uncertain-post','reopened']){
+  const stateDir=await temp(t),api=remote(),current='acme/renamed';let renamed=false,reads=0;
+  const github=async request=>{
+   if(request.path===`/repos/${current}`||request.path==='/repos/acme/app')return {status:200,data:{id:7,full_name:renamed?current:'acme/app'}};
+   if(mode==='uncertain-post'&&request.method==='POST'){api.calls.push(request);throw Error('Acme unknown POST outcome');}
+   if(renamed&&mode==='unavailable'&&request.path.endsWith('/issues/1'))return {status:503};
+   const response=await api.github(request);
+   const change=row=>row&&({...row,html_url:row.html_url.replace('/acme/app/','/acme/renamed/'),url:row.url.replace('/acme/app/','/acme/renamed/')});
+   if(!renamed)return response;
+   const data=Array.isArray(response.data)?response.data.map(change):change(response.data);
+   if(request.path.endsWith('/issues/1')&&data){if(mode==='wrong-repo')data.url='https://api.github.com/repos/acme/other/issues/1';if(mode==='wrong-marker')data.body='Acme unrelated issue';if(mode==='reopened'&&++reads===2)api.rows[0].state='open';}
+   return {...response,data};
+  };
+  await ensureRobotIssue({...work,stateDir,github,yes:true});renamed=true;
+  if(api.rows[0])api.rows[0].state=mode==='open'?'open':mode==='unknown'?'unknown':'closed';
+  const next=await ensureRobotIssue({...work,repo:current,instanceId:'acme-sort-2',rubric:{...rubric,change:'Different Acme work.'},stateDir,github,yes:true});
+  assert.ok(['blocked','pending','ambiguous'].includes(next.state),mode+': '+JSON.stringify(next));assert.equal(api.posts().length,1,mode);
+ }
 });

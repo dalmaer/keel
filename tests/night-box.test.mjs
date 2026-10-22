@@ -1,14 +1,14 @@
-// A whole night in one test (keel phase 86; the design is
+// A whole night in one test (plates phase 86; the design is
 // docs/research/2026-10-16-verification.md, "a night in a box"). One Acme
 // project with the night, climb and personas practices runs a night end to
 // end, the way GitHub would run it, and the test reads what the owner would
 // read: the morning's brief and the plan card.
 //
-//   the evening   the owner shapes tonight's plan (keel goodnight, --yes pushes it)
-//   the night     keel-night.yml's own steps: Plan the night, Measure, Open the night's pull request
-//   the card      keel-morning.yml after each pass: decide, then the card (the fake isocan home)
-//   climb         keel-climb.yml's own steps: Read tonight's plan, Pick tonight's job, Tick tonight's plan
-//   the morning   keel-morning.yml at 17:07 UTC: decide, finalize, send, the card; and once more after
+//   the evening   the owner shapes tonight's plan (plates goodnight, --yes pushes it)
+//   the night     plates-night.yml's own steps: Plan the night, Measure, Open the night's pull request
+//   the card      plates-morning.yml after each pass: decide, then the card (the fake isocan home)
+//   climb         plates-climb.yml's own steps: Read tonight's plan, Pick tonight's job, Tick tonight's plan
+//   the morning   plates-morning.yml at 17:07 UTC: decide, finalize, send, the card; and once more after
 //
 // Each workflow step is the shipped YAML's own shell (runBlocks), run in a
 // fresh clone of a bare origin with a frozen clock and no network
@@ -18,8 +18,8 @@
 // scheduling (which job follows which, each job's `if:`, artifacts between
 // jobs: the test asserts the `if:` text it simulates), the climb agent and
 // its judge (the publish job's tick step is handed their outcome), and the
-// card's CI provisioning (pinned keel and isocan, the journal restore; that
-// is tests/morning.test.mjs's): the card publishes through keel's own
+// card's CI provisioning (pinned plates and isocan, the journal restore; that
+// is tests/morning.test.mjs's): the card publishes through plates's own
 // publishPlanCard from the checkout that holds the canvas manifest. The
 // robot and Loop join the box once the robot's sandbox is unblocked (phase
 // 54). Fixtures are synthetic (Acme Anvils).
@@ -36,25 +36,25 @@ import { runBlocks } from './helpers/workflows.mjs';
 import { fixture as isocanHome } from './helpers/isocan.mjs';
 import { goodnight } from '../lib/goodnight.mjs';
 import { publishPlanCard, planCard, titleOf, PLAN_CARD, LABEL } from '../lib/morning.mjs';
-import { PLAN, PLAN_BRANCH } from '../lib/night-plan.mjs';
+import { PLAN, PLAN_BRANCH, REMOTE_PLAN } from '../lib/night-plan.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PRELOAD = pathToFileURL(join(KEEL, 'tests/helpers/night-box-preload.mjs')).href;
-const GH = join(KEEL, 'tests/helpers/night-box-gh.mjs');
-const NIGHT_YML = 'practices/night/files/.github/workflows/keel-night.yml';
-const MORNING_YML = 'practices/night/files/.github/workflows/keel-morning.yml';
-const CLIMB_YML = 'practices/climb/files/.github/workflows/keel-climb.yml';
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PRELOAD = pathToFileURL(join(PLATES, 'tests/helpers/night-box-preload.mjs')).href;
+const GH = join(PLATES, 'tests/helpers/night-box-gh.mjs');
+const NIGHT_YML = 'practices/night/files/.github/workflows/plates-night.yml';
+const MORNING_YML = 'practices/night/files/.github/workflows/plates-morning.yml';
+const CLIMB_YML = 'practices/climb/files/.github/workflows/plates-climb.yml';
 
 // The frozen clock: one night, UTC.
 const NIGHT = '2026-10-05';
 const AT = {
   evening: '2026-10-04T21:30:00Z', // the owner's /goodnight: after 07:23 UTC, so the plan is for the next night
-  night: '2026-10-05T07:23:00Z', // keel-night's cron
-  afterNight: '2026-10-05T07:41:00Z', // keel-morning, started by keel-night finishing
-  climb: '2026-10-05T10:17:00Z', // keel-climb's cron
-  afterClimb: '2026-10-05T11:52:00Z', // keel-morning, started by keel-climb finishing
-  morning: '2026-10-05T17:07:00Z', // keel-morning's own cron, just after the default readyBy
-  again: '2026-10-06T03:10:00Z', // keel-morning once more: a pass finishing after midnight UTC, before the next night starts
+  night: '2026-10-05T07:23:00Z', // plates-night's cron
+  afterNight: '2026-10-05T07:41:00Z', // plates-morning, started by plates-night finishing
+  climb: '2026-10-05T10:17:00Z', // plates-climb's cron
+  afterClimb: '2026-10-05T11:52:00Z', // plates-morning, started by plates-climb finishing
+  morning: '2026-10-05T17:07:00Z', // plates-morning's own cron, just after the default readyBy
+  again: '2026-10-06T03:10:00Z', // plates-morning once more: a pass finishing after midnight UTC, before the next night starts
 };
 const READY_BY = `${NIGHT}T17:00:00Z`;
 const REPO = 'acme/anvils';
@@ -107,10 +107,10 @@ const LAST_PAGE = `# Acme Anvils health — 2026-10-04
  * finalize, send), or the card's write never reaching the canvas.
  */
 const BREAKS = Object.freeze({
-  plan: { file: 'scripts/keel/night-plan.mjs', from: '        await writePlan(root, shaped);\n', to: '' },
-  tick: { file: 'scripts/keel/night-plan.mjs', from: 'if (prUrl && isLink(prUrl)) ticks.push(', to: 'if (false) ticks.push(' },
-  finalize: { file: 'scripts/keel/morning.mjs', from: 'written.push(await writeRecord(root, found.plan));', to: 'written.push(recordOf(night));' },
-  send: { file: 'scripts/keel/morning.mjs', from: 'const same = issues.find(i => i.title === title);', to: 'const same = issues.find(i => i.title !== title);' },
+  plan: { file: 'scripts/plates/night-plan.mjs', from: '        await writePlan(root, shaped);\n', to: '' },
+  tick: { file: 'scripts/plates/night-plan.mjs', from: 'if (prUrl && isLink(prUrl)) ticks.push(', to: 'if (false) ticks.push(' },
+  finalize: { file: 'scripts/plates/morning.mjs', from: 'written.push(await writeRecord(root, found.plan));', to: 'written.push(recordOf(night));' },
+  send: { file: 'scripts/plates/morning.mjs', from: 'const same = issues.find(i => i.title === title);', to: 'const same = issues.find(i => i.title !== title);' },
   card: null,
 });
 
@@ -123,7 +123,7 @@ const BREAKS = Object.freeze({
  * brief still open. The stub gh and a date that says tonight are first on PATH.
  */
 async function box(t, { broken = null } = {}) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-box-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-night-box-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const f = await isocanHome(t);
   await f.attach();
@@ -134,8 +134,8 @@ async function box(t, { broken = null } = {}) {
   f.remote.beforeAdd = async card => { if (card.properties?.['keel.key'] === PLAN_CARD) versions.push({ via: 'add', source: await readFile(card.sourcePath, 'utf8') }); };
   f.remote.afterEdit = async sent => { versions.push({ via: 'edit', source: await readFile(sent.sourcePath, 'utf8') }); };
 
-  const config = JSON.parse(await readFile(join(root, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(root, '.keel/keel.json'), `${JSON.stringify({
+  const config = JSON.parse(await readFile(join(root, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(root, '.plates/plates.json'), `${JSON.stringify({
     name: 'Acme Anvils', repo: REPO, practices: ['base', 'night', 'climb', 'personas'],
     check: 'node -e "process.exit(0)"',
     climb: { jobs: ['test-time', 'build-time'], testCommand: 'node -e ""', build: 'node -e "process.exit(3)"', buildOutput: 'dist', budget: { minutes: 40 } },
@@ -143,10 +143,10 @@ async function box(t, { broken = null } = {}) {
     morning: { assignee: OWNER },
     canvas: { ...config.canvas, cadence: 'nightly' },
   }, null, 2)}\n`);
-  await mkdir(join(root, 'scripts/keel'), { recursive: true });
-  for (const p of ['night', 'climb', 'personas']) await cp(join(KEEL, 'practices', p, 'files', 'scripts', 'keel'), join(root, 'scripts', 'keel'), { recursive: true });
+  await mkdir(join(root, 'scripts/plates'), { recursive: true });
+  for (const p of ['night', 'climb', 'personas']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
   for (const [path, text] of Object.entries({
-    '.gitignore': '.keel/canvas/\n.isocan/\n',
+    '.gitignore': '.plates/canvas/\n.isocan/\n',
     '.agents/personas/perf.md': PERSONA,
     'docs/reviews/2026-10-04-perf.md': REVIEW,
     'docs/health/2026-10-04.md': LAST_PAGE,
@@ -174,17 +174,17 @@ async function box(t, { broken = null } = {}) {
   const bin = join(base, 'bin');
   await mkdir(bin);
   await writeFile(join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${GH}" "$@"\n`);
-  // keel-night's Plan the night dates the night with `date -u +%F`: the frozen day.
-  await writeFile(join(bin, 'date'), '#!/bin/sh\nif [ "$1 $2" = "-u +%F" ]; then echo "$KEEL_BOX_DAY"; exit 0; fi\nexec /bin/date "$@"\n');
+  // plates-night's Plan the night dates the night with `date -u +%F`: the frozen day.
+  await writeFile(join(bin, 'date'), '#!/bin/sh\nif [ "$1 $2" = "-u +%F" ]; then echo "$PLATES_BOX_DAY"; exit 0; fi\nexec /bin/date "$@"\n');
   await chmod(join(bin, 'gh'), 0o755);
   await chmod(join(bin, 'date'), 0o755);
 
-  const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GITHUB_|RUNNER_|KEEL_GH$|NODE_OPTIONS$)/.test(k)));
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(GITHUB_|RUNNER_|PLATES_GH$|NODE_OPTIONS$)/.test(k)));
   /** The world at `now`: a runner's environment, the stub gh, the frozen clock, no network. */
   const world = now => ({
     ...clean, PATH: `${bin}:${dirname(process.execPath)}:${process.env.PATH}`, TZ: 'UTC', CI: 'true',
-    KEEL_GH: join(bin, 'gh'), KEEL_BOX_GH_STATE: state, KEEL_BOX_GH_LOG: log, KEEL_BOX_ORIGIN: origin,
-    KEEL_BOX_NOW: now, KEEL_BOX_DAY: now.slice(0, 10), NODE_OPTIONS: `--import=${PRELOAD}`,
+    PLATES_GH: join(bin, 'gh'), PLATES_BOX_GH_STATE: state, PLATES_BOX_GH_LOG: log, PLATES_BOX_ORIGIN: origin,
+    PLATES_BOX_NOW: now, PLATES_BOX_DAY: now.slice(0, 10), NODE_OPTIONS: `--import=${PRELOAD}`,
     GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: REPO, GITHUB_SERVER_URL: 'https://github.com', GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1',
   });
   let jobs = 0;
@@ -199,7 +199,7 @@ async function box(t, { broken = null } = {}) {
   const texts = {};
   /** One named step of a shipped workflow, its own shell, in `j`'s checkout at `now`: { status, out, outputs }. */
   const step = async (yml, name, j, now, env = {}) => {
-    texts[yml] ??= await readFile(join(KEEL, yml), 'utf8');
+    texts[yml] ??= await readFile(join(PLATES, yml), 'utf8');
     const blocks = runBlocks(texts[yml]).filter(b => b.step === name);
     assert.equal(blocks.length, 1, `${yml} has one step "${name}"`);
     const output = join(j.temp, `output-${Math.random().toString(36).slice(2)}`);
@@ -212,7 +212,7 @@ async function box(t, { broken = null } = {}) {
   const ghCalls = async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l).a);
   /** A file on a branch of the origin, or null. */
   const onOrigin = (branch, path) => { const r = run('git', ['--git-dir', origin, 'show', `refs/heads/${branch}:${path}`]); return r.status === 0 ? r.stdout : null; };
-  const planOn = branch => JSON.parse(onOrigin(branch, branch === PLAN_BRANCH ? PLAN : `docs/night/${NIGHT}.json`) ?? 'null');
+  const planOn = branch => JSON.parse(onOrigin(branch, branch === PLAN_BRANCH ? REMOTE_PLAN : `docs/night/${NIGHT}.json`) ?? 'null');
   return { base, root, origin, f, versions, broken, world, job, step, ghState, ghCalls, onOrigin, planOn, texts };
 }
 
@@ -226,8 +226,8 @@ const sections = md => Object.fromEntries(md.split(/^## /m).slice(1).map(s => [s
 const row = (source, id) => { const l = source.split('\n').find(x => x.startsWith(`| ${id}: `)); if (!l) return null; const c = l.split(' | '); return { status: c.at(-2), outcome: c.at(-1).replace(/ \|$/, '') }; };
 
 /**
- * keel-morning.yml, as GitHub runs it at `now`: decide, then each job its
- * `if:` lets run. Returns what each did. The card is keel's own publishPlanCard
+ * plates-morning.yml, as GitHub runs it at `now`: decide, then each job its
+ * `if:` lets run. Returns what each did. The card is plates's own publishPlanCard
  * on the owner's checkout (the one the fake isocan home's manifest lives in).
  */
 async function morning(b, now, label) {
@@ -239,7 +239,7 @@ async function morning(b, now, label) {
   const text = b.texts[MORNING_YML];
   // The scheduling this simulates is the workflow's own: each condition is asserted to be what the YAML says.
   for (const cond of ["if: needs.decide.outputs.ready == 'true'\n", "if: needs.decide.outputs.ready == 'true' && needs.decide.outputs.sent != 'true' && needs.decide.outputs.assignee == 'set'\n", "if: needs.decide.outputs.plan == 'found' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_branch == github.event.repository.default_branch)\n"]) {
-    assert.ok(text.includes(cond), `keel-morning.yml still says ${cond.trim()}`);
+    assert.ok(text.includes(cond), `plates-morning.yml still says ${cond.trim()}`);
   }
   const did = { decide: o };
   if (o.ready === 'true') {
@@ -257,7 +257,7 @@ async function morning(b, now, label) {
 
 /** The last version the plan card took, checked against what the canvas holds. */
 async function lastCard(b) {
-  const manifest = JSON.parse(await readFile(join(b.root, '.keel/canvas/manifest.json'), 'utf8'));
+  const manifest = JSON.parse(await readFile(join(b.root, '.plates/canvas/manifest.json'), 'utf8'));
   const id = manifest.items[PLAN_CARD]?.itemId;
   assert.ok(id, 'the canvas has the plan card');
   const card = b.f.remote.items.get(id);
@@ -279,7 +279,7 @@ async function night(t, options) {
     const say = args => goodnight({ root: b.root, args, env }, deps);
     const opening = await say([]);
     assert.equal(opening.data.night, NIGHT, 'the evening shapes the next night');
-    assert.ok(item(opening.data.plan, 'climb-test-time'), 'keel\'s default plan names the climb job pick would choose');
+    assert.ok(item(opening.data.plan, 'climb-test-time'), 'plates\'s default plan names the climb job pick would choose');
     assert.equal(item(opening.data.plan, 'persona-perf--bundle-size')?.kind, 'triage', 'the persona\'s missed goal is triage: no climb job measures it');
     await say(['drop', 'persona-perf--bundle-size']);
     await say(['add', '--title', 'Builds back under a minute', '--measure', 'build_time', '--bound', '60000', '--id', 'climb-build-time']);
@@ -316,7 +316,7 @@ async function night(t, options) {
     assert.deepEqual((await b.ghState()).prs.map(p => [p.number, p.headRefName]), [[20, `keel-night/${NIGHT}`]], 'one night PR');
   });
 
-  // keel-morning after the night: not over, so nothing is sent; the card is made from the plan as it stands.
+  // plates-morning after the night: not over, so nothing is sent; the card is made from the plan as it stands.
   await stage('card', async () => {
     const did = await morning(b, AT.afterNight, 'after-night');
     assert.deepEqual([did.decide.ready, did.decide.plan, did.finalize, did.send], ['false', 'found', undefined, undefined], 'the night is not over');
@@ -337,9 +337,9 @@ async function night(t, options) {
     assert.deepEqual([picked.outputs.job, picked.outputs.plan_used, picked.outputs.plan_ticks, picked.outputs.day], ['test-time', 'true', 'true', NIGHT], picked.out);
     // The agent and its judge (simulated): a change kept, and the publish job opened its PR, #21.
     const s = JSON.parse(await readFile(join(b.base, 'gh-state.json'), 'utf8'));
-    s.prs.push({ number: s.nextPr++, headRefName: `keel-climb/test-time/${NIGHT}`, baseRefName: 'main', title: 'keel climb: test-time', state: 'OPEN', isCrossRepository: false, isDraft: false, createdAt: AT.climb, mergedAt: null });
+    s.prs.push({ number: s.nextPr++, headRefName: `keel-climb/test-time/${NIGHT}`, baseRefName: 'main', title: 'plates climb: test-time', state: 'OPEN', isCrossRepository: false, isDraft: false, createdAt: AT.climb, mergedAt: null });
     await writeFile(join(b.base, 'gh-state.json'), JSON.stringify(s));
-    // The plan and the pick travel to the publish job as the artifact keel-climb-plan.
+    // The plan and the pick travel to the publish job as the artifact plates-climb-plan.
     await cp(join(j.temp, 'plan-handoff'), join(j.temp, 'plan'), { recursive: true });
     const ticked = await b.step(CLIMB_YML, 'Tick tonight\'s plan', j, AT.climb, { DAY: NIGHT, JUDGED: 'success', LINE: CLIMB_LINE, OPENED: 'success', PR: '21', REPO, RUN: `https://github.com/${REPO}/actions/runs/7002` });
     assert.equal(ticked.status, 0, ticked.out);
@@ -351,7 +351,7 @@ async function night(t, options) {
     assert.equal(item(plan, 'robot-12').status, 'planned', 'climb never ticks the robot\'s item');
   });
 
-  // keel-morning after climb: still not over (the robot's item is open, readyBy not passed); the card ticks in place.
+  // plates-morning after climb: still not over (the robot's item is open, readyBy not passed); the card ticks in place.
   await stage('card', async () => {
     const before = b.versions.length;
     const did = await morning(b, AT.afterClimb, 'after-climb');
@@ -383,14 +383,14 @@ async function night(t, options) {
     const sent = issues.filter(i => i.title === titleOf(NIGHT));
     assert.equal(sent.length, 1, 'one brief for the night');
     assert.deepEqual([sent[0].state, sent[0].assignee, sent[0].label, sent[0].repo], ['OPEN', OWNER, LABEL, REPO], 'assigned to the owner, so GitHub emails them');
-    assert.deepEqual([issues.find(i => i.number === 30).state, issues.find(i => i.number === 30).comment], ['CLOSED', `Superseded by #${sent[0].number} (keel morning).`], 'yesterday\'s brief is closed');
+    assert.deepEqual([issues.find(i => i.number === 30).state, issues.find(i => i.number === 30).comment], ['CLOSED', `Superseded by #${sent[0].number} (plates morning).`], 'yesterday\'s brief is closed');
   });
 
   await stage('card', async () => {
     assert.equal(at17.card.data.state, 'unchanged', `nothing ticked since climb: no new version (${JSON.stringify(at17.card.data)})`);
   });
 
-  // keel-morning once more: the brief is sent, so nothing is sent again; finalize finds nothing new.
+  // plates-morning once more: the brief is sent, so nothing is sent again; finalize finds nothing new.
   await stage('send', async () => {
     const creates = (await b.ghCalls()).filter(a => a[0] === 'issue' && a[1] === 'create').length;
     const did = await morning(b, AT.again, 'again');
@@ -422,7 +422,7 @@ async function night(t, options) {
  */
 const QUIET_PACE_MS = 400;
 function pace() {
-  const env = { ...process.env, KEEL_BOX_NOW: AT.night, NODE_OPTIONS: `--import=${PRELOAD}` };
+  const env = { ...process.env, PLATES_BOX_NOW: AT.night, NODE_OPTIONS: `--import=${PRELOAD}` };
   const started = Date.now();
   for (let i = 0; i < 10; i++) { run(process.execPath, ['-e', '0'], { env }); run('git', ['--version'], { env }); }
   return Date.now() - started;

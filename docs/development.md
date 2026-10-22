@@ -1,15 +1,15 @@
 # Measuring CLI cost and checking contracts
 
-Keel runs directly from JavaScript source. Performance decisions start with
+Plates runs directly from JavaScript source. Performance decisions start with
 measurements, and selected production contracts are checked without emitting
 or compiling runtime files.
 
 ## Measure a command
 
-From the Keel checkout, profile an ordinary invocation:
+From the Plates checkout, profile an ordinary invocation:
 
 ```sh
-node scripts/profile.mjs --output /tmp/keel-status-profile.json -- status --json
+node scripts/profile.mjs --output /tmp/plates-status-profile.json -- status --json
 ```
 
 The destination must be new. Command output and exit status retain their usual
@@ -17,7 +17,7 @@ meaning; the timing report goes to the separate private JSON file. The
 profiler executes the command you supply: use read-only commands to investigate
 cost, and do not add write approval flags just to measure something.
 
-Profiling is opt-in and does not instrument normal `keel` invocations. Records
+Profiling is opt-in and does not instrument normal `plates` invocations. Records
 contain counts and durations, not command arguments, URLs, credentials,
 response bodies or command output. A failed or abruptly terminated command
 does not become a successful observation.
@@ -51,7 +51,7 @@ The initial results and reproduction commands are in the
 For a fixed read-only sample set (`help`, `status`, `next`):
 
 ```sh
-node scripts/profile-benchmark.mjs --output /tmp/keel-benchmark.json --samples 10 --json
+node scripts/profile-benchmark.mjs --output /tmp/plates-benchmark.json --samples 10 --json
 ```
 
 Add `--github` to include `doctor --github` and its authenticated read-only
@@ -80,7 +80,7 @@ contradictions. Unavailable observations need an explicit absence and reason;
 they must not type-check as a measured zero. Static checking cannot establish
 whether a GitHub fact is fresh or whether a human accepted completed work.
 
-This is incremental coverage, not a claim that all of Keel is type checked.
+This is incremental coverage, not a claim that all of Plates is type checked.
 The initial scope is `time-receipts.mjs` in the night practice and
 `robot-policy.mjs` in climb: available/unavailable plans, complete/incomplete
 suite receipts, recorded stalls outcomes and valid/off/enabled robot policy.
@@ -103,18 +103,18 @@ an explicit list in the consumer's `practice.json`:
 
 ```json
 "runtimeFiles": [
-  { "practice": "reconciliation", "path": "scripts/keel/reconcile.mjs" },
-  { "practice": "reconciliation", "path": "scripts/keel/decision-context.mjs" }
+  { "practice": "reconciliation", "path": "scripts/plates/reconcile.mjs" },
+  { "practice": "reconciliation", "path": "scripts/plates/decision-context.mjs" }
 ]
 ```
 
 Each reference must resolve to an unconditional managed `.mjs` file immediately
-under `scripts/keel/`. Missing, seeded, conditional, symlink and workflow targets
+under `scripts/plates/`. Missing, seeded, conditional, symlink and workflow targets
 are rejected. List every required sibling explicitly; imports are not recursive.
 Keep JavaScript imports static and test the installed sibling layout.
 
 Rendering includes those exact files and retains their original `practice` in
-`.keel/lock.json`. Selecting both practices still writes each target once. Later
+`.plates/lock.json`. Selecting both practices still writes each target once. Later
 renders and updates retain these lock rows while the consumer is selected, even
 when the source practice remains disabled. No workflow, secret, template, check
 or configuration membership is inherited. For example, climb receives the two

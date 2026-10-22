@@ -1,10 +1,10 @@
 // The CLI's surface: every verb is announced to agents, every verb speaks JSON,
-// and keel installs from a checkout with no build step.
+// and plates installs from a checkout with no build step.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
-import { mkdtemp, readFile, rm, cp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, cp, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,9 +12,9 @@ import { verbs, FLAGS, GUIDE, COLD_START_LIMIT, parseGuide, surfaceGaps, announc
 import { acmeRepo } from './helpers/prove.mjs';
 import { nightOf } from '../lib/night-plan.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const keel = (args, cwd = KEEL, bin = BIN, env = process.env) => {
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const plates = (args, cwd = PLATES, bin = BIN, env = process.env) => {
   const r = bin === BIN
     ? run(process.execPath, [bin, ...args], { cwd, env })
     : run(bin, args, { cwd, env });
@@ -22,24 +22,24 @@ const keel = (args, cwd = KEEL, bin = BIN, env = process.env) => {
 };
 const names = () => [...verbs.keys(), ...FLAGS.map(f => f.name)];
 
-/** keel's working tree (tracked and untracked, minus ignored), copied to `dir`. */
+/** plates's working tree (tracked and untracked, minus ignored), copied to `dir`. */
 async function copyTree(dir) {
-  const files = execFileSync('git', ['-C', KEEL, 'ls-files', '-co', '--exclude-standard', '-z'], { encoding: 'utf8' })
+  const files = execFileSync('git', ['-C', PLATES, 'ls-files', '-co', '--exclude-standard', '-z'], { encoding: 'utf8' })
     .split('\0').filter(Boolean);
   for (const f of files) {
     await mkdir(dirname(join(dir, f)), { recursive: true });
-    await cp(join(KEEL, f), join(dir, f), { verbatimSymlinks: true }).catch(e => {
+    await cp(join(PLATES, f), join(dir, f), { verbatimSymlinks: true }).catch(e => {
       if (e.code !== 'ENOENT') throw e; // deleted in the working tree but still tracked
     });
   }
   return dir;
 }
 
-test('keel next --json: its next equals the roadmap script\'s next, and is the first of the free list', async () => {
-  // A copy with no git remote: keel next fetches the claims where there is one (phase 70), and no test reads the live origin.
-  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-next-')));
+test('plates next --json: its next equals the roadmap script\'s next, and is the first of the free list', async () => {
+  // A copy with no git remote: plates next fetches the claims where there is one (phase 70), and no test reads the live origin.
+  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'plates-next-')));
   try {
-    const ours = keel(['next', '--json'], dir);
+    const ours = plates(['next', '--json'], dir);
     assert.equal(ours.code, 0, ours.err);
     const script = run(process.execPath, ['scripts/roadmap.mjs', '--json'], { cwd: dir });
     assert.equal(script.status, 0, script.stderr);
@@ -56,7 +56,7 @@ test('every registered verb and flag is announced in the cold start', async () =
 
 test('a verb registered without a guide line fails the surface check', async () => {
   const guide = await readFile(GUIDE, 'utf8');
-  verbs.set('frobnicate', { summary: 'temp', usage: 'keel frobnicate', run: async () => ({ data: null, text: '' }) });
+  verbs.set('frobnicate', { summary: 'temp', usage: 'plates frobnicate', run: async () => ({ data: null, text: '' }) });
   try {
     assert.deepEqual(surfaceGaps(names(), guide), ['frobnicate']);
     // A prefix of an announced verb does not count as announced.
@@ -71,15 +71,15 @@ test('a verb registered without a guide line fails the surface check', async () 
 
 test('the guide lists only registered verbs, and names every topic', async () => {
   const { coldStart, topics } = parseGuide(await readFile(GUIDE, 'utf8'));
-  for (const line of announced(coldStart)) assert.ok(names().some(n => line === n || line.startsWith(`${n} `)), `unregistered: keel ${line}`);
+  for (const line of announced(coldStart)) assert.ok(names().some(n => line === n || line.startsWith(`${n} `)), `unregistered: plates ${line}`);
   assert.ok(topics.length >= 1);
   for (const t of topics) assert.match(coldStart, new RegExp(`\`${t.slug}\``), `cold start does not name topic ${t.slug}`);
 });
 
 test('a word list announces one command per word', () => {
-  assert.deepEqual(announced('- `keel goal list|show` — goals\n- `keel next` — n\n- `keel doctor --fix <path> restore|eject`'),
+  assert.deepEqual(announced('- `plates goal list|show` — goals\n- `plates next` — n\n- `plates doctor --fix <path> restore|eject`'),
     ['goal list', 'goal show', 'next', 'doctor --fix <path> restore', 'doctor --fix <path> eject']);
-  assert.deepEqual(surfaceGaps(['goal list', 'goal show', 'goal add'], '- `keel goal list|show` — goals'), ['goal add']);
+  assert.deepEqual(surfaceGaps(['goal list', 'goal show', 'goal add'], '- `plates goal list|show` — goals'), ['goal add']);
 });
 
 // The cap is "one screen". It was 2,500 at seven verbs; at sixteen (phase 9),
@@ -105,47 +105,47 @@ test(`the cold start stays under ${COLD_START_LIMIT} characters`, async t => {
   assert.ok(coldStart.length < COLD_START_LIMIT, `cold start is ${coldStart.length} characters`);
   const near = coldStartHeadroom(coldStart.length);
   if (near) t.diagnostic(near);
-  const r = keel(['--agent-help']);
+  const r = plates(['--agent-help']);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.out.trim(), coldStart);
 });
 
 test('agent-help opens a topic, and all', () => {
-  const t = keel(['--agent-help', 'render', '--json']);
+  const t = plates(['--agent-help', 'render', '--json']);
   assert.equal(t.code, 0, t.err);
   assert.equal(JSON.parse(t.out).slug, 'render');
-  const all = keel(['--agent-help', 'all']);
+  const all = plates(['--agent-help', 'all']);
   assert.equal(all.code, 0);
   assert.match(all.out, /## coming/);
-  const bad = keel(['--agent-help', 'nope', '--json']);
+  const bad = plates(['--agent-help', 'nope', '--json']);
   assert.equal(bad.code, 2);
   assert.match(JSON.parse(bad.out).error, /no agent-help topic/);
 });
 
 test('--json parses for every verb and flag; human text never mixes in', async t => {
-  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-json-')));
+  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'plates-json-')));
   try {
     // A verb that cannot run bare gets the least it needs; init makes a commit,
     // so it gets a git identity (CI has none).
     // learn bare reads GitHub; its JSON is covered by tests/learn.test.mjs against a stub gh.
     // goal add runs before goal retire, which retires the goal it added.
-    // improve bare would run keel's own check from inside it; its --selftest runs on its fixture.
+    // improve bare would run plates's own check from inside it; its --selftest runs on its fixture.
     const added = `G${Math.max(...JSON.parse(await readFile(join(dir, 'docs/goals.json'), 'utf8')).map(g => Number(g.id.slice(1)))) + 1}`;
     // No verb here reads the live world (lesson 17's shape: a test that reads it goes red when
     // the world changes, as fleet update did once ledger was adopted). Every verb runs with a gh
-    // that prints [], and fleet.json is a synthetic, empty fleet; tests/night.test.mjs,
+    // that prints [], and plates.json is a synthetic, empty fleet; tests/night.test.mjs,
     // tests/fleet.test.mjs and tests/learn.test.mjs cover those verbs against a stub gh; loose-ends
     // and retro read no one's transcripts (tests/loose-ends.test.mjs and tests/retro.test.mjs cover them).
     const emptyGh = join(dir, 'empty-gh');
-    // GraphQL (keel review, loose-ends' review read) gets an answer with no PRs and no threads.
+    // GraphQL (plates review, loose-ends' review read) gets an answer with no PRs and no threads.
     const noThreads = { pageInfo: { hasNextPage: false }, nodes: [] };
     const graphql = JSON.stringify({ data: { repository: { pullRequest: { number: 1, title: 'Acme', url: 'https://github.com/acme/app/pull/1', state: 'OPEN', headRefOid: 'abc1234', reviewThreads: noThreads, comments: noThreads }, open: noThreads, merged: noThreads } } });
-    // keel review reads the PR's repo's own .keel/keel.json for its round limit, with --reviewer too (keel#118): acme/app has none.
-    await writeFile(emptyGh, `#!${process.execPath}\nif (process.argv.some(a => a.endsWith('/contents/.keel/keel.json'))) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
-    await writeFile(join(dir, 'fleet.json'), '[]\n');
+    // plates review reads the PR's repo's own .plates/plates.json for its round limit, with --reviewer too (plates#118): acme/app has none.
+    await writeFile(emptyGh, `#!${process.execPath}\nif (process.argv.some(a => a.endsWith('/contents/.plates/plates.json') || a.endsWith('/contents/.keel/keel.json'))) { console.error('gh: Not Found (HTTP 404)'); process.exit(1); }\nconsole.log(process.argv.includes('graphql') ? ${JSON.stringify(graphql)} : '[]');\n`, { mode: 0o755 });
+    await writeFile(join(dir, 'plates.json'), '[]\n');
     // walk decide records a decision on a health page's proposal: a synthetic one, outside the health directory.
     await writeFile(join(dir, 'acme-health.md'), '# Acme health\n\n## Proposal\n\n**`acme_measure`** (outside) — Acme proposes.\n');
-    // keel test runs a file with stalls: a synthetic one-test file, not one of keel's own suites.
+    // plates test runs a file with stalls: a synthetic one-test file, not one of plates's own suites.
     await writeFile(join(dir, 'acme-stalls.test.mjs'), "import { test } from 'node:test';\ntest('an anvil is ordered', () => {});\n");
     await writeFile(join(dir, 'acme-rubric.json'), JSON.stringify({ version: 1, problem: 'Acme loses rows.', reproduction: 'Run Acme regression.', acceptance: 'Both rows remain.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] }));
     const needs = { feedback: ['list'], decision: ['context', '--phase', '0'], issue: ['new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'acme-rubric.json'], walk: ['decide', '--proposal', 'acme-health.md', '--decline', 'Acme test'], canvas: ['status'], init: ['fresh', '--description', 'Acme is a test project.'], learn: ['render'], improve: ['--selftest'], drain: ['keel-night/'], test: ['acme-stalls.test.mjs', '--stalls'],
@@ -157,12 +157,12 @@ test('--json parses for every verb and flag; human text never mixes in', async t
       // morning reads that plan's night, which night plan dated (tests/morning.test.mjs covers the verb).
       morning: ['--date', nightOf()] };
     // prove needs a repository with a fix to prove: a tiny Acme one (tests/prove.test.mjs covers the verb).
-    const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'keel-json-prove-')), 'acme'));
+    const proving = await acmeRepo(join(await mkdtemp(join(tmpdir(), 'plates-json-prove-')), 'acme'));
     // Evidence previews a synthetic record, independent of this checkout's historical measurements.
-    const measuring = await mkdtemp(join(tmpdir(), 'keel-json-evidence-'));
+    const measuring = await mkdtemp(join(tmpdir(), 'plates-json-evidence-'));
     t.after(() => rm(measuring, { recursive: true, force: true }));
-    for (const path of ['.keel', 'docs/phases', 'docs/evidence']) await mkdir(join(measuring, path), { recursive: true });
-    await writeFile(join(measuring, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['phases'] }));
+    for (const path of ['.plates', 'docs/phases', 'docs/evidence']) await mkdir(join(measuring, path), { recursive: true });
+    await writeFile(join(measuring, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['phases'] }));
     await writeFile(join(measuring, 'docs/phases/1-acme.md'), `---
 status: planned
 since: 2026-10-11
@@ -185,25 +185,25 @@ None.
 Measure the count.
 `);
     const measurement = { id: 'acme-count', argv: [process.execPath, '-e', 'console.log(12)'], cwd: '.', value: 10, unit: 'characters', date: '2026-10-11' };
-    await writeFile(join(measuring, 'docs/evidence/acme.md'), '\n```keel-measurements\n' + JSON.stringify([measurement]) + '\n```\n');
+    await writeFile(join(measuring, 'docs/evidence/acme.md'), '\n```plates-measurements\n' + JSON.stringify([measurement]) + '\n```\n');
     // persona run measures a synthetic Acme persona whose goal is met (tests/persona.test.mjs covers the verb).
     await mkdir(join(measuring, '.agents/personas'), { recursive: true });
     await writeFile(join(measuring, '.agents/personas/acme.md'), '---\ngoal:\n  - name: anvils\n    at most: 3\n    measured by: echo 2\n---\n');
-    const cwdOf = name => name === 'prove' ? proving : ['evidence rederive', 'persona run'].includes(name) ? measuring : dir;
+    const cwdOf = name => ['prove','migrate'].includes(name) ? proving : ['evidence rederive', 'persona run'].includes(name) ? measuring : dir;
     const env = { ...process.env, GIT_AUTHOR_NAME: 'Acme', GIT_AUTHOR_EMAIL: 'acme@acme.test',
       GIT_COMMITTER_NAME: 'Acme', GIT_COMMITTER_EMAIL: 'acme@acme.test' };
     // canvas status reads local binding/receipts only; any accidental transport call
     // hits a nonexistent synthetic executable instead of the installed isocan.
     // phase new runs last: its draft fails the roadmap check (and doctor) until it is written (phase 32).
     for (const name of names().sort((a, b) => (a === 'phase new') - (b === 'phase new'))) {
-      const r = keel([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, KEEL_GH: emptyGh, KEEL_ISOCAN: join(dir, 'no-isocan'), KEEL_CLAUDE_DIR: join(dir, 'no-transcripts'), KEEL_CACHE: join(dir, 'cache') });
+      const r = plates([...name.split(' '), ...(needs[name] ?? []), '--json'], cwdOf(name), BIN, { ...env, PLATES_GH: emptyGh, PLATES_ISOCAN: join(dir, 'no-isocan'), PLATES_CLAUDE_DIR: join(dir, 'no-transcripts'), PLATES_CACHE: join(dir, 'cache') });
       // feedback requires a verified Git boundary; this copied tree has no Git history.
       // shape needs an explicit record; its packed lifecycle is covered separately.
       // decision needs a source revision; this copied tree has no git history.
       // phase claim, ready and integrate need a remote to push to, and this copy has none: exit 2, as JSON
       // (tests/claim.test.mjs and tests/integrate.test.mjs cover the verbs). promote needs the delivery practice,
-      // which keel's copy has not taken: exit 2, as JSON (tests/promote.test.mjs covers the verb).
-      assert.equal(r.code, name === 'issue' ? 3 : ['phase claim', 'ready', 'integrate', 'promote', 'decision', 'shape', 'workspace', 'feedback'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
+      // which plates's copy has not taken: exit 2, as JSON (tests/promote.test.mjs covers the verb).
+      assert.equal(r.code, name === 'issue' ? 3 : ['migrate', 'phase claim', 'ready', 'integrate', 'promote', 'decision', 'shape', 'workspace', 'feedback'].includes(name) ? 2 : 0, `${name}: ${r.err}${r.out}`);
       assert.doesNotThrow(() => JSON.parse(r.out), `${name} --json did not parse: ${r.out}`);
       assert.equal(r.err, '', `${name} wrote to stderr`);
       if (name === 'feedback') { const data = JSON.parse(r.out); assert.equal(data.error, 'git_unavailable'); assert.equal(data.coverage[0].state, 'unavailable'); }
@@ -216,7 +216,7 @@ Measure the count.
     }
     // render onto an unchanged copy rewrites nothing.
     await rm(join(dir, 'fresh'), { recursive: true, force: true });
-    const rendered = keel(['render', '--check', '--json'], dir);
+    const rendered = plates(['render', '--check', '--json'], dir);
     assert.equal(JSON.parse(rendered.out).ok, true, rendered.out + rendered.err);
     await rm(dirname(proving), { recursive: true, force: true });
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -224,21 +224,21 @@ Measure the count.
 
 test('an error under --json is JSON, with a non-zero exit', () => {
   for (const args of [['frobnicate', '--json'], ['goal', '--json'], ['next', 'extra', '--json'], ['render', '--into', '--json']]) {
-    const r = keel(args);
+    const r = plates(args);
     assert.notEqual(r.code, 0, args.join(' '));
     assert.equal(typeof JSON.parse(r.out).error, 'string', args.join(' '));
   }
-  const text = keel(['frobnicate']);
+  const text = plates(['frobnicate']);
   assert.equal(text.code, 2);
   assert.equal(text.out, '');
-  assert.match(text.err, /^keel: unknown verb/);
+  assert.match(text.err, /^plates: unknown verb/);
 });
 
 test('render --check exits 1 and names the drift', async () => {
-  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'keel-drift-')));
+  const dir = await copyTree(await mkdtemp(join(tmpdir(), 'plates-drift-')));
   try {
     await writeFile(join(dir, 'scripts/roadmap.mjs'), '// drifted\n');
-    const r = keel(['render', '--check', '--json'], dir);
+    const r = plates(['render', '--check', '--json'], dir);
     assert.equal(r.code, 1);
     const out = JSON.parse(r.out);
     assert.equal(out.ok, false);
@@ -247,34 +247,34 @@ test('render --check exits 1 and names the drift', async () => {
 });
 
 test('outside any project: a clear error, exit 2', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-none-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-none-'));
   try {
     for (const verb of ['status', 'next', 'goal list', 'render']) {
-      const r = keel([...verb.split(' ')], dir);
+      const r = plates([...verb.split(' ')], dir);
       assert.equal(r.code, 2, verb);
-      assert.match(r.err, /not in a keel project: no \.keel\/keel\.json/);
-      const j = keel([...verb.split(' '), '--json'], dir);
+      assert.match(r.err, /not in a plates project: no \.plates\/plates\.json/);
+      const j = plates([...verb.split(' '), '--json'], dir);
       assert.equal(j.code, 2);
-      assert.match(JSON.parse(j.out).error, /not in a keel project/);
+      assert.match(JSON.parse(j.out).error, /not in a plates project/);
     }
     // Verbs that need no project still work there.
-    assert.equal(keel(['--version'], dir).code, 0);
-    assert.equal(keel(['help'], dir).code, 0);
+    assert.equal(plates(['--version'], dir).code, 0);
+    assert.equal(plates(['help'], dir).code, 0);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
 test('--version reports the CLI, its commit and the practice version, each from its own source', async () => {
-  const pkg = JSON.parse(await readFile(join(KEEL, 'package.json'), 'utf8'));
-  const j = JSON.parse(keel(['--version', '--json']).out);
+  const pkg = JSON.parse(await readFile(join(PLATES, 'package.json'), 'utf8'));
+  const j = JSON.parse(plates(['--version', '--json']).out);
   assert.equal(j.cli, pkg.version);
-  assert.equal(j.practice, (await readFile(join(KEEL, 'practices', 'VERSION'), 'utf8')).trim());
-  assert.equal(JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8')).practice, j.practice, 'keel is self: its own practice is the one it ships');
+  assert.equal(j.practice, (await readFile(join(PLATES, 'practices', 'VERSION'), 'utf8')).trim());
+  assert.equal(JSON.parse(await readFile(join(PLATES, '.plates', 'plates.json'), 'utf8')).practice, j.practice, 'plates is self: its own practice is the one it ships');
   assert.match(j.commit ?? '', /^[0-9a-f]{4,}$/);
-  assert.match(keel(['--version']).out, /^keel \S+ \([0-9a-f]+\) practice \S+\n$/);
+  assert.match(plates(['--version']).out, /^plates \S+ \([0-9a-f]+\) practice \S+\n$/);
 });
 
-test('installs from a checkout with no build step, on a machine that has never seen keel', async () => {
-  const tmp = await mkdtemp(join(tmpdir(), 'keel-install-'));
+test('installs from a checkout with no build step, on a machine that has never seen plates', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'plates-install-'));
   try {
     // The working tree, not HEAD: an uncommitted bin/ would be missing from a clone.
     const src = await copyTree(join(tmp, 'src'));
@@ -283,31 +283,60 @@ test('installs from a checkout with no build step, on a machine that has never s
     const env = { ...process.env, HOME: home, npm_config_cache: join(tmp, 'npm-cache'), npm_config_userconfig: join(home, '.npmrc') };
     const install = run('npm', ['install', '-g', src, '--prefix', prefix, '--no-audit', '--no-fund', '--offline'], { env });
     assert.equal(install.status, 0, install.stderr);
-    const bin = join(prefix, 'bin', 'keel');
-    const project = await copyTree(join(tmp, 'project')); // a copy of keel, run from the installed bin
-    const v = keel(['--version'], project, bin, env);
+    const bin = join(prefix, 'bin', 'plates');
+    const project = await copyTree(join(tmp, 'project')); // a copy of plates, run from the installed bin
+    const v = plates(['--version'], project, bin, env);
     assert.equal(v.code, 0, v.err);
-    assert.match(v.out, /^keel \S+ practice \S+\n$/, 'no commit known: just the two versions');
+    assert.match(v.out, /^plates \S+ practice \S+\n$/, 'no commit known: just the two versions');
     assert.doesNotMatch(v.out, /no git/);
-    const help = keel(['--agent-help'], project, bin, env);
+    const help = plates(['--agent-help'], project, bin, env);
     assert.equal(help.code, 0, help.err);
-    assert.match(help.out, /keel --agent-help/);
-    const next = keel(['next', '--json'], project, bin, env);
+    assert.match(help.out, /plates --agent-help/);
+    const next = plates(['next', '--json'], project, bin, env);
     assert.equal(next.code, 0, next.err);
-    assert.deepEqual(JSON.parse(next.out), JSON.parse(keel(['next', '--json'], project).out), 'the installed bin and the checkout\'s agree');
+    assert.deepEqual(JSON.parse(next.out), JSON.parse(plates(['next', '--json'], project).out), 'the installed bin and the checkout\'s agree');
   } finally { await rm(tmp, { recursive: true, force: true }); }
 });
 
 test('issue new agent CLI previews all rubric fields with OFF policy and requires explicit grammar', async t => {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-issue-cli-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-issue-cli-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'));
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app' }));
+  await mkdir(join(dir, '.plates'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', repo: 'acme/app' }));
   const rubric = { version: 1, problem: 'Acme loses rows.', reproduction: 'Run Acme test.', acceptance: 'Retain both rows.', change: 'Fix equality.', prerequisites: [], ownerBlockers: [] };
   await writeFile(join(dir, 'rubric.json'), JSON.stringify(rubric));
   const args = ['issue', 'new', '--agent', '--title', 'Fix Acme rows', '--rubric', 'rubric.json', '--json'];
-  const r = keel(args, dir); assert.equal(r.code, 3, r.err + r.out);
+  const r = plates(args, dir); assert.equal(r.code, 3, r.err + r.out);
   const data = JSON.parse(r.out); assert.equal(data.state, 'preview'); assert.deepEqual(data.preview.labels, []);
   for (const heading of ['Problem', 'Reproduction', 'Acceptance', 'One change', 'Prerequisites', 'Owner blockers']) assert.ok(data.preview.body.includes(`### ${heading}`));
-  for (const bad of [args.filter(x => x !== '--agent'), [...args, '--title', 'Duplicate'], ['issue', 'new', '--agent', '--json']]) assert.equal(keel(bad, dir).code, 2);
+  for (const bad of [args.filter(x => x !== '--agent'), [...args, '--title', 'Duplicate'], ['issue', 'new', '--agent', '--json']]) assert.equal(plates(bad, dir).code, 2);
+});
+
+test('legacy executable path and preexisting global symlink forward arguments and exit codes', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'plates-legacy-bin-'));t.after(() => rm(dir, { recursive: true, force: true }));
+  const legacy = join(PLATES, 'bin', 'keel.mjs'), link = join(dir, 'keel');
+  await symlink(legacy, link);
+  const expected = plates(['--version', '--json']);assert.equal(expected.code, 0, expected.err);
+  // This is the old updater's re-exec contract: node <checkout>/bin/keel.mjs.
+  const reexec = run(process.execPath, [legacy, '--version', '--json'], { cwd: dir, env: { ...process.env, KEEL_SELF_UPDATED: '1' } });
+  assert.equal(reexec.status, 0, reexec.stderr);assert.deepEqual(JSON.parse(reexec.stdout), JSON.parse(expected.out));
+  const linked = run(link, ['--version', '--json'], { cwd: dir });assert.equal(linked.status, 0, linked.stderr);assert.deepEqual(JSON.parse(linked.stdout), JSON.parse(expected.out));
+  const invalid = run(link, ['acme-unknown-command', '--json'], { cwd: dir });assert.equal(invalid.status, 2);assert.match(JSON.parse(invalid.stdout).error, /unknown verb/);
+});
+
+test('npm package includes the legacy executable compatibility entry', () => {
+  const packed = run('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--offline'], { cwd: PLATES });
+  assert.equal(packed.status, 0, packed.stderr);
+  const files = JSON.parse(packed.stdout)[0].files;
+  assert.ok(files.some(file => file.path === 'bin/keel.mjs' && (file.mode & 0o111) !== 0));
+  assert.ok(files.some(file => file.path === 'bin/plates.mjs'));
+});
+
+test('migrate rejects unpaired malformed and duplicate approval flags before resolving its root', async () => {
+  const digest = 'a'.repeat(64);
+  for (const args of [['--yes'], ['--digest', digest], ['--yes', '--digest', 'abc'], ['--yes', '--digest', 'A'.repeat(64)], ['--yes', '--yes', '--digest', digest], ['--yes', '--digest', digest, '--digest', digest], ['--yes', '--digest']]) {
+    let touched = false;
+    await assert.rejects(verbs.get('migrate').run(args, { get cwd() { touched = true; throw new Error('migration context must not be accessed'); } }), error => error.exitCode === 2, args.join(' '));
+    assert.equal(touched, false, args.join(' '));
+  }
 });

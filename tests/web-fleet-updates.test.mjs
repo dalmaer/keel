@@ -19,6 +19,7 @@ import {
 import { publicationObjects, gitTree } from "../lib/web/fleet-provider.mjs";
 import { hash } from "../lib/web/common.mjs";
 import { gitBlob } from "../lib/web/decision-github.mjs";
+import { legacyUpdateWorkflow } from "../lib/web/update-workflow.mjs";
 const project = (h) => h.access.projects[0],
   opts = (h) => ({ reauthorize: h.refreshAccess });
 async function reviewed(h) {
@@ -127,6 +128,33 @@ test("equal declared versions retain unverified migration applicability and runt
   assert.equal(v.migrations.state, "applicability-unverified");
   assert.deepEqual(v.migrations.pending, ["0001-acme"]);
   assert.equal(v.capabilities.prepare, true);
+});
+test('fleet comparison keeps canonical config authoritative and reads legacy snapshots only when absent', async () => {
+  for (const legacy of [false, true]) {
+    const h = await fleetUpdatesHarness();
+    for (const [canonical, old] of [['.plates/plates.json', '.keel/keel.json'], ['.plates/lock.json', '.keel/lock.json']]) {
+      h.source.files[old] = legacy ? h.source.files[canonical] : '{bad legacy';
+      if (legacy) delete h.source.files[canonical];
+    }
+    h.source.files['package.json'] = JSON.stringify({ dependencies: { keel: 'legacy-pin' }, devDependencies: { plates: '' } });
+    const result = await h.fleet.comparison(h.access, token, project(h));
+    assert.equal(result.versions.practice, '1.0.0');
+    assert.equal(result.versions.cliDeclaration, '');
+    assert.equal(result.ownership.state, 'matches-lock');
+  }
+  const h = await fleetUpdatesHarness();
+  h.source.files['.keel/keel.json'] = h.source.files['.plates/plates.json'];
+  h.source.files['.plates/plates.json'] = '{bad canonical';
+  await assert.rejects(h.fleet.comparison(h.access, token, project(h)));
+});
+test('fleet preparation accepts exact legacy workflow pins but refuses changed source', async () => {
+  const h = await fleetUpdatesHarness(), r = h.updateRegistration;
+  h.source.files[r.workflow.path] = legacyUpdateWorkflow(h.config.fleetUpdates.target);
+  r.workflow.workflowBlob = gitBlob(h.source.files[r.workflow.path]);h.registerUpdate();
+  assert.equal((await reviewed(h)).p.canApply, true);
+  h.source.files[r.workflow.path] += '# unreviewed workflow edit\n';
+  r.workflow.workflowBlob = gitBlob(h.source.files[r.workflow.path]);h.registerUpdate();
+  await assert.rejects(reviewed(h), { code: 'worker_source_changed' });
 });
 test("one preparation reserves shared sixty minutes and output waits for provider termination", async () => {
   const h = await fleetUpdatesHarness(),
@@ -414,10 +442,10 @@ test("Git blob, executable, symlink, tree and commit identities match actual Git
       input: message + "\n",
       env: {
         ...process.env,
-        GIT_AUTHOR_NAME: "Keel web",
-        GIT_AUTHOR_EMAIL: "keel-web@users.noreply.github.com",
-        GIT_COMMITTER_NAME: "Keel web",
-        GIT_COMMITTER_EMAIL: "keel-web@users.noreply.github.com",
+        GIT_AUTHOR_NAME: "Plates web",
+        GIT_AUTHOR_EMAIL: "plates-web@users.noreply.github.com",
+        GIT_COMMITTER_NAME: "Plates web",
+        GIT_COMMITTER_EMAIL: "plates-web@users.noreply.github.com",
         GIT_AUTHOR_DATE: at,
         GIT_COMMITTER_DATE: at,
       },
@@ -514,10 +542,10 @@ test("base setup result must name the approved setup command", async () => {
 test("declared CLI dependency never becomes an observed runtime", async () => {
   const h = await fleetUpdatesHarness();
   h.source.files["package.json"] = JSON.stringify({
-    devDependencies: { keel: "github:acme/keel#v1.0.0" },
+    devDependencies: { plates: "github:acme/plates#v1.0.0" },
   });
   const v = await h.fleet.comparison(h.access, token, project(h));
-  assert.equal(v.versions.cliDeclaration, "github:acme/keel#v1.0.0");
+  assert.equal(v.versions.cliDeclaration, "github:acme/plates#v1.0.0");
   assert.equal(v.versions.runtime, null);
 });
 test("one MiB raw output survives encrypted artifact and exact publication preview bounds", async () => {
@@ -601,9 +629,9 @@ test("null mutation replies cannot claim an artifact was durably saved", async (
 });
 test("ejected project-owned targets remain visible in version comparison", async () => {
   const h = await fleetUpdatesHarness();
-  const cfg = JSON.parse(h.source.files[".keel/keel.json"]);
+  const cfg = JSON.parse(h.source.files[".plates/plates.json"]);
   cfg.ejected = ["docs/custom.md"];
-  h.source.files[".keel/keel.json"] = JSON.stringify(cfg);
+  h.source.files[".plates/plates.json"] = JSON.stringify(cfg);
   const v = await h.fleet.comparison(h.access, token, project(h));
   assert.deepEqual(v.ownership.ejected, ["docs/custom.md"]);
   assert.ok(

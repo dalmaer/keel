@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G2
 spec: 2
 depends: [52]
-note: "Built: keel fleet update --rehearse (phase 52's path with the candidate practice, stopped before the push; at most 4 projects at once, in worker threads) and keel release running it after its gate and before its commit, refusing while a project passes on main and fails with the release; --despite <repo> \"<why>\" the owner's way past, written into the commit and WHATSNEW. Owes the walk: three rehearsed releases, and the owner's comparison of their fleet rounds with v0.8.23 to v0.8.26. Design: research/2026-10-09-updates-never-block.md."
+note: "Built: plates fleet update --rehearse (phase 52's path with the candidate practice, stopped before the push; at most 4 projects at once, in worker threads) and plates release running it after its gate and before its commit, refusing while a project passes on main and fails with the release; --despite <repo> \"<why>\" the owner's way past, written into the commit and WHATSNEW. Owes the walk: three rehearsed releases, and the owner's comparison of their fleet rounds with v0.8.23 to v0.8.26. Design: research/2026-10-09-updates-never-block.md."
 evidence: []
 issue: 40
 ---
@@ -14,21 +14,21 @@ issue: 40
 
 ## Done when
 
-`keel release` rehearses the update on every managed fleet project before it commits and tags, and refuses while a project's check passes on main and fails with the release, unless the owner records why; three releases have gone through it, and the owner has compared their fleet rounds with v0.8.23 to v0.8.26.
+`plates release` rehearses the update on every managed fleet project before it commits and tags, and refuses while a project's check passes on main and fails with the release, unless the owner records why; three releases have gone through it, and the owner has compared their fleet rounds with v0.8.23 to v0.8.26.
 
 ## Scope
 
 The design is [A fleet update never dead-ends](../research/2026-10-09-updates-never-block.md), phase 53. Phase 48 checks that a release was reviewed; this checks that it passes the projects' own checks.
 
-- **The rehearsal**: `keel fleet update --rehearse` runs phase 52's per-project path (clone, setup or install, update with the candidate practice, the project's check, main's check when it fails) and stops before the push. It prints one row per project and `--json`.
-- **The release**: `keel release` runs the rehearsal after its own check and before it commits. A project that passes on main and fails with the release makes it refuse (exit 1), naming the project and the failure's tail. A project whose main is already red, or that cannot be cloned or installed, is reported and never a refusal.
+- **The rehearsal**: `plates fleet update --rehearse` runs phase 52's per-project path (clone, setup or install, update with the candidate practice, the project's check, main's check when it fails) and stops before the push. It prints one row per project and `--json`.
+- **The release**: `plates release` runs the rehearsal after its own check and before it commits. A project that passes on main and fails with the release makes it refuse (exit 1), naming the project and the failure's tail. A project whose main is already red, or that cannot be cloned or installed, is reported and never a refusal.
 - **The owner's override**: `--despite <repo> "<why>"` (repeatable) releases anyway and writes the reason into the release commit and WHATSNEW; the fleet round then opens that project's draft (phase 52).
 - **Bounded**: projects rehearse in parallel (at most 4), each with the fleet update's timeout; the release prints how long the rehearsal took.
 
 ## Acceptance
 
-- [x] `keel fleet update --rehearse` runs each project's update and check and pushes nothing, opens nothing (a stubbed gh records no push or PR call). `tests/fleet.test.mjs`
-- [x] `keel release` refuses (exit 1, writing no commit or tag) when a rehearsed project passes on main and fails with the release, naming it and its tail; passes when every project passes or its main was already red. `tests/release.test.mjs`
+- [x] `plates fleet update --rehearse` runs each project's update and check and pushes nothing, opens nothing (a stubbed gh records no push or PR call). `tests/fleet.test.mjs`
+- [x] `plates release` refuses (exit 1, writing no commit or tag) when a rehearsed project passes on main and fails with the release, naming it and its tail; passes when every project passes or its main was already red. `tests/release.test.mjs`
 - [x] `--despite <repo> "<why>"` releases and records the reason in the release commit and WHATSNEW; a repo not in the fleet is refused. `tests/release.test.mjs`
 - [ ] ⚑ by hand: three releases go through the rehearsal; the owner compares their fleet rounds (FAILED rows, draft PRs, releases per day) with v0.8.23 to v0.8.26.
 
@@ -39,12 +39,12 @@ The design is [A fleet update never dead-ends](../research/2026-10-09-updates-ne
 - **Look at:** This phase's evidence: fleet rounds before and after.
 - **Choices:** Keep it | Keep it, only for some projects | Drop it
 - **Takes:** 10 minutes.
-- **Then:** Keep it: the phase is built. Only for some projects: name them, and a `rehearse` list goes in keel's config. Drop it: `keel release` stops rehearsing, and phase 52's drafts carry the load.
+- **Then:** Keep it: the phase is built. Only for some projects: name them, and a `rehearse` list goes in plates's config. Drop it: `plates release` stops rehearsing, and phase 52's drafts carry the load.
 - **Ready when:** three releases have been rehearsed.
 
 ## Real surfaces
 
-- Owner's machine: `keel release` cloning, installing and checking every fleet project.
+- Owner's machine: `plates release` cloning, installing and checking every fleet project.
 - Fleet over time: three releases' fleet rounds.
 
 ## Proof

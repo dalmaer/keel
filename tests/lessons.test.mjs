@@ -1,8 +1,8 @@
-// keel lessons: a project's new lesson rows, drift and practice commits go
+// plates lessons: a project's new lesson rows, drift and practice commits go
 // home as issues, once each. gh is stubbed at the boundary the way real gh
 // behaves (lesson 8): `label list` prints tab-separated rows, `issue list
 // --json` prints a JSON array of the asked fields, `issue create` prints the
-// new URL. Fixtures are synthetic: Acme Notes, made by keel init.
+// new URL. Fixtures are synthetic: Acme Notes, made by plates init.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -15,20 +15,20 @@ import { fileURLToPath } from 'node:url';
 import { init } from '../lib/init.mjs';
 import { lessons, practicePaths, parseLessons, normaliseShape, fingerprintOf, DATA_LINE, SENT } from '../lib/lessons.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const FIXTURES = join(KEEL, 'tests', 'fixtures', 'lessons');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const FIXTURES = join(PLATES, 'tests', 'fixtures', 'lessons');
 const ENV = {
   ...cleanEnv(),
   GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test',
   GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test',
   GIT_CONFIG_NOSYSTEM: '1',
 };
-const PROJECT = 'acme/notes', TO = 'acme/keel';
+const PROJECT = 'acme/notes', TO = 'acme/plates';
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: ENV, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const hex8 = s => createHash('sha256').update(s).digest('hex').slice(0, 8);
 
-async function scratch(t, prefix = 'keel-lessons-') {
+async function scratch(t, prefix = 'plates-lessons-') {
   const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
@@ -52,9 +52,9 @@ async function treeHash(dir) {
 }
 
 /**
- * Acme Notes, made by keel init, then: two lesson rows (a practice commit), an
+ * Acme Notes, made by plates init, then: two lesson rows (a practice commit), an
  * edit to the managed conduct skill (drift and a practice commit), a
- * keel-made commit touching AGENTS.md (skipped), and a code-only commit (not
+ * plates-made commit touching AGENTS.md (skipped), and a code-only commit (not
  * practice-shaped).
  */
 async function acme(t) {
@@ -67,18 +67,18 @@ async function acme(t) {
   await appendFile(join(dir, '.agents/skills/conduct/SKILL.md'), '\nAcme: ask before running the full suite twice.\n');
   git(dir, 'commit', '-qam', 'conduct: ask before the full suite runs twice');
   const skillCommit = git(dir, 'rev-parse', 'HEAD');
-  await appendFile(join(dir, 'AGENTS.md'), '\n<!-- keel-made -->\n');
-  git(dir, 'commit', '-qam', 'keel update: practice 0.0.0 → 0.1.0');
-  const keelCommit = git(dir, 'rev-parse', 'HEAD');
+  await appendFile(join(dir, 'AGENTS.md'), '\n<!-- plates-made -->\n');
+  git(dir, 'commit', '-qam', 'plates update: practice 0.0.0 → 0.1.0');
+  const platesCommit = git(dir, 'rev-parse', 'HEAD');
   await writeFile(join(dir, 'notes.mjs'), 'export const notes = [];\n');
   git(dir, 'add', 'notes.mjs');
   git(dir, 'commit', '-qm', 'notes: the first store');
-  return { dir, lessonsCommit, skillCommit, keelCommit };
+  return { dir, lessonsCommit, skillCommit, platesCommit };
 }
 
 /** A gh that behaves like gh, over a JSON state file. Returns { gh, log, state }. */
 async function stubGh(t, seed = { labels: ['bug'], issues: [] }) {
-  const dir = await scratch(t, 'keel-gh-');
+  const dir = await scratch(t, 'plates-gh-');
   const log = join(dir, 'gh.log'), state = join(dir, 'state.json'), gh = join(dir, 'gh');
   await writeFile(state, JSON.stringify(seed));
   await writeFile(gh, `#!${process.execPath}
@@ -108,17 +108,17 @@ else { console.error('stub gh: unknown ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(gh, 0o755);
   return {
-    gh, env: { ...ENV, KEEL_GH: gh },
+    gh, env: { ...ENV, PLATES_GH: gh },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     state: async () => JSON.parse(await readFile(state, 'utf8')),
   };
 }
 
-const keel = (args, cwd, env = { ...ENV, KEEL_GH: '/nonexistent/gh' }) => { // never the real gh
+const plates = (args, cwd, env = { ...ENV, PLATES_GH: '/nonexistent/gh' }) => { // never the real gh
   const r = runCmd(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
-const send = (dir, env, extra = {}) => lessons({ dir, to: TO, yes: true, ...extra }, { cliRoot: KEEL, env, now: '2026-10-02T00:00:00.000Z' });
+const send = (dir, env, extra = {}) => lessons({ dir, to: TO, yes: true, ...extra }, { cliRoot: PLATES, env, now: '2026-10-02T00:00:00.000Z' });
 
 const SHAPE1 = "**A cache that outlives its key serves yesterday's answer.** *(acme 2)*";
 
@@ -136,13 +136,13 @@ test('parseLessons: a numbered table, escaped pipes, and a three-column table nu
 });
 
 test('a dry run lists exactly the new lessons, drift and practice commits, calls no gh, writes nothing, exits 3', async t => {
-  const { dir, lessonsCommit, skillCommit, keelCommit } = await acme(t);
+  const { dir, lessonsCommit, skillCommit, platesCommit } = await acme(t);
   const stub = await stubGh(t);
   const before = await treeHash(dir);
-  const r = keel(['lessons', '--dry-run', '--json'], dir, stub.env);
+  const r = plates(['lessons', '--dry-run', '--json'], dir, stub.env);
   assert.equal(r.code, 3, r.err + r.out);
   const out = JSON.parse(r.out);
-  assert.equal(out.to, 'dalmaer/keel-inbox', 'the default target is the CLI checkout\'s inbox');
+  assert.equal(out.to, 'dalmaer/plates-inbox', 'the default target is the CLI checkout\'s inbox');
   assert.equal(out.project, PROJECT);
   assert.deepEqual(out.counts, { lesson: 2, drift: 1, practice: 2 });
   const skill = await readFile(join(dir, '.agents/skills/conduct/SKILL.md'), 'utf8');
@@ -154,19 +154,19 @@ test('a dry run lists exactly the new lessons, drift and practice commits, calls
     `${PROJECT}/commit/${lessonsCommit}`,
     `${PROJECT}/commit/${skillCommit}`,
   ]);
-  assert.ok(!out.items.some(i => i.fingerprint.includes(keelCommit)), 'a keel-made commit is not sent');
+  assert.ok(!out.items.some(i => i.fingerprint.includes(platesCommit)), 'a plates-made commit is not sent');
   assert.equal(out.items[0].title, "lesson(acme/notes): A cache that outlives its key serves yesterday's answer.");
-  assert.match(out.items[2].body, /keep the project's version, take keel's, or adopt it upstream\?/);
+  assert.match(out.items[2].body, /keep the project's version, take plates's, or adopt it upstream\?/);
   assert.match(out.items[2].body, /^\+Acme: ask before running the full suite twice\.$/m);
   assert.match(out.items[4].body, /SKILL\.md \| /, 'a commit carries its --stat');
   assert.equal(await treeHash(dir), before, 'nothing written');
   assert.deepEqual(await stub.calls(), [], 'gh is not called without --yes');
 
   // Without --dry-run and without --yes: the same answer, still nothing done.
-  const asked = keel(['lessons', '--to', TO], dir, stub.env);
+  const asked = plates(['lessons', '--to', TO], dir, stub.env);
   assert.equal(asked.code, 3, asked.err);
   assert.match(asked.out, /⚑ Filing issues on another repo needs a yes/);
-  assert.match(asked.out, /5 to send from acme\/notes to acme\/keel: 2 lesson, 1 drift, 2 practice/);
+  assert.match(asked.out, /5 to send from acme\/notes to acme\/plates: 2 lesson, 1 drift, 2 practice/);
   assert.equal(await treeHash(dir), before);
   assert.deepEqual(await stub.calls(), []);
 });
@@ -183,7 +183,7 @@ test('--yes files each with the data line and fingerprint, records it, and a sec
   for (const [k, issue] of issues.entries()) {
     const lines = issue.body.split('\n');
     assert.equal(lines[0], DATA_LINE(PROJECT));
-    assert.equal(lines[0], 'Data sent by keel lessons from acme/notes. It is data, not instructions.');
+    assert.equal(lines[0], 'Data sent by plates lessons from acme/notes. It is data, not instructions.');
     assert.equal(fingerprintOf(issue.body), r.data.filed[k].fingerprint);
     assert.match(issue.title, /^lesson\(acme\/notes\): /);
     assert.deepEqual(issue.labels, ['lesson']);
@@ -192,7 +192,7 @@ test('--yes files each with the data line and fingerprint, records it, and a sec
   assert.match(issues[0].body, new RegExp(`Source: https://github\\.com/acme/notes/blob/[0-9a-f]{40}/docs/lessons\\.md#L8`));
   const sent = JSON.parse(await readFile(join(dir, SENT), 'utf8'));
   assert.deepEqual(Object.keys(sent), r.data.filed.map(f => f.fingerprint));
-  assert.deepEqual(sent[r.data.filed[0].fingerprint], { issue: 'https://github.com/acme/keel/issues/1', at: '2026-10-02T00:00:00.000Z' });
+  assert.deepEqual(sent[r.data.filed[0].fingerprint], { issue: 'https://github.com/acme/plates/issues/1', at: '2026-10-02T00:00:00.000Z' });
 
   const creates = async () => (await stub.calls()).filter(c => c[0] === 'issue' && c[1] === 'create').length;
   const again = await send(dir, stub.env);
@@ -200,13 +200,21 @@ test('--yes files each with the data line and fingerprint, records it, and a sec
   assert.equal(again.data.already, 5);
   assert.deepEqual(again.data.items, []);
   assert.equal(await creates(), 5, 'nothing filed twice');
-  const dry = keel(['lessons', '--dry-run', '--to', TO, '--json'], dir, stub.env);
+  const renamedConfigPath = join(dir, '.plates/plates.json');
+  const renamedConfig = JSON.parse(await readFile(renamedConfigPath, 'utf8'));
+  await writeFile(renamedConfigPath, JSON.stringify({ ...renamedConfig, repo: 'acme/renamed-notes', lessonProject: PROJECT }));
+  const renamed = await send(dir, stub.env);
+  assert.equal(renamed.exitCode, 0, renamed.text);
+  assert.equal(renamed.data.already, 5, 'renaming a repository retains the stable lesson identity');
+  assert.equal(await creates(), 5, 'repository rename creates no duplicate lesson issues');
+
+  const dry = plates(['lessons', '--dry-run', '--to', TO, '--json'], dir, stub.env);
   assert.equal(dry.code, 0, 'nothing to send is exit 0, even dry');
 
   // A reworded shape is a new item; the other row is not.
   const text = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
   await writeFile(join(dir, 'docs/lessons.md'), text.replace("serves yesterday's answer", 'serves a stale answer'));
-  const reworded = await lessons({ dir, to: TO, dryRun: true }, { cliRoot: KEEL, env: stub.env });
+  const reworded = await lessons({ dir, to: TO, dryRun: true }, { cliRoot: PLATES, env: stub.env });
   assert.equal(reworded.exitCode, 3);
   assert.deepEqual(reworded.data.items.map(i => i.fingerprint), [`${PROJECT}/lesson/1/${hex8(normaliseShape(SHAPE1.replace("serves yesterday's answer", 'serves a stale answer')))}`]);
 });
@@ -216,93 +224,93 @@ test('a fingerprint the target already has is recorded, not filed again', async 
   const fp = `${PROJECT}/lesson/1/${hex8(normaliseShape(SHAPE1))}`;
   // Filed from another machine; and a decoy whose body mentions the fingerprint but carries another.
   const stub = await stubGh(t, { labels: ['lesson'], issues: [
-    { url: 'https://github.com/acme/keel/issues/7', title: 'decoy', body: `fingerprint: ${PROJECT}/other\nsee ${fp}`, labels: ['lesson'] },
-    { url: 'https://github.com/acme/keel/issues/9', title: 'lesson(acme/notes): …', body: `${DATA_LINE(PROJECT)}\n\nfingerprint: ${fp}\n`, labels: ['lesson'] },
+    { url: 'https://github.com/acme/plates/issues/7', title: 'decoy', body: `fingerprint: ${PROJECT}/other\nsee ${fp}`, labels: ['lesson'] },
+    { url: 'https://github.com/acme/plates/issues/9', title: 'lesson(acme/notes): …', body: `${DATA_LINE(PROJECT)}\n\nfingerprint: ${fp}\n`, labels: ['lesson'] },
   ] });
   const r = await send(dir, stub.env);
   assert.equal(r.exitCode, 0, r.text);
   const first = r.data.filed.find(f => f.fingerprint === fp);
-  assert.deepEqual(first, { kind: 'lesson', fingerprint: fp, issue: 'https://github.com/acme/keel/issues/9', how: 'found' });
+  assert.deepEqual(first, { kind: 'lesson', fingerprint: fp, issue: 'https://github.com/acme/plates/issues/9', how: 'found' });
   assert.equal(r.data.filed.filter(f => f.how === 'filed').length, 4);
   const calls = await stub.calls();
   assert.ok(!calls.some(c => c[1] === 'create' && c[0] === 'label'), 'an existing label is not created');
   assert.equal((await stub.state()).issues.filter(i => fingerprintOf(i.body) === fp).length, 1);
   const sent = JSON.parse(await readFile(join(dir, SENT), 'utf8'));
-  assert.equal(sent[fp].issue, 'https://github.com/acme/keel/issues/9');
+  assert.equal(sent[fp].issue, 'https://github.com/acme/plates/issues/9');
 });
 
-test('keel itself refuses: keel is home', () => {
-  const r = keel(['lessons', '--json'], KEEL, { ...ENV, KEEL_GH: '/nonexistent/gh' });
+test('plates itself refuses: plates is home', () => {
+  const r = plates(['lessons', '--json'], PLATES, { ...ENV, PLATES_GH: '/nonexistent/gh' });
   assert.equal(r.code, 0, r.err);
   const out = JSON.parse(r.out);
   assert.equal(out.self, true);
   assert.deepEqual(out.items, []);
-  assert.match(keel(['lessons'], KEEL).out, /keel is home — use keel learn/);
+  assert.match(plates(['lessons'], PLATES).out, /plates is home — use plates learn/);
 });
 
 test('--since chooses the base; a bad ref or target is a usage error', async t => {
   const { dir, skillCommit, lessonsCommit } = await acme(t);
-  const r = await lessons({ dir, to: TO, since: lessonsCommit }, { cliRoot: KEEL, env: ENV });
+  const r = await lessons({ dir, to: TO, since: lessonsCommit }, { cliRoot: PLATES, env: ENV });
   assert.deepEqual(r.data.items.filter(i => i.kind === 'practice').map(i => i.fingerprint), [`${PROJECT}/commit/${skillCommit}`]);
-  const bad = keel(['lessons', '--since', 'no-such-ref', '--to', TO, '--json'], dir);
+  const bad = plates(['lessons', '--since', 'no-such-ref', '--to', TO, '--json'], dir);
   assert.equal(bad.code, 2);
   assert.match(JSON.parse(bad.out).error, /--since no-such-ref: not a commit/);
-  assert.equal(keel(['lessons', '--to', 'not a repo', '--json'], dir).code, 2);
-  assert.equal(keel(['lessons', 'extra', '--json'], dir).code, 2);
+  assert.equal(plates(['lessons', '--to', 'not a repo', '--json'], dir).code, 2);
+  assert.equal(plates(['lessons', 'extra', '--json'], dir).code, 2);
 });
 
 test('the target: --to, else the CLI checkout\'s inbox, else its repo; with inbox set, --yes files into the inbox', async t => {
   const { dir } = await acme(t);
-  const cli = await scratch(t, 'keel-cli-');
-  const config = async cfg => writeFile(join(cli, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Keel', keel: 'self', ...cfg }));
-  await mkdir(join(cli, '.keel'), { recursive: true });
+  const cli = await scratch(t, 'plates-cli-');
+  const config = async cfg => writeFile(join(cli, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Plates', plates: 'self', ...cfg }));
+  await mkdir(join(cli, '.plates'), { recursive: true });
   const to = async (extra = {}) => (await lessons({ dir, dryRun: true, ...extra }, { cliRoot: cli, env: ENV })).data.to;
 
-  await config({ repo: 'acme/keel', inbox: 'acme/keel-inbox' });
-  assert.equal(await to(), 'acme/keel-inbox', 'the inbox wins over the repo');
+  await config({ repo: 'acme/plates', inbox: 'acme/plates-inbox' });
+  assert.equal(await to(), 'acme/plates-inbox', 'the inbox wins over the repo');
   assert.equal(await to({ to: 'acme/elsewhere' }), 'acme/elsewhere', '--to wins over both');
-  await config({ repo: 'acme/keel' });
-  assert.equal(await to(), 'acme/keel', 'no inbox: the repo, as before');
+  await config({ repo: 'acme/plates' });
+  assert.equal(await to(), 'acme/plates', 'no inbox: the repo, as before');
   await config({});
   await assert.rejects(to(), /names no inbox or repo/);
 
-  await config({ repo: 'acme/keel', inbox: 'acme/keel-inbox' });
+  await config({ repo: 'acme/plates', inbox: 'acme/plates-inbox' });
   const stub = await stubGh(t);
   const r = await lessons({ dir, yes: true }, { cliRoot: cli, env: stub.env, now: '2026-10-02T00:00:00.000Z' });
   assert.equal(r.exitCode, 0, r.text);
   const creates = (await stub.calls()).filter(c => c[0] === 'issue' && c[1] === 'create');
   assert.equal(creates.length, 5);
-  for (const c of creates) assert.equal(c[c.indexOf('-R') + 1], 'acme/keel-inbox');
-  assert.ok(Object.values(JSON.parse(await readFile(join(dir, SENT), 'utf8'))).every(s => s.issue.startsWith('https://github.com/acme/keel-inbox/issues/')));
+  for (const c of creates) assert.equal(c[c.indexOf('-R') + 1], 'acme/plates-inbox');
+  assert.ok(Object.values(JSON.parse(await readFile(join(dir, SENT), 'utf8'))).every(s => s.issue.startsWith('https://github.com/acme/plates-inbox/issues/')));
 });
 
-test('the stack view moves nothing keel lessons reads: the own table, its fingerprints and sent.json stay byte-identical, and nothing new is sent', async t => {
+test('the stack view moves nothing plates lessons reads: the own table, its fingerprints and sent.json stay byte-identical, and nothing new is sent', async t => {
   const { dir, lessonsCommit } = await acme(t);
   const stub = await stubGh(t);
-  // Render never writes over the project's edit to the skill; take keel's back first.
+  // Render never writes over the project's edit to the skill; take plates's back first.
   git(dir, 'checkout', lessonsCommit, '--', '.agents/skills/conduct/SKILL.md');
-  git(dir, 'commit', '-qam', 'conduct: keel\'s skill again');
+  git(dir, 'commit', '-qam', 'conduct: plates\'s skill again');
   assert.equal((await send(dir, stub.env)).exitCode, 0);
   const { render } = await import('../lib/practices.mjs');
   const own = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
   const sent = await readFile(join(dir, SENT), 'utf8');
-  const prints = async () => (await lessons({ dir, to: TO, dryRun: true }, { cliRoot: KEEL, env: stub.env })).data;
+  const prints = async () => (await lessons({ dir, to: TO, dryRun: true }, { cliRoot: PLATES, env: stub.env })).data;
   const before = await prints();
   assert.deepEqual(before.items, []);
 
-  // The project declares a stack; render rewrites docs/keel-lessons.md for it.
-  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ ...cfg, stack: ['node', 'vercel', 'github-actions'] }, null, 2)}\n`);
+  // The project declares a stack; render rewrites docs/plates-lessons.md for it.
+  const cfg = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ ...cfg, stack: ['node', 'vercel', 'github-actions'] }, null, 2)}\n`);
   await writeFile(join(dir, 'vercel.json'), '{}\n');
   const done = await render(dir);
-  assert.ok(done.entries.some(e => e.path === 'docs/keel-lessons.md' && e.status === 'update'), 'the view was rewritten');
+  assert.ok(done.entries.some(e => e.path === 'docs/plates-lessons.md' && e.status === 'update'), 'the view was rewritten');
   git(dir, 'add', '-A');
-  git(dir, 'commit', '-qm', 'keel update: the stack');
+  git(dir, 'commit', '-qm', 'plates update: the stack');
 
   assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), own, 'the project\'s own table is byte-identical');
-  assert.equal(await readFile(join(dir, SENT), 'utf8'), sent, '.keel/sent.json is byte-identical');
+  assert.equal(await readFile(join(dir, SENT), 'utf8'), sent, '.plates/sent.json is byte-identical');
   const after = await prints();
-  assert.deepEqual(after.items, [], 'keel lessons sends nothing new');
+  assert.deepEqual(after.items, [], 'plates lessons sends nothing new');
   assert.equal(after.already, before.already);
   assert.equal(parseLessons(await readFile(join(dir, 'docs/lessons.md'), 'utf8')).where, -1, 'a project\'s table keeps four columns');
 });
@@ -310,9 +318,9 @@ test('the stack view moves nothing keel lessons reads: the own table, its finger
 
 test('guide review: lessons includes canonical guide commits and keeps raw config paths compatible', async t => {
   const dir = await scratch(t);
-  await mkdir(join(dir, '.keel'));
+  await mkdir(join(dir, '.plates'));
   const cfg = { name: 'Acme', repo: PROJECT, guide: 'AGENTS.md', practices: ['agents-md'] };
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(cfg));
   await writeFile(join(dir, 'CLAUDE.md'), '# Acme\n');
   await symlink('CLAUDE.md', join(dir, 'AGENTS.md'));
   git(dir, 'init', '-q', '-b', 'main');
@@ -322,7 +330,7 @@ test('guide review: lessons includes canonical guide commits and keeps raw confi
   git(dir, 'commit', '-qam', 'guide: Acme correction');
   const sha = git(dir, 'rev-parse', 'HEAD'), before = await treeHash(dir);
   const stub = await stubGh(t);
-  const result = await lessons({ dir, to: TO, dryRun: true }, { cliRoot: KEEL, env: stub.env });
+  const result = await lessons({ dir, to: TO, dryRun: true }, { cliRoot: PLATES, env: stub.env });
   assert.deepEqual(result.data.items.filter(i => i.kind === 'practice').map(i => i.fingerprint), [`${PROJECT}/commit/${sha}`]);
   assert.ok(practicePaths(cfg).includes('AGENTS.md'));
   assert.ok(!practicePaths(cfg).includes('CLAUDE.md'));
@@ -334,12 +342,12 @@ test('guide review: lessons includes canonical guide commits and keeps raw confi
 
 // Phase 64: causal rule advice is shared with doctor, without blocking sending.
 test('rule cause grammar distinguishes structural rules, attribution, and ordinary Markdown', async () => {
-  const { ruleCauseNotes } = await import('../practices/night/files/scripts/keel/lib.mjs');
+  const { ruleCauseNotes } = await import('../practices/night/files/scripts/plates/lib.mjs');
   const input = [
     '**Keep the source.** Do it.',
     '',
     '- **Name the result.** (why: a missing result cannot be checked.)',
-    '- **Record the failure.** Keel lesson 38.',
+    '- **Record the failure.** Plates lesson 38.',
     '- **Record its origin.** https://github.com/acme/anvils/issues/7',
     '- **Use the check.** because it catches stale output.',
     '- **Keep the issue.** acme/anvils#8',
@@ -364,14 +372,14 @@ test('rule cause grammar distinguishes structural rules, attribution, and ordina
 test('lessons and doctor advise on the selected guide without making advice a failure', async t => {
   const { diagnose } = await import('../lib/doctor.mjs');
   const dir = await scratch(t);
-  await mkdir(join(dir, '.keel'));
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', keel: 'self', practices: ['base'], guide: 'GUIDE.md' }));
+  await mkdir(join(dir, '.plates'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', plates: 'self', practices: ['base'], guide: 'GUIDE.md' }));
   await writeFile(join(dir, 'GUIDE.md'), '**Check the result.** Run the command.\n');
   await writeFile(join(dir, 'AGENTS.md'), '**Wrong guide.** This must not be read.\n');
   const report = await diagnose(dir);
   assert.equal(report.lint.some(n => n.rule === 'rule-without-cause'), false);
   assert.deepEqual(report.notes.filter(n => n.rule === 'rule-without-cause').map(n => n.path), ['GUIDE.md']);
-  const result = await lessons({ dir }, { cliRoot: KEEL, env: ENV });
+  const result = await lessons({ dir }, { cliRoot: PLATES, env: ENV });
   assert.equal(result.exitCode, 0);
   assert.equal(result.data.ok, true);
   assert.match(result.text, /rule-without-cause GUIDE.md/);

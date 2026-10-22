@@ -10,33 +10,33 @@ export function cleanEnv(env = process.env) {
   return Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('NODE_TEST_')));
 }
 
-/** keel's verbs that read GitHub through gh: a test runs them only with KEEL_GH set (a stub, or a path that fails). */
+/** plates's verbs that read GitHub through gh: a test runs them only with PLATES_GH set (a stub, or a path that fails). */
 export const GH_VERBS = ['fleet', 'lessons', 'learn', 'loose-ends', 'review', 'board', 'morning', 'promote'];
 
 /** Spawn `cmd` (use process.execPath for node) and return { status, stdout, stderr }. */
 export function run(cmd, args = [], { cwd, env, input, timeout } = {}) {
-  // No keel test reads the live world: a test that does goes red when the world changes (lesson 17).
-  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && GH_VERBS.includes(args[1]) && !(env ?? process.env).KEEL_GH) {
-    throw new Error(`keel ${args[1]} reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh`);
+  // No plates test reads the live world: a test that does goes red when the world changes (lesson 17).
+  if (/(^|[/\\])bin[/\\]plates\.mjs$/.test(String(args[0] ?? '')) && GH_VERBS.includes(args[1]) && !(env ?? process.env).PLATES_GH) {
+    throw new Error(`plates ${args[1]} reads GitHub: run it with PLATES_GH set (a stub gh), never the real gh`);
   }
-  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'canvas') {
-    if (args.includes('--github') && !(env ?? process.env).KEEL_GH) {
-      throw new Error('keel canvas --github reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh');
+  if (/(^|[/\\])bin[/\\]plates\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'canvas') {
+    if (args.includes('--github') && !(env ?? process.env).PLATES_GH) {
+      throw new Error('plates canvas --github reads GitHub: run it with PLATES_GH set (a stub gh), never the real gh');
     }
-    if (['connect', 'sync', 'status', 'disconnect', 'night'].includes(args[2]) && !(env ?? process.env).KEEL_ISOCAN) {
-      throw new Error('keel canvas remote verbs require KEEL_ISOCAN set (a fake executable), never live isocan');
+    if (['connect', 'sync', 'status', 'disconnect', 'night'].includes(args[2]) && !(env ?? process.env).PLATES_ISOCAN) {
+      throw new Error('plates canvas remote verbs require PLATES_ISOCAN set (a fake executable), never live isocan');
     }
   }
-  // keel review records what it read (a receipt) in keel's cache: a test points it at a temp dir, never the developer's.
-  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'review' && !(env ?? process.env).KEEL_CACHE) {
-    throw new Error('keel review writes a read receipt: run it with KEEL_CACHE set (a temp dir), never the real cache');
+  // plates review records what it read (a receipt) in plates's cache: a test points it at a temp dir, never the developer's.
+  if (/(^|[/\\])bin[/\\]plates\.mjs$/.test(String(args[0] ?? '')) && args[1] === 'review' && !(env ?? process.env).PLATES_CACHE) {
+    throw new Error('plates review writes a read receipt: run it with PLATES_CACHE set (a temp dir), never the real cache');
   }
-  if (args.includes('--github') && (/(^|[/\\])reconcile\.mjs$/.test(String(args[0] ?? '')) || args[1] === 'doctor') && !(env ?? process.env).KEEL_GH) {
-    throw new Error('remote reconciliation reads GitHub: run it with KEEL_GH set (a stub gh), never the real gh');
+  if (args.includes('--github') && (/(^|[/\\])reconcile\.mjs$/.test(String(args[0] ?? '')) || args[1] === 'doctor') && !(env ?? process.env).PLATES_GH) {
+    throw new Error('remote reconciliation reads GitHub: run it with PLATES_GH set (a stub gh), never the real gh');
   }
   // loose-ends and retro read the developer's own Claude Code transcripts unless told where else to look.
-  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? '')) && ['loose-ends', 'retro'].includes(args[1]) && !(env ?? process.env).KEEL_CLAUDE_DIR) {
-    throw new Error(`keel ${args[1]} reads transcripts: run it with KEEL_CLAUDE_DIR set (synthetic ones), never ~/.claude`);
+  if (/(^|[/\\])bin[/\\]plates\.mjs$/.test(String(args[0] ?? '')) && ['loose-ends', 'retro'].includes(args[1]) && !(env ?? process.env).PLATES_CLAUDE_DIR) {
+    throw new Error(`plates ${args[1]} reads transcripts: run it with PLATES_CLAUDE_DIR set (synthetic ones), never ~/.claude`);
   }
   const r = spawnSync(cmd, args, { cwd, input, timeout, encoding: 'utf8', env: cleanEnv(env ?? process.env), maxBuffer: 64 * 1024 * 1024 });
   if (r.error) throw r.error;
@@ -49,7 +49,7 @@ export function run(cmd, args = [], { cwd, env, input, timeout } = {}) {
  * same clean env. Resolves { status, stdout, stderr }.
  */
 export function runAsync(cmd, args = [], { cwd, env, timeout = 120_000 } = {}) {
-  if (/(^|[/\\])bin[/\\]keel\.mjs$/.test(String(args[0] ?? ''))) throw new Error('runAsync is for scripts that need the test\'s own server; run keel through run()');
+  if (/(^|[/\\])bin[/\\]plates\.mjs$/.test(String(args[0] ?? ''))) throw new Error('runAsync is for scripts that need the test\'s own server; run plates through run()');
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd, env: cleanEnv(env ?? process.env), stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '', stderr = '';

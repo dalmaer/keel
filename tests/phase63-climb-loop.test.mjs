@@ -19,7 +19,7 @@ async function project(t, phases, jobs = ['loop']) {
       'docs/health/2026-10-01.md': page([['loop_untriaged', 99, '≤ 0', 'outside']]),
     },
   });
-  return { dir, config: JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')), module: await load(dir) };
+  return { dir, config: JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8')), module: await load(dir) };
 }
 
 for (const phases of [{ source: 'milestones' }, { source: 'unsupported' }, { source: null }, null]) {
@@ -27,7 +27,7 @@ for (const phases of [{ source: 'milestones' }, { source: 'unsupported' }, { sou
     const { dir, config, module } = await project(t, phases);
     const before = await treeState(dir);
     // No PR lookup, no local finding scan, no baseline, no candidate gate.
-    const picked = climb(dir, ['pick', '--force', '--json'], { KEEL_GH: '/does-not-exist' });
+    const picked = climb(dir, ['pick', '--force', '--json'], { PLATES_GH: '/does-not-exist' });
     assert.equal(picked.status, 0, picked.stdout + picked.stderr);
     assert.equal(json(picked).job, null);
     assert.match(json(picked).reason, /loop job unavailable.*phases/);
@@ -40,7 +40,7 @@ for (const phases of [{ source: 'milestones' }, { source: 'unsupported' }, { sou
     const base = git(dir, ['rev-parse', 'HEAD']);
     // A raw file edit bypasses loop.mjs propose entirely; guard must still refuse it.
     await commit(dir, { 'docs/loop/acme.md': await findingText({ title: 'Acme finding', loop: ['acme-id'], decision: 'proposed', rank: 'next', phase: 1, since: '2026-10-11', note: 'Acme evidence', body: '# Acme\n\n## Our read\n\nlib/acme.mjs:1 confirms it.' }) }, 'acme: raw proposal');
-    await write(dir, { '.keel/climb/night.json': JSON.stringify({ job: 'loop', base }) });
+    await write(dir, { '.plates/climb/night.json': JSON.stringify({ job: 'loop', base }) });
     const candidate = await treeState(dir);
     for (const args of [['guard', '--base', base, '--job', 'loop', '--json'], ['guard', '--json']]) {
       const guarded = climb(dir, args);
@@ -54,7 +54,7 @@ for (const phases of [{ source: 'milestones' }, { source: 'unsupported' }, { sou
 
 test('stale Loop health rows cannot select unavailable Loop over another climb job', async t => {
   const { dir } = await project(t, { source: 'milestones' }, ['loop', 'test-time']);
-  const picked = climb(dir, ['pick', '--force', '--json'], { KEEL_GH: await stubGh(t, []) });
+  const picked = climb(dir, ['pick', '--force', '--json'], { PLATES_GH: await stubGh(t, []) });
   assert.equal(picked.status, 0, picked.stdout + picked.stderr);
   assert.equal(json(picked).job, 'test-time');
   assert.match(json(picked).unavailable[0].reason, /loop job unavailable/);
@@ -63,7 +63,7 @@ test('stale Loop health rows cannot select unavailable Loop over another climb j
 for (const phases of [undefined, { source: 'files' }]) {
   test(`file source still selects and measures the Loop job: ${JSON.stringify(phases)}`, async t => {
     const { dir } = await project(t, phases);
-    const picked = climb(dir, ['pick', '--force', '--json'], { KEEL_GH: await stubGh(t, []) });
+    const picked = climb(dir, ['pick', '--force', '--json'], { PLATES_GH: await stubGh(t, []) });
     assert.equal(picked.status, 0, picked.stdout + picked.stderr);
     assert.equal(json(picked).job, 'loop');
     const measured = climb(dir, ['measure', 'loop', '--json']);
@@ -74,12 +74,12 @@ for (const phases of [undefined, { source: 'files' }]) {
 
 test('existing climb Loop pull can still collect under milestones without hooks, proof or archive writes', async t => {
   const { dir } = await project(t, { source: 'milestones' });
-  const configPath = join(dir, '.keel/keel.json');
+  const configPath = join(dir, '.plates/plates.json');
   const cfg = JSON.parse(await readFile(configPath, 'utf8'));
   cfg.loop = { prove: true, afterRender: 'touch hook-ran' };
   await writeFile(configPath, JSON.stringify(cfg));
-  await mkdir(join(dir, '.keel/climb'), { recursive: true });
-  await writeFile(join(dir, '.keel/climb/night.json'), JSON.stringify({ job: 'loop', base: git(dir, ['rev-parse', 'HEAD']) }));
+  await mkdir(join(dir, '.plates/climb'), { recursive: true });
+  await writeFile(join(dir, '.plates/climb/night.json'), JSON.stringify({ job: 'loop', base: git(dir, ['rev-parse', 'HEAD']) }));
   const stub = join(dir, 'stitch.mjs');
   await cp(STITCH, stub);
   await chmod(stub, 0o755);
@@ -89,7 +89,7 @@ test('existing climb Loop pull can still collect under milestones without hooks,
   await writeFile(state, JSON.stringify({ insights: [{ id: 'acme-new', title: 'Acme new insight', state: 'ACTIVE', priority: 'P2' }] }));
   await writeFile(log, '');
   const archive = await Promise.all(['docs/phases/01-acme.md', 'docs/LOOP.md'].map(p => readFile(join(dir, p), 'utf8')));
-  const pulled = climb(dir, ['loop-pull', '--json'], { KEEL_STITCH: stub, STITCH_API_KEY: 'fake-acme', STITCH_STUB_STATE: state, STITCH_STUB_LOG: log, ANTHROPIC_API_KEY: 'fake-acme', CLAUDE_BIN: harness });
+  const pulled = climb(dir, ['loop-pull', '--json'], { PLATES_STITCH: stub, STITCH_API_KEY: 'fake-acme', STITCH_STUB_STATE: state, STITCH_STUB_LOG: log, ANTHROPIC_API_KEY: 'fake-acme', CLAUDE_BIN: harness });
   assert.equal(pulled.status, 0, pulled.stdout + pulled.stderr);
   assert.equal(json(pulled).pulled, true);
   assert.ok(json(pulled).untriaged.includes('acme-new-insight'));

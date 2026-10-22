@@ -35,7 +35,7 @@ function clientFixture(fetch,{checked=true,model={view:'tasks',project}}={}) {
 test('render and unapproved count never transmit data; approved quote is a separate request',async()=>{
   const calls=[],f=clientFixture(async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return Response.json(url.endsWith('/prepare')?preparation:quote);},{checked:false});
   assert.equal(calls.length,0);await f.client.prepare({phase:'docs/phases/01-acme.md',paths:[],instructions:'Acme',taskId:null});await f.client.checkCost();assert.equal(calls.length,1);
-  f.controls.checked=true;await f.client.checkCost();assert.equal(calls.length,2);assert.equal(calls[1].body.digest,digest);assert.match(f.host.innerHTML,/Run this stage/);assert.equal(f.document.title,'Review cost and run · Keel');
+  f.controls.checked=true;await f.client.checkCost();assert.equal(calls.length,2);assert.equal(calls[1].body.digest,digest);assert.match(f.host.innerHTML,/Run this stage/);assert.equal(f.document.title,'Review cost and run · Plates');
 });
 test('lost run response keeps original URL before dispatch and cannot duplicate or retain old controls',async()=>{
   let f;const calls=[];f=clientFixture(async(url,options)=>{calls.push({url,body:options.body?JSON.parse(options.body):null});if(url.endsWith('/prepare'))return Response.json(preparation);if(url.endsWith('/quote'))return Response.json(quote);if(url.endsWith('/run')){assert.match(f.history.path,/^\/projects\/studio\/model-tasks\/[a-f0-9]{64}$/);throw Error('Acme lost response');}return Response.json({error:'operation_not_found'},{status:404});});

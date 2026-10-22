@@ -7,15 +7,15 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { collect,spec,prepareIssue,productionCandidates,status } from '../lib/production.mjs';
 import { defaultPlan,validatePlan } from '../lib/night-plan.mjs';
-import { renderBrief } from '../practices/night/files/scripts/keel/morning.mjs';
-import { page } from '../practices/night/files/scripts/keel/improve.mjs';
-import { validateRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
-import { recoverNight,validateEnvelope } from '../practices/night/files/scripts/keel/production-night.mjs';
+import { renderBrief } from '../practices/night/files/scripts/plates/morning.mjs';
+import { page } from '../practices/night/files/scripts/plates/improve.mjs';
+import { validateRobotRubric } from '../practices/climb/files/scripts/plates/robot-rubric.mjs';
+import { recoverNight,validateEnvelope } from '../practices/night/files/scripts/plates/production-night.mjs';
 import { render } from '../lib/practices.mjs';
-import { readState,digest,transaction } from '../practices/night/files/scripts/keel/production-store.mjs';
+import { readState,digest,transaction } from '../practices/night/files/scripts/plates/production-store.mjs';
 const start='2026-10-16T10:00:00.000Z',end='2026-10-16T11:00:00.000Z';
 const config={repo:'Acme/app',production:{version:1,enabled:true,sources:[{id:'acme',provider:'json',service:'acme',environment:'production',input:'events.json',windowMinutes:60,maxEvents:10,maxBytes:10000,timeoutMs:1000,threshold:2}]}};
-async function fixture(t){const root=await mkdtemp(join(tmpdir(),'acme-production-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.keel'));await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));await writeFile(join(root,'events.json'),JSON.stringify({version:1,source:'acme',service:'acme',environment:'production',start,end,coverage:'complete',events:['a','b'].map(id=>({id,timestamp:'2026-10-16T10:30:00Z',message:'TypeError at src/acme.mjs:12:1'}))}));await collect({root,config,start,end,now:new Date(end),yes:true});return root;}
+async function fixture(t){const root=await mkdtemp(join(tmpdir(),'acme-production-'));t.after(()=>rm(root,{recursive:true,force:true}));await mkdir(join(root,'.plates'));await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));await writeFile(join(root,'events.json'),JSON.stringify({version:1,source:'acme',service:'acme',environment:'production',start,end,coverage:'complete',events:['a','b'].map(id=>({id,timestamp:'2026-10-16T10:30:00Z',message:'TypeError at src/acme.mjs:12:1'}))}));await collect({root,config,start,end,now:new Date(end),yes:true});return root;}
 test('deterministic spec keeps reproduction blocker and uses robot rubric; projections show candidates/gaps',async t=>{
  const root=await fixture(t),state=await readState(root),incident=Object.keys(state.incidents)[0];
  const a=await spec({root,config,incident});assert.deepEqual(a,await spec({root,config,incident}));assert.ok(validateRobotRubric(a.rubric).ok);assert.equal(a.rubric.ownerBlockers.length,1);assert.match(a.rubric.reproduction,/baseline/);
@@ -38,43 +38,51 @@ test('issue preparation reuses durable ambiguous-POST recovery without duplicate
  const result=await prepareIssue({root,incident,rubric,yes:true},{github});assert.equal(post,1);assert.equal(result.data.state,'recovered');
  await transaction(root,async state=>{state.incidents[incident].status='regressed';return {};});
  const again=await prepareIssue({root,incident,rubric,yes:true},{github});assert.equal(post,1);assert.equal(again.data.issue.number,7);assert.equal((await readState(root)).incidents[incident].status,'regressed');
+ const originalReferences = structuredClone((await readState(root)).incidents[incident].references);
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify({...config,repo:'Acme/renamed-app'}));
+ remote = {...remote,html_url:'https://github.com/acme/renamed-app/issues/7',url:'https://api.github.com/repos/acme/renamed-app/issues/7'};
+ const renamedGithub = async req => /^\/repos\/acme\/(?:app|renamed-app)$/i.test(req.path) ? {status:200,data:{id:77,full_name:'Acme/renamed-app'}} : github(req);
+ const renamed = await prepareIssue({root,incident,rubric,yes:true},{github:renamedGithub});
+ assert.equal(renamed.data.issue?.number,7,JSON.stringify(renamed));
+ assert.equal(post,1,'rename recovers the original incident remediation instead of creating another');
+ assert.deepEqual((await readState(root)).incidents[incident].references,originalReferences,'original reference bytes remain the identity');
 });
 test('artifact recovery restores newest exact attempt, refuses missing/expired/mismatched state without fallback',async t=>{
  const root=await fixture(t),snapshot=await readState(root),repo='Acme/app';
  const env={GITHUB_REPOSITORY:repo,GITHUB_REF_NAME:'main',BASE:'main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ID:'3',GITHUB_RUN_ATTEMPT:'1'};
- const run={id:2,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:repo},repository:{full_name:repo},path:'.github/workflows/keel-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-17T09:00:00Z'};
+ const run={id:2,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:repo},repository:{full_name:repo},path:'.github/workflows/plates-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-17T09:00:00Z'};
  const envelope={version:1,state:'retained',provenance:{repo,workflow:run.path,runId:'2',attempt:1,headSha:run.head_sha},snapshot,digest:digest(snapshot)};
- const api=async path=>path.includes('/runs?')?{workflow_runs:[run],total_count:1}:path.includes('/contents/')?{encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}:{artifacts:[{name:'keel-production-1',expired:false,size_in_bytes:1000}],total_count:1};
+ const api=async path=>path.includes('/workflows/keel-night.yml/')?Promise.reject(Object.assign(new Error('not found'),{status:404})):path.includes('/runs?')?{workflow_runs:[run],total_count:1}:path.includes('/contents/')?{encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}:{artifacts:[{name:'plates-production-1',expired:false,size_in_bytes:1000}],total_count:1};
  assert.equal((await recoverNight({root,config,env,api,download:async()=>envelope})).state,'restored');
  assert.equal((await recoverNight({root,config,env:{...env,GITHUB_EVENT_NAME:'workflow_run'},readOnly:true,api,download:async()=>envelope})).state,'restored');
  assert.throws(()=>validateEnvelope({...envelope,state:'unavailable'},run,repo),/unavailable/);
  assert.throws(()=>validateEnvelope({...envelope,provenance:{...envelope.provenance,attempt:2}},run,repo),/provenance/);
  await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path.includes('/artifacts?')?{artifacts:[],total_count:0}:api(path),download:async()=>{throw new Error('must not download');}}),/missing/);
- await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path.includes('/artifacts?')?{artifacts:[{name:'keel-production-1',expired:true,size_in_bytes:10}],total_count:1}:api(path),download:async()=>envelope}),/expired/);
+ await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path.includes('/artifacts?')?{artifacts:[{name:'plates-production-1',expired:true,size_in_bytes:10}],total_count:1}:api(path),download:async()=>envelope}),/expired/);
  await assert.rejects(()=>recoverNight({root,config,env,api:async()=>({workflow_runs:[{id:2}],total_count:1})}),/provenance/);
  assert.equal((await recoverNight({root,config,env,api:async()=>({workflow_runs:[],total_count:0})})).state,'bootstrap');
  await assert.rejects(()=>recoverNight({root,config,env,api:async()=>({workflow_runs:[],total_count:101})}),/incomplete/);
 });
 test('CLI status/spec/help and managed night ordering are installed contracts',async t=>{
- const root=await fixture(t),bin=join(process.cwd(),'bin/keel.mjs');
+ const root=await fixture(t),bin=join(process.cwd(),'bin/plates.mjs');
  const statusRun=run(process.execPath,[bin,'production','status','--json'],{cwd:root});assert.equal(statusRun.status,0,statusRun.stderr||statusRun.stdout);const out=JSON.parse(statusRun.stdout);assert.equal(out.state,'observed');
  const help=run(process.execPath,[bin,'--agent-help','production']);assert.equal(help.status,0,help.stderr||help.stdout);assert.match(help.stdout,/equivalentProbe/);
- const workflow=await readFile('practices/night/files/.github/workflows/keel-night.yml','utf8');assert.ok(workflow.indexOf('Collect production evidence')<workflow.indexOf('Plan the night'));assert.match(workflow,/name: keel-production-\$\{\{ github.run_attempt \}\}/);assert.match(workflow,/VERCEL_TOKEN: \$\{\{ steps.config.outputs.production_vercel == 'true' && secrets.VERCEL_API_TOKEN \|\| '' \}\}/);
- const morningWorkflow=await readFile('practices/night/files/.github/workflows/keel-morning.yml','utf8');assert.ok(morningWorkflow.indexOf('production-night.mjs --restore-only') < morningWorkflow.indexOf('name: Send the brief'));
- const manifest=JSON.parse(await readFile('practices/night/practice.json'));for(const name of ['production.mjs','production-store.mjs','production-collectors.mjs','production-night.mjs'])assert.ok(manifest.files.some(f=>f.path==='scripts/keel/'+name));
+ const workflow=await readFile('practices/night/files/.github/workflows/plates-night.yml','utf8');assert.ok(workflow.indexOf('Collect production evidence')<workflow.indexOf('Plan the night'));assert.match(workflow,/name: plates-production-\$\{\{ github.run_attempt \}\}/);assert.match(workflow,/VERCEL_TOKEN: \$\{\{ steps.config.outputs.production_vercel == 'true' && secrets.VERCEL_API_TOKEN \|\| '' \}\}/);
+ const morningWorkflow=await readFile('practices/night/files/.github/workflows/plates-morning.yml','utf8');assert.ok(morningWorkflow.indexOf('production-night.mjs --restore-only') < morningWorkflow.indexOf('name: Send the brief'));
+ const manifest=JSON.parse(await readFile('practices/night/practice.json'));for(const name of ['production.mjs','production-store.mjs','production-collectors.mjs','production-night.mjs'])assert.ok(manifest.files.some(f=>f.path==='scripts/plates/'+name));
 });
 
 test('audited start boundary bootstraps a long history without claiming previous coverage',async t=>{
  const root=await fixture(t),env={GITHUB_REPOSITORY:'Acme/app',GITHUB_REF_NAME:'main',BASE:'main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ID:'500',GITHUB_RUN_ATTEMPT:'1'};
- const prior={id:499,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:'Acme/app'},repository:{full_name:'Acme/app'},path:'.github/workflows/keel-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-16T07:23:00Z'};
- const result=await recoverNight({root,config:{...config,production:{...config.production,since:'2026-10-17T10:00:00.000Z'}},env,api:async()=>({workflow_runs:[prior],total_count:499})});
+ const prior={id:499,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:'Acme/app'},repository:{full_name:'Acme/app'},path:'.github/workflows/plates-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-16T07:23:00Z'};
+ const result=await recoverNight({root,config:{...config,production:{...config.production,since:'2026-10-17T10:00:00.000Z'}},env,api:async path=>path.includes('/workflows/keel-night.yml/')?Promise.reject(Object.assign(new Error('not found'),{status:404})):({workflow_runs:[prior],total_count:499})});
  assert.equal(result.state,'bootstrap');assert.match(result.gap,/earlier coverage unavailable/);
 });
 test('fresh adopted installation runs production status, collect and verify without CLI template imports',async t=>{
  const root=await fixture(t);const installed={...config,name:'Acme',tagline:'Acme synthetic application',practices:['base','agents-md','night','delivery']};
- await writeFile(join(root,'.keel/keel.json'),JSON.stringify(installed));
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify(installed));
  await render(root);
- const installedRun=run(process.execPath,[join(root,'scripts/keel/production.mjs'),'status','--json'],{cwd:root});assert.equal(installedRun.status,0,installedRun.stderr||installedRun.stdout);const result=JSON.parse(installedRun.stdout);assert.equal(result.state,'observed');
+ const installedRun=run(process.execPath,[join(root,'scripts/plates/production.mjs'),'status','--json'],{cwd:root});assert.equal(installedRun.status,0,installedRun.stderr||installedRun.stdout);const result=JSON.parse(installedRun.stdout);assert.equal(result.state,'observed');
  const incident=result.incidents[0].id;
  const preview=await import('../lib/production.mjs');
  const v=await preview.productionRun(['verify','--incident',incident,'--revision','a'.repeat(40),'--yes','--json'],{root});assert.notEqual(v.data.state,'verified');assert.ok(v.data.gaps.includes('recorded-deployment-required'));assert.ok(v.data.gaps.includes('traffic-or-approved-equivalent-probe-required'));
@@ -87,7 +95,7 @@ test('public verification lifecycle records actual delivery probe then resolves 
  execFileSync('git',['-c','user.name=Acme','-c','user.email=acme@example.test','commit','-q','--allow-empty','-m','Acme baseline'],{cwd:root});
  const revision=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
  const configured={...config,name:'Acme',tagline:'Acme synthetic application',practices:['base','agents-md','night','delivery'],delivery:{site,version:'/version',smoke:['/acme-probe']},production:{...config.production,sources:config.production.sources.map(s=>({...s,site,equivalentProbe:'/acme-probe'}))}};
- await writeFile(join(root,'.keel/keel.json'),JSON.stringify(configured));await render(root);
+ await writeFile(join(root,'.plates/plates.json'),JSON.stringify(configured));await render(root);
  const incident=Object.keys((await readState(root)).incidents)[0],{verify}=await import('../lib/production.mjs');
  const requests=[];const fetch=async url=>{
   requests.push({url,at:new Date().toISOString()});
@@ -137,4 +145,52 @@ test('removed or reconfigured sources keep historical incidents but produce no a
  const candidates=await productionCandidates({root,config:changed});assert.ok(candidates.some(c=>c.id==='production-coverage'));assert.ok(!candidates.some(c=>c.title.includes('recurring')));
  const rescoped={...config,production:{...config.production,sources:config.production.sources.map(s=>({...s,service:'acme-other'}))}};
  assert.equal((await status({root,config:rescoped})).incidents[0].activity,'inactive-source');assert.ok(!(await productionCandidates({root,config:rescoped})).some(c=>c.title.includes('recurring')));
+});
+
+// Legacy workflow names are immutable source evidence; migration never rewrites envelopes.
+test('renamed production night restores legacy exact provenance and never bootstraps over unreadable history', async t => {
+ const root=await fixture(t),snapshot=await readState(root),repo='Acme/app';
+ const env={GITHUB_REPOSITORY:repo,GITHUB_REF_NAME:'main',BASE:'main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ID:'3',GITHUB_RUN_ATTEMPT:'1'};
+ const old={id:1,run_attempt:2,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:repo},repository:{full_name:repo},path:'.github/workflows/keel-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-17T09:00:00Z'};
+ const envelope={version:1,state:'retained',provenance:{repo,workflow:old.path,runId:'1',attempt:2,headSha:old.head_sha},snapshot,digest:digest(snapshot)};
+ const before=JSON.stringify(envelope),calls=[],downloads=[];
+ const api=async path=>{
+   calls.push(path);
+   if(path.includes('/workflows/plates-night.yml/'))return {workflow_runs:[],total_count:0};
+   if(path.includes('/workflows/keel-night.yml/'))return {workflow_runs:[old],total_count:1};
+   if(path.includes('/contents/.keel/keel.json?'))return {encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')};
+   if(path.includes('/artifacts?'))return {artifacts:[{name:'keel-production-2',expired:false,size_in_bytes:1000}],total_count:1};
+   throw new Error('unexpected '+path);
+ };
+ const result=await recoverNight({root,config,env,api,download:async(run,name)=>{downloads.push([run.id,name]);return envelope;}});
+ assert.equal(result.state,'restored');assert.deepEqual(downloads,[[1,'keel-production-2']]);assert.equal(JSON.stringify(envelope),before);
+ assert.ok(calls.some(path=>path.includes('/contents/.keel/keel.json?')));
+ assert.throws(()=>validateEnvelope({...envelope,provenance:{...envelope.provenance,workflow:'.github/workflows/plates-night.yml'}},old,repo),/provenance/);
+ await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path.includes('/workflows/keel-night.yml/')?Promise.reject(Object.assign(new Error('forbidden'),{status:403})):api(path)}),/forbidden/);
+ const newer={...old,id:2,path:'.github/workflows/plates-night.yml',run_started_at:'2026-10-18T09:00:00Z'};
+ await assert.rejects(()=>recoverNight({root,config,env,api:async path=>{
+   if(path.includes('/workflows/plates-night.yml/'))return {workflow_runs:[newer],total_count:1};
+   if(path.includes('/contents/.plates/plates.json?'))return {encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')};
+   if(path.includes('/runs/2/artifacts?'))return {artifacts:[],total_count:0};
+   return api(path);
+ },download:async()=>{throw new Error('must not fall back');}}),/missing/);
+});
+
+test('production recovery verifies previous repository names by numeric ID without rewriting envelopes', async t => {
+ const root=await fixture(t),snapshot=await readState(root),repo='Acme/app',oldName='Acme/previous';
+ const env={GITHUB_REPOSITORY:repo,GITHUB_REF_NAME:'main',BASE:'main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ID:'3',GITHUB_RUN_ATTEMPT:'1'};
+ const old={id:1,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{id:7,full_name:oldName},repository:{id:7,full_name:oldName},path:'.github/workflows/keel-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-17T09:00:00Z'};
+ const envelope={version:1,state:'retained',provenance:{repo:oldName,workflow:old.path,runId:'1',attempt:1,headSha:old.head_sha},snapshot,digest:digest(snapshot)},original=JSON.stringify(envelope);
+ const api=async path=>{
+   if(path===`repos/${repo}`||path===`repos/${oldName}`)return {id:7,full_name:repo};
+   if(path.includes('/workflows/plates-night.yml/'))throw Object.assign(new Error('not found'),{status:404});
+   if(path.includes('/workflows/keel-night.yml/'))return {workflow_runs:[old],total_count:1};
+   if(path.includes('/contents/.keel/keel.json?'))return {encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')};
+   return {artifacts:[{name:'keel-production-1',expired:false,size_in_bytes:1000}],total_count:1};
+ };
+ assert.equal((await recoverNight({root,config,env,api,download:async()=>envelope})).state,'restored');assert.equal(JSON.stringify(envelope),original);
+ // The run is still from this repo, but somebody else now owns its old slug.
+ const current={...old,repository:{id:7,full_name:repo},head_repository:{id:7,full_name:repo}};
+ await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path===`repos/${oldName}`?{id:8,full_name:oldName}:path.includes('/workflows/keel-night.yml/')?{workflow_runs:[current],total_count:1}:api(path),download:async()=>envelope}),/repository identity mismatch/);
+ await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path===`repos/${oldName}`?Promise.reject(Object.assign(new Error('forbidden'),{status:403})):api(path),download:async()=>envelope}),/forbidden/);
 });

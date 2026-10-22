@@ -4,7 +4,7 @@ since: 2026-10-16
 goal: G0
 spec: 2
 depends: [62]
-note: "Partial 2026-10-17: keel prove --mutate runs the named test against five mechanical mutations of the fix's changed lines, each in a scratch copy, after a passing baseline, and reports caught/total with each survivor. The owner's read of one real fix's survivors waits."
+note: "Partial 2026-10-17: plates prove --mutate runs the named test against five mechanical mutations of the fix's changed lines, each in a scratch copy, after a passing baseline, and reports caught/total with each survivor. The owner's read of one real fix's survivors waits."
 evidence: ["evidence/2026-10-17-mutation-proofs.md"]
 issue: 169
 ---
@@ -13,14 +13,14 @@ issue: 169
 
 ## Done when
 
-`keel prove --mutate` applies small mechanical mutations to the lines the fix changed and runs the named test against each; every mutation the test does not catch is reported as a survivor, and the proof's trailer records how many were caught.
+`plates prove --mutate` applies small mechanical mutations to the lines the fix changed and runs the named test against each; every mutation the test does not catch is reported as a survivor, and the proof's trailer records how many were caught.
 
 ## Scope
 
 The design is [Verification: tests that tell right from plausibly wrong](../research/2026-10-16-verification.md), phase 84.
 
 - **Mutations** (on the fix's added or changed lines only, in JavaScript and TypeScript): flip a comparison (`<`/`<=`/`>`/`>=`, `===`/`!==`), negate or drop a condition, swap `&&`/`||`, return early, change a numeric constant by one. Each is applied alone, on a scratch copy.
-- **Run**: the named test must first pass on the unmutated fix (the baseline). Then, for each mutation, it runs once and is read the way `keel prove` already reads a run (`readNodeRun`): **caught** only when the selected test itself fails; **survivor** when it passes; **invalid** when the mutant does not parse or import; **inconclusive** when the runner times out or no selected test ran. Invalid and inconclusive mutants are reported separately and never count as caught.
+- **Run**: the named test must first pass on the unmutated fix (the baseline). Then, for each mutation, it runs once and is read the way `plates prove` already reads a run (`readNodeRun`): **caught** only when the selected test itself fails; **survivor** when it passes; **invalid** when the mutant does not parse or import; **inconclusive** when the runner times out or no selected test ran. Invalid and inconclusive mutants are reported separately and never count as caught.
 - **Report**: caught/total, and each survivor as file, line and the mutation, so the conductor can strengthen the test. `--trailer` adds `Mutants: <caught>/<total>` beside `Proven-by`.
 - **Budget**: at most 40 mutants per proof, chosen evenly across the changed lines; a time limit per run.
 
@@ -37,7 +37,7 @@ Not in scope: mutating code outside the fix, or failing a commit for survivors (
 
 ## Your part
 
-- **Ask:** Read the survivors keel prove --mutate reports for one real fix commit.
+- **Ask:** Read the survivors plates prove --mutate reports for one real fix commit.
 - **Why:** It shows whether the check finds real holes in tests or just noise.
 - **Look at:** the prove output in the next fix's PR.
 - **Choices:** Real gaps | Noise
@@ -47,7 +47,7 @@ Not in scope: mutating code outside the fix, or failing a commit for survivors (
 
 ## Real surfaces
 
-- Owner's machine: `keel prove --mutate` in a conductor session.
+- Owner's machine: `plates prove --mutate` in a conductor session.
 
 ## Proof
 
@@ -61,4 +61,4 @@ By hand: one real fix's survivors.
 
 ## Next action
 
-⚑ The owner reads the survivors `keel prove --mutate` reports for the next real fix (the prove output in its PR) and says real gaps or noise; noise narrows the mutation set. A first look, at `012a0af`, is in the evidence.
+⚑ The owner reads the survivors `plates prove --mutate` reports for the next real fix (the prove output in its PR) and says real gaps or noise; noise narrows the mutation set. A first look, at `012a0af`, is in the evidence.

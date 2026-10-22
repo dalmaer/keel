@@ -11,20 +11,20 @@ evidence: ["evidence/2026-10-05-loop-findings-name-a-project.md"]
 
 ## Done when
 
-Rendering isocan's `docs/loop/` with keel's `scripts/loop.mjs` gives
+Rendering isocan's `docs/loop/` with plates's `scripts/loop.mjs` gives
 isocan's own `docs/LOOP.md` with only the generated-by line and wording
-from `.keel/keel.json` `loop` differing, so isocan can take keel's script.
+from `.plates/plates.json` `loop` differing, so isocan can take plates's script.
 
 ## Scope
 
 isocan's `scripts/loop.mjs` files each finding under a project
 (`project: <name>` in front matter, `new project` when none fits) and groups
-"Accepted, by project" with a link to `docs/projects/<name>/`. keel's groups
-by phase. In keel's `practices/loop/files/scripts/loop.mjs`:
+"Accepted, by project" with a link to `docs/projects/<name>/`. plates's groups
+by phase. In plates's `practices/loop/files/scripts/loop.mjs`:
 
 - read `project:` beside `phase:`; `propose --project <name|new>` beside
   `--phase`;
-- in a projects-shaped repo (`.keel/keel.json` `phases.shape: "projects"`),
+- in a projects-shaped repo (`.plates/plates.json` `phases.shape: "projects"`),
   render "Accepted, by project", linking each project's directory;
 - `loadFindings` and `phaseCounts` keep their shape; add `projectCounts` for
   a roadmap that counts by project;
@@ -49,6 +49,6 @@ Nothing.
 
 ## Next action
 
-isocan's PR: set `.keel/keel.json` `loop` to `{intro, hedge: true, prove:
-true}` and retire `scripts/loop.mjs` for keel's (the owner's call). keel now
+isocan's PR: set `.plates/plates.json` `loop` to `{intro, hedge: true, prove:
+true}` and retire `scripts/loop.mjs` for plates's (the owner's call). plates now
 carries isocan's hedge rule and model proving, both opt-in.

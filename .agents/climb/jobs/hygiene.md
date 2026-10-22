@@ -2,9 +2,9 @@
 
 **The number:** the flaky tests the test ledger names: a test that both
 passed and failed on one clean tree, among the newest runs in
-`.keel/test-runs` (the workflow gathers CI's `keel-test-runs` artifacts
+`.plates/test-runs` (the workflow gathers CI's `plates-test-runs` artifacts
 first). Lower is better. `climb.mjs measure hygiene --baseline` has written
-them into `.keel/climb/night.json` (`flaky`), each with the command that
+them into `.plates/climb/night.json` (`flaky`), each with the command that
 runs it alone. A flaky test is a red waiting to happen, so this job goes
 before any other when the health page's `flaky_tests` is outside.
 
@@ -18,7 +18,7 @@ it (lesson 39). A test that fails on a counter is a better fixture than a
 sleep.
 
 **How a fix is judged:** commit it alone, then run
-`node scripts/keel/climb.mjs prove-steady --test "<file>: <name>" --decide --json`.
+`node scripts/plates/climb.mjs prove-steady --test "<file>: <name>" --decide --json`.
 It runs that one test 20 times (`--runs n`, up to 50) on one clean worktree
 of your commit, through the test ledger, and keeps the fix only with every
 run passed and none failed; otherwise it resets to the base. A name that

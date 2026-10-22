@@ -17,14 +17,14 @@ A fresh-agent walk, the same as phase 3's (npx only, an empty npm cache), conduc
 
 The 11 friction points, each fixed where it lives:
 
-1. **How to run keel.** The doorway skill and init's output give a way that
-   needs no global install: `npx -y github:dalmaer/keel <verb>`, now that
-   keel is public. `--agent-help` names it too.
+1. **How to run plates.** The doorway skill and init's output give a way that
+   needs no global install: `npx -y github:dalmaer/plates <verb>`, now that
+   plates is public. `--agent-help` names it too.
 2. **No remote.** The conduct skill says: with no `git remote`, skip pull,
    push and CI, and the walk ends at the local commit.
 3. **No design doc or README.** The conduct skill treats both as "if the
    project has one". init seeds a short README with a "How to run it"
-   section, outside keel's blocks.
+   section, outside plates's blocks.
 4. **Evidence folder.** init creates `docs/evidence/` (with a README naming
    the template).
 5. **The drafted phase 0.** It says its Done when edit is its own commit,
@@ -55,7 +55,7 @@ was, with its report in the evidence.
 
 ## Deliberately open
 
-- **Whether `npx github:dalmaer/keel` is fast enough as the everyday way in**,
+- **Whether `npx github:dalmaer/plates` is fast enough as the everyday way in**,
   or only as the fallback. About 5 s on first use, then about 2 s.
 - **From walk 4, recorded rather than fixed:**
   - the conduct skill has the "check stays green" box ticked in the record,

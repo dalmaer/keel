@@ -6,7 +6,7 @@ and starts it again. Two expensive runs, and if the older one finishes last it
 deploys over the newer. Or the deploy follows `main` itself, so a commit
 reaches production before its tests have passed.
 
-Keel's answer, after isocan's `release-order.sh` and its `green` ref, is three
+Plates's answer, after isocan's `release-order.sh` and its `green` ref, is three
 rules (the design is
 [docs/research/2026-10-16-delivery.md](../research/2026-10-16-delivery.md)):
 
@@ -20,14 +20,14 @@ rules (the design is
 ## Turning it on
 
 ```bash
-keel adopt --with delivery
+plates adopt --with delivery
 ```
 
-This installs `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
-`scripts/keel/delivery.mjs`, `scripts/keel/verify.mjs` and
-`scripts/keel/promote.mjs` (it needs the
+This installs `.github/workflows/plates-publish.yml`, `scripts/plates/publish.mjs`,
+`scripts/plates/delivery.mjs`, `scripts/plates/verify.mjs` and
+`scripts/plates/promote.mjs` (it needs the
 `night` practice, whose CI reader and morning brief it uses). In
-`.keel/keel.json`, all optional:
+`.plates/plates.json`, all optional:
 
 ```json
 "delivery": { "tested": "green", "gateWorkflow": "check.yml" }
@@ -41,11 +41,11 @@ This installs `.github/workflows/keel-publish.yml`, `scripts/keel/publish.mjs`,
   the check). Render writes its name into the publisher's trigger.
 
 A bad value is an error naming its key, from the publisher (exit 2) and from
-`keel doctor` (`delivery-config`).
+`plates doctor` (`delivery-config`).
 
 ## What the publisher does
 
-`keel-publish.yml` starts when the gate workflow finishes on `main` after a
+`plates-publish.yml` starts when the gate workflow finishes on `main` after a
 push, or by hand from `main` (a workflow dispatch). Its runs share one
 concurrency group, `publish`, never cancelled. GitHub keeps only one *pending*
 run per group, so a late trigger can replace a newer one: commits A, B and C
@@ -70,14 +70,14 @@ In the A, B, C case the surviving run, started by B, publishes C.
 By hand, in a checkout with `gh` signed in:
 
 ```bash
-node scripts/keel/publish.mjs --json          # choose and move
-node scripts/keel/publish.mjs --plan --json   # choose only; moves nothing
+node scripts/plates/publish.mjs --json          # choose and move
+node scripts/plates/publish.mjs --plan --json   # choose only; moves nothing
 ```
 
 The workflow runs these as two jobs. `choose` reads (`contents: read`,
-`actions: read`) and runs `node scripts/keel/publish.mjs --plan --trigger
+`actions: read`) and runs `node scripts/plates/publish.mjs --plan --trigger
 <sha>`; the trigger is recorded, never used. `advance`, the only job with
-`contents: write`, calls no API and runs `node scripts/keel/publish.mjs
+`contents: write`, calls no API and runs `node scripts/plates/publish.mjs
 --advance --from <sha|none> --to <sha>`, which re-checks that the commit is
 on `main` and descends from the tested ref, and that the ref has not moved,
 before it pushes. Exit codes: 0 moved, created or nothing to do; 1 refused;
@@ -85,7 +85,7 @@ before it pushes. Exit codes: 0 moved, created or nothing to do; 1 refused;
 
 ## Making a deploy follow the tested ref
 
-Keel does not deploy; each project keeps its own mechanism. It only has to
+Plates does not deploy; each project keeps its own mechanism. It only has to
 start from the tested ref instead of `main`:
 
 - **A deploy service outside GitHub Actions, watching a branch** (isocan's
@@ -101,7 +101,7 @@ start from the tested ref instead of `main`:
   ```yaml
   on:
     workflow_run:
-      workflows: [keel-publish]
+      workflows: [plates-publish]
       types: [completed]
   ```
 
@@ -117,10 +117,10 @@ in a row deploy once, the newer.
 ## Checking production by the commit it serves
 
 A deploy command's exit code says the command finished, not that production
-serves the change. After a deploy, keel asks production which commit it serves
+serves the change. After a deploy, plates asks production which commit it serves
 and waits until that is the deployed commit or a descendant, then runs the
 project's smoke checks (after ledger's `verify-production.mjs`). In
-`.keel/keel.json`:
+`.plates/plates.json`:
 
 ```json
 "delivery": {
@@ -132,7 +132,7 @@ project's smoke checks (after ledger's `verify-production.mjs`). In
 
 - `site`: the production origin; https (http only on localhost or 127.0.0.1).
   `--site <origin>` overrides it, for a preview.
-- `version`: the path that reports the serving commit. keel accepts, from an
+- `version`: the path that reports the serving commit. plates accepts, from an
   HTTP 2xx answer of at most 64 KiB: a JSON object with a `sha` or a `commit`
   field (both: they must agree), a JSON string, or plain text that is the hash
   alone. The hash is a full one (40 hex, or 64 for SHA-256), any case. A
@@ -142,11 +142,11 @@ project's smoke checks (after ledger's `verify-production.mjs`). In
   checked as a `307`. Smoke checks are status codes, not end-to-end journeys.
 
 `site` is required with `version` or `smoke`. A bad value is an error naming
-its key, from the verifier (exit 2) and from `keel doctor` (`delivery-config`).
+its key, from the verifier (exit 2) and from `plates doctor` (`delivery-config`).
 
 ```bash
-node scripts/keel/verify.mjs <sha> [--within 600] [--every 10] [--record] [--json]
-node scripts/keel/verify.mjs live <sha> [--json]
+node scripts/plates/verify.mjs <sha> [--within 600] [--every 10] [--record] [--json]
+node scripts/plates/verify.mjs live <sha> [--json]
 ```
 
 - **verify** reads the version path every `--every` seconds until production
@@ -166,11 +166,11 @@ node scripts/keel/verify.mjs live <sha> [--json]
     env:
       SHA: ${{ steps.tested.outputs.sha }}
     run: |
-      if node scripts/keel/verify.mjs live "$SHA"; then echo "already live"; else ./deploy.sh; fi
+      if node scripts/plates/verify.mjs live "$SHA"; then echo "already live"; else ./deploy.sh; fi
   - name: Verify production
     env:
       SHA: ${{ steps.tested.outputs.sha }}
-    run: node scripts/keel/verify.mjs "$SHA" --record
+    run: node scripts/plates/verify.mjs "$SHA" --record
   ```
 
   The job that records needs `contents: write` (it pushes one data branch) and
@@ -181,7 +181,7 @@ node scripts/keel/verify.mjs live <sha> [--json]
 commit, the outcome, the time, the site, what production served, each failure
 and the Actions run), with a lease; a file there that is not a verify record
 is never replaced, nor is a `keel-verify` branch with no `verify.json`; every other file on the branch is kept. With the delivery practice on, the night's morning brief
-and `keel board` read it:
+and `plates board` read it:
 
 - **The board**: when the latest verify failed, an owner's item, "production
   failed its verify for `<sha>`", with each failure and the run. A later pass
@@ -199,8 +199,8 @@ A project may add its own channel (ledger's Telegram alert) beside these.
 ## Promoting production
 
 Where a project promotes by hand (isocan moves a `prod` tag, and its deploy
-follows the tag), `keel promote` is that gesture with a guard on it. Name the
-ref in `.keel/keel.json`:
+follows the tag), `plates promote` is that gesture with a guard on it. Name the
+ref in `.plates/plates.json`:
 
 ```json
 "delivery": { "promote": "tag:prod", "site": "https://anvils.acme.example", "version": "/api/version" }
@@ -211,9 +211,9 @@ the tested ref), or `"none"`; a project without one has no promote. It needs
 `site` and `version`, because every promotion ends in a verify.
 
 ```bash
-keel promote                    # preview: the tested ref's tip; nothing moves (exit 3)
-keel promote <commit> --yes     # move production there, then verify it
-keel promote --back <commit>    # preview a rollback; --yes to do it
+plates promote                    # preview: the tested ref's tip; nothing moves (exit 3)
+plates promote <commit> --yes     # move production there, then verify it
+plates promote --back <commit>    # preview a rollback; --yes to do it
 ```
 
 **The guard**, before anything moves. Each refusal names why and exits 1:
@@ -223,7 +223,7 @@ keel promote --back <commit>    # preview a rollback; --yes to do it
   or one off `main`, is refused;
 - its gate passed: phase 79's result, the same one the night reuses. That
   is CI's exact, clean, successful run of the gate workflow on that commit
-  (`delivery.gateWorkflow`, else `ci.gateWorkflow`), with `keel-test-runs`
+  (`delivery.gateWorkflow`, else `ci.gateWorkflow`), with `plates-test-runs`
   records showing the gate's command passing with tests. The 24-hour reuse
   window does not apply here: a commit tested last week is still tested;
 - forward never moves production to an ancestor of what it serves now (that
@@ -236,7 +236,7 @@ value it read, so a ref someone moved meanwhile is refused, not overwritten.
 
 **After moving** it runs `verify.mjs`: production must report the commit or a
 descendant within `--within` seconds (default 600), then pass its smoke
-checks. A failure says what production served and suggests `keel promote
+checks. A failure says what production served and suggests `plates promote
 --back <what production was>` when that command can do it. After a sideways
 move (production was off the tested line) it cannot, so it names the `git
 push` that restores the previous ref by hand instead. It never moves
@@ -250,15 +250,15 @@ production reports exactly the commit it went back to (`verify.mjs
 --exact`), within the same bounded wait.
 
 **Who.** It runs on the owner's machine with their git credentials. It
-refuses to run in GitHub Actions, and no workflow keel installs runs it
+refuses to run in GitHub Actions, and no workflow plates installs runs it
 (`tests/workflows.test.mjs`). Deciding when to promote is still a person's
-call. isocan's "not while somebody is presenting" is one keel does not
-encode. Anyone who can push the tag can still move it by hand: keel guards
+call. isocan's "not while somebody is presenting" is one plates does not
+encode. Anyone who can push the tag can still move it by hand: plates guards
 its own command, not the ref.
 
 ## The concurrency rule
 
-With delivery on, `keel doctor` reads every workflow in `.github/workflows`
+With delivery on, `plates doctor` reads every workflow in `.github/workflows`
 and reports `workflow-concurrency` when:
 
 - a **test or gate workflow** (the gate workflow, or one named test, check,
@@ -268,13 +268,13 @@ and reports `workflow-concurrency` when:
   has no concurrency group, a group per ref, commit or run (`github.run_id`,
   `github.run_number`, `github.run_attempt`), or `cancel-in-progress` other than `false`: a
   deploy can be cancelled midway, or two can run at once. A group expression
-  keel cannot establish is fixed (one reading `inputs.environment`, say) is
+  plates cannot establish is fixed (one reading `inputs.environment`, say) is
   named, never passed; a literal, `github.workflow`, `github.repository` and
   `vars.*` are fixed, and so is `${{ <condition> && '<name>' || <a per-run
   skip group> }}` when every job the group covers runs on that condition
   alone: its `if:` is the condition, or it needs a job whose `if:` is (and
   has no `always()`, `failure()` or `cancelled()`), so a run in the fallback
-  group publishes nothing (keel-publish.yml's form: its choose job's `if:`
+  group publishes nothing (plates-publish.yml's form: its choose job's `if:`
   is the group's condition, and advance needs choose). On an unconditional
   job, `${{ github.run_attempt == 1 && 'deploy' || … }}` is named: a retry
   would deploy in a group of its own.
@@ -291,11 +291,11 @@ publishes (isocan's `release.yml`) is held as a publisher.
 Before a change reaches `main` at all, two sessions can each run the full gate
 on their own change and push. Phase 83 makes that one run:
 
-- A session finishes with `keel ready`: it runs only the fast checks
+- A session finishes with `plates ready`: it runs only the fast checks
   (`"delivery": {"fast": ["node --test tests/x.test.mjs"]}` and each
   `--check "<cmd>"`), pushes its branch and records `ready/<branch>`. It
   refuses to run the full gate.
-- `keel integrate` takes the lock `claims/integrate` (the phase claim's
+- `plates integrate` takes the lock `claims/integrate` (the phase claim's
   create-only push; a second integrator exits 1 and leaves the work to the
   first), merges every ready change onto `main` in a temporary worktree, runs
   the full gate (`check`, default `npm run check`) once and pushes once.
@@ -305,18 +305,18 @@ on their own change and push. Phase 83 makes that one run:
   sent back as conflicting with it). The tree it pushes is always one the
   gate passed.
 - A change sent back keeps its `ready/` ref, marked blocked with the reason,
-  until its session fixes it and runs `keel ready` again.
+  until its session fixes it and runs `plates ready` again.
 
-`keel --agent-help improve` ("Ready and integrate") has the JSON.
+`plates --agent-help improve` ("Ready and integrate") has the JSON.
 
 ## What it does not do
 
-- The publisher does not merge, and never writes `main`; `keel integrate`
+- The publisher does not merge, and never writes `main`; `plates integrate`
   does, and only with a tree its gate passed. The verifier writes only the
-  `keel-verify` data branch, and only with `--record`. `keel promote` writes
+  `keel-verify` data branch, and only with `--record`. `plates promote` writes
   only the production ref, and only with `--yes`.
-- It does not promote on its own. No workflow runs `keel promote`.
+- It does not promote on its own. No workflow runs `plates promote`.
 - The publisher does not batch untested commits into one test run; "newest
-  passing wins" is its batching. `keel integrate` batches ready changes
+  passing wins" is its batching. `plates integrate` batches ready changes
   before `main` (above).
-- A merge queue is an alternative a project may add; keel does not require it.
+- A merge queue is an alternative a project may add; plates does not require it.

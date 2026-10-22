@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
-import { reconcile, checkImpact, verifyProposal } from '../practices/reconciliation/files/scripts/keel/reconcile.mjs';
-const engine = resolve('practices/reconciliation/files/scripts/keel/reconcile.mjs');
+import { reconcile, checkImpact, verifyProposal } from '../practices/reconciliation/files/scripts/plates/reconcile.mjs';
+const engine = resolve('practices/reconciliation/files/scripts/plates/reconcile.mjs');
 const phasePath = 'docs/phases/01-store.md';
 const key = 'acme/app#12';
 const sha = 'a'.repeat(40);
@@ -42,7 +42,7 @@ test('checked next, none with unresolved boxes, duplicate/missing IDs fail', asy
   assert.ok(rules(await reconcile({ root })).includes('acceptance-id'));
 });
 test('legacy inline action after trajectory and bare PR resolve through config; historical prose stays excluded', async t => {
-  const root = await fixture(t, { '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }), [phasePath]: '# Acme\n**Next action.** Review implementation in PR 12.\n\n## Trajectory\nOld draft PR 12.\n\n**Next action.** Review the draft PR.\n', 'docs/evidence/old.md': 'Draft PR 12 failed old budget.' });
+  const root = await fixture(t, { '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }), [phasePath]: '# Acme\n**Next action.** Review implementation in PR 12.\n\n## Trajectory\nOld draft PR 12.\n\n**Next action.** Review the draft PR.\n', 'docs/evidence/old.md': 'Draft PR 12 failed old budget.' });
   const out = await reconcile({ root, github: true, prFacts: facts });
   const notes = out.notes.filter(n => n.rule === 'pr-state-contradiction');
   assert.equal(notes.length, 2);
@@ -194,6 +194,59 @@ test('actual git diff and CLI event validate coverage; JSON exits 0/1/2', async 
   }
 });
 
+test('actual Git record renames require the new declaration and never excuse unrelated deletion or fixture paths', async t => {
+  const next = 'docs/phases/01-acme-store.md', removed = 'docs/phases/02-unrelated.md';
+  const original = phase(), unrelated = '# Separate Acme phase\n' + 'Unrelated acceptance and ownership.\n'.repeat(40);
+  const root = await fixture(t, { [phasePath]: original, [removed]: unrelated });
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q'); git('add', '.'); git('commit', '-qm', 'Acme original records');
+  const base = git('rev-parse', 'HEAD');
+  git('mv', phasePath, next); git('commit', '-qm', 'Acme moves record');
+  let head = git('rev-parse', 'HEAD');
+  assert.match(git('diff', '--name-status', '--find-renames=50%', `${base}...${head}`), /^R100\t/);
+  const body = fence('keel-impact', { reconciliation: 'updated', phases: [next] });
+  const accepted = await checkImpact({ root, base, head, body });
+  assert.deepEqual([accepted.findings, accepted.unknown], [[], []]);
+  const omitted = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme rename' }) });
+  assert.ok(omitted.findings.some(f => f.path === next && f.message.includes('omitted')));
+  const oldOnly = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'updated', phases: [phasePath] }) });
+  assert.ok(oldOnly.findings.some(f => f.path === next && f.message.includes('omitted')));
+  const supplied = await checkImpact({ root, base, head, body, changedFiles: [phasePath, next] });
+  assert.ok(supplied.findings.some(f => f.path === phasePath && f.message.includes('omitted')), 'caller paths cannot establish a rename');
+  assert.equal(git('show', `${base}:${phasePath}`), original.trim());
+  await rm(join(root, removed)); git('add', '.'); git('commit', '-qm', 'Acme deletes unrelated record');
+  head = git('rev-parse', 'HEAD');
+  const deleted = await checkImpact({ root, base, head, body });
+  assert.ok(deleted.findings.some(f => f.path === removed && f.message.includes('omitted')));
+  const declaredDeletion = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'updated', phases: [next, removed] }) });
+  assert.ok(declaredDeletion.findings.some(f => f.path === removed && f.message.includes('ENOENT')));
+  git('mv', next, 'notes.md'); git('commit', '-qm', 'Acme moves phase outside record surface');
+  const outside = await checkImpact({ root, base, head: git('rev-parse', 'HEAD'), body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme moves notes' }) });
+  assert.ok(outside.findings.some(f => f.path === phasePath && f.message.includes('omitted')), 'a rename outside the record surface cannot hide deletion');
+});
+
+test('renamed research reads old decision fences at the merge base and preserves their impact obligations', async t => {
+  const old = 'docs/research/acme-choice.md', next = 'docs/research/acme-storage-choice.md';
+  const prose = '# Acme investigation\n' + Array.from({ length: 80 }, (_, i) => `Acme observation ${i}: the storage constraint remains.\n`).join('');
+  const original = prose + decision('store');
+  const root = await fixture(t, { [old]: original });
+  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('init', '-q'); git('add', '.'); git('commit', '-qm', 'Acme original choice');
+  const base = git('rev-parse', 'HEAD');
+  git('mv', old, next); git('commit', '-qm', 'Acme moves choice');
+  const body = fence('keel-impact', { reconciliation: 'updated', decisions: [`${next}#store`] });
+  const accepted = await checkImpact({ root, base, head: git('rev-parse', 'HEAD'), body });
+  assert.deepEqual([accepted.findings, accepted.unknown], [[], []]);
+  await put(root, next, prose); git('add', '.'); git('commit', '-qm', 'Acme removes moved choice');
+  const head = git('rev-parse', 'HEAD');
+  assert.match(git('diff', '--name-status', '--find-renames=50%', `${base}...${head}`), /^R\d+\t/, 'the real diff still identifies the move after the fence is deleted');
+  const omitted = await checkImpact({ root, base, head, body: fence('keel-impact', { reconciliation: 'none', reason: 'Acme research rename' }) });
+  assert.ok(omitted.findings.some(f => f.path === `${next}#store` && f.message.includes('anchored decision')));
+  const erased = await checkImpact({ root, base, head, body });
+  assert.ok(erased.findings.some(f => f.path === `${next}#store` && f.message.includes('missing anchor')));
+  assert.equal(git('show', `${base}:${old}`), original.trim(), 'the original decision provenance is unchanged');
+});
+
 test('impact covers actual anchored research/design decisions, not illustrative fences', async t => {
   const root = await fixture(t, { 'docs/research/store.md': decision('store'), 'docs/design.md': decision('design'), [phasePath]: phase() });
   const declaration = { reconciliation: 'updated', phases: [phasePath] };
@@ -217,10 +270,10 @@ test('GitHub boundary uses read-only execFile arguments and reports invalid or u
   const root = await fixture(t, { [phasePath]: phase(), 'gh': `#!/usr/bin/env node\nif (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['api', 'repos/acme/app/pulls/12'])) process.exit(9);\nconsole.log(JSON.stringify(${JSON.stringify(merged)}));\n` });
   const { chmod } = await import('node:fs/promises');
   await chmod(join(root, 'gh'), 0o755);
-  const out = await reconcile({ root, github: true, env: { ...process.env, KEEL_GH: join(root, 'gh') } });
+  const out = await reconcile({ root, github: true, env: { ...process.env, PLATES_GH: join(root, 'gh') } });
   assert.equal(out.unknown.length, 0);
   assert.deepEqual(rules(out), ['pr-state-contradiction']);
-  const fail = await reconcile({ root, github: true, env: { ...process.env, KEEL_GH: join(root, 'absent-gh') } });
+  const fail = await reconcile({ root, github: true, env: { ...process.env, PLATES_GH: join(root, 'absent-gh') } });
   assert.equal(fail.snapshot.remote, 'incomplete');
   assert.equal(fail.unknown[0].rule, 'github-unavailable');
 });
@@ -305,7 +358,7 @@ test('ordinary research deletion allows none with reason; whole decision deletio
 
 test('numbered lessons are not PRs and qualified external PRs are never requalified', async t => {
   const root = await fixture(t, {
-    '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }),
+    '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }),
     [phasePath]: '# Acme\nLessons #16, #17, #18, #19, #23, #46 and #48 guide this work.\nReview draft acme/external#38.\nReview draft acme/PR#39.\nReview draft https://github.com/acme/external/pull/40.\nReview PR 12.\nReview PR#13.\nReview PR14.',
   });
   const prFacts = { ...facts };
@@ -324,7 +377,7 @@ test('numbered lessons are not PRs and qualified external PRs are never requalif
 test('linked PR identity owns its label without hiding standalone or unavailable PRs', async t => {
   const linked = '[Acme PR #105](https://github.com/acme/external/pull/105)';
   const root = await fixture(t, {
-    '.keel/keel.json': JSON.stringify({ repo: 'acme/app' }),
+    '.plates/plates.json': JSON.stringify({ repo: 'acme/app' }),
     [phasePath]: `# Acme\n## Next action\nReview the draft PR ${linked}.\n\nReview the draft PR.\n\n~~~md\nReview [Acme PR #106](https://github.com/acme/example/pull/106).\n~~~\n## History\nReview [Acme PR #107](https://github.com/acme/archive/pull/107).`,
   });
   const external = 'acme/external#105';
@@ -364,7 +417,7 @@ test('generic open PR product specification is not unresolved work; explicit ope
 
 
 test('qualified PR links with optional Markdown titles never invent a local PR', async t => {
-  const root = await fixture(t, {'.keel/keel.json': JSON.stringify({repo:'acme/app'})});
+  const root = await fixture(t, {'.plates/plates.json': JSON.stringify({repo:'acme/app'})});
   for (const title of ['"Acme PR #999"', "'Acme title'", '(Acme title)']) {
     await put(root, phasePath, `# Acme\n## Next action\nReview draft PR [Acme PR #105](https://github.com/acme/external/pull/105 ${title}).\nReview PR #106.`);
     const out = await reconcile({root,github:true,prFacts:{'acme/app#106':merged}});

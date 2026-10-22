@@ -5,9 +5,9 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { readCiUsage, readCiGate, ciOptions } from '../practices/night/files/scripts/keel/ci.mjs';
-import { gateWorkflowOf } from '../practices/night/files/scripts/keel/lib.mjs';
-import { MEASURES, measure } from '../practices/night/files/scripts/keel/improve.mjs';
+import { readCiUsage, readCiGate, ciOptions } from '../practices/night/files/scripts/plates/ci.mjs';
+import { gateWorkflowOf } from '../practices/night/files/scripts/plates/lib.mjs';
+import { MEASURES, measure } from '../practices/night/files/scripts/plates/improve.mjs';
 import { ghStub, scratch, ENV } from './helpers/improve.mjs';
 const repo = 'acme/anvils', sha = 'a'.repeat(40), now = Date.parse('2026-10-10T12:00:00Z');
 const stamp = minutes => new Date(now - minutes * 60000).toISOString();
@@ -21,26 +21,26 @@ const baseApi = (runs = [run(1)], jobs = [job(101)]) => ({
   [`repos/${repo}/actions/workflows/check.yml/runs`]: page('workflow_runs', runs),
   [`repos/${repo}/actions/runs/1/attempts/1/jobs`]: page('jobs', jobs),
 });
-const read = async (t, api, opts = {}) => readCiUsage({ repo, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, ...opts });
+const read = async (t, api, opts = {}) => readCiUsage({ repo, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) }, ...opts });
 
 test('CI reader pages runs and attempt jobs, rounds each runtime, includes old reruns and deduplicates jobs', async t => {
   const api = baseApi();
   delete api[`repos/${repo}/actions/runs`];
   api[`repos/${repo}/actions/runs?per_page=2&page=1`] = page('workflow_runs', [run(1), run(2, { run_attempt: 2, created_at: '2020-01-01T00:00:00Z' })], 3);
-  api[`repos/${repo}/actions/runs?per_page=2&page=2`] = page('workflow_runs', [run(3, { path: '.github/workflows/keel-night.yml' })], 3);
+  api[`repos/${repo}/actions/runs?per_page=2&page=2`] = page('workflow_runs', [run(3, { path: '.github/workflows/plates-night.yml' })], 3);
   delete api[`repos/${repo}/actions/runs/1/attempts/1/jobs`];
   api[`repos/${repo}/actions/runs/1/attempts/1/jobs?per_page=2&page=1`] = page('jobs', [job(101, 1, { started_at: stamp(2.1), conclusion: 'failure' }), job(102, 1, { labels: ['windows-latest'], started_at: stamp(3.1), conclusion: 'cancelled' })], 3);
   api[`repos/${repo}/actions/runs/1/attempts/1/jobs?per_page=2&page=2`] = page('jobs', [job(103, 1, { labels: ['macos-latest'] }), job(101)], 3);
   api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [job(201, 2, { started_at: '2020-01-01T00:00:00Z', completed_at: '2020-01-01T00:01:00Z' })]);
   api[`repos/${repo}/actions/runs/2/attempts/2/jobs`] = page('jobs', [job(202, 2, { run_attempt: 2 })]);
   api[`repos/${repo}/actions/runs/3/attempts/1/jobs`] = page('jobs', [job(301, 3)]);
-  const result = await read(t, api, { limits: { perPage: 2 }, ownedWorkflows: ['.github/workflows/keel-night.yml'] });
+  const result = await read(t, api, { limits: { perPage: 2 }, ownedWorkflows: ['.github/workflows/plates-night.yml'] });
   assert.equal(result.weightedMinutes, 17); // 1 + (2*2) + 10 + 1 + 1
   assert.equal(result.coverage.complete, true);
   assert.equal(result.coverage.runPages, 2);
   assert.equal(result.coverage.jobPages, 5);
   assert.equal(result.coverage.excludedJobs, 1);
-  assert.equal(result.workflows.find(w => w.keel).weightedMinutes, 1);
+  assert.equal(result.workflows.find(w => w.plates).weightedMinutes, 1);
   assert.equal(result.workflows[0].jobs[0].runner.billing, 'public-standard-free');
   assert.ok(result.workflows[0].jobs.some(j => j.conclusion === 'cancelled' && j.weightedMinutes === 4));
 });
@@ -91,7 +91,7 @@ function gateApi(row = run(1), jobs = [job(101)]) {
   return { ...baseApi(), [`repos/${repo}/actions/workflows`]: page('workflows', [{ id: 7, name: 'Acme check', path: '.github/workflows/check.yml' }]), [`repos/${repo}/actions/workflows/7/runs`]: page('workflow_runs', [row]), [`repos/${repo}/actions/runs/1/attempts/1/jobs`]: page('jobs', jobs) };
 }
 test('CI reuse requires exact clean main-push revision and actual recent job completion', async t => {
-  const invoke = async (api, extra = {}) => readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, ...extra });
+  const invoke = async (api, extra = {}) => readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) }, ...extra });
   const oldCreated = await invoke(gateApi(run(1, { created_at: '2020-01-01T00:00:00Z' })));
   assert.equal(oldCreated.reused, true);
   assert.equal(oldCreated.ms, null);
@@ -107,8 +107,8 @@ test('CI reuse requires exact clean main-push revision and actual recent job com
   assert.equal((await invoke({})).reused, false);
 });
 
-test('CI reuse needs evidence that tests ran: a run whose test jobs were all skipped falls back to the local gate (keel#93)', async t => {
-  const invoke = async api => readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) } });
+test('CI reuse needs evidence that tests ran: a run whose test jobs were all skipped falls back to the local gate (plates#93)', async t => {
+  const invoke = async api => readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) } });
   const lint = job(101, 1, { name: 'lint', steps: [{ name: 'Set up', conclusion: 'success' }, { name: 'Lint', conclusion: 'success' }] });
   const skippedTests = job(102, 1, { name: 'test', conclusion: 'skipped', started_at: stamp(2), completed_at: stamp(2) });
   for (const conclusion of ['success', 'failure']) {
@@ -143,9 +143,9 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   const wholeTestJob = await invoke(gateApi(run(1), [job(102, 1, { name: 'test', steps: [{ name: 'Check out', conclusion: 'success' }, { name: 'npm run check', conclusion: 'success' }] })]));
   assert.deepEqual([wholeTestJob.reused, wholeTestJob.testEvidence], [true, { kind: 'job', job: 'test' }], 'a test job whose every step ran');
   // #95, #96: the ledger's artifact is not evidence until its contents are read: the gate's own timing record is
-  // uploaded even when no tests ran (keel's own check: job "check", step "Run the configured gate").
+  // uploaded even when no tests ran (plates's own check: job "check", step "Run the configured gate").
   const check = job(101, 1, { name: 'check', steps: [{ name: 'Run the configured gate', conclusion: 'success' }] });
-  const kept = (extra = {}) => { const api = gateApi(run(1), [check]); api[`repos/${repo}/actions/runs/1/artifacts`] = page('artifacts', [{ id: 9, name: 'keel-test-runs', size_in_bytes: 4096, created_at: stamp(2.5), workflow_run: { id: 1, head_sha: sha }, ...extra }]); return api; };
+  const kept = (extra = {}) => { const api = gateApi(run(1), [check]); api[`repos/${repo}/actions/runs/1/artifacts`] = page('artifacts', [{ id: 9, name: 'plates-test-runs', size_in_bytes: 4096, created_at: stamp(2.5), workflow_run: { id: 1, head_sha: sha }, ...extra }]); return api; };
   const ledger = await invoke(kept());
   assert.equal(ledger.reused, false, 'a fresh ledger artifact alone is not evidence that tests ran');
   assert.match(ledger.reason, /no test job or test-ledger run executed/);
@@ -158,9 +158,9 @@ test('CI reuse needs evidence that tests ran: a run whose test jobs were all ski
   const commit = git('rev-parse', 'HEAD');
   const config = { repo, ci: { gateWorkflow: 'check.yml' }, check: "node -e \"require('fs').writeFileSync('ran','yes')\"" };
   const api = gateApi(run(1, { head_sha: commit }), [{ ...lint, head_sha: commit }, { ...skippedTests, head_sha: commit }]);
-  const [gate] = await measure({ root, config, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, measures: MEASURES.filter(m => m.id === 'gate') });
+  const [gate] = await measure({ root, config, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) }, measures: MEASURES.filter(m => m.id === 'gate') });
   assert.equal(gate.facts.source, 'local-command');
-  // Phase 79: the night reuses through gate.mjs, whose evidence is the run's keel-test-runs records (tests/gate-reuse.test.mjs).
+  // Phase 79: the night reuses through gate.mjs, whose evidence is the run's plates-test-runs records (tests/gate-reuse.test.mjs).
   assert.match(gate.facts.reuseUnavailable, /artifact/);
   assert.equal(await readFile(join(root, 'ran'), 'utf8'), 'yes');
 });
@@ -175,7 +175,7 @@ test('night runs its own gate without the ledger\'s record of CI\'s, success or 
   const commit = git('rev-parse', 'HEAD');
   const config = { repo, ci: { gateWorkflow: 'check.yml' }, check: "node -e \"require('fs').writeFileSync('ran','yes')\"" };
   const selected = MEASURES.filter(m => m.id === 'gate');
-  const invoke = async (api, c = config) => (await measure({ root, config: c, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) }, measures: selected }))[0];
+  const invoke = async (api, c = config) => (await measure({ root, config: c, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) }, measures: selected }))[0];
   for (const conclusion of ['success', 'failure']) {
     const result = await invoke(gateApi(run(1, { head_sha: commit, conclusion }), [job(101, 1, { head_sha: commit })]));
     assert.equal(result.facts.source, 'local-command', conclusion);
@@ -191,7 +191,7 @@ test('night runs its own gate without the ledger\'s record of CI\'s, success or 
 test('ci_minutes preserves incomplete coverage and confirmed over-bound usage', async t => {
   const root = await scratch(t);
   const api = baseApi([run(1)], [job(101), job(102, 1, { labels: ['unknown'] })]);
-  const env = { ...ENV, KEEL_GH: await ghStub(t, { api }) };
+  const env = { ...ENV, PLATES_GH: await ghStub(t, { api }) };
   const selected = MEASURES.filter(m => m.id === 'ci_minutes');
   const invoke = async weeklyMinutes => (await measure({ root, now, config: { repo, ci: { weeklyMinutes } }, env, measures: selected }))[0];
   const low = await invoke(0);
@@ -210,7 +210,7 @@ test('CI reuse never hides a recent failed or pending rerun behind an older gree
     const api = gateApi();
     api[`repos/${repo}/actions/workflows/7/runs`] = page('workflow_runs', [newerGreen, older]);
     api[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', [job(201, 1, { run_attempt: 2, conclusion: 'failure' })]);
-    const result = await readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api }) } });
+    const result = await readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api }) } });
     if (status === 'completed') { assert.equal(result.reused, true); assert.equal(result.status, 1); assert.equal(result.attempt, 2); }
     else assert.equal(result.reused, false);
   }
@@ -242,13 +242,13 @@ test('CI reader discloses job-page, attempt and request ceilings and API visibil
 test('CI adoption validates cached units weights and shapes, then refetches or stays unavailable', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
   const root = await scratch(t);
-  await mkdir(join(root, '.keel'));
+  await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml';
   const report = await read(t, baseApi(), { days: 28, workflow: 'check.yml' });
   const config = { ci: { historyRepo: repo } };
   const workflows = [{ path, triggers: ['push'], text: 'on: [push]' }];
-  const cache = async history => writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
-  const invoke = (env = { KEEL_CI_OFFLINE: '1' }, c = config) => adoptionCost({ root, config: c, workflows, env, now });
+  const cache = async history => writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
+  const invoke = (env = { PLATES_CI_OFFLINE: '1' }, c = config) => adoptionCost({ root, config: c, workflows, env, now });
   await cache(report);
   assert.equal((await invoke()).monthlyWeightedMinutes, 1.07);
   const mutations = [
@@ -268,35 +268,35 @@ test('CI adoption validates cached units weights and shapes, then refetches or s
   assert.equal((await invoke(undefined, { ci: { historyRepo: repo, runnerWeights: { 'ubuntu-latest': 10 } } })).monthlyWeightedMinutes, null);
   const bad = structuredClone(report); bad.window.days = 1; await cache(bad);
   const api = { ...baseApi(), [`repos/${repo}/actions/workflows/check.yml/runs`]: page('workflow_runs', [run(1)]) };
-  const refetched = await invoke({ ...ENV, KEEL_CI_OFFLINE: '0', KEEL_GH: await ghStub(t, { api }) });
+  const refetched = await invoke({ ...ENV, PLATES_CI_OFFLINE: '0', PLATES_GH: await ghStub(t, { api }) });
   assert.equal(refetched.monthlyWeightedMinutes, 1.07);
   assert.equal(refetched.workflows[0].source.kind, 'GitHub Actions API');
 });
 
 test('CI ownership follows lock paths rather than workflow names', async t => {
   const root = await scratch(t);
-  const paths = ['check.yml', 'claude.yml', 'keel-custom.yml'].map(p => `.github/workflows/${p}`);
+  const paths = ['check.yml', 'claude.yml', 'plates-custom.yml'].map(p => `.github/workflows/${p}`);
   const api = baseApi(paths.map((path, i) => run(i + 1, { path })));
   paths.forEach((_, i) => { api[`repos/${repo}/actions/runs/${i + 1}/attempts/1/jobs`] = page('jobs', [job(101 + i, i + 1)]); });
-  const env = { ...ENV, KEEL_GH: await ghStub(t, { api }) };
+  const env = { ...ENV, PLATES_GH: await ghStub(t, { api }) };
   const invoke = async () => (await measure({ root, now, config: { repo }, env, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
-  assert.ok((await invoke()).facts.workflows.every(w => !w.keel), 'project-owned names are not ownership');
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/lock.json'), JSON.stringify({ files: { [paths[0]]: { practice: 'ci' }, [paths[1]]: { practice: 'claude' } } }));
+  assert.ok((await invoke()).facts.workflows.every(w => !w.plates), 'project-owned names are not ownership');
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/lock.json'), JSON.stringify({ files: { [paths[0]]: { practice: 'ci' }, [paths[1]]: { practice: 'claude' } } }));
   const result = await invoke();
-  assert.deepEqual(result.facts.workflows.map(w => [w.keel, w.keelNamed]), [[true, false], [true, false], [false, true]]);
-  assert.match(result.detail, /keel-owned:.*check.yml/);
-  assert.match(result.detail, /keel-named:.*keel-custom.yml/);
+  assert.deepEqual(result.facts.workflows.map(w => [w.plates, w.platesNamed]), [[true, false], [true, false], [false, true]]);
+  assert.match(result.detail, /plates-owned:.*check.yml/);
+  assert.match(result.detail, /plates-named:.*plates-custom.yml/);
 });
 
 test('CI adoption uses repository exposure including quiet days and validates cached age', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
-  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const root = await scratch(t); await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml';
   const config = { ci: { historyRepo: repo } };
   const invoke = async (report, triggers = ['push']) => {
-    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
-    return adoptionCost({ root, config, workflows: [{ path, triggers, text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    await writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config, workflows: [{ path, triggers, text: "cron: '0 2 * * *'" }], env: { PLATES_CI_OFFLINE: '1' }, now });
   };
   const api = baseApi([run(1)], [job(101, 1, { started_at: stamp(82) })]);
   api[`repos/${repo}`].created_at = stamp(8 * 1440);
@@ -325,13 +325,13 @@ test('CI adoption uses repository exposure including quiet days and validates ca
 
 test('ci_minutes counts completed history while excluding the running night and queued jobs', async t => {
   const root = await scratch(t);
-  const night = run(2, { path: '.github/workflows/keel-night.yml', status: 'in_progress', conclusion: null });
+  const night = run(2, { path: '.github/workflows/plates-night.yml', status: 'in_progress', conclusion: null });
   const api = baseApi([run(1), night]);
   api[`repos/${repo}/actions/runs/2/attempts/1/jobs`] = page('jobs', [
     job(201, 2, { status: 'in_progress', conclusion: null, completed_at: null }),
     job(202, 2, { status: 'queued', conclusion: null, started_at: null, completed_at: null }),
   ]);
-  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
+  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, PLATES_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
   const result = await invoke(api);
   assert.equal(result.state, 'ok');
   assert.equal(result.value, 1);
@@ -357,7 +357,7 @@ test('ci_minutes excludes only authoritative empty current queued attempts', asy
   const api = baseApi([queued]);
   const latest = `repos/${repo}/actions/runs/1/attempts/2/jobs`;
   api[latest] = page('jobs', []);
-  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
+  const invoke = async data => (await measure({ root, now, config: { repo, ci: { weeklyMinutes: 100 } }, env: { ...ENV, PLATES_GH: await ghStub(t, { api: data }) }, measures: MEASURES.filter(m => m.id === 'ci_minutes') }))[0];
   const result = await invoke(api);
   assert.equal(result.state, 'ok');
   assert.equal(result.value, 1, 'older completed attempt is still accounted');
@@ -384,12 +384,12 @@ test('ci_minutes excludes only authoritative empty current queued attempts', asy
 
 test('CI adoption excludes every attempt of unfinished logical runs and rejects legacy cache completion', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
-  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const root = await scratch(t); await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml';
   const config = { ci: { historyRepo: repo } };
   const estimate = async report => {
-    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
-    return adoptionCost({ root, config, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    await writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { PLATES_CI_OFFLINE: '1' }, now });
   };
   for (const status of ['queued', 'in_progress']) {
     const api = baseApi([run(1, { event: 'schedule', run_attempt: 2, status, conclusion: null })]);
@@ -417,11 +417,11 @@ test('CI adoption excludes every attempt of unfinished logical runs and rejects 
 
 test('CI adoption rejects window-truncated logical runs across attempts and jobs', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
-  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const root = await scratch(t); await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml';
   const estimate = async report => {
-    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
-    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    await writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { PLATES_CI_OFFLINE: '1' }, now });
   };
   const old = job(101, 1, { started_at: stamp(29 * 1440 + 100), completed_at: stamp(29 * 1440) });
   for (const split of [true, false]) {
@@ -460,12 +460,12 @@ test('CI whole-run eligibility propagates missing attempt data and timing gaps t
 
 test('CI workflow creation bounds event exposure and cached provenance without inventing quiet days', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
-  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const root = await scratch(t); await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml', metadata = `repos/${repo}/actions/workflows/check.yml`;
   const api = baseApi(); api[`repos/${repo}`].created_at = stamp(7 * 1440); api[metadata].created_at = stamp(7 * 60);
   const estimate = async (report, schedule = false) => {
-    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
-    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: [schedule ? 'schedule' : 'push'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    await writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: report } }));
+    return adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: [schedule ? 'schedule' : 'push'], text: "cron: '0 2 * * *'" }], env: { PLATES_CI_OFFLINE: '1' }, now });
   };
   const report = await read(t, api, { days: 28, workflow: 'check.yml' });
   assert.equal(report.window.observedDays, 7 / 24);
@@ -490,12 +490,12 @@ test('CI workflow creation bounds event exposure and cached provenance without i
 
 test('CI adoption includes dated known-zero scheduled runs but never infers zero from absent execution evidence', async t => {
   const { adoptionCost } = await import('../lib/ci-adoption.mjs');
-  const root = await scratch(t); await mkdir(join(root, '.keel'));
+  const root = await scratch(t); await mkdir(join(root, '.plates'));
   const path = '.github/workflows/check.yml';
   const estimate = async api => {
     const history = await read(t, api, { days: 28 });
-    await writeFile(join(root, '.keel/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
-    const cost = await adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { KEEL_CI_OFFLINE: '1' }, now });
+    await writeFile(join(root, '.plates/ci-history.json'), JSON.stringify({ version: 1, repo, workflows: { [path]: history } }));
+    const cost = await adoptionCost({ root, config: { ci: { historyRepo: repo } }, workflows: [{ path, triggers: ['schedule'], text: "cron: '0 2 * * *'" }], env: { PLATES_CI_OFFLINE: '1' }, now });
     return { history, cost };
   };
   const zero = job(201, 2, { conclusion: 'skipped', started_at: stamp(2), completed_at: stamp(2), labels: [], runner_id: null });
@@ -526,7 +526,7 @@ test('CI attempt-scoped readers allow absent job attempts but reject present mis
   const reuse = async (jobs, conclusion = 'success') => {
     const data = gateApi(run(1, { run_attempt: 2, conclusion }));
     data[`repos/${repo}/actions/runs/1/attempts/2/jobs`] = page('jobs', jobs);
-    return readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, KEEL_GH: await ghStub(t, { api: data }) } });
+    return readCiGate({ repo, workflow: 'check.yml', sha, clean: true, now, env: { ...ENV, PLATES_GH: await ghStub(t, { api: data }) } });
   };
   for (const conclusion of ['success', 'failure']) {
     const result = await reuse([withoutAttempt(102, { conclusion })], conclusion);

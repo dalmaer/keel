@@ -50,6 +50,7 @@ test('actual journal/media routes preserve authentication and useful missing-con
  for(const path of ['/projects/studio/changes','/projects/studio/changes/acme-search','/projects/studio/media']){
   const anon=await service(h.request(path));assert.equal(anon.status,401);
   const response=await service(h.request(path,{cookie:signed.cookie}));assert.equal(response.status,200);const html=await response.text();assert.doesNotMatch(html,/fake-user-access|fake-service-key|ciphertext|encryptionKey/);
+  assert.match(html,/<title>[^<]* · Plates<\/title>/);assert.match(html,/href="\/assets\/plates\.css"/);assert.match(html,/>Plates<span>Keep your projects moving<\/span>/);assert.match(html,/<a data-project-lens="" href="\/"><span>All plates<small\b/);assert.match(html,/data-journal-scope="keel\.journal\.v1:/);
   if(path.endsWith('/media'))assert.match(html,/Private media is not configured/);
  }
  const missing=await service(h.request('/api/projects/studio/media',{cookie:signed.cookie}));assert.equal((await missing.json()).availability,'not-configured');

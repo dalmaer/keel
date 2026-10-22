@@ -1,8 +1,8 @@
-# Private workspace, public Keel application
+# Private workspace, public Plates application
 
 Implementation contract, 21 October 2026. The owner authorized the web UI and
 phased build in this conversation. Public application code, private shared
-workspace data and project-owned Keel records are the accepted direction.
+workspace data and project-owned Plates records are the accepted direction.
 The owner selected Vercel and an existing Pro team on 21 October 2026. The
 project and assigned domain are verified. Supabase Free/iad1 is approved and
 connected to production. The approved read-only GitHub App is installed; phase 95
@@ -27,13 +27,13 @@ work, what changed, human responsibility, delivery and source freshness.
 The [UX spec](web-ui.md) defines interactions and the
 [CLI inventory](web-ui-command-map.md) assigns each command/argument to an
 appropriate read, form, explicit operation or advanced CLI escape hatch.
-The [prototype](../design-previews/keel-home.html) uses synthetic examples.
+The [prototype](../design-previews/plates-home.html) uses synthetic examples.
 It proves no live integration or acceptance.
 
 ## Ownership and deployment
 
 ```text
-Browser -- HTTPS + session --> Keel web service (public source, private instance)
+Browser -- HTTPS + session --> Plates web service (public source, private instance)
                                   |-- GitHub identity + selected repositories
                                   |-- private workspace records via GitHub API
                                   |-- external transactional store / private artifact adapter
@@ -42,9 +42,9 @@ Browser -- HTTPS + session --> Keel web service (public source, private instance
 
 | Home | Owns | Never owns |
 | --- | --- | --- |
-| Public `keel` repository | App/CLI code, schemas, synthetic fixtures, docs and reusable practices | Personal fleet registry, tokens, private lessons, raw feedback or screenshots |
+| Public `plates` repository | App/CLI code, schemas, synthetic fixtures, docs and reusable practices | Personal fleet registry, tokens, private lessons, raw feedback or screenshots |
 | Private workspace repository | Workspace manifest, shared private lessons, approved cross-project decisions, policies | Another copy of project phase acceptance; credentials and sessions |
-| Each project repository | Its `.keel` configuration, selected planning records, decisions, evidence and lesson provenance | Workspace membership or another project's data |
+| Each project repository | Its `.plates` configuration, selected planning records, decisions, evidence and lesson provenance | Workspace membership or another project's data |
 | External private runtime store | Sessions, caches, drafts, receipts, feedback, private artifacts and optional encrypted provider vault | Authoritative phase status, architecture or plaintext provider keys |
 | Deployment secret store | OAuth client secret, database/session secrets and a separate provider-vault wrapping key | Versioned files or frontend configuration |
 
@@ -65,8 +65,8 @@ owner does not automatically gain access to every private project.
 The public app can be cloned/deployed without copying anyone's data. The local
 adapter requires an explicit manifest and runtime directory; the Vercel adapter
 requires explicit workspace repository and storage bindings; no fallback to
-code-root `.keel`,
-`fleet.json`, a developer's home directory or a public repository. Existing CLI
+code-root `.plates`,
+`plates.json`, a developer's home directory or a public repository. Existing CLI
 fleet configuration remains supported. Migration is a separate, previewed phase;
 never delete it until the replacement has been read back successfully.
 
@@ -76,7 +76,7 @@ This is the local development/export adapter. Its filesystem proof does not
 establish hosted storage on Vercel; hosted requests must never use `/tmp` or
 process memory as durable state.
 
-Add `keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>
+Add `plates workspace inspect|init --manifest <absolute-file> --state <absolute-dir>
 [--yes] [--json]`. `inspect` reads only; `init` previews (exit 3) until `--yes`.
 `--yes` is valid only for init. Both require explicit absolute paths and strict
 arguments. No GitHub calls, repository creation, credentials or server in this
@@ -90,7 +90,7 @@ Version 1 manifest, UTF-8 JSON, at most 1 MiB and 100 projects:
   "version": 1,
   "id": "acme",
   "name": "Acme",
-  "repo": "acme/keel-private",
+  "repo": "acme/plates-private",
   "projects": [{ "id": "studio", "repo": "acme/studio" }]
 }
 ```

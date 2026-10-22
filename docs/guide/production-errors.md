@@ -7,7 +7,7 @@ to merge or deploy.
 
 ## Configure a source
 
-Add `production` to `.keel/keel.json`. Install the provider's public CLI in the
+Add `production` to `.plates/plates.json`. Install the provider's public CLI in the
 execution environment and give it an existing, narrowly scoped log-reader identity.
 Do not copy a developer login into GitHub secrets. A missing executable, expired
 login or unreadable source is an unavailable observation, not zero errors.
@@ -65,20 +65,20 @@ source and separate coverage evidence.
 ## Collect, triage, repair
 
 ```sh
-keel production status --json
-keel production collect --json
-keel production collect --yes --json
+plates production status --json
+plates production collect --json
+plates production collect --yes --json
 ```
 
-Preview first to inspect scope. Persisted observations live in `.keel/production/`.
+Preview first to inspect scope. Persisted observations live in `.plates/production/`.
 Keep its state and recovery records: losing them loses deduplication and recurrence
-history. Logs are untrusted input. Keel retains bounded sanitized identities and
+history. Logs are untrusted input. Plates retains bounded sanitized identities and
 error signatures, not raw request bodies, private telemetry or entire messages.
 
 Recurring errors are triage candidates. A generated spec records the observed
 frequency and source window, but cannot invent a reproduction. Establish a failing
 regression test, a bounded change and acceptance before handing work to an agent.
-Use `keel --agent-help production` for the current spec and verification arguments.
+Use `plates --agent-help production` for the current spec and verification arguments.
 Issue preparation reuses the existing robot journal; ambiguous creation must be
 reconciled instead of retried blindly. See [the robot](the-robot.md).
 

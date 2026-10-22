@@ -1,6 +1,6 @@
 // The loop practice (phase 14): Stitch Loop's findings triaged the same way
 // everywhere. The stitch CLI is stubbed at the process boundary
-// (tests/fixtures/loop/stitch.mjs, via KEEL_STITCH), answering in the JSON
+// (tests/fixtures/loop/stitch.mjs, via PLATES_STITCH), answering in the JSON
 // envelope both source scripts parse; the script under test is the practice's
 // own file, run as a project would run it. Fixtures are synthetic (Acme).
 import { test } from 'node:test';
@@ -18,9 +18,9 @@ import { diagnose } from '../lib/doctor.mjs';
 import { plan, isData, extraData, isPlainPath as drainPlainPath } from '../lib/night.mjs';
 import { parseFinding, serializeFinding, parseYaml, stringifyYaml, findingProblems, reconcile, normalizeInsight, LOOP_DOC_HEADER, loadFindings, phaseCounts, projectCounts, renderLoopDoc, contextPayload, provePrompt, proveArgs, proveEnv, proposalOf, proposeArgv, UNVERIFIED_READ, settings, commandEnv, contextProblems, isPlainPath } from '../practices/loop/files/scripts/loop.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const PRACTICE = join(KEEL, 'practices', 'loop', 'files');
-const FIXTURES = join(KEEL, 'tests', 'fixtures', 'loop');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PRACTICE = join(PLATES, 'practices', 'loop', 'files');
+const FIXTURES = join(PLATES, 'tests', 'fixtures', 'loop');
 const STUB = join(FIXTURES, 'stitch.mjs');
 const VERSION = { cli: '0.0.0', commit: null, practice: '0.0.0' };
 const WIDGET = 'widget-cache-ignores-expiry', SPROCKET = 'sprocket-api-lacks-rate-limit';
@@ -46,7 +46,7 @@ const BASE_STATE = {
 /** A copy of the Acme project with the practice's script and test installed, and a stub state. */
 async function project(t, state = BASE_STATE) {
   await chmod(STUB, 0o755);
-  const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'keel-loop-'))), 'acme');
+  const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'plates-loop-'))), 'acme');
   t.after(() => rm(dirname(dir), { recursive: true, force: true }));
   await copyProject(join(FIXTURES, 'acme'), dir);
   await mkdir(join(dir, 'scripts'), { recursive: true });
@@ -56,7 +56,7 @@ async function project(t, state = BASE_STATE) {
   const stateFile = join(dirname(dir), 'state.json'), log = join(dirname(dir), 'calls.jsonl');
   await writeFile(stateFile, JSON.stringify(state));
   await writeFile(log, '');
-  const env = { ...process.env, KEEL_STITCH: STUB, STITCH_STUB_STATE: stateFile, STITCH_STUB_LOG: log };
+  const env = { ...process.env, PLATES_STITCH: STUB, STITCH_STUB_STATE: stateFile, STITCH_STUB_LOG: log };
   delete env.STITCH_WORKSPACE;
   const loop = (...args) => run(process.execPath, [join(dir, 'scripts', 'loop.mjs'), ...args], { cwd: dir, env });
   const calls = async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).map(l => JSON.parse(l));
@@ -68,23 +68,23 @@ async function project(t, state = BASE_STATE) {
 const WRITES = /^(dismiss|create|delete|generate|edit|update)$/;
 const sent = calls => calls.filter(c => WRITES.test(c.args[0]));
 
-test('the practice is optional: keel init leaves it off, its files and secrets are declared', async () => {
+test('the practice is optional: plates init leaves it off, its files and secrets are declared', async () => {
   const practices = await load();
   const p = practices.get('loop');
   assert.equal(p.optional, true);
   assert.deepEqual(p.files.map(f => `${f.kind} ${f.path}`).sort(), [
-    'block AGENTS.md', 'managed .github/workflows/keel-loop.yml', 'managed scripts/loop.mjs', 'managed tests/loop.test.mjs', 'seeded .stitch.json', 'seeded docs/loop/README.md',
+    'block AGENTS.md', 'managed .github/workflows/plates-loop.yml', 'managed scripts/loop.mjs', 'managed tests/loop.test.mjs', 'seeded .stitch.json', 'seeded docs/loop/README.md',
   ]);
-  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['STITCH_API_KEY'], 'the drain is the project\'s own scripts/keel/drain.mjs: no keel token');
+  assert.deepEqual(p.secrets.map(s => s.name).sort(), ['STITCH_API_KEY'], 'the drain is the project\'s own scripts/plates/drain.mjs: no plates token');
   assert.equal(JSON.parse(p.files.find(f => f.path === '.stitch.json').template).workspace, '');
-  const init = await readFile(join(KEEL, 'lib', 'init.mjs'), 'utf8');
+  const init = await readFile(join(PLATES, 'lib', 'init.mjs'), 'utf8');
   assert.match(init, /filter\(n => !practices\.get\(n\)\.optional \|\| asked\.includes\(n\)\)/, 'on only when named with --with');
 });
 
 test('adopt: a project with its own loop script keeps it — loop is local, with the convergence proposal, and its findings are untouched', async t => {
   const { dir } = await project(t);
   await rm(join(dir, 'scripts', 'loop.mjs'));
-  await rm(join(dir, '.keel'), { recursive: true });
+  await rm(join(dir, '.plates'), { recursive: true });
   await writeFile(join(dir, 'scripts', 'loop.ts'), '// Acme\'s own Loop triage.\n');
   await writeFile(join(dir, 'AGENTS.md'), '# Acme\n');
   const loopDir = join(dir, 'docs', 'loop');
@@ -92,21 +92,21 @@ test('adopt: a project with its own loop script keeps it — loop is local, with
   const { data } = await adopt({ dir }, { version: VERSION });
   const row = data.practices.find(p => p.name === 'loop');
   assert.equal(row.state, 'local', JSON.stringify(row));
-  assert.match(row.why, /its own scripts\/loop\.ts; proposal: render docs\/LOOP\.md with keel's scripts\/loop\.mjs/);
-  assert.match(data.config.local.loop, /retire yours for keel's/);
+  assert.match(row.why, /its own scripts\/loop\.ts; proposal: render docs\/LOOP\.md with plates's scripts\/loop\.mjs/);
+  assert.match(data.config.local.loop, /retire yours for plates's/);
   assert.ok(!data.config.practices.includes('loop'));
   const after = Object.fromEntries(await Promise.all((await readdir(loopDir)).map(async n => [n, await readFile(join(loopDir, n), 'utf8')])));
   assert.deepEqual(after, before, 'adopt touched docs/loop/');
   assert.ok(!existsSync(join(dir, 'scripts', 'loop.mjs')), 'nothing is installed beside the project\'s own script');
   assert.ok(!existsSync(join(dir, 'docs', 'LOOP.md')));
-  assert.doesNotMatch(await readFile(join(dir, 'AGENTS.md'), 'utf8'), /keel:begin loop/);
+  assert.doesNotMatch(await readFile(join(dir, 'AGENTS.md'), 'utf8'), /plates:begin loop/);
 });
 
 test('adopt: on with a .stitch.json and no script of its own; off with neither', async t => {
   const practices = await load();
   const { dir } = await project(t);
   await rm(join(dir, 'scripts', 'loop.mjs'));
-  await rm(join(dir, '.keel'), { recursive: true });
+  await rm(join(dir, '.plates'), { recursive: true });
   await writeFile(join(dir, 'AGENTS.md'), '# Acme\n');
   let s = await survey(dir, { version: VERSION, practices });
   assert.equal(s.practices.find(p => p.name === 'loop').state, 'on');
@@ -291,7 +291,7 @@ test('stitch output past 64KB is read whole (a file, not a pipe), and its errors
   r = loop('pull');
   assert.equal(r.status, 1);
   assert.match(r.stderr, /stitch find insights: Loop is not enabled for this workspace/);
-  r = run(process.execPath, [join(dir, 'scripts', 'loop.mjs'), 'pull'], { cwd: dir, env: { ...process.env, KEEL_STITCH: join(dir, 'no-such-stitch') } });
+  r = run(process.execPath, [join(dir, 'scripts', 'loop.mjs'), 'pull'], { cwd: dir, env: { ...process.env, PLATES_STITCH: join(dir, 'no-such-stitch') } });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /is not installed/);
   await writeFile(join(dir, '.stitch.json'), '{ "workspace": "" }\n');
@@ -317,8 +317,8 @@ test('findings read and write as ledger\'s YAML does; the comma form of loop rea
   assert.deepEqual(reconcile([], [i, { ...i, id: 'other' }]).findings[0].loop, [i.id, 'other']);
 });
 
-test('keel-loop.yml reads Loop and files findings, and nothing else; it skips with a notice until its secret exists', async () => {
-  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
+test('plates-loop.yml reads Loop and files findings, and nothing else; it skips with a notice until its secret exists', async () => {
+  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'plates-loop.yml'), 'utf8');
   const code = yml.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
   assert.doesNotMatch(code, /loop\.mjs (decide|push|mine|propose)\b/, 'a pull that could decide would dismiss insights for the whole workspace');
   assert.match(code, /node scripts\/loop\.mjs pull/);
@@ -326,10 +326,10 @@ test('keel-loop.yml reads Loop and files findings, and nothing else; it skips wi
   assert.match(code, /::notice::Skipped: add the STITCH_API_KEY secret/);
   assert.match(code, /STITCH_API_KEY: \$\{\{ secrets\.STITCH_API_KEY \}\}/);
   assert.doesNotMatch(code, /curl|https?:\/\/\S*install/i, 'never installed from a URL');
-  assert.match(code, /check\(\) \{ if \[ -f scripts\/keel\/gate\.mjs \]; then node scripts\/keel\/gate\.mjs; else \{\{check\}\}; fi; \}\n\s+if node scripts\/loop\.mjs render --check && check; then/, 'the gate is render --check, then the project\'s own (through gate.mjs, which reuses CI\'s exact result, when the night is here)');
-  assert.match(code, /node scripts\/keel\/drain\.mjs keel-loop\/ --yes --gate-passed/, 'the project\'s own drain, never keel\'s CLI');
+  assert.match(code, /check\(\) \{ if \[ -f scripts\/plates\/gate\.mjs \]; then node scripts\/plates\/gate\.mjs; else \{\{check\}\}; fi; \}\n\s+if node scripts\/loop\.mjs render --check && check; then/, 'the gate is render --check, then the project\'s own (through gate.mjs, which reuses CI\'s exact result, when the night is here)');
+  assert.match(code, /node scripts\/plates\/drain\.mjs keel-loop\/ --yes --gate-passed/, 'the project\'s own drain, never plates\'s CLI');
   assert.doesNotMatch(code, /anthropic|claude -p/i, 'no model proposes here');
-  for (const dir of [PRACTICE, join(KEEL, 'practices', 'loop')]) {
+  for (const dir of [PRACTICE, join(PLATES, 'practices', 'loop')]) {
     for (const n of await readdir(dir, { recursive: true })) {
       const p = join(dir, n);
       if (/\.(md|ya?ml|mjs|json)$/.test(n)) assert.doesNotMatch(await readFile(p, 'utf8'), /firebasestorage\.googleapis\.com[^\s"']*token=/, `${n}: the installer URL is a secret`);
@@ -348,11 +348,11 @@ test('drain: a keel-loop/ queue\'s data is the findings and their page, and noth
 });
 
 test('doctor: loop on with no workspace, or a gate that never runs the loop check, is linted', async t => {
-  const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'keel-loop-doctor-'))), 'acme');
+  const dir = join(await realpath(await mkdtemp(join(tmpdir(), 'plates-loop-doctor-'))), 'acme');
   t.after(() => rm(dirname(dir), { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', tagline: 'Widgets.', practice: '0.0.0', practices: ['base', 'agents-md', 'loop'] }));
-  await writeFile(join(dir, 'AGENTS.md'), '# Acme\n\n<!-- keel:begin agents-md -->\n<!-- keel:end agents-md -->\n\n<!-- keel:begin loop -->\n<!-- keel:end loop -->\n');
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', tagline: 'Widgets.', practice: '0.0.0', practices: ['base', 'agents-md', 'loop'] }));
+  await writeFile(join(dir, 'AGENTS.md'), '# Acme\n\n<!-- plates:begin agents-md -->\n<!-- plates:end agents-md -->\n\n<!-- plates:begin loop -->\n<!-- plates:end loop -->\n');
   await render(dir);
   let r = await diagnose(dir, { version: '0.0.0' });
   assert.deepEqual(r.lint.map(l => l.rule), ['loop-workspace'], 'the base gate (npm test → node --test tests/*.test.mjs) runs tests/loop.test.mjs');
@@ -368,9 +368,9 @@ test('doctor: loop on with no workspace, or a gate that never runs the loop chec
 
 // ── The project's own contexts, and what a project's roadmap imports (phase 20) ──
 
-/** Set .keel/keel.json "loop" (and "env") in the Acme copy. */
+/** Set .plates/plates.json "loop" (and "env") in the Acme copy. */
 async function configure(dir, loop, env) {
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, `${JSON.stringify({ ...cfg, ...(env ? { env } : {}), loop }, null, 2)}\n`);
 }
@@ -499,7 +499,7 @@ test('afterRenderWrites: config problems are named, and every copy of the path r
 
   const samples = ['docs/ROADMAP.md', 'README.md', 'a/b/c.json', '/abs', '../up', 'a/../b', './x', 'dir/', '.github/workflows/x.yml', 'docs/*.md', 'a b', ' x', 'x\\y', '', 7];
   // The workflow's own copy runs in its config step; read it out of the template.
-  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
+  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'plates-loop.yml'), 'utf8');
   const src = /const plain = (p => [\s\S]*?);\n/.exec(yml)?.[1];
   assert.ok(src, 'the workflow checks the paths it is given');
   const workflowPlain = new Function(`return ${src}`)();
@@ -509,8 +509,8 @@ test('afterRenderWrites: config problems are named, and every copy of the path r
   }
 });
 
-test('keel-loop.yml commits what the gate checked: the findings, their page, and afterRenderWrites', async t => {
-  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'keel-loop.yml'), 'utf8');
+test('plates-loop.yml commits what the gate checked: the findings, their page, and afterRenderWrites', async t => {
+  const yml = await readFile(join(PRACTICE, '.github', 'workflows', 'plates-loop.yml'), 'utf8');
   assert.match(yml, /git status --porcelain -- \$PATHS/);
   assert.match(yml, /git add -- \$PATHS/);
   assert.doesNotMatch(yml, /git add docs\/loop docs\/LOOP\.md/, 'a fixed list leaves afterRender\'s files on the runner');
@@ -519,11 +519,11 @@ test('keel-loop.yml commits what the gate checked: the findings, their page, and
   // Run the config step's own script against a project, as the runner would.
   const script = /run: \|\n\s+node -e '\n([\s\S]*?)\n\s+'\n/.exec(yml)?.[1];
   assert.ok(script, 'the config step is a node -e script');
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-loop-paths-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-loop-paths-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'));
-  const step = async keel => {
-    await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify(keel));
+  await mkdir(join(dir, '.plates'));
+  const step = async plates => {
+    await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify(plates));
     for (const f of ['env', 'out']) await writeFile(join(dir, f), '');
     const r = run(process.execPath, ['-e', script], { cwd: dir, env: { ...process.env, GITHUB_ENV: join(dir, 'env'), GITHUB_OUTPUT: join(dir, 'out') } });
     return { ...r, out: await readFile(join(dir, 'out'), 'utf8') };
@@ -538,10 +538,10 @@ test('keel-loop.yml commits what the gate checked: the findings, their page, and
 });
 
 // Phase 28. isocan files each finding under a project (docs/projects/<name>/),
-// not a numbered phase, and groups accepted work by project; keel's script does
+// not a numbered phase, and groups accepted work by project; plates's script does
 // the same in a projects-shaped repo, so isocan can retire its own.
 async function projectsShaped(dir, loop) {
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, `${JSON.stringify({ ...cfg, phases: { shape: 'projects' }, lessons: 'docs/reviews/lessons.md', ...(loop ? { loop } : {}) }, null, 2)}\n`);
   for (const name of ['gears', 'widgets']) await mkdir(join(dir, 'docs', 'projects', name), { recursive: true });
@@ -624,7 +624,7 @@ test('projectCounts counts per project as phaseCounts counts per phase; the cont
   assert.match(renderLoopDoc([{ ...base, decision: 'accepted', project: null }], [], { shape: 'projects' }), /accepted with no project/);
 });
 
-test('loop.intro and the lessons link come from .keel/keel.json; a bad intro is named', async t => {
+test('loop.intro and the lessons link come from .plates/plates.json; a bad intro is named', async t => {
   const { dir } = await project(t);
   await projectsShaped(dir, { intro: 'One line.\nTwo lines.\n' });
   const s = settings(dir);
@@ -635,7 +635,7 @@ test('loop.intro and the lessons link come from .keel/keel.json; a bad intro is 
   await configure(dir, { intro: [] });
   assert.deepEqual(settings(dir).problems, ['"loop" "intro" must be the opening paragraph: a non-empty string, or a list of its lines']);
   assert.equal(settings(dir).intro, null);
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', lessons: 'LESSONS.md' }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', lessons: 'LESSONS.md' }));
   assert.equal(settings(dir).lessons, '../LESSONS.md');
   assert.equal(settings(dir).shape, 'phases');
 });
@@ -694,7 +694,7 @@ test('prove is off without "loop" "prove" or without ANTHROPIC_API_KEY, says so 
   let r = loopEnv({ ANTHROPIC_API_KEY: 'test-key' }, 'pull');
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.match(/prove skipped/g)?.length, 1);
-  assert.match(r.stdout, /prove skipped: "loop" "prove" is not on in \.keel\/keel\.json — left untriaged for `node scripts\/loop\.mjs prove`/);
+  assert.match(r.stdout, /prove skipped: "loop" "prove" is not on in \.plates\/plates\.json — left untriaged for `node scripts\/loop\.mjs prove`/);
   await configure(dir, { prove: true });
   r = loopEnv({}, 'prove');
   assert.equal(r.status, 0);
@@ -787,7 +787,7 @@ test('Loop read resilience is bounded and cannot retry writes or deterministic f
 });
 
 test('Loop workflow reports collection separately and only judges validation after collection', async()=>{
-  const yml=await readFile(join(PRACTICE,'.github/workflows/keel-loop.yml'),'utf8');
+  const yml=await readFile(join(PRACTICE,'.github/workflows/plates-loop.yml'),'utf8');
   assert.match(yml,/name: Pull Loop's insights\n\s+id: insights/);
   assert.match(yml,/name: Validation verdict[\s\S]*if: always\(\) && steps.insights.outcome == 'success'/);
   assert.match(yml,/COLLECTION: \$\{\{ steps.insights.outcome \}\}/);

@@ -1,11 +1,11 @@
-// The climb practice's script, scripts/keel/climb.mjs (phase 35), run where a
+// The climb practice's script, scripts/plates/climb.mjs (phase 35), run where a
 // project has it: beside the night's lib.mjs, test-ledger.mjs and pr-body.mjs,
 // in a synthetic Acme repo whose "suite" says how long it took through
-// KEEL_CLIMB_CLOCK and waits no real time, so compare's keep and revert are
+// PLATES_CLIMB_CLOCK and waits no real time, so compare's keep and revert are
 // decided by the fixture, never the machine (phase 55: these tests once slept
 // 1500 ms a run and still failed on a busy runner). They are pinned to stalls
-// in .keel/keel.json, so a wall-clock wait that creeps back fails the gate.
-// gh is a stub (KEEL_GH); nothing here reads the live world.
+// in .plates/plates.json, so a wall-clock wait that creeps back fails the gate.
+// gh is a stub (PLATES_GH); nothing here reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, mkdir, cp, realpath, readdir } from 'node:fs/promises';
@@ -18,21 +18,21 @@ import { runBlocks } from './helpers/workflows.mjs';
 import { git, commit, acme, climb, json, load, TIMED, suite, NIGHT, write, stubGh, page, step, setConfig } from './helpers/climb.mjs';
 
 /**
- * A "suite" that took `ms` by the clock compare reads here (KEEL_CLIMB_CLOCK:
+ * A "suite" that took `ms` by the clock compare reads here (PLATES_CLIMB_CLOCK:
  * it writes its time there) and waits no real time; `tag` keeps two equal
  * suites different commits. Without the clock, it is a real run of node.
  */
-const clocked = (ms, tag = '') => `// acme suite ${tag}\nimport { writeFileSync } from 'node:fs';\nif (process.env.KEEL_CLIMB_CLOCK) writeFileSync(process.env.KEEL_CLIMB_CLOCK, '${ms}');\n`;
+const clocked = (ms, tag = '') => `// acme suite ${tag}\nimport { writeFileSync } from 'node:fs';\nif (process.env.PLATES_CLIMB_CLOCK) writeFileSync(process.env.PLATES_CLIMB_CLOCK, '${ms}');\n`;
 
 /** The clock file the Acme suite writes its time to, beside the repo; removed after. */
 const clockOf = (t, dir) => {
   const file = join(dir, '..', `${dir.split('/').pop()}-clock`);
   t.after(() => rm(file, { force: true }));
-  return { KEEL_CLIMB_CLOCK: file };
+  return { PLATES_CLIMB_CLOCK: file };
 };
 
 test('compare: keep for a real gain, revert for one inside the noise, and two alternated rounds, not one', async t => {
-  // Times are the suite's own (KEEL_CLIMB_CLOCK), not the wall clock: a base of 1500 ms once lost to a busy
+  // Times are the suite's own (PLATES_CLIMB_CLOCK), not the wall clock: a base of 1500 ms once lost to a busy
   // runner's noise (9734581), and sleeping longer only made every run pay. Phase 55 gave climb its clock.
   const dir = await acme(t, { climb: TIMED, files: { 't.mjs': clocked(1500) } });
   const clock = clockOf(t, dir);
@@ -44,7 +44,7 @@ test('compare: keep for a real gain, revert for one inside the noise, and two al
   git(dir, ['checkout', '-q', '-b', 'lucky', base]);
   const counter = join(dir, '..', `${dir.split('/').pop()}-count`);
   t.after(() => rm(counter, { force: true }));
-  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nwriteFileSync(process.env.KEEL_CLIMB_CLOCK, String(n < 2 ? 10 : 2600));\n` }, 'acme: fast once');
+  const lucky = await commit(dir, { 't.mjs': `import { readFileSync, writeFileSync } from 'node:fs';\nlet n = 0;\ntry { n = Number(readFileSync(process.env.ACME_COUNT, 'utf8')); } catch {}\nwriteFileSync(process.env.ACME_COUNT, String(n + 1));\nwriteFileSync(process.env.PLATES_CLIMB_CLOCK, String(n < 2 ? 10 : 2600));\n` }, 'acme: fast once');
   // Each compare's rounds go to the run's diagnostics, so a red run shows its numbers.
   const cmp = (candidate, env = {}) => {
     const r = json(climb(dir, ['compare', '--base', base, '--candidate', candidate, '--runs', '2', '--json'], { ...clock, ...env }));
@@ -80,7 +80,7 @@ test('compare: keep for a real gain, revert for one inside the noise, and two al
   const silent = await commit(dir, { 't.mjs': '// acme: says nothing\n' }, 'acme: silent');
   const s = climb(dir, ['compare', '--base', base, '--candidate', silent, '--runs', '1', '--json'], clock);
   assert.equal(s.status, 2);
-  assert.match(json(s).error, /wrote no time to KEEL_CLIMB_CLOCK/);
+  assert.match(json(s).error, /wrote no time to PLATES_CLIMB_CLOCK/);
 });
 
 test('compare --decide, revert, settle and report: the numbers go in the commit, a miss resets, and the PR body says it all', async t => {
@@ -92,7 +92,7 @@ test('compare --decide, revert, settle and report: the numbers go in the commit,
   const baseline = json(climb(dir, ['measure', 'test-time', '--baseline', '--runs', '1', '--json']));
   assert.equal(baseline.times.length, 1);
   assert.ok(baseline.times[0] > 0, JSON.stringify(baseline));
-  const night = () => readFile(join(dir, '.keel/climb/night.json'), 'utf8').then(JSON.parse);
+  const night = () => readFile(join(dir, '.plates/climb/night.json'), 'utf8').then(JSON.parse);
   assert.equal((await night()).base, base);
   assert.equal(git(dir, ['status', '--porcelain']), '', 'the night\'s record ignores itself');
 
@@ -148,7 +148,7 @@ test('compare --decide, revert, settle and report: the numbers go in the commit,
   assert.match(body, /^Two-way door: code changes only/m);
   assert.match(body, /^Blast radius: this repo's files only\.$/m);
   assert.match(body, /never the agent's own timing/);
-  assert.deepEqual(JSON.parse(await readFile(join(dir, '.keel/climb.json'), 'utf8')).last.job, 'test-time');
+  assert.deepEqual(JSON.parse(await readFile(join(dir, '.plates/climb.json'), 'utf8')).last.job, 'test-time');
 
   // The danger names a surface only when a shipped file changed; nothing kept is a line, no body.
   assert.deepEqual(m.surfacesOf(['tests/a.test.mjs'], { files: ['lib/'] }), []);
@@ -175,7 +175,7 @@ async function planFile(t, dir, plan, name = 'plan') {
 /** An Acme repo with the night's plan module beside climb.mjs (climb requires night), and slow_tests outside. */
 async function plannedAcme(t, climbConfig = { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' }) {
   const dir = await acme(t, { climb: climbConfig, files: { 'docs/health/2026-10-05.md': page([['slow_tests', 3, '≤ 0', 'outside']]) } });
-  await cp(join(NIGHT, 'night-plan.mjs'), join(dir, 'scripts/keel/night-plan.mjs'));
+  await cp(join(NIGHT, 'night-plan.mjs'), join(dir, 'scripts/plates/night-plan.mjs'));
   return dir;
 }
 
@@ -184,7 +184,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   const gh = await stubGh(t, []);
   const open = await stubGh(t, ['keel-climb/test-time/2026-10-04']);
   const pickWith = (args = [], stub = gh) => {
-    const r = climb(dir, ['pick', '--date', '2026-10-06', ...args, '--json'], { KEEL_GH: stub });
+    const r = climb(dir, ['pick', '--date', '2026-10-06', ...args, '--json'], { PLATES_GH: stub });
     assert.equal(r.status, 0, r.stderr + r.stdout);
     return json(r);
   };
@@ -205,7 +205,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   assert.match(second.plan.skipped[2].note, /climb runs one job a night, and tonight's plan named build-x first/);
   // A plan with no climb item: climb does not run tonight, green, saying so. (Mutation: falling back to choose runs test-time.)
   const robotOnly = await planFile(t, dir, acmePlan([planItem('robot-7', 'robot:#7')]));
-  const none = climb(dir, ['pick', '--date', '2026-10-06', '--plan', robotOnly], { KEEL_GH: gh });
+  const none = climb(dir, ['pick', '--date', '2026-10-06', '--plan', robotOnly], { PLATES_GH: gh });
   assert.equal(none.status, 0, none.stderr);
   assert.match(none.stdout, /^no climb tonight: tonight's plan \(2026-10-06\) names no climb item, so climb does not run tonight$/m);
   const noneJson = pickWith(['--plan', robotOnly]);
@@ -225,7 +225,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   assert.deepEqual([refused.job, refused.plan.used], ['test-time', false]);
   assert.match(refused.plan.why, /is refused \(.*names its number first/);
   // A plan file that cannot be read: exit 2, never a guess that there is none.
-  const missing = climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', join(dir, '..', 'no-such-plan.json')], { KEEL_GH: gh });
+  const missing = climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', join(dir, '..', 'no-such-plan.json')], { PLATES_GH: gh });
   assert.equal(missing.status, 2);
   assert.match(json(missing).error, /cannot read the plan on keel-night-plan.*pick never guesses there is no plan/);
   // Weekly, on its off day: the plan's climb items are skipped, saying why.
@@ -239,7 +239,7 @@ test('a plan budget lowers a pass\'s minutes and never raises them', async t => 
   const dir = await plannedAcme(t, { jobs: ['test-time'], budget: { minutes: 45 } });
   const gh = await stubGh(t, []);
   const minutesFor = async budget => {
-    const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time', { budget })]))], { KEEL_GH: gh }));
+    const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time', { budget })]))], { PLATES_GH: gh }));
     assert.equal(p.job, 'test-time');
     return [p.minutes, p.budget];
   };
@@ -249,11 +249,11 @@ test('a plan budget lowers a pass\'s minutes and never raises them', async t => 
   assert.deepEqual(await minutesFor({ minutes: 0.5 }), [1, { config: 45, plan: 0.5 }], 'at least one minute, still under climb\'s own');
   assert.deepEqual(await minutesFor(null), [45, { config: 45, plan: null }], 'no plan budget: climb\'s own');
   // The workflow's pick step hands that budget to the agent's time box (steps.pick.outputs.minutes).
-  const temp = await mkdtemp(join(tmpdir(), 'keel-climb-plan-step-'));
+  const temp = await mkdtemp(join(tmpdir(), 'plates-climb-plan-step-'));
   t.after(() => rm(temp, { recursive: true, force: true }));
   await mkdir(join(temp, 'night-plan'), { recursive: true });
   await writeFile(join(temp, 'night-plan/branch.json'), JSON.stringify(acmePlan([planItem('tests-x', 'climb:test-time', { budget: { minutes: 12 } })], { date: new Date().toISOString().slice(0, 10) })));
-  const s = await step(t, dir, "Pick tonight's job", { RUNNER_TEMP: temp, EVENT: 'workflow_dispatch', KEEL_GH: gh });
+  const s = await step(t, dir, "Pick tonight's job", { RUNNER_TEMP: temp, EVENT: 'workflow_dispatch', PLATES_GH: gh });
   assert.equal(s.status, 0, s.out);
   assert.deepEqual([s.outputs.job, s.outputs.minutes, s.outputs.plan_used, s.outputs.plan_ticks], ['test-time', '12', 'true', 'true']);
   assert.match(s.out, /climb runs tests-x/);

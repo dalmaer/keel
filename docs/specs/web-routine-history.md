@@ -11,7 +11,7 @@ desktop.
 | Source | Read | Authority and gaps |
 | --- | --- | --- |
 | GitHub workflows | Selected repository workflow inventory and immutable workflow files | Provider enabled state and authored triggers are different facts. Unknown YAML semantics, schedules, permissions, inputs or concurrency remain unknown; never execute project scripts to resolve them. |
-| GitHub runs | Retained logical runs, individual attempts, attempt-scoped jobs/steps and run-scoped artifact metadata | Provider execution status, not Keel acceptance. Old reruns remain eligible; an unvisited page can contain a recent rerun. |
+| GitHub runs | Retained logical runs, individual attempts, attempt-scoped jobs/steps and run-scoped artifact metadata | Provider execution status, not Plates acceptance. Old reruns remain eligible; an unvisited page can contain a recent rerun. |
 | Night plans | Validated retained `docs/night/*.json` and the existing Daily reader | Authored item outcomes, not independently observed execution attempts. Preserve source revision and link to the full Daily view. |
 | CLI receipts | Supported, validated receipt files only when present in the selected immutable repository source | Local machine history is not connected. No filesystem scanning, transcript upload or invented receipts. Unsupported records are explicit gaps. |
 | Web operations | Existing encrypted decision/walk/migration records and configured media receipts | Original operation state and receipt, with actor/project authorization. Reading history never dispatches or reconciles a write. |
@@ -56,10 +56,10 @@ jobs and artifacts, at most two pages of 100 each per request. Do not silently
 truncate stages, artifacts or attempts. A continuation validates its repository,
 source and filters; it never grants access or supplies an arbitrary URL.
 
-Fleet reads visit at most three projects per request, sequentially, so one large
+All plates reads visit at most three projects per request, sequentially, so one large
 project cannot starve all the others. Every unvisited authorized project remains
 visible with its next-page path. Date/routine/state filters apply to observed
-records, with a clear note when source pagination is not exhausted. Fleet totals
+records, with a clear note when source pagination is not exhausted. Collection totals
 are counts of deduplicated observed records, never fabricated fleet-wide totals.
 
 Repository-source inventory shares the existing bounded immutable reader. Read
@@ -133,7 +133,7 @@ is an observed capability, not a documented permanence claim. A refusal produces
 an unavailable source without a fallback to a potentially recycled repository
 name. Returned run/repository/attempt identities still require validation.
 
-Provide Routines and Activity in fleet and project lenses, preserving applicable
+Provide Routines and Activity in All plates and project lenses, preserving applicable
 URL filters. Lists summarize outcome, project, source age and cost confidence;
 details expose stages, original status, attempts and evidence. On mobile, labeled
 cards replace wide tables, controls have at least 44px targets, and every feature

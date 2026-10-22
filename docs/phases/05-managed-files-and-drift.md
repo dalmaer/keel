@@ -3,26 +3,26 @@ status: built
 since: 2026-10-02
 goal: G2
 depends: [1]
-note: "keel doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes."
+note: "plates doctor reports edited/behind/both drift from three hashes (now, lock, template), second copies, a replaced symlink and phase/goal rules; render refuses to overwrite a project's edit; eject and restore need --yes."
 evidence: ["evidence/2026-10-02-doctor.md"]
 ---
 
-# Keel knows when a project has changed the practice, and treats it as signal
+# Plates knows when a project has changed the practice, and treats it as signal
 
 ## Done when
 
-`keel doctor` reports every managed file and block whose bytes differ from what keel wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
+`plates doctor` reports every managed file and block whose bytes differ from what plates wrote, and for each offers eject, restore, or send-as-lesson — never reverting on its own.
 
 ## Scope
 
-`.keel/lock.json` (path → practice, version, sha256 at write). Managed files
+`.plates/lock.json` (path → practice, version, sha256 at write). Managed files
 carry a one-line header naming the practice and how to change it. `doctor` also
 lints the practice's own rules (a phase without Done when, a second copy of a
 skill outside `.agents/skills`, a CLAUDE.md that is more than a pointer).
 
 ## Acceptance
 
-- [x] Editing a managed file is reported, with a diff against keel's version.
+- [x] Editing a managed file is reported, with a diff against plates's version.
 - [x] A copied skill outside `.agents/skills/` is reported (the lesson 1 shape).
 - [x] `--json` output is what `improve` and `lessons` consume.
 - [x] `doctor` changes nothing unless a fix is chosen.

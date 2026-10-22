@@ -7,7 +7,7 @@ import { run } from './helpers/run.mjs';
 import { feedbackFixture, feedbackWords, feedbackBytes } from './helpers/feedback.mjs';
 import { feedbackSummary, boardView, boardText, board } from '../lib/board.mjs';
 
-const BIN = resolve('bin/keel.mjs');
+const BIN = resolve('bin/plates.mjs');
 function cli(f, args, bin = BIN) {
   const r = run(process.execPath, [bin, 'feedback', ...args, '--json'], { cwd: f.root, env: f.env });
   assert.equal(r.stderr, '', r.stderr);
@@ -26,7 +26,7 @@ test('feedback CLI grammar requires exact paired digests and rejects ignored or 
   for (const args of [[], ['unknown'], ['capture'], ['capture','capture.json','--yes'], ['capture','capture.json','--digest','a'.repeat(64)], ['capture','capture.json','--yes','--digest','bad'], ['capture','capture.json','--digest','a'.repeat(64),'--digest','b'.repeat(64),'--yes'], ['list','extra'], ['list','--yes'], ['propose','a'.repeat(64)], ['propose','a'.repeat(64),'--record','publication.json','--yes'], ['resolve','a'.repeat(64),'--record'], ['capture','capture.json','--unknown']]) {
     expect(cli(f, args), 2);
   }
-  await assert.rejects(readdir(join(f.root,'.keel/feedback')), {code:'ENOENT'});
+  await assert.rejects(readdir(join(f.root,'.plates/feedback')), {code:'ENOENT'});
 });
 
 test('fresh processes retain exact feedback, refuse stale capture and resolution, and report unavailable routing', async t => {
@@ -35,7 +35,7 @@ test('fresh processes retain exact feedback, refuse stale capture and resolution
   const p = expect(cli(f,['capture','capture.json']),3);
   assert.doesNotMatch(JSON.stringify(p), new RegExp(feedbackWords));
   assert.equal(await readFile(join(f.root,'.git/info/exclude'),'utf8'),beforeExclude);
-  await assert.rejects(readdir(join(f.root,'.keel/feedback')), {code:'ENOENT'});
+  await assert.rejects(readdir(join(f.root,'.plates/feedback')), {code:'ENOENT'});
   f.record.words += ' Acme edited before approval.';await f.save('capture.json',f.record);
   expect(cli(f,['capture','capture.json','--yes','--digest',p.digest]),2);
   f.record.words = feedbackWords;await f.save('capture.json',f.record);
@@ -48,7 +48,7 @@ test('fresh processes retain exact feedback, refuse stale capture and resolution
   await f.save('publication.json',f.publication(item.digest));
   const proposal=expect(cli(f,['propose',item.id,'--record','publication.json']),3);
   assert.ok(JSON.stringify(proposal).includes('the second row is missing.'),'only explicit publication preview includes the chosen excerpt');
-  await assert.rejects(readdir(join(f.root,'.keel/robot-issues')), {code:'ENOENT'});
+  await assert.rejects(readdir(join(f.root,'.plates/robot-issues')), {code:'ENOENT'});
   await f.save('resolution.json',f.resolution(item.digest));
   const resolution=expect(cli(f,['resolve',item.id,'--record','resolution.json']),3);
   const changed=f.resolution(item.digest);changed.reason='Acme changed the reason.';await f.save('resolution.json',changed);
@@ -93,13 +93,13 @@ test('packed CLI in an adopted Acme repository preserves private capture and exp
   const temp=await mkdtemp(join(tmpdir(),'acme-feedback-pack-'));t.after(()=>rm(temp,{recursive:true,force:true}));
   const packed=run('npm',['pack','--ignore-scripts','--json','--pack-destination',temp],{cwd:resolve('.')});assert.equal(packed.status,0,packed.stderr);
   const tar=run('tar',['-xzf',join(temp,JSON.parse(packed.stdout)[0].filename),'-C',temp]);assert.equal(tar.status,0,tar.stderr);
-  const bin=join(temp,'package/bin/keel.mjs'), f=await feedbackFixture(t);
+  const bin=join(temp,'package/bin/plates.mjs'), f=await feedbackFixture(t);
   await writeFile(join(f.root,'AGENTS.md'),'# Acme\n\nAcme owner guidance remains.\n');
   await writeFile(join(f.root,'acme.mjs'),'export const acme = true;\n');
   const adopted=run(process.execPath,[bin,'adopt','--check','node --check acme.mjs','--json'],{cwd:f.root,env:f.env});assert.equal(adopted.status,0,adopted.stdout+adopted.stderr);
   assert.match(await readFile(join(f.root,'AGENTS.md'),'utf8'),/Acme owner guidance remains/);
   const help=run(process.execPath,[bin,'--agent-help','feedback','--json'],{cwd:f.root,env:f.env});assert.equal(help.status,0);assert.match(JSON.parse(help.stdout).body ?? help.stdout,/feedback capture/);
-  // Owner-authored input is ignored explicitly; only the store's ignore is Keel-owned.
+  // Owner-authored input is ignored explicitly; only the store's ignore is Plates-owned.
   await writeFile(join(f.root,'.gitignore'),'capture.json\npublication.json\nresolution.json\npreview.txt\n');
   const item=await capture(f,bin);assert.equal(expect(cli(f,['list'],bin),0).items[0].id,item.id);
   await f.save('publication.json',f.publication(item.digest));expect(cli(f,['propose',item.id,'--record','publication.json'],bin),3);
@@ -107,7 +107,7 @@ test('packed CLI in an adopted Acme repository preserves private capture and exp
   const p=expect(cli(f,['resolve',item.id,'--record','resolution.json'],bin),3);
   expect(cli(f,['resolve',item.id,'--record','resolution.json','--yes','--digest',p.digest],bin),0);
   assert.equal(expect(cli(f,['list'],bin),0).items[0].state,'linked');
-  f.git('add','.');const staged=f.git('diff','--cached','--name-only');assert.doesNotMatch(staged,/capture\.json|publication\.json|resolution\.json|preview\.txt|\.keel\/feedback/);
+  f.git('add','.');const staged=f.git('diff','--cached','--name-only');assert.doesNotMatch(staged,/capture\.json|publication\.json|resolution\.json|preview\.txt|\.plates\/feedback/);
   const diff=f.git('diff','--cached');assert.doesNotMatch(diff,/Acme private feedback|immutable preview with one row/);
   f.record.words += ' Acme now sees another issue.';f.record.revision=2;f.record.previousDigest=expect(cli(f,['list'],bin),0).items[0].digest;
   await f.save('capture.json',f.record);

@@ -26,12 +26,12 @@ The design is [Climb nights](../research/2026-10-06-climb-nights.md).
 - **`lessons`**: phase 31's distill, run in the project on its own table:
   family, reword and standardise proposals in the PR, never applied to the table
   until the owner accepts them; lessons that belong home are sent with
-  `keel lessons`, by the owner.
+  `plates lessons`, by the owner.
 - **`loop`**: the loop practice's pull, then the agent's `propose` for each
   untriaged finding (a rank, a phase, a read citing code); `decide` stays
   the owner's. It replaces the Loop workflow's pull on a climb night, never
   runs beside it.
-- **Ledger first**: its `.keel/keel.json` gains `climb` with these jobs and a
+- **Ledger first**: its `.plates/plates.json` gains `climb` with these jobs and a
   budget, by an update PR the owner merges.
 
 ## Acceptance
@@ -75,7 +75,7 @@ At the fleet release: ledger gains `"climb"` (perf, lessons, loop; 45 minutes) w
 
 ## Trajectory
 
-- **2026-10-06** — The distill rules ship to projects as scripts/keel/distill.mjs (no imports); keel's lib/distill.mjs re-exports them: one source. In a project the owner decides a lessons proposal by setting its status; `keel learn decide` stays keel's.
+- **2026-10-06** — The distill rules ship to projects as scripts/plates/distill.mjs (no imports); keel's lib/distill.mjs re-exports them: one source. In a project the owner decides a lessons proposal by setting its status; `keel learn decide` stays keel's.
 - **2026-10-06** — ledger's `npm run perf` prints several budget rows, not one number; its perf job needs a one-number command (an awk over the table works but is fragile), and its data must be reachable from compare's temporary worktrees.
 - **2026-10-06** — Loop unreachable reaches the run's notice and step summary but not yet the night's Climb line (night's climbLine); and keel-climb and keel-loop both pull on a day both run: harmless, not yet merged.
 - **2026-10-07** — Reversed: a loop climb night no longer pulls "in place of" keel-loop.yml. Where keel-loop.yml is installed the night defers to it and proposes on the findings it already merged (up to a day old): keel-loop.yml cannot see whether climb's agent will run (shipped workflows may not name the model's secret), so it cannot step aside safely. From Codex's review of ledger#92.

@@ -13,13 +13,13 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { run } from './helpers/run.mjs';
-import * as ledger from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import * as ledger from '../practices/night/files/scripts/plates/test-ledger.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE = join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel', 'test-ledger.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const SOURCE = join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs');
 const { flaky, slower, hygiene, readRuns, record, testsConfigOf, testsConfigProblems, lastOutcome, aloneCommand, preloads, RUNS, DEFAULTS } = ledger;
 
-async function scratch(t, prefix = 'keel-ledger-') {
+async function scratch(t, prefix = 'plates-ledger-') {
   const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
@@ -29,7 +29,7 @@ async function scratch(t, prefix = 'keel-ledger-') {
 async function mutant(t, from, to) {
   const text = await readFile(SOURCE, 'utf8');
   assert.ok(text.includes(from), `the mutation's target is still in the source: ${from}`);
-  const dir = await scratch(t, 'keel-ledger-mutant-');
+  const dir = await scratch(t, 'plates-ledger-mutant-');
   const file = join(dir, 'test-ledger.mjs');
   await writeFile(file, text.replace(from, to));
   await writeFile(join(dir,'time-receipts.mjs'), await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
@@ -57,10 +57,10 @@ test.skip('a skipped crate', () => {});
 async function acmeRepo(t, source = null) {
   const dir = await scratch(t);
   await mkdir(join(dir, 'tests'), { recursive: true });
-  await mkdir(join(dir, 'scripts', 'keel'), { recursive: true });
+  await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
   await writeFile(join(dir, 'tests', 'acme.test.mjs'), ACME_TESTS);
-  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), (source ?? await readFile(SOURCE, 'utf8')).replace('load = loadavg', 'load = () => [0, 0, 0]').replace("process.env.KEEL_RUN_START ?? 'null'", "'null'"));
-  await writeFile(join(dir,'scripts/keel/time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
+  await writeFile(join(dir, 'scripts', 'plates', 'test-ledger.mjs'), (source ?? await readFile(SOURCE, 'utf8')).replace('load = loadavg', 'load = () => [0, 0, 0]').replace("process.env.PLATES_RUN_START ?? 'null'", "'null'"));
+  await writeFile(join(dir,'scripts/plates/time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
   await writeFile(join(dir, '.gitignore'), 'out*.txt\n');
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main');
@@ -69,7 +69,7 @@ async function acmeRepo(t, source = null) {
   return { dir, git };
 }
 
-const WITH = ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=./scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout'];
+const WITH = ['--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=./scripts/plates/test-ledger.mjs', '--test-reporter-destination=stdout'];
 const nodeTest = (dir, extra, env = {}) => run(process.execPath, ['--test', ...extra, 'tests/acme.test.mjs'], { cwd: dir, env: { ...process.env, ...env } });
 /** The ledger's source with one edit: a mutant a reporter scenario must catch. */
 async function mutated(from, to) {
@@ -96,7 +96,7 @@ test('the reporter records every top-level test with outcome and duration, and c
     const both = nodeTest(dir, WITH, env);
     assert.equal(both.status, plain.status, 'the exit code is the run\'s own');
     const lines = both.stdout.trimEnd().split('\n');
-    const at = lines.findIndex(l => l.startsWith('keel test ledger: '));
+    const at = lines.findIndex(l => l.startsWith('plates test ledger: '));
     assert.ok(at > 0, 'the ledger speaks');
     assert.ok(lines.slice(at + 1).every(l => l.startsWith('  ')), 'once, last: its items are indented under its one line');
     assert.equal(steady(lines.slice(0, at).join('\n')), steady(plain.stdout.trimEnd()), 'spec\'s output is untouched');
@@ -125,7 +125,7 @@ test('the reporter records every top-level test with outcome and duration, and c
   assert.ok((await readdir(join(dir, RUNS))).filter(n => n.endsWith('.json')).every(n => !n.includes(':')), 'no colon in a file name (artifacts refuse one)');
   // Same clean tree, both outcomes: the reporter names it, with the command to run it alone.
   const out = nodeTest(dir, WITH).stdout;
-  assert.match(out, /keel test ledger: 1 hygiene item .* fix it or file it; never rerun until green\./);
+  assert.match(out, /plates test ledger: 1 hygiene item .* fix it or file it; never rerun until green\./);
   assert.match(out, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught": passed 3, failed 2 on one clean tree/);
   assert.match(out, /node --test --test-name-pattern='\^the roadrunner is caught\$' tests\/acme\.test\.mjs/);
 });
@@ -140,7 +140,7 @@ test('a file that cannot load is recorded as the file, failed; a broken ledger d
   await writeFile(join(dir, RUNS), 'a file where the directory should be');
   const r = nodeTest(dir, WITH);
   assert.equal(r.status, 0, 'the run is still green');
-  assert.match(r.stdout, /keel test ledger: could not record this run \(/);
+  assert.match(r.stdout, /plates test ledger: could not record this run \(/);
 });
 
 test('a run that executed no test fails, "no tests ran" (an empty file is the file, not a test); allowEmpty lets it pass; a run with one test is untouched', async t => {
@@ -156,12 +156,12 @@ test('a run that executed no test fails, "no tests ran" (an empty file is the fi
   await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { test } from 'node:test';\ntest.skip('a crate for later', () => {});\n");
   assert.equal(empty().status, 1, 'a run of skipped tests executed none');
   // The project says it has none yet.
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { allowEmpty: true } }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { allowEmpty: true } }));
   const allowed = empty();
   assert.equal(allowed.status, 0, allowed.stdout);
   assert.doesNotMatch(allowed.stdout, /no tests ran/);
   // A run with tests is untouched.
-  await rm(join(dir, '.keel', 'keel.json'));
+  await rm(join(dir, '.plates', 'plates.json'));
   const one = nodeTest(dir, WITH);
   assert.equal(one.status, 0);
   assert.doesNotMatch(one.stdout, /no tests ran/);
@@ -173,7 +173,7 @@ test('a run that executed no test fails, "no tests ran" (an empty file is the fi
   const text = await readFile(SOURCE, 'utf8');
   const target = 'if (empty && !process.exitCode) process.exitCode = 1;';
   assert.ok(text.includes(target));
-  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), text.replace(target, ''));
+  await writeFile(join(dir, 'scripts', 'plates', 'test-ledger.mjs'), text.replace(target, ''));
   await writeFile(join(dir, 'tests', 'empty.test.mjs'), '// Acme has no tests yet.\n');
   assert.equal(empty().status, 0, 'the mutant lets a run of nothing pass: the assertion above is what catches it');
 });
@@ -193,29 +193,29 @@ test('an empty describe() is a suite, not a test: a file of only that ran nothin
   const text = await readFile(SOURCE, 'utf8');
   const target = " && e.data?.details?.type === 'test'";
   assert.ok(text.includes(target));
-  await writeFile(join(dir, 'scripts', 'keel', 'test-ledger.mjs'), text.replace(target, ''));
+  await writeFile(join(dir, 'scripts', 'plates', 'test-ledger.mjs'), text.replace(target, ''));
   await writeFile(join(dir, 'tests', 'empty.test.mjs'), "import { describe } from 'node:test';\ndescribe('anvils, someday', () => {});\n");
   assert.equal(empty().status, 0, 'the mutant counts the suite: the assertion above is what catches it');
 });
 
-test('dirty: an untracked file in keel\'s machine directories, or an ignored one, leaves the tree clean; one in src/ dirties it (mutation: excluding only test-runs)', async t => {
+test('dirty: an untracked file in plates\'s machine directories, or an ignored one, leaves the tree clean; one in src/ dirties it (mutation: excluding only test-runs)', async t => {
   const { dir } = await acmeRepo(t);
   const lastDirty = async () => { nodeTest(dir, WITH); return (await readRuns(dir)).runs.at(-1).dirty; };
-  for (const d of ['.keel/tend', '.keel/climb']) {
+  for (const d of ['.plates/tend', '.plates/climb']) {
     await mkdir(join(dir, d), { recursive: true });
     await writeFile(join(dir, d, 'pass.json'), '{}\n');
   }
   await writeFile(join(dir, 'out-acme.txt'), 'ignored\n');
   assert.equal(await lastDirty(), false, 'the night\'s own gathered files are not the code moving');
   const text = await readFile(SOURCE, 'utf8');
-  const target = "export const MACHINE_DIRS = Object.freeze([RUNS, '.keel/climb', '.keel/tend']);";
+  const target = "export const MACHINE_DIRS = Object.freeze([RUNS, '.plates/climb', '.plates/tend']);";
   assert.ok(text.includes(target));
   // The mutant lives outside the repo, so it does not dirty the tree itself.
-  const outside = join(await scratch(t, 'keel-ledger-mutant-'), 'test-ledger.mjs');
+  const outside = join(await scratch(t, 'plates-ledger-mutant-'), 'test-ledger.mjs');
   await writeFile(join(dirname(outside),'time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
   await writeFile(outside, text.replace(target, 'export const MACHINE_DIRS = Object.freeze([RUNS]);'));
   nodeTest(dir, ['--test-reporter=spec', '--test-reporter-destination=stdout', `--test-reporter=${outside}`, '--test-reporter-destination=stdout']);
-  assert.equal((await readRuns(dir)).runs.at(-1).dirty, true, 'the mutant calls .keel/tend dirty: the assertion above catches it');
+  assert.equal((await readRuns(dir)).runs.at(-1).dirty, true, 'the mutant calls .plates/tend dirty: the assertion above catches it');
   await mkdir(join(dir, 'src'), { recursive: true });
   await writeFile(join(dir, 'src', 'anvil.mjs'), 'export {};\n');
   assert.equal(await lastDirty(), true, 'an untracked source file is a dirty tree');
@@ -223,18 +223,18 @@ test('dirty: an untracked file in keel\'s machine directories, or an ignored one
 
 test('the run\'s config is recorded: one test passing under one configEnv value and failing under another on one clean tree is not flaky; twice under one is', async t => {
   const { dir, git } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_FAIL'] } }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv: ['ACME_FAIL'] } }));
   git('add', '-A'); git('commit', '-qm', 'config');
   nodeTest(dir, WITH);
   const other = nodeTest(dir, WITH, { ACME_FAIL: '1' });
   assert.equal(other.status, 1);
-  assert.match(other.stdout, /keel test ledger: no flaky or slower test/, 'a fail under another config is not a flake');
+  assert.match(other.stdout, /plates test ledger: no flaky or slower test/, 'a fail under another config is not a flake');
   const { runs } = await readRuns(dir);
   assert.notEqual(runs[0].config, runs[1].config);
   assert.match(runs[0].config, /^[0-9a-f]{12}$/);
   // The same config twice, both outcomes: flaky. Here the toggle is not named, so both runs share one config.
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: {} }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: {} }));
   git('add', '-A'); git('commit', '-qm', 'unnamed');
   nodeTest(dir, WITH);
   const flakyRun = nodeTest(dir, WITH, { ACME_FAIL: '1' });
@@ -260,9 +260,9 @@ test('a workspace\'s own node --test, run from its folder, records in the repo r
   const { dir } = await acmeRepo(t);
   await mkdir(join(dir, 'web', 'tests'), { recursive: true });
   await writeFile(join(dir, 'web', 'tests', 'shop.test.mjs'), "import { test } from 'node:test';\ntest('the shop opens', () => {});\n");
-  const r = run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...process.env } });
+  const r = run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/plates/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...process.env } });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /keel test ledger: /);
+  assert.match(r.stdout, /plates test ledger: /);
   const { runs } = await readRuns(dir);
   assert.deepEqual(runs.at(-1).tests.map(x => [x.file, x.name, x.outcome]), [['web/tests/shop.test.mjs', 'the shop opens', 'pass']]);
   assert.deepEqual((await readRuns(join(dir, 'web'))).runs, [], 'nothing under the workspace\'s own folder');
@@ -276,8 +276,8 @@ test('a workspace\'s own node --test, run from its folder, records in the repo r
  */
 async function reproduces(t, source) {
   const { dir, git } = await acmeRepo(t, source);
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_MODE'] } }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv: ['ACME_MODE'] } }));
   await writeFile(join(dir, 'pre.mjs'), 'globalThis.acmePreloaded = true;\n');
   await writeFile(join(dir, 'tests', 'mode.test.mjs'), "import { test } from 'node:test';\nimport { writeFileSync } from 'node:fs';\n"
     + "test('the mode holds', () => { writeFileSync('out-seen.txt', JSON.stringify({ mode: process.env.ACME_MODE ?? null, preloaded: globalThis.acmePreloaded === true, nodeOptions: process.env.NODE_OPTIONS ?? null })); if (process.env.ACME_FAIL) throw new Error('flake'); });\n");
@@ -329,7 +329,7 @@ function assertRunnable(mod) {
   const parse = run('bash', ['-n', '-c', cmd], { env: bare() });
   assert.equal(parse.status, 0, `bash -n: ${parse.stderr}`);
   // `node` here is a stub that prints what it saw; the command runs as printed.
-  const stub = mkdtempSync(join(tmpdir(), 'keel-ledger-node-'));
+  const stub = mkdtempSync(join(tmpdir(), 'plates-ledger-node-'));
   writeFileSync(join(stub, 'node'), '#!/bin/sh\necho "token=$ACME_TOKEN"\n', { mode: 0o755 });
   const env = { ...bare(), PATH: `${stub}:${process.env.PATH}` };
   const set = run('bash', ['-c', cmd], { env: { ...env, ACME_TOKEN: 'acme-secret-123' } });
@@ -354,8 +354,8 @@ test('mutation: the old <as in the run> placeholder fails the runnable-command t
 /** A configEnv secret: its value is never in a run file or a printed command; two values are still two configs. */
 async function keepsSecret(t, source) {
   const { dir, git } = await acmeRepo(t, source);
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_TOKEN'] } }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv: ['ACME_TOKEN'] } }));
   git('add', '-A'); git('commit', '-qm', 'token');
   const outs = [nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-123', ACME_FAIL: '1' }), nodeTest(dir, WITH, { ACME_TOKEN: 'acme-secret-456' })];
   const cmd = printed(outs[1].stdout, /flaky {3}tests\/acme\.test\.mjs "the roadrunner is caught"/);
@@ -415,7 +415,7 @@ async function fromWorkspace(t, source) {
   await writeFile(join(dir, 'src', 'anvil.mjs'), 'export {};\n');
   await writeFile(join(dir, 'web', 'tests', 'shop.test.mjs'), "import { test } from 'node:test';\ntest('the shop opens', () => { if (process.env.ACME_FAIL) throw new Error('closed'); });\n");
   git('add', '-A'); git('commit', '-qm', 'web');
-  const shop = env => run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/keel/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...bare(), ...env } });
+  const shop = env => run(process.execPath, ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', '--test-reporter=../scripts/plates/test-ledger.mjs', '--test-reporter-destination=stdout', 'tests/shop.test.mjs'], { cwd: join(dir, 'web'), env: { ...bare(), ...env } });
   shop({});
   const item = /flaky {3}web\/tests\/shop\.test\.mjs "the shop opens": passed 1, failed 1/;
   const inWeb = printed(shop({ ACME_FAIL: '1' }).stdout, item);
@@ -595,22 +595,22 @@ test('the hygiene block: one line when clean; each item with its history and the
   const opts = { window: 3, factor: 2, floorMs: 200 };
   const clean = hygiene(history(200, 210, opts), opts);
   assert.equal(clean.length, 1);
-  assert.match(clean[0], /^keel test ledger: no flaky or slower test \(4 runs in \.keel\/test-runs; 0 busy runs omitted; 4 runs with unavailable load context \(not known quiet\)\)\.$/);
+  assert.match(clean[0], /^plates test ledger: no flaky or slower test \(4 runs in \.plates\/test-runs; 0 busy runs omitted; 4 runs with unavailable load context \(not known quiet\)\)\.$/);
   const block = hygiene(history(200, 500, opts), opts, { preload: ['--import', './tests/helpers/hermetic.mjs'] });
-  assert.match(block[0], /^keel test ledger: 1 hygiene item \(4 runs/);
+  assert.match(block[0], /^plates test ledger: 1 hygiene item \(4 runs/);
   assert.match(block[1], /^ {2}slower {2}tests\/anvils\.test\.mjs "drop": 500 ms against a median of 200 ms over its last 3 passing runs \(linux-x64-4cpu\), \+300 ms$/);
   assert.equal(block[2].trim(), "node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='^drop$' tests/anvils.test.mjs");
   assert.equal(aloneCommand({ file: 'tests/a.test.mjs', name: "Acme's (x) $1" }), "node --test --test-name-pattern='^Acme'\\''s \\(x\\) \\$1$' tests/a.test.mjs");
   assert.deepEqual(preloads(['--import', './h.mjs', '--test', '--require=./r.cjs', '--test-reporter=spec']), ['--import', './h.mjs', '--require=./r.cjs']);
 });
 
-test('.keel/keel.json "tests" overrides window, factor and floorMs, and a bad value is named', () => {
+test('.plates/plates.json "tests" overrides window, factor and floorMs, and a bad value is named', () => {
   assert.deepEqual(testsConfigOf({}), DEFAULTS);
   assert.deepEqual(DEFAULTS, { window: 20, factor: 2, floorMs: 200 });
   assert.deepEqual(testsConfigOf({ tests: { window: 5, floorMs: 50 } }), { window: 5, factor: 2, floorMs: 50 });
   for (const tests of [[], 'x', { window: 1 }, { window: 2.5 }, { window: 201 }, { factor: 1 }, { floorMs: -1 }, { acme: 1 }]) {
     assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
-    assert.throws(() => testsConfigOf({ tests }), /\.keel\/keel\.json: "tests"/);
+    assert.throws(() => testsConfigOf({ tests }), /\.plates\/plates\.json: "tests"/);
   }
 });
 
@@ -673,7 +673,7 @@ test('configHash: stable for one setting; NODE_OPTIONS, a preload, or a configEn
 // The fixtures are real output (tests/fixtures/junit/*.xml, each says how it was
 // made): bun 1.2.13 and vitest 5.0.3 run on one synthetic Acme folder.
 
-const JUNIT_FIXTURES = join(KEEL, 'tests', 'fixtures', 'junit');
+const JUNIT_FIXTURES = join(PLATES, 'tests', 'fixtures', 'junit');
 const fixture = name => readFile(join(JUNIT_FIXTURES, name), 'utf8');
 /** The same file with every failure taken out: the tests all pass (or skip). */
 const passing = xml => xml.replace(/<failure\b[^>]*\/>/g, '').replace(/<failure\b[^>]*>[\s\S]*?<\/failure>/g, '');
@@ -757,7 +757,7 @@ test('readXml reads the JUnit subset, entities and all, and refuses what is not 
   }
 });
 
-const ledgerCli = (dir, args, env = {}) => run(process.execPath, ['scripts/keel/test-ledger.mjs', ...args], { cwd: dir, env: { ...process.env, ...env } });
+const ledgerCli = (dir, args, env = {}) => run(process.execPath, ['scripts/plates/test-ledger.mjs', ...args], { cwd: dir, env: { ...process.env, ...env } });
 /** Write `xml` at `path` in `dir` (its folders made). */
 async function junitAt(dir, path, xml) {
   await mkdir(dirname(join(dir, path)), { recursive: true });
@@ -767,11 +767,11 @@ async function junitAt(dir, path, xml) {
 test('--junit: a bun and a vitest file become ledger records with the run\'s commit, tree and config; the exit code is the runner\'s, and a failed testcase fails it', async t => {
   const { dir, git } = await acmeRepo(t);
   const head = git('rev-parse', 'HEAD').trim(), tree = git('rev-parse', 'HEAD^{tree}').trim();
-  // bun at keel's default place; vitest at a project's own (untracked) path, which must not dirty the tree.
+  // bun at plates's default place; vitest at a project's own (untracked) path, which must not dirty the tree.
   await junitAt(dir, ledger.JUNIT, await fixture('bun.xml'));
   const bun = ledgerCli(dir, ['--junit', ledger.JUNIT, '--runner', 'bun', '--status', '1']);
   assert.equal(bun.status, 1, `the runner's own exit code:\n${bun.stdout}${bun.stderr}`);
-  assert.equal(bun.stdout, 'keel test ledger: no flaky or slower test (1 run in .keel/test-runs; 0 busy runs omitted; 1 runs with unavailable load context (not known quiet)).\n', 'the hygiene block, as a node run ends with');
+  assert.equal(bun.stdout, 'plates test ledger: no flaky or slower test (1 run in .plates/test-runs; 0 busy runs omitted; 1 runs with unavailable load context (not known quiet)).\n', 'the hygiene block, as a node run ends with');
   await junitAt(dir, 'reports/vitest.xml', await fixture('vitest.xml'));
   const vitest = ledgerCli(dir, ['--junit=reports/vitest.xml']); // the runner is read from the file
   assert.equal(vitest.status, 1, 'no --status: a failed testcase fails the run');
@@ -797,7 +797,7 @@ test('--junit: a bun and a vitest file become ledger records with the run\'s com
   for (const args of [[], ['--junit'], ['--junit', 'x.xml', '--runner', 'jest'], ['--junit', 'x.xml', '--status', '300'], ['--acme']]) {
     const r = ledgerCli(dir, args);
     assert.equal(r.status, 2, JSON.stringify(args));
-    assert.match(r.stderr, /usage: node scripts\/keel\/test-ledger\.mjs --junit <file>/);
+    assert.match(r.stderr, /usage: node scripts\/plates\/test-ledger\.mjs --junit <file>/);
   }
   assert.equal((await readRuns(dir)).runs.length, 4);
 });
@@ -828,7 +828,7 @@ async function assertEmptyJunit(dir, mod) {
   r = await mod.junitRun({ junit: at, status: 0, cwd: dir, start: { at: new Date().toISOString() }, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
   assert.equal(r.code, 1, 'a file last written before this run began is stale: the runner wrote nothing new (bun writes none when no test ran)');
   assert.match(r.lines[0], /junit\.xml was last written before this run began: the tests wrote no new one/);
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { allowEmpty: true } }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { allowEmpty: true } }));
   await writeFile(at, await fixture('vitest-empty.xml'));
   assert.equal((await read()).code, 0, 'allowEmpty: a project with no tests yet passes');
   assert.equal((await read(4)).code, 4, 'allowEmpty never hides the runner\'s own failure');
@@ -836,12 +836,12 @@ async function assertEmptyJunit(dir, mod) {
   r = await read();
   assert.equal(r.code, 1, 'not JUnit: never a pass, allowEmpty or not');
   assert.match(r.lines[0], /junit\.xml is not JUnit the ledger can read \(<testsuite> is never closed/);
-  await rm(join(dir, '.keel', 'keel.json'));
+  await rm(join(dir, '.plates', 'plates.json'));
 }
 
 test('--junit: a file with no tests, no file, or a stale one is "no tests ran" (exit 1), as a node run is; allowEmpty lets it pass', async t => {
   const { dir } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
   await assertEmptyJunit(dir, ledger);
   // The command says it too, last, as the reporter does.
   await writeFile(join(dir, 'empty.xml'), await fixture('vitest-empty.xml'));
@@ -856,14 +856,14 @@ test('mutations: an empty JUnit file that passes without allowEmpty, or a stale 
     ['if (since !== null && written + FRESH_SLACK_MS < since) {', 'if (false) {'],
   ]) {
     const { dir } = await acmeRepo(t);
-    await mkdir(join(dir, '.keel'), { recursive: true });
+    await mkdir(join(dir, '.plates'), { recursive: true });
     const m = await mutant(t, from, to);
     await assert.rejects(assertEmptyJunit(dir, m), assert.AssertionError, `mutant survived: ${to}`);
   }
 });
 
 /**
- * Freshness is this run's (keel#93): byte-identical reports are each a run (one path's, rewritten by the next run of
+ * Freshness is this run's (plates#93): byte-identical reports are each a run (one path's, rewritten by the next run of
  * deterministic tests, and two packages'); a report last written before the run began (its --start sample, else the
  * gate's own start) is stale.
  */
@@ -884,12 +884,12 @@ async function assertFreshPerRun(dir, mod) {
   const stale = await mod.junitRun({ junit: 'junit.xml', cwd: dir, start: began, sample, env: {} });
   assert.equal(stale.code, 1, 'a report last written before this run began is stale');
   assert.match(stale.lines[0], /junit\.xml was last written before this run began/);
-  const gate = await mod.junitRun({ junit: 'junit.xml', cwd: dir, env: { KEEL_RUN_START: JSON.stringify(began) } });
+  const gate = await mod.junitRun({ junit: 'junit.xml', cwd: dir, env: { PLATES_RUN_START: JSON.stringify(began) } });
   assert.equal(gate.code, 1, 'no --start: the gate\'s own start judges it');
   assert.deepEqual((await readRuns(dir)).runs.map(r => r.dir), ['.', '.', '.', 'web']);
 }
 
-test('a fresh JUnit report is judged for this run: byte-identical reports are each a run; one written before the run began is stale (keel#93)', async t => {
+test('a fresh JUnit report is judged for this run: byte-identical reports are each a run; one written before the run began is stale (plates#93)', async t => {
   const { dir } = await acmeRepo(t);
   await assertFreshPerRun(dir, ledger);
 });
@@ -949,9 +949,9 @@ test('mutation: an unquoted path fails the quoted-file test', async t => {
   assert.throws(() => assertQuotedFile(m), assert.AssertionError);
 });
 
-test('"tests".junit lives in .keel/test-runs/, which ignores itself; a report there is ignored even when nothing is recorded (review on #56)', async t => {
-  assert.deepEqual(testsConfigProblems({ tests: { junit: '.keel/test-runs/vitest.xml' } }), []);
-  for (const junit of ['reports/vitest.xml', 'junit.xml', '.keel/test-runs/sub/x.xml', '.keel/test-runs/', '.keel/test-runs/a b.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
+test('"tests".junit lives in .plates/test-runs/, which ignores itself; a report there is ignored even when nothing is recorded (review on #56)', async t => {
+  assert.deepEqual(testsConfigProblems({ tests: { junit: '.plates/test-runs/vitest.xml' } }), []);
+  for (const junit of ['reports/vitest.xml', 'junit.xml', '.plates/test-runs/sub/x.xml', '.plates/test-runs/', '.plates/test-runs/a b.xml']) assert.ok(testsConfigProblems({ tests: { junit } }).length, junit);
   const { dir, git } = await acmeRepo(t);
   await junitAt(dir, ledger.JUNIT, await fixture('vitest-empty.xml'));
   assert.equal((await ledger.junitRun({ cwd: dir })).code, 1, 'no tests ran: nothing recorded');
@@ -964,7 +964,7 @@ test('mutation: no gate start as the fallback reads a report older than the gate
   await assert.rejects(assertFreshPerRun(dir, m), assert.AssertionError);
 });
 
-test('mutation: a JUnit file outside keel\'s directories left in the dirty check makes every run dirty, and fails the record test\'s clean tree', async t => {
+test('mutation: a JUnit file outside plates\'s directories left in the dirty check makes every run dirty, and fails the record test\'s clean tree', async t => {
   const { dir } = await acmeRepo(t);
   const m = await mutant(t, '...where(root, { exclude: shown === at ? [] : [shown] })', '...where(root)');
   await junitAt(dir, 'reports/vitest.xml', await fixture('vitest.xml'));
@@ -1054,10 +1054,10 @@ async function assertRunnerAgrees(dir, mod) {
   let r = await mod.junitRun({ junit: 'junit.xml', runner: 'bun', cwd: dir });
   assert.equal(r.code, 1, r.lines.join('\n'));
   assert.match(r.lines[0], /junit\.xml is not JUnit the ledger can read \(it is vitest's JUnit, but the runner is bun \(--runner\); say vitest\)/);
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { runner: 'bun' } }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { runner: 'bun' } }));
   r = await mod.junitRun({ junit: 'junit.xml', cwd: dir });
   assert.equal(r.code, 1);
-  assert.match(r.lines[0], /the runner is bun \(\.keel\/keel\.json "tests"\.runner\); say vitest/);
+  assert.match(r.lines[0], /the runner is bun \(\.plates\/plates\.json "tests"\.runner\); say vitest/);
   assert.equal((await readRuns(dir)).runs.length, 0, 'nothing recorded');
   r = await mod.junitRun({ junit: 'junit.xml', runner: 'vitest', cwd: dir });
   assert.equal(r.code, 1, 'the flag wins over the config, and agrees with the file: read, and red for its failed tests');
@@ -1066,13 +1066,13 @@ async function assertRunnerAgrees(dir, mod) {
 
 test('a --runner or "tests".runner that contradicts the JUnit file is refused, never read as the wrong runner\'s (review on #56)', async t => {
   const { dir } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
   await assertRunnerAgrees(dir, ledger);
 });
 
 test('mutation: a runner that overrides what the file says reads vitest as bun, and fails the runner test', async t => {
   const { dir } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
   const m = await mutant(t, '    if (says && kind !== says) throw', '    if (false) throw');
   await assert.rejects(assertRunnerAgrees(dir, m), assert.AssertionError);
 });
@@ -1083,7 +1083,7 @@ test('a bun or vitest finding\'s run-alone command is that runner\'s, from its s
   assert.equal(aloneCommand({ file: 'web/a.test.ts', name: 'Acme widgets', describe: true, runner: 'vitest', dir: 'web' }, [], { here: 'web' }), "npx vitest run a.test.ts -t '^ ?Acme widgets( |$)'");
   const block = hygiene([{ ...runOf({ tests: { 'fails on purpose': ['pass', 1] } }), runner: 'bun' }, { ...runOf({ tests: { 'fails on purpose': ['fail', 1] } }), runner: 'bun' }], { window: 3, factor: 2, floorMs: 200 });
   assert.equal(block[2].trim(), "bun test tests/anvils.test.mjs -t '^ ?fails on purpose$'");
-  assert.deepEqual(testsConfigProblems({ tests: { runner: 'bun', junit: '.keel/test-runs/junit.xml' } }), []);
+  assert.deepEqual(testsConfigProblems({ tests: { runner: 'bun', junit: '.plates/test-runs/junit.xml' } }), []);
   for (const tests of [{ runner: 'jest' }, { junit: '' }, { junit: '/tmp/acme.xml' }, { junit: '../acme.xml' }, { junit: 3 }]) {
     assert.ok(testsConfigProblems({ tests }).length, JSON.stringify(tests));
   }
@@ -1238,24 +1238,24 @@ test('ANSI-colored credentials are redacted before Node and JUnit collection', (
 test('timed gates execute and preserve exit status when telemetry storage fails', async t => {
   for (const preparationFails of [true, false]) for (const status of [0, 7]) {
     const dir = await scratch(t);
-    await mkdir(join(dir, '.keel'));
-    if (preparationFails) await writeFile(join(dir, '.keel', 'test-runs'), 'not a directory');
+    await mkdir(join(dir, '.plates'));
+    if (preparationFails) await writeFile(join(dir, '.plates', 'test-runs'), 'not a directory');
     await writeFile(join(dir, 'gate.mjs'), `
       import { rmSync, writeFileSync } from 'node:fs';
-      writeFileSync('observed.json', JSON.stringify({ ran: true, usual: process.env.KEEL_USUAL ?? null }));
-      ${preparationFails ? '' : "rmSync('.keel/test-runs', { recursive: true }); writeFileSync('.keel/test-runs', 'not a directory');"}
+      writeFileSync('observed.json', JSON.stringify({ ran: true, usual: process.env.PLATES_USUAL ?? null }));
+      ${preparationFails ? '' : "rmSync('.plates/test-runs', { recursive: true }); writeFileSync('.plates/test-runs', 'not a directory');"}
       process.exit(${status});
     `);
     const source = `import { timedCommand } from ${JSON.stringify(pathToFileURL(SOURCE).href)};
       const result = await timedCommand(${JSON.stringify(`'${process.execPath}' gate.mjs`)});
       console.log(JSON.stringify({ status: result.status, telemetry: result.telemetry }));`;
-    const r = run(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, env: { ...process.env, KEEL_USUAL: '/stale/acme', KEEL_GATE_ACTIVE: '' } });
+    const r = run(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, env: { ...process.env, PLATES_USUAL: '/stale/acme', PLATES_GATE_ACTIVE: '' } });
     assert.equal(r.status, 0, r.stderr);
     assert.deepEqual(JSON.parse(r.stdout), { status, telemetry: { usual: !preparationFails, recorded: false } });
     const observed = JSON.parse(await readFile(join(dir, 'observed.json'), 'utf8'));
     assert.equal(observed.ran, true);
     if (preparationFails) assert.equal(observed.usual, null, 'no stale inherited usual file');
-    else assert.equal(observed.usual, join(dir, '.keel', 'test-runs', 'usual'));
+    else assert.equal(observed.usual, join(dir, '.plates', 'test-runs', 'usual'));
     assert.match(r.stderr, /gate timing record unavailable/);
     if (preparationFails) assert.match(r.stderr, /usual timing unavailable/);
   }
@@ -1324,8 +1324,8 @@ test('hygiene retains quiet flake proof behind twenty busy observations', () => 
     ...Array.from({ length: 20 }, () => ({ ...runOf({ tests: { Acme: ['pass', 1] } }), busy })),
   ];
   const lines = hygiene(runs).join('\n');
-  assert.match(lines, /^keel test ledger: 1 hygiene item /);
-  assert.match(lines, /22 runs in \.keel\/test-runs; 20 busy runs omitted/);
+  assert.match(lines, /^plates test ledger: 1 hygiene item /);
+  assert.match(lines, /22 runs in \.plates\/test-runs; 20 busy runs omitted/);
   assert.match(lines, /flaky +tests\/anvils\.test\.mjs "Acme": passed 1, failed 1/);
   assert.match(lines, /in the last 2 runs/);
   assert.doesNotMatch(hygiene(runs.slice(2)).join('\n'), /^ {2}flaky /m);
@@ -1334,8 +1334,8 @@ test('hygiene retains quiet flake proof behind twenty busy observations', () => 
 test('configured environment secrets are redacted end to end by Node and JUnit before truncation', async t => {
   const { dir } = await acmeRepo(t);
   const configEnv = ['ACME_SHORT', 'ACME_AUTH', 'ACME_EMPTY', 'ACME_CONTROL'];
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv } }));
   const env = { ...process.env, ACME_SHORT: 'acme-fake', ACME_AUTH: 'acme-\x1b[32mfake-sensitive-value\x1b[0m', ACME_EMPTY: '', ACME_CONTROL: '\x1b[32m', ACME_SECRET: 'acme-heuristic-value' };
   const message = 'Acme observed acme-fake-sensitive-value and acme-fake and acme-heuristic-value';
   const bounded = 'x'.repeat(1000) + 'acme-fake-sensitive-value';
@@ -1400,8 +1400,8 @@ test('quoted credential tokens consume escapes multiline and unterminated values
 
 test('escaped quoted credentials and JSON configured values stay redacted in both actual collectors', async t => {
   const { dir } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv: ['ACME_AUTH'] } }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv: ['ACME_AUTH'] } }));
   const secret = 'acme" configured\\tail\nend';
   const env = { ...process.env, ACME_AUTH: secret };
   const cases = [...quotedCredentialCases(), { text: secret, complete: false }, { text: JSON.stringify({ observation: secret }), complete: false }];
@@ -1450,10 +1450,10 @@ test('unquoted Authorization schemes redact the entire line in both actual colle
 
 test('overlapping configured and structural redactions compose on original text in both actual collectors', async t => {
   const { dir } = await acmeRepo(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
   const configured = { ACME_AUTH: 'password', ACME_VALUE: 'prefix password=token', ACME_LEFT: 'acme-overlap', ACME_RIGHT: 'overlap-tail', ACME_PEM: 'PRIVATE KEY', ACME_URL: 'Acme https://user' };
   const configEnv = Object.keys(configured);
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ tests: { configEnv } }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ tests: { configEnv } }));
   const cases = [
     ['{"password":"acme-dynamic-credential"}', '{"[redacted]":[redacted]}'],
     ['prefix password=token', '[redacted]'],
@@ -1491,11 +1491,11 @@ test('Windows load sampling is unavailable rather than quiet zero', async () => 
 test('internal gate rejects unreadable or invalid config and defaults only when absent', async t => {
   for (const config of ['{broken', 'null', '[]', '{"check":null}', '{"check":42}', '{"check":""}', 'directory', 'absent', '{}']) {
     const dir = await scratch(t);
-    await mkdir(join(dir, '.keel'));
+    await mkdir(join(dir, '.plates'));
     await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { check: 'node ran.mjs' } }));
     await writeFile(join(dir, 'ran.mjs'), "import {writeFileSync} from 'node:fs'; writeFileSync('ran', 'yes');");
-    if (config === 'directory') await mkdir(join(dir, '.keel', 'keel.json'));
-    else if (config !== 'absent') await writeFile(join(dir, '.keel', 'keel.json'), config);
+    if (config === 'directory') await mkdir(join(dir, '.plates', 'plates.json'));
+    else if (config !== 'absent') await writeFile(join(dir, '.plates', 'plates.json'), config);
     const r = run(process.execPath, [SOURCE, '--gate'], { cwd: dir });
     if (config === 'absent' || config === '{}') {
       assert.equal(r.status, 0, r.stderr);
@@ -1511,7 +1511,7 @@ test('internal gate rejects unreadable or invalid config and defaults only when 
 test('legacy JUnit imports do not inherit an outer gate start sample', async t => {
   const dir = await scratch(t);
   await writeFile(join(dir, 'acme.xml'), '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme" time="0.1"/></testsuite></testsuites>');
-  const r = run(process.execPath, [SOURCE, '--junit', 'acme.xml'], { cwd: dir, env: { ...process.env, KEEL_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }) } });
+  const r = run(process.execPath, [SOURCE, '--junit', 'acme.xml'], { cwd: dir, env: { ...process.env, PLATES_RUN_START: JSON.stringify({ at: 'outer-gate', load: [999], cores: 1 }) } });
   assert.equal(r.status, 0, r.stderr);
   const { runs } = await readRuns(dir);
   assert.equal(runs.length, 1);
@@ -1522,8 +1522,8 @@ test('legacy JUnit imports do not inherit an outer gate start sample', async t =
 test('unknown redaction configuration records nothing in both actual collectors and preserves runner failure', async t => {
   for (const invalid of ['{broken', 'null', '[]', '{"tests":null}', '{"tests":{"configEnv":"ACME_AUTH"}}', '{"tests":{"configEnv":["ACME_AUTH",4]}}', '{"tests":{"configEnv":["bad-name"]}}', 'directory']) {
     const { dir } = await acmeRepo(t);
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    const at = join(dir, '.keel/keel.json');
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    const at = join(dir, '.plates/plates.json');
     if (invalid === 'directory') await mkdir(at); // unreadable as a file even with privileged host permissions
     else await writeFile(at, invalid);
     const env = { ...process.env, ACME_AUTH: 'acme-sensitive-config-only-value' };
@@ -1546,8 +1546,8 @@ test('unknown redaction configuration records nothing in both actual collectors 
 test('unknown redaction configuration still fails zero-test runs and preserves actual runner failures', async t => {
   for (const invalid of ['{broken', '{"tests":{"allowEmpty":true,"configEnv":"ACME_AUTH"}}', 'directory']) {
     const { dir } = await acmeRepo(t);
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    const at = join(dir, '.keel/keel.json');
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    const at = join(dir, '.plates/plates.json');
     if (invalid === 'directory') await mkdir(at);
     else await writeFile(at, invalid);
     const invoke = () => run(process.execPath, ['--test', `--test-reporter=${SOURCE}`, 'tests/acme.test.mjs'], { cwd: dir, env: { ...process.env } });

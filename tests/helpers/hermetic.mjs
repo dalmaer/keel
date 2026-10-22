@@ -3,7 +3,7 @@
  *
  * Loaded before every test file (`npm test` passes --import), so it reaches
  * every git the tests start — in-process, or spawned (directly, or through
- * `keel` itself): it sets process.env, which every child inherits, and
+ * `plates` itself): it sets process.env, which every child inherits, and
  * tests/helpers/run.mjs's cleanEnv strips only NODE_TEST_*.
  *
  * Nobody's own config is touched. The tests simply stop reading it:
@@ -26,18 +26,19 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const dir = mkdtempSync(join(tmpdir(), 'keel-gitconfig-'));
+const dir = mkdtempSync(join(tmpdir(), 'plates-gitconfig-'));
 const global = join(dir, 'gitconfig');
 writeFileSync(global, '');
 process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
 
 process.env.GIT_CONFIG_GLOBAL = global;
-// keel's cache (review receipts, the board's kept GitHub reads): never the developer's own ~/.cache/keel.
-process.env.KEEL_CACHE = join(dir, 'keel-cache');
+// plates's cache (review receipts, the board's kept GitHub reads): never the developer's own ~/.cache/plates.
+process.env.PLATES_CACHE = join(dir, 'plates-cache');
 // Adoption's optional Actions history never reaches the network in hermetic tests.
-process.env.KEEL_CI_OFFLINE = '1';
-process.env.KEEL_MILESTONES_OFFLINE = '1';
-// climb.mjs's pointer to Codex's git dir (keel phase 47): a Codex night that runs keel's own suite must not aim the tests' climb.mjs at it.
+process.env.PLATES_CI_OFFLINE = '1';
+process.env.PLATES_MILESTONES_OFFLINE = '1';
+// climb.mjs's pointer to Codex's git dir (plates phase 47): a Codex night that runs plates's own suite must not aim the tests' climb.mjs at it.
+delete process.env.PLATES_AGENT_GIT;
 delete process.env.KEEL_AGENT_GIT;
 process.env.GIT_CONFIG_NOSYSTEM = '1';
 
@@ -46,7 +47,7 @@ for (const [k, v] of Object.entries(identity)) process.env[k] ||= v;
 
 // maintenance.auto and gc.auto: a background `git maintenance` or auto-gc can remove
 // .git/objects/maintenance.lock while a test walks .git (the phase 47 test makes it
-// read-only), which failed keel's CI once with ENOENT (keel#58's check, 2026-10-10).
+// read-only), which failed Keel's CI once with ENOENT (now plates#58's check, 2026-10-10).
 const pin = { 'core.fsmonitor': 'false', 'init.defaultBranch': 'main', 'commit.gpgsign': 'false', 'maintenance.auto': 'false', 'gc.auto': '0' };
 const n = Number(process.env.GIT_CONFIG_COUNT) || 0;
 Object.entries(pin).forEach(([key, value], i) => {

@@ -1,23 +1,23 @@
 // 0005: the test ledger reaches every test the project runs, and every test
-// keel ships is run (a review of the 0.8.0 update PRs). Three things, each
+// plates ships is run (a review of the 0.8.0 update PRs). Three things, each
 // only while it is owed, in the project's update PR where a person reviews it:
 //
 //   - A workspace's or app folder's own `scripts.test` (the folders
 //     lib/stacks.mjs packageDirs reads: web/, app/, client/, frontend/, and
 //     the root package.json's workspaces) gains the ledger's reporters when it
 //     is node's runner, exactly as 0004 wired the root's. The reporter path is
-//     relative to that folder (`../scripts/keel/test-ledger.mjs`); the
+//     relative to that folder (`../scripts/plates/test-ledger.mjs`); the
 //     reporter finds the repo's root with git, so the runs land in the root's
-//     .keel/test-runs. Any other runner is never touched.
+//     .plates/test-runs. Any other runner is never touched.
 //   - The root's `scripts.test`, when it is node's runner and names paths that
-//     do not match a test keel ships (tests/keel-generated.test.mjs with
-//     phases, tests/keel-workflows.test.mjs with ci, tests/roadmap.test.mjs
+//     do not match a test plates ships (tests/plates-generated.test.mjs with
+//     phases, tests/plates-workflows.test.mjs with ci, tests/roadmap.test.mjs
 //     with phases), gains those paths at its end. A script that names no path
 //     runs node's default, which matches them: untouched.
 //   - With the night on and ci off, the project's own CI keeps no test runs,
-//     and keel never edits a project's own workflows: notes() prints the step
+//     and plates never edits a project's own workflows: notes() prints the step
 //     to add, in the update's commit and PR. Once a workflow of the project's
-//     uploads keel-test-runs, it is not owed.
+//     uploads plates-test-runs, it is not owed.
 //
 // Idempotent: once every edit is made and the step is there, applies() is false.
 import { withLedger } from './0004-test-ledger.mjs';
@@ -26,16 +26,16 @@ import { expandGate, runsTest } from '../lib/doctor.mjs';
 
 export const id = '0005-test-ledger-reach';
 export const to = '0.8.0';
-export const summary = 'workspace and app folders\' node test scripts gain the test ledger reporter (their runs land in the root\'s .keel/test-runs); a node test script that misses a test keel ships gains its path; with ci off, the update says how to keep CI\'s test runs';
+export const summary = 'workspace and app folders\' node test scripts gain the test ledger reporter (their runs land in the root\'s .plates/test-runs); a node test script that misses a test plates ships gains its path; with ci off, the update says how to keep CI\'s test runs';
 
 /** The tests each practice ships for the project's gate to run. */
-export const SHIPPED = Object.freeze({ phases: ['tests/roadmap.test.mjs', 'tests/keel-generated.test.mjs'], ci: ['tests/keel-workflows.test.mjs'] });
+export const SHIPPED = Object.freeze({ phases: ['tests/roadmap.test.mjs', 'tests/plates-generated.test.mjs'], ci: ['tests/plates-workflows.test.mjs'] });
 
 /** The step a project's own CI adds after its tests, so the night reads CI's runs (the ci practice's check.yml carries it). */
 export const UPLOAD_STEP = [
   '- if: always()',
   '  uses: actions/upload-artifact@v7',
-  '  with: { name: keel-test-runs, path: .keel/test-runs/, include-hidden-files: true, if-no-files-found: ignore, retention-days: 30 }',
+  '  with: { name: plates-test-runs, path: .plates/test-runs/, include-hidden-files: true, if-no-files-found: ignore, retention-days: 30 }',
 ].join('\n');
 
 const on = (config, name) => (config?.practices ?? []).includes(name)
@@ -69,7 +69,7 @@ async function workspaceEdits(project) {
     const path = `${dir}/package.json`;
     const p = await json(project, path);
     if (!p) continue;
-    const ledger = `${'../'.repeat(dir.split('/').length)}scripts/keel/test-ledger.mjs`;
+    const ledger = `${'../'.repeat(dir.split('/').length)}scripts/plates/test-ledger.mjs`;
     const next = withLedger(p.pkg?.scripts?.test, ledger);
     if (next) out.push({ path, content: setTest(p.raw, p.pkg, next) });
   }
@@ -95,11 +95,11 @@ export async function shippedEdit(project, shipped = SHIPPED) {
   return { path: 'package.json', content: setTest(p.raw, p.pkg, `${script.trimEnd()} ${missing.join(' ')}`), missing };
 }
 
-/** Whether a workflow of the project's own (not keel's nights) keeps keel-test-runs. */
+/** Whether a workflow of the project's own (not plates's nights) keeps plates-test-runs. */
 async function ciKeepsRuns(project) {
   for (const name of await project.list('.github/workflows')) {
-    if (!/\.ya?ml$/.test(name) || /^keel-/.test(name)) continue;
-    if ((await project.read(`.github/workflows/${name}`))?.includes('keel-test-runs')) return true;
+    if (!/\.ya?ml$/.test(name) || /^plates-/.test(name)) continue;
+    if ((await project.read(`.github/workflows/${name}`))?.includes('plates-test-runs')) return true;
   }
   return false;
 }
@@ -116,7 +116,7 @@ export async function applies(project) {
 export async function notes(project) {
   if (!(await stepOwed(project))) return [];
   return [[
-    "your CI does not keep the test ledger's runs, so the night reads its own alone (its flaky and slower measures say \"nightly runs only\"). keel never edits your workflows: add this step to the job that runs your tests, after them:",
+    "your CI does not keep the test ledger's runs, so the night reads its own alone (its flaky and slower measures say \"nightly runs only\"). plates never edits your workflows: add this step to the job that runs your tests, after them:",
     '```yaml',
     UPLOAD_STEP,
     '```',

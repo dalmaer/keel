@@ -2,19 +2,19 @@
 
 ## When you'd reach for this
 
-- A PR from keel has arrived (an update, a night page, a climb or tend
+- A PR from plates has arrived (an update, a night page, a climb or tend
   pass) and you want to judge it in a minute.
 - You are an agent, or a person, about to merge a PR that a reviewer (a
   person, or a bot such as Codex) has commented on.
-- You are writing a script that opens PRs in a keel project and want its
-  bodies to read like keel's.
+- You are writing a script that opens PRs in a plates project and want its
+  bodies to read like plates's.
 
 ## What it does, and why it works that way
 
-### Every PR keel opens has three sections
+### Every PR plates opens has three sections
 
 A PR asks a person for a minute. Its body is built so that minute is
-enough, by one script, `scripts/keel/pr-body.mjs`, from structured input
+enough, by one script, `scripts/plates/pr-body.mjs`, from structured input
 and with no model, in this order:
 
 - **Summary: a picture, never a paragraph.** A file tree of the changed
@@ -26,7 +26,7 @@ and with no model, in this order:
   section is never dropped, because a missing section reads as "nothing to
   worry about".
 - **Merge danger: which kind of door.** A **two-way door** is one a revert
-  undoes completely: a re-render of keel's files, a health page. A
+  undoes completely: a re-render of plates's files, a health page. A
   **one-way door** is one where something leaves the repo or rewrites what
   the project owns: a migration that edits the project's own files, a
   release. The blast radius is named in the phase spec's Real surfaces
@@ -38,15 +38,15 @@ acceptance**: merged, production-verified and lived-in are different
 claims, and the PR says which records it touched rather than letting the
 merge stand in for them.
 
-Every path that opens a PR uses this script: `keel update` and
-`keel fleet update`, the night, climb and tend.
+Every path that opens a PR uses this script: `plates update` and
+`plates fleet update`, the night, climb and tend.
 
 ### Every review comment is validated, then answered
 
-On 6 October keel's update PRs merged on green CI with 13 Codex comments
+On 6 October plates's update PRs merged on green CI with 13 Codex comments
 nobody had read. They held 10 distinct findings, every one valid, one of
 them serious. They were fixed in the next release only because the owner
-asked whether the comments had been seen. The shape is the family keel
+asked whether the comments had been seen. The shape is the family plates
 calls *a failure nobody is told about in time*: the reviewer spoke, and
 nobody was listening.
 
@@ -67,7 +67,7 @@ Validation comes first because a reviewer can be wrong, and agreeing with
 every comment is as unread as ignoring them. Nothing is resolved without a
 reply saying which form it is.
 
-`keel review` makes the reading deterministic. It reads every review thread,
+`plates review` makes the reading deterministic. It reads every review thread,
 every review's top-level body, and each named reviewer's conversation
 comments, and says which are answered. A thread is answered when someone
 other than its reviewer replied after the reviewer's newest comment:
@@ -79,27 +79,27 @@ unrelated comment that happens to come later is not an answer
 that opens with a hidden `<!-- … -->` marker (a status board the bot edits
 in place) is listed as **status** and owes no answer. A read GitHub could
 not complete (a list longer than one page) is never reported as clean:
-`keel review` exits 2, and the night's count is n/a. A PR's reviews are the
+`plates review` exits 2, and the night's count is n/a. A PR's reviews are the
 exception: each reply to a thread is a review, so a PR answered at length
-passes one page, and `keel review` reads them page by page up to 2000. Past
+passes one page, and `plates review` reads them page by page up to 2000. Past
 2000 the read is still incomplete.
 
 **By default nothing waits and nothing blocks a merge.** Fleet update and
 the drain merge as before; the night counts what is left as
 `reviews_unanswered` (comments with no answer, older than a day, on open
-and recently merged PRs), and `keel loose-ends` lists them. The one
+and recently merged PRs), and `plates loose-ends` lists them. The one
 exception is opted in per phase: front matter `review: wait`, or the
 phase's issue labelled `keel:wait-for-review`. Such a phase lands through a
-PR, and merges only when `keel review <repo>#<n> --gate` exits 0: every
+PR, and merges only when `plates review <repo>#<n> --gate` exits 0: every
 comment answered, and each named reviewer has reviewed the head commit.
 
 ### A review that keeps going is brought to you
 
-On 2026-10-10 one PR went about ten rounds of fix, push, new findings. keel
+On 2026-10-10 one PR went about ten rounds of fix, push, new findings. plates
 now counts a PR's **rounds**: a round is one push a reviewer answered with
 at least one finding. A push the reviewer passed is not a round, and two
 reviewers on one push are one. At the limit (three, or `"review":
-{"rounds": N}` in `.keel/keel.json`) `keel review <repo>#<n>` exits 3 and
+{"rounds": N}` in `.plates/plates.json`) `plates review <repo>#<n>` exits 3 and
 lays out your choice:
 
 - **Merge with the rest tracked.** Each open finding is listed as *fix
@@ -110,22 +110,22 @@ lays out your choice:
   own PR.
 - **Close.**
 
-The session that read a finding says which kind it is, with `keel review
+The session that read a finding says which kind it is, with `plates review
 <repo>#<n> --class security|overwrite|approval|other <ids>`. That records
-the kind and nothing else: the finding stays unanswered. keel never guesses
+the kind and nothing else: the finding stays unanswered. plates never guesses
 the kind from the text, so read the list before you merge. The board shows
 such a PR in your column, and the conduct skill stops pushing fixes there.
-keel never merges it. `keel review --gate` is not changed by the limit.
+plates never merges it. `plates review --gate` is not changed by the limit.
 
 ### Claude reviews what Codex writes (optional)
 
 Codex reviews every PR, Claude Code's included, and on 6 October its
-reviews of keel's update PRs found 27 comments, all valid. Codex's own PRs
+reviews of plates's update PRs found 27 comments, all valid. Codex's own PRs
 had no second reader. The optional `cross-review` practice adds one: a
 second model catches what the author's model is blind to, and the same
 model reviewing its own work does not.
 
-**How it works.** `keel-cross-review.yml` runs an agent (Claude by
+**How it works.** `plates-cross-review.yml` runs an agent (Claude by
 default, or Codex: see *Choosing the agent*) on a PR whose head branch starts with a
 configured prefix (Codex opens PRs under the owner's account, so the
 branch, not the author, says who wrote it), in this repo, never a fork. It
@@ -148,8 +148,8 @@ nothing from the PR's branch, only the default branch's script on the
 agent's final message. The inline comments are owed answers: the
 author answers each one fixed, tracked or not valid, as above.
 
-**Switching it on.** Add `cross-review` to `.keel/keel.json` `practices`
-(or `keel init`/`keel adopt` with `--with cross-review`), and the config:
+**Switching it on.** Add `cross-review` to `.plates/plates.json` `practices`
+(or `plates init`/`plates adopt` with `--with cross-review`), and the config:
 
 ```json
 "crossReview": { "for": ["codex/"], "budget": { "minutes": 15 } }
@@ -181,10 +181,10 @@ its reach, and no GitHub token; its secret is `OPENAI_API_KEY`. Codex's
 spend has no subscription path: every review is billed per token to the
 OpenAI API account, so the Budget line's minutes are a bound on dollars you
 pay by the token. codex-action runs only for an actor with write access or
-a bot it names: keel names the providers' bots (`claude[bot]`, in Codex's
+a bot it names: plates names the providers' bots (`claude[bot]`, in Codex's
 and Claude's steps alike), so a PR Claude's app opened is reviewed. A `for`
 prefix must name a provider's branch exactly (`claude/`) or none
-(`custom/`): `"claude"` alone, which also matches `claude-fix`, is red. A provider keel does not know (a typo
+(`custom/`): `"claude"` alone, which also matches `claude-fix`, is red. A provider plates does not know (a typo
 in `"agents"`) is red before anything else runs, naming the key; no
 reviewer's secret set is a notice and green.
 
@@ -201,19 +201,19 @@ the push instead:
 "crossReview": { "after": "push", "budget": { "minutes": 15, "pushes": 8 } }
 ```
 
-Run `keel update` (or `keel render`) and the workflow gains a push trigger
+Run `plates update` (or `plates render`) and the workflow gains a push trigger
 on main and a daily run; a project without `"after"` never gets them.
 Each push to main is reviewed once it has landed, as one batch: everything
 since the last review. Nothing waits on it. The reviewer is a provider that
 did not write the commits (their authors and `Co-authored-by` trailers say
 who did); a person's push goes to the first provider listed. Findings land
 as comments on the head commit, where its diff holds the line, and all of
-them in one issue per push, `keel review after <sha>`:
+them in one issue per push, `plates review after <sha>`:
 
 ```bash
-keel review acme/notes@4f2c1aa                        # the push's findings, F1, F2, …
-keel review acme/notes@4f2c1aa --close F1 --fixed 9e1d2b3
-keel review acme/notes@4f2c1aa --close F2 --tracked "#58"
+plates review acme/notes@4f2c1aa                        # the push's findings, F1, F2, …
+plates review acme/notes@4f2c1aa --close F1 --fixed 9e1d2b3
+plates review acme/notes@4f2c1aa --close F2 --tracked "#58"
 ```
 
 The issue closes when every finding is answered. At most `pushes` reviews
@@ -223,11 +223,11 @@ together.
 ## The commands
 
 ```bash
-keel review acme/notes#12              # every comment, and which are unanswered
-keel review acme/notes#12 --wait       # first wait for the named reviewers to review the head commit
-keel review acme/notes#12 --close 3141,3142 --fixed 4f2c1aa
-keel review acme/notes#12 --close 3143 --tracked "#57"
-keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in a drain queue: scripts/keel/drain.mjs"
+plates review acme/notes#12              # every comment, and which are unanswered
+plates review acme/notes#12 --wait       # first wait for the named reviewers to review the head commit
+plates review acme/notes#12 --close 3141,3142 --fixed 4f2c1aa
+plates review acme/notes#12 --close 3143 --tracked "#57"
+plates review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in a drain queue: scripts/plates/drain.mjs"
 ```
 
 - The target is `owner/repo#n`, a PR URL, or `#n` for the project's own
@@ -239,7 +239,7 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   post no review at all (Codex reacts 👍 and updates its status board), so
   the reviewer's own comment marking the head commit `completed` counts as
   having reviewed it.
-- Reviewers are named in `.keel/keel.json` `"review": {"reviewers":
+- Reviewers are named in `.plates/plates.json` `"review": {"reviewers":
   [...], "wait": <minutes>}`; `--reviewer <login>` overrides for one call.
   With none named, threads and review bodies are read, conversation
   comments are not, and nothing is waited for.
@@ -250,8 +250,8 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   shell. There is no "all": each id is named because each was validated.
 - `--close` closes only what was read. Every read leaves a receipt (the
   ids it showed, comment counts and hashes of full comment/review content)
-  in keel's cache, outside the repo:
-  `$KEEL_CACHE`, else `$XDG_CACHE_HOME/keel`, else `~/.cache/keel` (macOS
+  in plates's cache, outside the repo:
+  `$PLATES_CACHE`, else `$XDG_CACHE_HOME/plates`, else `~/.cache/plates` (macOS
   too), as `reviews/<owner>__<repo>__<n>.json`. `--close` refuses, posting
   nothing, an id that read did not show, one with a reviewer's follow-up
   since, or any call while a comment it does not name is new since the
@@ -266,12 +266,12 @@ keel review acme/notes#12 --close 3144 --not-valid "a PR from a fork is never in
   shown.
 - `--gate` only for a phase that opted in (above).
 
-`keel --agent-help review` is the exact reference, with the JSON shape.
+`plates --agent-help review` is the exact reference, with the JSON shape.
 
-Building a PR body the way keel does, in a script of your own:
+Building a PR body the way plates does, in a script of your own:
 
 ```bash
-node scripts/keel/pr-body.mjs --input body.json --files changed.txt
+node scripts/plates/pr-body.mjs --input body.json --files changed.txt
 ```
 
 - `--input` is the structured body: the summary, the evidence rows, the
@@ -281,7 +281,7 @@ node scripts/keel/pr-body.mjs --input body.json --files changed.txt
 
 ## What you'll see
 
-`keel review` lists each comment with its kind, author, first line, id and
+`plates review` lists each comment with its kind, author, first line, id and
 whether it is answered. It exits **0** when every comment is answered, **1**
 when any is not (or `--wait` timed out, or `--gate` is not yet satisfied),
 **2** when GitHub could not be read, or on usage.
@@ -296,7 +296,7 @@ that hides it.
 
 ## What it never does
 
-- Nothing in keel refuses a merge because a thread is open, unless a phase
+- Nothing in plates refuses a merge because a thread is open, unless a phase
   opted in with `review: wait`.
 - Nothing resolves a review thread without a reply that says which form it
   is.
@@ -306,7 +306,7 @@ that hides it.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): the conductor is one of the agents
+- [Spin a phase](spin-a-phase.md): the conductor is one of the agents
   that answers reviews.
 - [Keep the fleet current](keep-the-fleet-current.md): the update PRs most
   reviewed across the fleet.
@@ -321,4 +321,4 @@ that hides it.
 shared build/review allowance. Standalone cross-review refuses these branches,
 even with a matching prefix or an owner `/review` comment. Continue the issue
 conversation through the robot; reading and answering review findings with
-`keel review` remains available. See [the robot guide](the-robot.md).
+`plates review` remains available. See [the robot guide](the-robot.md).

@@ -1,4 +1,4 @@
-// keel retro (phase 40): the worksheet from a synthetic transcript, in the
+// plates retro (phase 40): the worksheet from a synthetic transcript, in the
 // shapes Claude Code writes (entry types and field names, never a real
 // session's words). Every message, result and quoted string carries a marker;
 // the worksheet must never carry one, and must write no file. Fixtures are Acme.
@@ -14,8 +14,8 @@ import { run } from './helpers/run.mjs';
 import { encodeDir } from '../lib/looseends.mjs';
 import { retro, commandHead } from '../lib/retro.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const MARKER = 'ACME-RETRO-PRIVATE-Wren-at-Gullhaven';
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
@@ -53,16 +53,16 @@ function transcript(sid, cwd, t0) {
 
 /** An Acme repo with a base commit, a claude dir, and the session written there. */
 async function world(t) {
-  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'keel-retro-')));
+  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'plates-retro-')));
   t.after(() => rm(tmp, { recursive: true, force: true }));
   const root = join(tmp, 'acme-notes'), claude = join(tmp, 'claude');
   await mkdir(root, { recursive: true });
   git(root, 'init', '-q', '-b', 'main');
-  const base = await commit(root, { '.keel/keel.json': '{"name":"acme-notes"}\n', 'README.md': '# Acme Notes\n' }, 'acme: start');
+  const base = await commit(root, { '.plates/plates.json': '{"name":"acme-notes"}\n', 'README.md': '# Acme Notes\n' }, 'acme: start');
   const sid = randomUUID();
   const dir = join(claude, 'projects', encodeDir(root));
   await mkdir(join(dir, sid, 'subagents'), { recursive: true });
-  return { tmp, root, claude, dir, sid, base, env: { ...process.env, KEEL_CLAUDE_DIR: claude } };
+  return { tmp, root, claude, dir, sid, base, env: { ...process.env, PLATES_CLAUDE_DIR: claude } };
 }
 
 /** Every file under a directory, for "wrote nothing". */
@@ -175,24 +175,24 @@ test('a docs-only range is not real work; one touching lib/ or practices/ is', a
   }
 });
 
-test('keel retro on the CLI: --json, --worksheet, --session, and usage errors', async t => {
+test('plates retro on the CLI: --json, --worksheet, --session, and usage errors', async t => {
   const w = await world(t);
   await commit(w.root, { 'lib/notes.mjs': 'export {};\n' }, 'acme: code');
   await session(w);
-  const keel = args => run(process.execPath, [BIN, ...args], { cwd: w.root, env: w.env });
-  const j = keel(['retro', '--since', w.base, '--json']);
+  const plates = args => run(process.execPath, [BIN, ...args], { cwd: w.root, env: w.env });
+  const j = plates(['retro', '--since', w.base, '--json']);
   assert.equal(j.status, 0, j.stderr);
   assert.deepEqual(JSON.parse(j.stdout).counts, COUNTS);
   assert.ok(!j.stdout.includes(MARKER));
-  const text = keel(['retro', '--worksheet']);
+  const text = plates(['retro', '--worksheet']);
   assert.equal(text.status, 0, text.stderr);
   assert.match(text.stdout, /^retro worksheet: session /);
   assert.ok(!text.stdout.includes(MARKER));
-  const old = JSON.parse(keel(['retro', '--session', 'acme-old', '--json']).stdout);
+  const old = JSON.parse(plates(['retro', '--session', 'acme-old', '--json']).stdout);
   assert.deepEqual(old.counts, { retried: 0, errors: 1, denials: 0, rereads: 0, slow: 0, reverted: 0 });
-  assert.equal(keel(['retro', '--session', 'acme-missing']).status, 2);
-  assert.equal(keel(['retro', '--since', 'acme-no-such-commit']).status, 2);
-  assert.equal(keel(['retro', '--frobnicate']).status, 2);
+  assert.equal(plates(['retro', '--session', 'acme-missing']).status, 2);
+  assert.equal(plates(['retro', '--since', 'acme-no-such-commit']).status, 2);
+  assert.equal(plates(['retro', '--frobnicate']).status, 2);
 });
 
 test('no transcript for the repo is said, not an error', async t => {
@@ -217,10 +217,10 @@ test('a command head keeps the shape and drops the words', () => {
 });
 
 test('a repo with no commit yet has no real work, and says so', async t => {
-  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'keel-retro-empty-')));
+  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'plates-retro-empty-')));
   t.after(() => rm(tmp, { recursive: true, force: true }));
   git(tmp, 'init', '-q', '-b', 'main');
-  const r = await retro({ root: tmp, env: { ...process.env, KEEL_CLAUDE_DIR: join(tmp, 'claude') } });
+  const r = await retro({ root: tmp, env: { ...process.env, PLATES_CLAUDE_DIR: join(tmp, 'claude') } });
   assert.equal(r.exitCode, 0);
   assert.equal(r.data.realWork, false);
   assert.equal(r.text, 'no commit yet: no retro');

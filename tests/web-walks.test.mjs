@@ -5,13 +5,14 @@ import { validateWalk, newWalkDraft, refreshDraft, draftView, editWalkDraft, acc
 import { createWalkStore } from '../lib/web/walks-store.mjs';
 import { createOperations } from '../lib/web/operations.mjs';
 import { createWalks } from '../lib/web/walks.mjs';
+import { gitBlob } from '../lib/web/decision-github.mjs';
 import { digestOf, feedbackHash, replayEvents } from '../lib/feedback.mjs';
 import { walkWritePlan } from '../lib/board.mjs';
 import { render, parsePhase } from '../practices/phases/files/scripts/roadmap.mjs';
 import { unseal } from '../lib/web/common.mjs';
 import { createOperationStore } from '../lib/web/operation-store.mjs';
 import { manualRobotIssueIdentity, previewRobotIssue } from '../lib/robot-issue.mjs';
-import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
 const id='acme-search',definitionPath='docs/walks/acme-search.json';
 const detail=h=>h.walks.detail(h.access,token,h.project,id);
 const save=(h,m,patch)=>h.walks.save(h.access,token,h.project,id,{expectedRevision:m.draft.revision,sourceDigest:m.sourceDigest,...patch});
@@ -34,6 +35,28 @@ test('detail retains source-bound binary bytes, attributes serving confirmation,
  assert.equal(m.ready,true);assert.equal(m.walk.result.verification,'bytes-verified');assert.equal(m.walk.result.servingEvidence,'owner-observation');assert.equal(m.draft.counts.unobserved,2);assert.equal(m.draft.resultConfirmed,false);
  assert.deepEqual(Buffer.from(stored.snapshots[m.walk.result.contentHash],'base64'),resultBytes);assert.deepEqual(stored.feedback,{});assert.ok(![...h.rows.values()][0].value.includes('Acme search'));
  assert.equal(h.source.graphRequests.find(r=>r.query.startsWith('query DecisionResult')).variables.oid,h.source.head);
+});
+test('guided walks prefer canonical config and recover legacy-only config without resetting readiness or policy',async()=>{
+ const canonical=walkHarness();canonical.source.files['.keel/keel.json']='invalid legacy JSON';assert.equal((await detail(canonical)).ready,true);
+ const legacy=walkHarness();legacy.source.files['.keel/keel.json']=legacy.source.files['.plates/plates.json'];delete legacy.source.files['.plates/plates.json'];
+ const m=await complete(legacy),p=await preview(legacy,m);assert.equal(p.kind,'walk');assert.equal(p.canSubmit,true);assert.equal(legacy.source.writes.length,0);
+ legacy.source.files['.keel/keel.json']=JSON.stringify({...JSON.parse(legacy.source.files['.keel/keel.json']),phases:{source:'milestones'}});
+ const blocked=await detail(legacy);assert.ok(blocked.gaps.includes('milestone_planning_inspect_only'));assert.equal(blocked.ready,false);
+});
+test('present malformed or inaccessible canonical walk config never falls back to legacy policy',async()=>{
+ for(const status of [null,403,404]){
+  const h=walkHarness(),canonical=h.source.files['.plates/plates.json'];h.source.files['.keel/keel.json']=JSON.stringify({...JSON.parse(canonical),name:'Acme legacy policy'});
+  const legacyBlob=gitBlob(h.source.files['.keel/keel.json']);let legacyReads=0;
+  if(status===null)h.source.files['.plates/plates.json']='invalid canonical JSON';
+  const canonicalBlob=gitBlob(h.source.files['.plates/plates.json']);
+  h.walks=createWalks(h.config,{now:()=>h.state.now,fetcher:async(url,options)=>{
+   if(new URL(url).pathname.endsWith(`/git/blobs/${legacyBlob}`))legacyReads++;
+   if(status&&new URL(url).pathname.endsWith(`/git/blobs/${canonicalBlob}`))return Response.json({message:'Acme source unavailable'},{status});
+   return h.fetcher(url,options);
+  }});
+  await assert.rejects(detail(h),status===null?SyntaxError:error=>error.code==='access_denied'||error.code==='upstream_unavailable');
+  assert.equal(legacyReads,0);assert.equal(h.rows.size,0);assert.equal(h.source.writes.length,0);
+ }
 });
 test('historical artifact resolution uses authored revision rather than current HEAD and refuses mismatched hashes',async()=>{
  const h=walkHarness(),sha='e'.repeat(40),bytes=Buffer.from([0,255,3,10]);h.source.revisions[sha]={[resultPath]:bytes};changeDefinition(h,d=>Object.assign(d.result,{sourceRevision:sha,contentHash:feedbackHash(bytes)}));
@@ -85,7 +108,7 @@ test('readiness uses server date, explicit authored readiness, dependencies, wai
  [h=>changeDefinition(h,d=>d.readiness.state='not-ready'),'authored_readiness_not_ready'],
  [h=>h.source.files[phasePath]=walkPhase().replace('waits: owner','waits: external'),'phase_not_waiting_for_owner'],
  [h=>h.source.files[phasePath]+='\n## Your part\n\n- **Ready when:** Acme is deployed.\n','your_part_not_ready'],
- [h=>h.source.files['.keel/keel.json']=JSON.stringify({practices:['phases'],phases:{source:'milestones'}}),'milestone_planning_inspect_only']]){const h=walkHarness();change(h);const m=await detail(h);assert.equal(m.ready,false,code);assert.ok(m.gaps.includes(code),JSON.stringify(m.gaps));}
+ [h=>h.source.files['.plates/plates.json']=JSON.stringify({practices:['phases'],phases:{source:'milestones'}}),'milestone_planning_inspect_only']]){const h=walkHarness();change(h);const m=await detail(h);assert.equal(m.ready,false,code);assert.ok(m.gaps.includes(code),JSON.stringify(m.gaps));}
  const h=walkHarness();h.source.files[phasePath]=walkPhase().replace('depends: []','depends: [2]');h.source.files['docs/phases/02-acme-dependency.md']=walkPhase().replace('status: partial','status: planned').replace('owes: walk\nwaits: owner\n','');assert.ok((await detail(h)).gaps.includes('phase_dependencies_not_ready'));
 });
 test('duplicate matching open acceptance items and absent authored records remain gaps',async()=>{
@@ -98,7 +121,7 @@ test('acceptance requires actual environment, displayed-result confirmation and 
 test('acceptance preview reuses pure CLI selected-box plan, exact evidence and generated roadmap without writes',async()=>{
  const h=walkHarness(),m=await complete(h),p=await preview(h,m),pure=walkWritePlan({file:phasePath.split('/').at(-1),raw:walkPhase(),note:m.draft.finalObservation,box:2,today:'2026-10-21'});
  assert.deepEqual(p.files.slice(0,2).map(f=>[f.path,f.content]),pure.writes);assert.equal(p.files[1].originalBlob,null);assert.match(p.files[0].content,/status: built/);assert.match(p.files[0].content,/\[x\] Search is covered/);assert.match(p.files[0].content,/\[x\] ⚑ by hand/);
- const roadmap=render({config:JSON.parse(h.source.files['.keel/keel.json']),phases:[parsePhase(phasePath.split('/').at(-1),p.files[0].content)],goals:JSON.parse(h.source.files['docs/goals.json'])});assert.equal(p.files[2].content,roadmap);assert.equal(p.commitMessage,`Record Keel guided walk\n\nKeel-Operation: ${p.operationId}`);assert.equal(h.source.writes.length,0);assert.ok(p.digest);assert.equal(p.visibility,'public');
+ const roadmap=render({config:JSON.parse(h.source.files['.plates/plates.json']),phases:[parsePhase(phasePath.split('/').at(-1),p.files[0].content)],goals:JSON.parse(h.source.files['docs/goals.json'])});assert.equal(p.files[2].content,roadmap);assert.equal(p.commitMessage,`Record Plates guided walk\n\nKeel-Operation: ${p.operationId}`);assert.equal(h.source.writes.length,0);assert.ok(p.digest);assert.equal(p.visibility,'public');
 });
 test('preview refuses source changes, edits after preview and stale application without dispatch',async()=>{
  const h=walkHarness(),m=await complete(h),p=await preview(h,m);await save(h,m,{step:{id:'open',outcome:'fail',note:'Acme no longer opens.'}});
@@ -129,7 +152,7 @@ test('date boundary makes old preview stale even when HEAD is unchanged',async()
  const h=walkHarness(),m=await complete(h),p=await preview(h,m);h.state.now+=86400000;await assert.rejects(h.walks.inspectPreview(h.access,token,h.project,p),bad('walk_source_changed'));
 });
 test('existing evidence appends and generated roadmap preserves design/lesson links',async()=>{
- const h=walkHarness();h.source.files[phasePath]=walkPhase().replace('evidence: []','evidence: ["evidence/acme.md"]');h.source.files['docs/evidence/acme.md']='# Earlier Acme evidence\n';h.source.files['docs/design.md']='# Acme design\n';h.source.files['docs/lessons.md']='# Acme lessons\n';h.source.files['.keel/keel.json']=JSON.stringify({...JSON.parse(h.source.files['.keel/keel.json']),tagline:'Acme search.'});
+ const h=walkHarness();h.source.files[phasePath]=walkPhase().replace('evidence: []','evidence: ["evidence/acme.md"]');h.source.files['docs/evidence/acme.md']='# Earlier Acme evidence\n';h.source.files['docs/design.md']='# Acme design\n';h.source.files['docs/lessons.md']='# Acme lessons\n';h.source.files['.plates/plates.json']=JSON.stringify({...JSON.parse(h.source.files['.plates/plates.json']),tagline:'Acme search.'});
  const p=await preview(h,await complete(h));assert.equal(p.files[1].path,'docs/evidence/acme.md');assert.match(p.files[1].content,/^# Earlier Acme evidence/);assert.ok(p.files[1].originalBlob);assert.match(p.files[2].content,/\[Design\]\(design.md\).*\[Lessons\]\(lessons.md\)/);
 });
 test('new evidence collision and unreadable output size are refused before persistence',async()=>{
@@ -140,11 +163,13 @@ test('per-draft storage bound refuses capacity without deleting any history',asy
  const h=walkHarness();await detail(h);const store=createWalkStore(h.config,h.fetcher),row=await store.read(1,h.project,id),value=structuredClone(row.value);value.revision++;value.snapshots.extra='x'.repeat(1048576);await assert.rejects(store.save(1,h.project,id,row.revision,value),bad('walk_capacity'));assert.equal((await store.read(1,h.project,id)).digest,row.digest);
 });
 test('selected historical failure repair retains original authored step, environment and result through phase92 issue identity',async()=>{
- const h=walkHarness();let m=await detail(h);m=await save(h,m,{environment:'Acme phone',step:{id:'find',outcome:'fail',note:'The Acme anvil is missing.'}});const entry=m.draft.history[0];changeDefinition(h,d=>d.steps[0].instruction='Try a different Acme query.');m=await detail(h);
+ for(const legacy of [false,true]){
+ const h=walkHarness();if(legacy){h.source.files['.keel/keel.json']=h.source.files['.plates/plates.json'];delete h.source.files['.plates/plates.json'];}let m=await detail(h);m=await save(h,m,{environment:'Acme phone',step:{id:'find',outcome:'fail',note:'The Acme anvil is missing.'}});const entry=m.draft.history[0];changeDefinition(h,d=>d.steps[0].instruction='Try a different Acme query.');m=await detail(h);
  const publication={schema:1,feedbackDigest:entry.feedbackDigest,excerpt:'The Acme anvil is missing.',destination:h.project.repo,title:'Repair Acme search',rubric:{version:1,problem:'Acme search is incomplete.',reproduction:'Search for Acme anvil.',acceptance:'The expected item is visible.',change:'Repair the missing result.',prerequisites:[],ownerBlockers:[]}};
  const p=await h.walks.repair(h.access,token,h.project,id,{stepId:'find',feedbackDigest:entry.feedbackDigest,publication});assert.equal(p.status,'preview');assert.equal(p.handoff.kind,'issue');assert.equal(p.route.acceptance,'not-established');assert.match(p.outbound.body,/Search for the Acme anvil/);assert.doesNotMatch(p.outbound.body,/Try a different Acme query/);assert.match(p.outbound.body,/Actual environment: Acme phone/);assert.match(p.outbound.body,/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/);
- const identity=manualRobotIssueIdentity(h.project.repo,p.handoff.title,p.handoff.rubric);assert.equal(p.handoff.instanceId,identity.instanceId);assert.equal(previewRobotIssue({repo:h.project.repo,title:p.handoff.title,rubric:p.handoff.rubric,policy:robotPolicy(JSON.parse(h.source.files['.keel/keel.json'])),...identity}).body,p.outbound.body);assert.equal(h.source.writes.length,0);assert.equal(h.db.operations.size,0);assert.equal(p.feedbackDigest,entry.feedbackDigest);
+ const identity=manualRobotIssueIdentity(h.project.repo,p.handoff.title,p.handoff.rubric);assert.equal(p.handoff.instanceId,identity.instanceId);assert.equal(previewRobotIssue({repo:h.project.repo,title:p.handoff.title,rubric:p.handoff.rubric,policy:robotPolicy(JSON.parse(h.source.files[legacy?'.keel/keel.json':'.plates/plates.json'])),...identity}).body,p.outbound.body);assert.equal(h.source.writes.length,0);assert.equal(h.db.operations.size,0);assert.equal(p.feedbackDigest,entry.feedbackDigest);
  await assert.rejects(h.walks.repair(h.access,token,h.project,id,{stepId:'find',feedbackDigest:entry.feedbackDigest,publication:{...publication,excerpt:'Fabricated approval'}}),bad('invalid_excerpt'));
+ }
 });
 test('strict save and repair input reject unknown fields and malformed values',async()=>{
  const h=walkHarness(),m=await detail(h);await assert.rejects(save(h,m,{script:'run'}),bad('invalid_walk_save'));await assert.rejects(save(h,m,{environment:['Acme']}),bad('invalid_environment'));await assert.rejects(save(h,m,{step:{id:'find',outcome:'pass',note:'',unknown:1}}),bad('invalid_walk_step'));await assert.rejects(h.walks.repair(h.access,token,h.project,id,{stepId:'find',feedbackDigest:'f'.repeat(64),publication:{},unknown:1}),bad('invalid_repair'));

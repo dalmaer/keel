@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseRenameArgs } from '../lib/rename.mjs';
 import { verbs } from '../lib/cli.mjs';
 import { capabilityCatalogue } from '../lib/web/capability-registry.mjs';
 import { auditOperationCoverage, reviewedOperationSources } from '../lib/web/capability-source-inventory.mjs';
@@ -17,7 +18,7 @@ const enabled = { ...config, nightOperations: {retryEnabled:true,planWrites:true
 const catalogue = (c = config, a = access, projectId = 'studio') => capabilityCatalogue(a, c, { projectId });
 
 async function copyBoundary(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'keel-acme-coverage-'));
+  const directory = await mkdtemp(join(tmpdir(), 'plates-acme-coverage-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   for (const source of reviewedOperationSources().files) {
     await mkdir(dirname(join(directory, source.path)), { recursive: true });
@@ -32,7 +33,7 @@ test('coverage follows the actual dispatcher and every reviewed known parser sou
   assert.equal(result.ok, true);
   const view = catalogue();
   assert.equal(view.coverage.registeredEntries, verbs.size);
-  assert.deepEqual(view.rows.filter(row => row.id.startsWith('cli.')).map(row => row.cli[0].command.slice(5)).sort(), keys.sort());
+  assert.deepEqual(view.rows.filter(row => row.id.startsWith('cli.')).map(row => row.cli[0].command.slice(7)).sort(), keys.sort());
   assert.ok(result.reviewedSources > verbs.size);
   assert.ok(result.gaps.some(gap => gap.includes('Computed imports')));
 });
@@ -59,10 +60,10 @@ test('new dispatch entry, installed entrypoint and changed forwarded closure fai
   assert.equal(initial.ok, true);
   const dispatch = await auditOperationCoverage({ root: directory, registeredKeys: [...keys, 'acme new'] });
   assert.ok(dispatch.findings.some(item => item.code === 'dispatcher_inventory_changed'));
-  await writeFile(join(directory, 'practices/night/files/scripts/keel/acme-new.mjs'), 'export const operation = true;\n');
+  await writeFile(join(directory, 'practices/night/files/scripts/plates/acme-new.mjs'), 'export const operation = true;\n');
   const installed = await auditOperationCoverage({ root: directory, registeredKeys: keys });
   assert.ok(installed.findings.some(item => item.code === 'script_inventory_changed'));
-  const path = join(directory, 'practices/night/files/scripts/keel/production.mjs');
+  const path = join(directory, 'practices/night/files/scripts/plates/production.mjs');
   await writeFile(path, (await readFile(path, 'utf8')).replace("'--source':'source'", "'--acme-source':'source'"));
   const forwarded = await auditOperationCoverage({ root: directory, registeredKeys: keys });
   assert.ok(forwarded.findings.some(item => item.code === 'parser_source_changed' && item.path.endsWith('/production.mjs')));
@@ -98,7 +99,7 @@ test('overloaded arity, forwarded forms and rejected syntax retain distinct sema
   const review = forms('review');
   assert.equal(review.find(form => form.subcommand === 'file-agent-issue').arguments.find(item => item.token === '--tracked').arity, 0);
   assert.equal(review.find(form => form.subcommand === 'answer').arguments.find(item => item.token === '--tracked').arity, 1);
-  assert.ok(reviewedOperationSources().rejectedSyntax.some(item => item.syntax === 'keel release --yes'));
+  assert.ok(reviewedOperationSources().rejectedSyntax.some(item => item.syntax === 'plates release --yes'));
 });
 
 test('instance enablement never makes a write executable or claims observed source coverage', () => {
@@ -144,4 +145,21 @@ test('fleet and project links preserve task scope and copied projections cannot 
   assert.ok(!JSON.stringify(catalogue()).includes('--acme-injected'));
   assert.ok(fleet.rows.some(row => row.id === 'global.agent-help'));
   assert.ok(project.rows.find(row => row.id === 'routine.promote').readiness.reason.includes('not been inspected'));
+});
+
+
+test('migration catalogue matches the shared approval parser without enabling web execution', () => {
+  const row = catalogue(enabled).rows.find(row => row.id === 'cli.migrate');
+  assert.equal(row.cli[0].command, 'plates migrate');
+  assert.equal(row.readiness.state, 'unsupported');
+  assert.equal(row.adapter, null);
+  assert.equal(row.route, null);
+  const form = row.cli[0].forms[0];
+  assert.equal(form.positionals, 'project-root:0..1');
+  assert.deepEqual(form.arguments.map(({token, arity}) => [token, arity]), [['--json', 0], ['--yes', 0], ['--digest', 1]]);
+  assert.match(form.constraints, /supplied together/);
+  const digest = 'a'.repeat(64);
+  assert.deepEqual(parseRenameArgs(['acme', '--yes', '--digest', digest]), {root: 'acme', yes: true, digest});
+  assert.equal(parseRenameArgs(['acme', '--json']).yes, false);
+  for (const args of [['--yes'], ['--digest', digest], ['--yes', '--yes', '--digest', digest], ['--yes', '--digest', digest.toUpperCase()], ['acme', 'other']]) assert.throws(() => parseRenameArgs(args));
 });

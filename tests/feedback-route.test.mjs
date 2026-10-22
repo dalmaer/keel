@@ -34,7 +34,7 @@ test('explicit conflicts require current accepted canonical choices and yield on
  await h.save('publication.json',publication);
  const r=await feedbackPropose({...opts(h),id:item.id,record:'publication.json'});assert.equal(r.exitCode,3,JSON.stringify(r.data));assert.equal(r.data.route.kind,'reopen-decision');assert.equal(r.data.handoff.kind,'shaping');assert.equal(r.data.reopening.status,'proposed');assert.deepEqual(r.data.reopening.decisionRefs,[ref]);assert.doesNotMatch(JSON.stringify(r),/private conflict explanation/);
  assert.deepEqual(validateShape(r.data.handoff.record),publication.shaping);assert.equal(r.data.outbound.body,JSON.stringify(publication.shaping,null,2)+'\n');assert.deepEqual(r.data.handoff.record.answers,[]);
- h.config.practices=['shaping'];await h.save('.keel/keel.json',h.config);await h.save('docs/goals.json',[{id:'G0',title:'Acme review',outcome:'Owner choices remain explicit.'}]);await h.save('reopening.json',r.data.handoff.record);
+ h.config.practices=['shaping'];await h.save('.plates/plates.json',h.config);await h.save('docs/goals.json',[{id:'G0',title:'Acme review',outcome:'Owner choices remain explicit.'}]);await h.save('reopening.json',r.data.handoff.record);
  const plan=await inspectShape(h.root,'reopening.json');assert.equal(plan.previews[0].kind,'robot');assert.deepEqual(plan.previews[0].rubric.ownerBlockers,['reopen']);
  const extra=structuredClone(publication);extra.shaping.items[0].decisions.push('docs/decisions/missing.md#absent');await h.save('publication.json',extra);assert.equal((await feedbackPropose({...opts(h),id:item.id,record:'publication.json'})).data.error,'decision_context_unavailable');
  const missing=structuredClone(publication);missing.shaping.items[0].decisions=[];await h.save('publication.json',missing);assert.equal((await feedbackPropose({...opts(h),id:item.id,record:'publication.json'})).data.error,'shaping_conflict_reference_missing');
@@ -53,7 +53,7 @@ test('publication handoff is byte-identical to issue new normalization and uses 
  for(const mode of ['landed','absent']){
   const h=await feedbackFixture(t),item=await prepared(h),r=await feedbackPropose({...opts(h),id:item.id,record:'publication.json'});assert.equal(r.exitCode,3);
   const proposal=r.data;assert.doesNotMatch(proposal.outbound.body,/Acme private feedback:/);assert.match(proposal.outbound.body,/the second row is missing/);assert.equal(proposal.excerpt,h.publication(item.digest).excerpt);
-  await assert.rejects(readdir(join(h.root,'.keel/robot-issues')),{code:'ENOENT'});
+  await assert.rejects(readdir(join(h.root,'.plates/robot-issues')),{code:'ENOENT'});
   const handoff=proposal.handoff;await h.save('rubric.json',handoff.rubric);const rubric=await robotRubricFile(join(h.root,'rubric.json')),identity=manualRobotIssueIdentity(handoff.repo,handoff.title,rubric);
   assert.equal(identity.subjectKey,`manual:${robotIssueInstance(handoff.title.trim())}`);assert.equal(identity.instanceId,robotIssueInstance(handoff.repo.toLowerCase(),identity.subjectKey,rubric));assert.equal(identity.instanceId,handoff.instanceId);
   const policy=await robotTargetPolicy({root:h.root,repo:handoff.repo}),rows=[];let posts=0;
@@ -61,7 +61,7 @@ test('publication handoff is byte-identical to issue new normalization and uses 
    if(req.method==='POST'){posts++;assert.equal(req.body.body,proposal.outbound.body);assert.equal(req.body.title,proposal.outbound.title);assert.deepEqual(req.body.labels,proposal.outbound.labels);if(mode==='landed')rows.push({number:1,state:'open',html_url:'https://github.com/acme/studio/issues/1',url:'https://api.github.com/repos/acme/studio/issues/1',body:req.body.body,labels:[]});throw Error('Acme lost response');}
    return {status:200,data:/\/issues\/1$/.test(req.path)?rows[0]:rows};
   };
-  const args={repo:handoff.repo,title:handoff.title,rubric,policy,...identity,stateDir:join(h.root,'.keel/robot-issues'),github};
+  const args={repo:handoff.repo,title:handoff.title,rubric,policy,...identity,stateDir:join(h.root,'.plates/robot-issues'),github};
   const preview=await ensureRobotIssue(args);assert.equal(preview.state,'preview');assert.equal(preview.preview.body,proposal.outbound.body);
   const delivered=await ensureRobotIssue({...args,yes:true});assert.equal(delivered.state,mode==='landed'?'recovered':'pending');
   const repeated=await ensureRobotIssue({...args,yes:true}),recovered=await recoverRobotIssue(args);assert.equal(repeated.state,delivered.state);assert.equal(recovered.state,delivered.state);assert.equal(posts,1);

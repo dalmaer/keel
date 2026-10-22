@@ -1,6 +1,6 @@
 # Scoped connections and capacity
 
-Connections separates a private policy from a usable credential. Open the Fleet
+Connections separates a private policy from a usable credential. Open All plates
 Connections view to manage a policy; a project's Connections view shows only its
 effective connections. Access is checked against current membership and numeric
 repository identities. Editing a shared grant requires access to every project
@@ -28,7 +28,7 @@ provider validation and secret-store verification. Private Git writes and vault
 activation are separate capabilities. A source implementation or synthetic test
 is not live activation proof.
 
-For an existing policy with verified activation, enter a key once. Keel validates
+For an existing policy with verified activation, enter a key once. Plates validates
 it with one fixed provider model-metadata request, then rechecks current access,
 policy digest and vault version before storing authenticated ciphertext. The
 input clears after submission; no existing value is redisplayed or saved in
@@ -46,7 +46,7 @@ After an uncertain database response, inspect the intended generation. Do not
 repeat a blind set or rotate request. Version checks and a retained removal
 record prevent an older validation from restoring a removed key.
 
-**Remove key from Keel** removes Keel's usable copy. It does not delete the
+**Remove key from Plates** removes the copy held by Plates. It does not delete the
 provider's credential. Use the provider's separate key-management surface to
 revoke it there. No generation request, workflow execution or inference spending
 is part of setup, rotation or removal.
@@ -66,7 +66,7 @@ missing identity, missing windows and rounded values retain their limitations.
 
 Subscription windows, inference allowance, actual spend and runner capacity each
 show their own unavailable state until a supported source supplies them. No
-hosted subscription reporter is connected in this phase. Keel does not extract
+hosted subscription reporter is connected in this phase. Plates does not extract
 managed OAuth tokens, install a statusline or reuse the assistant application's
 own usage connection as a reporting bridge.
 

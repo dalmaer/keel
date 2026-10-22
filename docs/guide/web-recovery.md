@@ -41,7 +41,7 @@ source independently:
 
 Git history does not back up the runtime database or screenshot bytes. A database
 backup does not back up encryption keys or external execution history. Keep
-secrets, real screenshots and private inventories out of the public Keel repo.
+secrets, real screenshots and private inventories out of the public Plates repo.
 Do not record credentials in the trial worksheet.
 
 ## Quarantine before connecting restored state

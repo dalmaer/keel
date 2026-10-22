@@ -11,7 +11,7 @@ evidence: ["evidence/2026-10-04-reconciliation.md"]
 
 ## Done when
 
-Keel's existing checks detect and propose scoped corrections for merged-PR, completed-next-action and superseded-decision contradictions on an adopted project, without inferring acceptance, production verification or lived-in status from a merge.
+Plates's existing checks detect and propose scoped corrections for merged-PR, completed-next-action and superseded-decision contradictions on an adopted project, without inferring acceptance, production verification or lived-in status from a merge.
 
 ## Scope
 
@@ -31,7 +31,7 @@ Implement [the reconciliation practice design](../research/2026-10-04-reconcilia
 
 `node --import ./tests/helpers/hermetic.mjs --test tests/reconciliation.test.mjs tests/reconciliation-integration.test.mjs tests/helpers.test.mjs`
 checks the shared engine, doctor/night integration, actual PR diffs, proposal
-freshness, local formats and synthetic guard mutations. `node bin/keel.mjs
+freshness, local formats and synthetic guard mutations. `node bin/plates.mjs
 improve --selftest --json` exercises the intentionally unhealthy fixture.
 Then `npm run check` covers the final integrated tree and generated records.
 

@@ -16,13 +16,13 @@ is not an observed installed CLI/runtime. The web application's serving revision
 CLI package version and Node runtime are separate facts. Unknown values remain
 unavailable, with their source and observation time.
 
-The first update target is one explicitly configured trusted Keel build: numeric
+The first update target is one explicitly configured trusted Plates build: numeric
 source repository identity, immutable commit, CLI and practice versions, and the
 migration/template/runtime identities. The browser cannot supply a code URL or
 choose an arbitrary executable revision. A build is called a release only when a
 named tag resolves to its recorded release source; release notes alone are not
 proof. Target configuration is private owner policy and changes invalidate review.
-Keel itself (`keel: self`) remains update-ineligible.
+Plates itself (`plates: self`) remains update-ineligible.
 
 ## Prepare first, then approve publication
 
@@ -207,7 +207,7 @@ A fixture Docker executable cannot establish container isolation or termination.
 A local container walk can establish those properties only for the observed image,
 platform and daemon. The real workflow exercise still needs a selected adopted
 project, approved App permissions, image/network policy and runtime allowance,
-hosted migration proof and deployment. The currently connected Keel self-project
+hosted migration proof and deployment. The currently connected Plates self-project
 cannot establish an adopted-project rollout. No real update PR is authorized by
 this implementation contract.
 
@@ -223,4 +223,4 @@ Read 2026-10-22 UTC (2026-10-21 local):
 - [Docker process freezing](https://docs.docker.com/reference/cli/docker/container/pause/)
 
 The additional fencing, isolation policy, publication recovery and source-evidence
-requirements are Keel's design, not guarantees supplied by these APIs.
+requirements are Plates's design, not guarantees supplied by these APIs.

@@ -15,6 +15,7 @@ import {
   validateNightProfile,
 } from "../lib/web/night-retry-source.mjs";
 import { NIGHT_CANONICAL } from "../lib/web/night-retry-canonical.mjs";
+import legacyNightSource from "./helpers/web-night-legacy.mjs";
 const input = { runId: 7001, attempt: 2 };
 const preview = (h) => h.night.preview(h.access, token, h.project, input);
 const apply = (h, p, reauthorize = h.reauthorize) =>
@@ -37,7 +38,13 @@ async function repin(h) {
   h.register();
 }
 
-test("canonical night closure fingerprints match real shipped files", () => {
+test("reviewed legacy night archive preserves every pinned Git blob and source provenance", () => {
+  assert.equal(legacyNightSource.revision, "24728f21a76988a3be2acba75cb3b96a0c951e23");
+  assert.deepEqual(Object.keys(legacyNightSource.files).sort(), Object.keys(NIGHT_CANONICAL).sort());
+  for (const [path, source] of Object.entries(legacyNightSource.sources)) {
+    assert.equal(source.blob, NIGHT_CANONICAL[path]);
+    assert.ok(source.path.startsWith("practices/") && source.path.endsWith(`/files/${path}`));
+  }
   for (const [path, body] of Object.entries(canonicalFiles()))
     assert.equal(
       createHash("sha1")
@@ -474,4 +481,21 @@ test("night configuration is optional, independently gated and requires known pr
       .planWrites,
     true,
   );
+});
+
+test("renamed Plates night source refuses legacy retry authority even after inventory repinning", async () => {
+  const h = await nightRetryHarness();
+  for (const [path, body] of Object.entries(h.source.files)) {
+    const renamed = path.replace(".github/workflows/keel-night.yml", ".github/workflows/plates-night.yml").replace("scripts/keel/", "scripts/plates/").replace(".keel/keel.json", ".plates/plates.json");
+    if (renamed !== path) {
+      h.source.files[renamed] = body;
+      delete h.source.files[path];
+    }
+  }
+  await repin(h);
+  await assert.rejects(preview(h), { code: "night_canonical_source_required" });
+  h.profile.workflow.path = ".github/workflows/plates-night.yml";
+  assert.throws(() => validateNightProfile(h.profile), { code: "invalid_night_profile" });
+  assert.equal(h.nightState.posts.length, 0);
+  assert.equal(h.nightDb.rows.size, 0);
 });

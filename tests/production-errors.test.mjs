@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, readdir, symlink, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { productionConfig, normalizeEvent, collectSource, commandFor, providerTime, execute, providerEnv } from '../practices/night/files/scripts/keel/production-collectors.mjs';
-import { collect, status, applyObservation, assessVerification } from '../lib/production.mjs';
-import { emptyState, readState, validateState, transaction, atomicJson, recoverState, digest, retainVerification } from '../practices/night/files/scripts/keel/production-store.mjs';
+import { productionConfig, normalizeEvent, collectSource, commandFor, providerTime, execute, providerEnv } from '../practices/night/files/scripts/plates/production-collectors.mjs';
+import { collect, status, applyObservation, assessVerification, spec } from '../lib/production.mjs';
+import { emptyState, readState, validateState, transaction, atomicJson, recoverState, digest, retainVerification } from '../practices/night/files/scripts/plates/production-store.mjs';
 const start='2026-10-17T10:00:00.000Z',end='2026-10-17T11:00:00.000Z',now=new Date(end);
 const base={id:'acme',provider:'json',service:'acme',environment:'production',input:'events.json',windowMinutes:60,maxEvents:10,maxBytes:10000,timeoutMs:1000,threshold:2};
 const config=s=>({production:{version:1,enabled:true,sources:[{...base,...s}]}});
 const source=s=>productionConfig(config(s)).sources[0];
 async function fixture(t,events=[],extra={}) {
  const root=await mkdtemp(join(tmpdir(),'acme-production-'));t.after(()=>rm(root,{recursive:true,force:true}));
- await mkdir(join(root,'.keel')); await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config()));
+ await mkdir(join(root,'.plates')); await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config()));
  await writeFile(join(root,'events.json'),JSON.stringify({version:1,source:'acme',service:'acme',environment:'production',start,end,coverage:'complete',events,...extra}));return root;
 }
 const event=(id='one',message='TypeError: failure at src/acme.mjs:42:3')=>({id,timestamp:'2026-10-17T10:30:00.123456789Z',message,revision:'acme-r1'});
@@ -47,12 +47,12 @@ test('transport bounds timeout and byte output without leaking stderr or auth fa
 });
 test('preview writes nothing; replay and overlap preserve counts and recurrence',async t=>{
  const root=await fixture(t,[event('one'),event('two')]);
- assert.equal((await collect({root,config:config(),start,end,now})).state,'preview');assert.deepEqual(await readdir(join(root,'.keel')),['keel.json']);
+ assert.equal((await collect({root,config:config(),start,end,now})).state,'preview');assert.deepEqual(await readdir(join(root,'.plates')),['plates.json']);
  await collect({root,config:config(),start,end,now,yes:true});await collect({root,config:config(),start,end,now,yes:true});
  const state=await readState(root),i=Object.values(state.incidents)[0];assert.equal(i.count,2);assert.equal(i.status,'recurring');
  const s=source(),o=await collectSource(root,s,{start,end});applyObservation(state,s,{...o,start:'2026-10-17T10:10:00.000Z',end:'2026-10-17T11:10:00.000Z'});assert.equal(i.count,2);
  assert.equal(state.sources.acme.windows.length,2);assert.equal(validateState(state),state);
- assert.doesNotMatch(await readFile(join(root,'.keel/production/state.json'),'utf8'),/src\/acme|acme-r1/);
+ assert.doesNotMatch(await readFile(join(root,'.plates/production/state.json'),'utf8'),/src\/acme|acme-r1/);
 });
 test('partial, malformed, pagination and identity gaps never become complete coverage',async t=>{
  const root=await fixture(t,[event(),{message:'missing timestamp'}],{sampled:true});
@@ -66,12 +66,12 @@ test('strict durable schema rejects unknown/raw fields, invalid dates and incomp
  for(const mutate of [s=>s.raw='private',s=>s.version=2,s=>Object.values(s.incidents)[0].message='private',s=>s.sources.acme.windows[0].requestBody='private',s=>Object.values(s.incidents)[0].firstSeen='not-a-date',s=>s.sources.acme.scope='raw']){const bad=structuredClone(state);mutate(bad);assert.throws(()=>validateState(bad));}
 });
 test('symlink refusal, serialized writers and interrupted transaction recovery',async t=>{
- const root=await fixture(t);await mkdir(join(root,'elsewhere'));await symlink(join(root,'elsewhere'),join(root,'.keel/production'));
- await assert.rejects(()=>collect({root,config:config(),start,end,now,yes:true}),/symlink/);await rm(join(root,'.keel/production'));
+ const root=await fixture(t);await mkdir(join(root,'elsewhere'));await symlink(join(root,'elsewhere'),join(root,'.plates/production'));
+ await assert.rejects(()=>collect({root,config:config(),start,end,now,yes:true}),/symlink/);await rm(join(root,'.plates/production'));
  let entered,release;const started=new Promise(r=>entered=r),wait=new Promise(r=>release=r);
  const first=transaction(root,async()=>{entered();await wait;return {state:'ok'};});await started;await assert.rejects(()=>transaction(root,async()=>({})),/lock/);release();await first;
  const state=await readState(root);const pending={version:1,id:'1792234800000-00000000-0000-4000-8000-000000000001',at:end,state,digest:digest(state)};
- await atomicJson(join(root,'.keel/production/pending.json'),pending);await assert.rejects(()=>readState(root),/interrupted/);await recoverState(root);assert.deepEqual(await readState(root),state);assert.ok((await readdir(join(root,'.keel/production/observations'))).includes(pending.id+'.json'));
+ await atomicJson(join(root,'.plates/production/pending.json'),pending);await assert.rejects(()=>readState(root),/interrupted/);await recoverState(root);assert.deepEqual(await readState(root),state);assert.ok((await readdir(join(root,'.plates/production/observations'))).includes(pending.id+'.json'));
 });
 test('retention discloses evicted windows and keeps unresolved incidents',()=>{
  const state=emptyState(),s=source(),e=normalizeEvent(event(),s);
@@ -103,7 +103,7 @@ test('provider credentials are scoped to Vercel environment; config rejects unsa
 test('receipt retention is time ordered, disclosed, and bounded',async t=>{
  const root=await fixture(t);
  await transaction(root,async()=>({state:'ok'}));
- const dir=join(root,'.keel/production/observations');
+ const dir=join(root,'.plates/production/observations');
  for(let n=0;n<65;n++)await atomicJson(join(dir,`${1700000000000+n}-00000000-0000-4000-8000-000000000001.json`),{version:1});
  await transaction(root,async()=>({state:'ok'}));
  assert.equal((await readdir(dir)).length,64);assert.equal((await readState(root)).droppedReceipts,3);
@@ -140,7 +140,7 @@ test('verification history bounds, deduplication, strict proof schema and recove
   const bad=structuredClone(state);mutate(Object.values(bad.incidents)[0]);assert.throws(()=>validateState(bad));
  }
  const pending={version:1,id:'1792234800000-00000000-0000-4000-8000-000000000002',at:end,state,digest:digest(state)};
- await atomicJson(join(root,'.keel/production/pending.json'),pending);await recoverState(root);assert.deepEqual(await readState(root),state);
+ await atomicJson(join(root,'.plates/production/pending.json'),pending);await recoverState(root);assert.deepEqual(await readState(root),state);
 });
 
 test('Vercel request rows retain nested error/fatal shapes with stable bounded request identities',async t=>{
@@ -186,4 +186,23 @@ test('malformed identities remain unknown and non-string message or stack fields
  const unknown=await collectSource(root,s,{start,end});assert.ok(unknown.gaps.includes('identity-unknown'));
  const state=emptyState();applyObservation(state,s,unknown);const incident=Object.values(state.incidents)[0];assert.equal(incident.count,1);assert.equal(incident.confidence,'lower-bound');
  async function fixtureInput(events) { await writeFile(join(root,'events.json'),JSON.stringify({version:1,source:'acme',service:'acme',environment:'production',start,end,coverage:'complete',events})); }
+});
+
+test('repository and dashboard rename preserve incident identity and remediation subject', async t => {
+ const oldConfig = {...config({dashboardUrl:'https://vercel.com/acme/old-app'}),repo:'acme/old-app'};
+ const newConfig = {...config({dashboardUrl:'https://vercel.com/acme/new-app'}),repo:'acme/new-app'};
+ const oldSource = productionConfig(oldConfig).sources[0], newSource = productionConfig(newConfig).sources[0];
+ assert.equal(oldSource.scopeKey,newSource.scopeKey);
+ const oldEvent = normalizeEvent(event(),oldSource), newEvent = normalizeEvent(event(),newSource);
+ assert.deepEqual(oldEvent,newEvent);
+ const root = await fixture(t,[event()]);
+ await collect({root,config:oldConfig,start,end,now,yes:true});
+ const state = await readState(root), id = Object.keys(state.incidents)[0];
+ const before = await spec({root,config:oldConfig,incident:id});
+ const after = await spec({root,config:newConfig,incident:id});
+ assert.equal(after.incident,before.incident);assert.equal(after.subjectKey,before.subjectKey);
+ assert.equal((await status({root,config:newConfig})).incidents[0].activity,'active');
+ const changedScope = {...newConfig,production:{...newConfig.production,sources:[{...newConfig.production.sources[0],service:'other-service'}]}};
+ assert.equal((await status({root,config:changedScope})).incidents[0].activity,'inactive-source');
+ await assert.rejects(()=>spec({root,config:changedScope,incident:id}),/source no longer matches/);
 });

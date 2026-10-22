@@ -1,4 +1,4 @@
-// keel goodnight (phase 74): the owner shapes tonight's plan. The opening shows
+// plates goodnight (phase 74): the owner shapes tonight's plan. The opening shows
 // what was settled today, what was left open, the default plan and up to three
 // things to try, and changes nothing; the shaping verbs change a draft and
 // refuse what breaks the plan's rules, naming why; --yes writes the plan,
@@ -16,12 +16,12 @@ import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { goodnight, suggestionsFor, namesSettled, parseArgs, loopRubric, loopDraft, DRAFT, SUGGESTIONS } from '../lib/goodnight.mjs';
 import { previewRobotIssue } from '../lib/robot-issue.mjs';
-import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
-import { robotRubricRefusal } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
+import { robotRubricRefusal } from '../practices/climb/files/scripts/plates/robot-rubric.mjs';
 import { validatePlan, tonight, nightOf, PLAN, PLAN_BRANCH } from '../lib/night-plan.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const HOUR = 3_600_000;
 
 const PAGE = `# Health — 2026-10-01
@@ -64,15 +64,15 @@ const PHASE = status => `---\nstatus: ${status}\nsince: 2026-10-01\ngoal: G1\n--
  * merged an hour ago, #39 three days ago, #42 open.
  */
 async function acme(t) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-goodnight-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-goodnight-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'anvils'), origin = join(base, 'origin.git');
   const now = Date.now(), today = new Date(now).toISOString().slice(0, 10);
   const git = (args, cwd = root, env = {}) => { const r = run('git', args, { cwd, env: { ...process.env, ...env } }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
-  for (const d of ['.keel', 'scripts/keel', 'docs/health', 'docs/loop', 'docs/phases', 'docs/reviews', '.agents/personas']) await mkdir(join(root, d), { recursive: true });
-  for (const p of ['night', 'climb']) await cp(join(KEEL, 'practices', p, 'files', 'scripts', 'keel'), join(root, 'scripts', 'keel'), { recursive: true });
-  await cp(join(KEEL, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: { jobs: ['test-time'], budget: { minutes: 40 } } }));
+  for (const d of ['.plates', 'scripts/plates', 'docs/health', 'docs/loop', 'docs/phases', 'docs/reviews', '.agents/personas']) await mkdir(join(root, d), { recursive: true });
+  for (const p of ['night', 'climb']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: { jobs: ['test-time'], budget: { minutes: 40 } } }));
   await writeFile(join(root, 'docs/health/2026-10-01.md'), PAGE);
   await writeFile(join(root, 'docs/loop/slow-search.md'), finding('Slow search'));
   await writeFile(join(root, 'docs/loop/lighter-anvils.md'), finding('Lighter anvils', 'decision: accepted\nrank: next\nphase: 1\nsince: 2026-10-01\nnote: Brings `slow_tests` back within its bound.\n'));
@@ -108,15 +108,15 @@ if (a[0] === 'pr' && a[1] === 'list') {
 } else if (a[0] === 'issue' && a[1] === 'list') console.log('[]');
 else { console.error('stub gh: not here: ' + a.join(' ')); process.exit(1); }
 `, { mode: 0o755 });
-  const env = { ...process.env, KEEL_GH: gh };
-  const keel = args => { const r = run(process.execPath, [BIN, ...args], { cwd: root, env }); return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) }; };
-  return { root, origin, env, git, keel, log, base };
+  const env = { ...process.env, PLATES_GH: gh };
+  const plates = args => { const r = run(process.execPath, [BIN, ...args], { cwd: root, env }); return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) }; };
+  return { root, origin, env, git, plates, log, base };
 }
 
 /** The board's answer, injected: an unanswered review, a walk that is the owner's, and an agent's item that is not. */
 const board = async () => ({
   items: [
-    { source: 'reviews', waits: 'broken', title: 'acme/anvils#42: 2 review comments unanswered', read: 'keel review acme/anvils#42' },
+    { source: 'reviews', waits: 'broken', title: 'acme/anvils#42: 2 review comments unanswered', read: 'plates review acme/anvils#42' },
     { source: 'roadmap', waits: 'owner', title: 'phase 2: Acme anvils ring', why: 'walk owed: ring one', read: 'docs/phases/02-ring.md' },
     { source: 'roadmap', waits: 'agent', title: 'phase 3: Acme anvils shine', why: 'planned' },
   ],
@@ -128,7 +128,7 @@ function footprint(f) {
   return [f.git(['status', '--porcelain', '--ignored', '--untracked-files=all']), f.git(['for-each-ref']), f.git(['for-each-ref'], f.origin)].join('\n--\n');
 }
 
-test('keel goodnight shows settled today, left open, the default plan and up to three things to try, from a stubbed gh and a fixture project, and changes nothing', async t => {
+test('plates goodnight shows settled today, left open, the default plan and up to three things to try, from a stubbed gh and a fixture project, and changes nothing', async t => {
   const f = await acme(t);
   const before = footprint(f);
   const r = await goodnight({ root: f.root, args: [], env: f.env }, { board });
@@ -155,7 +155,7 @@ test('keel goodnight shows settled today, left open, the default plan and up to 
   assert.match(d.suggestions[0].why, /the robot is off here/);
   for (const line of ['Settled today', 'merged #41: Acme: anvils weigh less', 'phase 1: planned → built', 'Loop finding heavy-anvils: declined',
     'Left open', 'open PR #42 (draft): Acme: sharper anvils', 'review: acme/anvils#42', 'yours: phase 2: Acme anvils ring',
-    "Tonight's plan (keel's default plan)", 'climb-test-time', 'Things to try (keel goodnight add <id>)', 'loop-lighter-anvils', 'keel goodnight --yes']) assert.ok(r.text.includes(line), `the opening says: ${line}\n${r.text}`);
+    "Tonight's plan (plates's default plan)", 'climb-test-time', 'Things to try (plates goodnight add <id>)', 'loop-lighter-anvils', 'plates goodnight --yes']) assert.ok(r.text.includes(line), `the opening says: ${line}\n${r.text}`);
   assert.doesNotMatch(r.text, /#39/);
   assert.equal(footprint(f), before, 'the opening writes nothing and pushes nothing');
   assert.equal(existsSync(join(f.root, 'docs/reviews/2026-10-01-perf.md')) && (await readFile(join(f.root, 'docs/reviews/2026-10-01-perf.md'), 'utf8')), REVIEW, 'no persona was run');
@@ -168,13 +168,13 @@ test('keel goodnight shows settled today, left open, the default plan and up to 
   assert.ok(!cut.some(s => s.id === 'climb-test-time'));
 
   // Through the CLI, with the real board: the same opening; what the board cannot read is said, never empty.
-  const cli = f.keel(['goodnight', '--json']);
+  const cli = f.plates(['goodnight', '--json']);
   assert.equal(cli.code, 0, cli.err + cli.out);
   const c = cli.json();
   assert.deepEqual([c.settled.prs.map(p => p.number), c.leftOpen.prs.map(p => p.number), c.plan.items.length, c.suggestions.length], [[41], [42], 5, 1]);
   // The stub gh answers no GraphQL: the reviews could not be read, and the opening says so.
   assert.ok(c.leftOpen.gaps.some(g => /^unanswered reviews: /.test(g)), c.leftOpen.gaps.join('\n'));
-  assert.match(f.keel(['goodnight']).out, /not read: unanswered reviews: /);
+  assert.match(f.plates(['goodnight']).out, /not read: unanswered reviews: /);
   assert.equal(footprint(f), before, 'the CLI opening writes nothing either');
 });
 
@@ -198,7 +198,7 @@ test('add, drop, edit, budget and skip change the draft; a sixth build item, a b
   await refused(['add', '--title', 'Acme: build the finding', '--measure', 'slow_tests', '--bound', '0', '--lane', 'loop'], /no pass builds lane loop/);
   assert.equal(d.shapedBy, 'owner');
   assert.deepEqual(d.items.map(i => i.id), ['measures', 'health-prs-stale', 'climb-test-time', 'loop-slow-search', 'persona-perf--bundle-size', 'loop-lighter-anvils']);
-  assert.equal(await readFile(join(f.root, '.keel/night/.gitignore'), 'utf8'), '*\n', 'the draft ignores itself');
+  assert.equal(await readFile(join(f.root, '.plates/night/.gitignore'), 'utf8'), '*\n', 'the draft ignores itself');
   // add: the owner's own item, in their words; a build with no --lane takes the climb job that measures its number.
   await say('add', '--title', 'Acme: the search tests, tonight', '--measure', 'slow_tests', '--bound', '0', '--budget', '25');
   d = await draft();
@@ -239,19 +239,19 @@ test('add, drop, edit, budget and skip change the draft; a sixth build item, a b
   assert.throws(() => parseArgs(['edit', 'x']), /needs a change/);
 
   // Through the CLI: a refusal is exit 2 with the reason; a change prints the draft.
-  const cli = f.keel(['goodnight', 'add', '--title', 'Acme: sixth', '--measure', 'slow_tests', '--bound', '0', '--id', 'sixth']);
+  const cli = f.plates(['goodnight', 'add', '--title', 'Acme: sixth', '--measure', 'slow_tests', '--bound', '0', '--id', 'sixth']);
   assert.equal(cli.code, 2);
-  assert.match(cli.err, /^keel: refused: .*a sixth build item/);
-  const ok = f.keel(['goodnight', 'drop', 'fifth', '--json']);
+  assert.match(cli.err, /^plates: refused: .*a sixth build item/);
+  const ok = f.plates(['goodnight', 'drop', 'fifth', '--json']);
   assert.equal(ok.code, 0, ok.err);
   assert.equal(ok.json().said, 'dropped fifth');
 
   // The draft is never written through a link.
   const elsewhere = join(f.base, 'elsewhere');
   await mkdir(elsewhere);
-  await rm(join(f.root, '.keel/night'), { recursive: true });
-  await symlink(elsewhere, join(f.root, '.keel/night'));
-  await assert.rejects(goodnight({ root: f.root, args: ['budget', 'climb-test-time', '20'], env: f.env }, { board }), /refusing to write .*\.keel\/night is a symlink/);
+  await rm(join(f.root, '.plates/night'), { recursive: true });
+  await symlink(elsewhere, join(f.root, '.plates/night'));
+  await assert.rejects(goodnight({ root: f.root, args: ['budget', 'climb-test-time', '20'], env: f.env }, { board }), /refusing to write .*\.plates\/night is a symlink/);
   assert.equal(existsSync(join(elsewhere, 'draft.json')), false);
 });
 
@@ -260,7 +260,7 @@ test('--yes writes the plan with shapedBy owner and pushes it to the plan branch
   const mainBefore = f.git(['rev-parse', 'refs/heads/main'], f.origin);
   const head = f.git(['rev-parse', 'HEAD']);
   // Without --yes: the opening and a shaped draft write no plan and push nothing.
-  assert.equal(f.keel(['goodnight']).code, 0);
+  assert.equal(f.plates(['goodnight']).code, 0);
   await goodnight({ root: f.root, args: ['skip', 'lib/anvil.mjs'], env: f.env }, { board });
   assert.equal(existsSync(join(f.root, PLAN)), false, 'no plan without --yes');
   assert.equal(run('git', ['rev-parse', '--verify', '-q', `refs/heads/${PLAN_BRANCH}`], { cwd: f.origin }).status, 1, 'nothing pushed without --yes');
@@ -378,9 +378,9 @@ test('a climb lane is one of the project\'s enabled climb jobs: never another jo
   assert.equal(run('git', ['rev-parse', '--verify', '-q', `refs/heads/${PLAN_BRANCH}`], { cwd: f.origin }).status, 1, 'nothing pushed');
   // Climb off: no climb lane is one a pass builds.
   await rm(join(f.root, DRAFT));
-  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(f.root, '.plates/plates.json'), 'utf8'));
   delete config.climb;
-  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify(config));
+  await writeFile(join(f.root, '.plates/plates.json'), JSON.stringify(config));
   await refused(['add', '--title', 'Acme: no climb', '--measure', 'slow_tests', '--bound', '0', '--lane', 'climb:test-time'], /lane climb:test-time, a climb job this project does not run \(climb is off here/);
   await refused(['add', '--title', 'Acme: no climb either', '--measure', 'slow_tests', '--bound', '0'], /no climb job here measures slow_tests \(climb is off here/);
 });
@@ -394,8 +394,8 @@ test('any source that feeds the owner\'s items and could not be read is a gap; a
       { source: 'roadmap', state: 'ok', count: 0 },
       { source: 'health', state: 'n/a', why: 'EACCES: permission denied, scandir \'docs/health\'' },
       { source: 'claims', state: 'n/a', why: 'git fetch origin failed: could not read from remote' },
-      { source: 'inbox', state: 'n/a', why: 'the inbox is keel\'s (home only)' },
-      { source: 'fleet', state: 'n/a', why: 'keel fleet runs at home, on keel' },
+      { source: 'inbox', state: 'n/a', why: 'the inbox is plates\'s (home only)' },
+      { source: 'fleet', state: 'n/a', why: 'plates fleet runs at home, on plates' },
       { source: 'robot', state: 'ok', count: 0, why: 'robot OFF; agent issues are unlabelled, no model spend' },
     ],
   });
@@ -403,17 +403,17 @@ test('any source that feeds the owner\'s items and could not be read is a gap; a
   assert.deepEqual(r.data.leftOpen.gaps, [
     'the board\'s health: EACCES: permission denied, scandir \'docs/health\'',
     'the board\'s claims: git fetch origin failed: could not read from remote',
-  ], 'the inbox outside keel, the fleet and the robot are quiet');
+  ], 'the inbox outside plates, the fleet and the robot are quiet');
   assert.match(r.text, /Left open\n(?:.*\n)*?  not read: the board's health: EACCES/);
   assert.doesNotMatch(r.text, /Left open\n  nothing\n/, 'never "nothing" when a source was not read');
   // --yes keeps the gap for the morning.
   const yes = await goodnight({ root: f.root, args: ['--yes'], env: f.env }, { board: failing });
   assert.ok(yes.data.plan.leftOpen.includes('not read: the board\'s health: EACCES: permission denied, scandir \'docs/health\''), yes.data.plan.leftOpen.join('\n'));
-  // The inbox is quiet only where board() says it does not apply: on keel itself its n/a is a failure.
+  // The inbox is quiet only where board() says it does not apply: on plates itself its n/a is a failure.
   const { expectedNa, OWNER_SOURCES } = await import('../lib/goodnight.mjs');
   const inbox = { source: 'inbox', state: 'n/a', why: 'ENOENT' };
   assert.equal(expectedNa(inbox, { name: 'Acme Anvils' }), true);
-  assert.equal(expectedNa(inbox, { keel: 'self' }), false);
+  assert.equal(expectedNa(inbox, { plates: 'self' }), false);
   for (const s of OWNER_SOURCES.filter(x => x !== 'inbox')) assert.equal(expectedNa({ source: s, state: 'n/a' }, { name: 'Acme Anvils' }), false, s);
 });
 
@@ -437,8 +437,8 @@ function issuesApi() {
 // Phase 78: an accepted Loop finding that names a number is built by the robot, under a rubric drafted from it.
 test('goodnight add for an accepted Loop finding that names a number drafts a robot item; --yes alone makes its issue (once), with a rubric the robot accepts; one that names no number stays triage, with the reason', async t => {
   const f = await acme(t);
-  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify({ ...config, robot: { on: true, budgetMinutes: 60 } }));
+  const config = JSON.parse(await readFile(join(f.root, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(f.root, '.plates/plates.json'), JSON.stringify({ ...config, robot: { on: true, budgetMinutes: 60 } }));
   await writeFile(join(f.root, 'docs/loop/lighter-anvils.md'), finding('Lighter anvils', 'decision: accepted\nrank: next\nphase: 1\nsince: 2026-10-01\nnote: Brings `slow_tests` back within its bound.\n')
     .replace("Acme's Lighter anvils.", "# Lighter anvils\n\n> **Loop says** (P2/S1): The anvil tests wait on a sleep.\n\n- `test/anvil.test.mjs`\n- `lib/anvil.mjs`\n\n## Our read\n\nlib/anvil.mjs:12 sleeps."));
   await writeFile(join(f.root, 'docs/loop/vague-anvils.md'), finding('Vague anvils', 'decision: accepted\nrank: later\nphase: 1\nsince: 2026-10-01\nnote: Make anvils nicer.\n'));

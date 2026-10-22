@@ -11,13 +11,13 @@ import { join } from 'node:path';
 import { run } from './helpers/run.mjs';
 import {
   MEASURES, measure, proposalText, propose, tighten, isFixSubject, phaseOf, phasesNamed, selfProvenance, escapeEntries,
-} from '../practices/night/files/scripts/keel/improve.mjs';
+} from '../practices/night/files/scripts/plates/improve.mjs';
 
 const ESCAPES = MEASURES.filter(m => m.id === 'escapes');
 const CONFIG = { name: 'Acme', repo: 'acme/storefront', practices: ['base', 'phases', 'lessons'] };
 
 async function scratch(t) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-escapes-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-escapes-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }

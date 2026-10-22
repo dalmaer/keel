@@ -3,7 +3,7 @@
 The [operation experience contract](../specs/web-operation-experience.md) defines
 phase107's shared navigation, capability catalogue and private editor drafts.
 Its implementation and real-service acceptance are tracked in
-[phase107](../phases/107-mobile-and-desktop-cover-keel-operations.md). A catalogue
+[phase107](../phases/107-mobile-and-desktop-cover-plates-operations.md). A catalogue
 entry is not proof that an operation is enabled or executable on your instance.
 
 ## Choose the right lens
@@ -68,7 +68,7 @@ Treat these states differently:
 - **Source changed:** the authored draft remains available, but its old review does not.
 
 Offline unsaved edits can be lost when a phone closes a background tab or kills
-its process. Navigation warnings cannot prevent that. Keel does not copy private
+its process. Navigation warnings cannot prevent that. Plates does not copy private
 form content or credentials into browser persistence, and reconnect never silently
 submits an operation. Save while connected before changing devices.
 

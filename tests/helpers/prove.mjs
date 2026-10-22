@@ -1,4 +1,4 @@
-// A tiny Acme repository with a bug, its fix and a test, for keel prove
+// A tiny Acme repository with a bug, its fix and a test, for plates prove
 // (phase 62): tests/prove.test.mjs, and tests/cli.test.mjs's --json run.
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile, readdir, lstat } from 'node:fs/promises';

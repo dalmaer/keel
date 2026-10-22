@@ -21,7 +21,7 @@ Implement versioned change packages, bounded media ingestion/private delivery, c
 
 Implementation: [Visual changes and private captures](../specs/web-visual-journal.md).
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

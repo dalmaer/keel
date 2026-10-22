@@ -21,7 +21,7 @@ This phase verifies the first decision/testing workspace. Phase 108 verifies the
 
 Restore private Git records, transactional database records and private media separately, expiring restored sessions. Run the full human acceptance journey and backup/restore drill on the approved deployment; measure actual usefulness, verify revocation and preserve unresolved receipts. Record deployment, production verification and lived-in observations separately.
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md), [CLI mapping](../specs/web-ui-command-map.md) and
 [restore verification](../specs/web-restore.md).
 

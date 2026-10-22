@@ -1,7 +1,7 @@
 # Job: loop
 
 **The number:** Loop's untriaged findings in `docs/loop/`. Where
-keel-loop.yml is installed, it pulls Loop every day and this night does not;
+plates-loop.yml is installed, it pulls Loop every day and this night does not;
 elsewhere the workflow has already pulled Loop (`climb.mjs loop-pull`) and
 committed it. Either way, or if Loop was unreachable, you work on the
 findings here. This job changes no code: it proposes, and the owner decides.

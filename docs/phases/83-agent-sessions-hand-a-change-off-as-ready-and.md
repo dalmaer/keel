@@ -5,7 +5,7 @@ goal: G6
 spec: 2
 depends: [80, 70]
 owes: walk
-note: "Partial 2026-10-17: keel ready hands a change off with its fast checks only; keel integrate, under the claims/integrate lock, gates every ready change once and pushes once, accumulating by halves on a failure so an interaction is found. The owner's two-sessions walk waits."
+note: "Partial 2026-10-17: plates ready hands a change off with its fast checks only; plates integrate, under the claims/integrate lock, gates every ready change once and pushes once, accumulating by halves on a failure so an interaction is found. The owner's two-sessions walk waits."
 evidence: ["evidence/2026-10-17-integrate.md"]
 issue: 166
 ---
@@ -20,20 +20,20 @@ A session that finishes a change runs only its fast checks and marks it ready in
 
 The design is [Delivery: a change reaches production once, checked](../research/2026-10-16-delivery.md), "The owner's ask"; phase 80 publishes what the integrator pushes.
 
-- **Ready**: `keel ready` pushes the session's branch and records it as ready (a ref under `ready/`, with the session, the fast checks it ran and their results). It never runs the full gate.
+- **Ready**: `plates ready` pushes the session's branch and records it as ready (a ref under `ready/`, with the session, the fast checks it ran and their results). It never runs the full gate.
 - **The lock**: `claims/integrate`, phase 70's create-only claim; one integrator at a time, across sessions and machines.
-- **Integrate**: `keel integrate` takes the lock, merges every ready branch onto `origin/main` in order, runs the full gate once, and pushes. A conflict or a failed gate splits the batch in halves and retries, until each failing change is isolated, reported to its session and left ready-but-blocked.
-- **The conduct skill**: builders and sessions finish with `keel ready`; only `keel integrate` runs the full gate. The existing "never run a build beside another build" becomes the lock, not a sentence.
-- **Who runs it**: any session may run `keel integrate`; the lock makes the second one wait or exit.
+- **Integrate**: `plates integrate` takes the lock, merges every ready branch onto `origin/main` in order, runs the full gate once, and pushes. A conflict or a failed gate splits the batch in halves and retries, until each failing change is isolated, reported to its session and left ready-but-blocked.
+- **The conduct skill**: builders and sessions finish with `plates ready`; only `plates integrate` runs the full gate. The existing "never run a build beside another build" becomes the lock, not a sentence.
+- **Who runs it**: any session may run `plates integrate`; the lock makes the second one wait or exit.
 
 ## Acceptance
 
-- [x] `keel ready` records a branch as ready without running the full gate. `tests/integrate.test.mjs`
+- [x] `plates ready` records a branch as ready without running the full gate. `tests/integrate.test.mjs`
 - [x] Two integrators racing for the lock: exactly one runs. `tests/integrate.test.mjs`
 - [x] Three ready changes, one breaking the gate: the integrator lands the two good ones in one push, isolates the bad one by splitting, and reports it. `tests/integrate.test.mjs`
 - [x] The full gate runs once for a batch that passes. `tests/integrate.test.mjs`
-- [x] Two individually passing changes whose combination fails: one lands, the other is reported as conflicting with it, and nothing failing is pushed (keel#166). `tests/integrate.test.mjs`
-- [x] The conduct skill finishes with `keel ready` and leaves the full gate to `keel integrate`. `tests/skill.test.mjs`
+- [x] Two individually passing changes whose combination fails: one lands, the other is reported as conflicting with it, and nothing failing is pushed (plates#166). `tests/integrate.test.mjs`
+- [x] The conduct skill finishes with `plates ready` and leaves the full gate to `plates integrate`. `tests/skill.test.mjs`
 - [ ] ⚑ by hand: the owner asks two sessions for two changes and sees one full gate and one push.
 
 ## Your part
@@ -48,7 +48,7 @@ The design is [Delivery: a change reaches production once, checked](../research/
 
 ## Real surfaces
 
-- Owner's machine: two sessions, `keel ready` and `keel integrate`.
+- Owner's machine: two sessions, `plates ready` and `plates integrate`.
 - GitHub API: the ready refs, the lock and the push.
 
 ## Proof
@@ -60,14 +60,14 @@ By hand: the owner's two sessions.
 
 - **Who starts the integrator**: a session, a person, or a schedule; the lock makes all three safe.
 - **Known limit**: a change that only conflicts with another in the batch is reported as blocked; resolving the conflict stays its session's work.
-- **Split or accumulate — settled 2026-10-17** by keel#166's review comment: splitting alone cannot isolate an interaction failure (two changes that each pass, and fail together). The fast path is the whole batch, gated once: a passing batch costs one gate run and one push, as the acceptance asks. Only on a failure does the integrator fall back, and the fallback accumulates by halves: the left half is accepted against `main`, then the right half against the tree accepted so far, down to single changes, so each change is kept only on top of everything kept before it. A single change that fails on top of kept ones is gated once more alone on `main`, to report "fails the gate" or "conflicts with <kept>". The tree pushed is always one the gate passed (`pushable`, checked at the push). Cost on failure, against applying the changes one at a time after the batch fails: for a large batch with one bad change the halves need about 2·log₂k gate runs instead of k; for a small one a run or so more (six against five for three changes, the test's count). The order stays the order changes were marked ready.
-- **The second integrator exits, it does not wait — settled 2026-10-17**: exit 1 naming the holder; the holder takes every ready change, the second session's included. Since the holder may have read the ready refs before the second session marked its change ready, it reads them again before letting go and runs another round for any change it has not seen, up to `MAX_ROUNDS` (3); past that, or in the moment between its last read and the release, the change waits for the next `keel integrate`, and the report says so (PR #186 review, 2026-10-17). A lock left by a run that died is the owner's to delete (`git push origin --delete claims/integrate`), as a stale phase claim is.
+- **Split or accumulate — settled 2026-10-17** by plates#166's review comment: splitting alone cannot isolate an interaction failure (two changes that each pass, and fail together). The fast path is the whole batch, gated once: a passing batch costs one gate run and one push, as the acceptance asks. Only on a failure does the integrator fall back, and the fallback accumulates by halves: the left half is accepted against `main`, then the right half against the tree accepted so far, down to single changes, so each change is kept only on top of everything kept before it. A single change that fails on top of kept ones is gated once more alone on `main`, to report "fails the gate" or "conflicts with <kept>". The tree pushed is always one the gate passed (`pushable`, checked at the push). Cost on failure, against applying the changes one at a time after the batch fails: for a large batch with one bad change the halves need about 2·log₂k gate runs instead of k; for a small one a run or so more (six against five for three changes, the test's count). The order stays the order changes were marked ready.
+- **The second integrator exits, it does not wait — settled 2026-10-17**: exit 1 naming the holder; the holder takes every ready change, the second session's included. Since the holder may have read the ready refs before the second session marked its change ready, it reads them again before letting go and runs another round for any change it has not seen, up to `MAX_ROUNDS` (3); past that, or in the moment between its last read and the release, the change waits for the next `plates integrate`, and the report says so (PR #186 review, 2026-10-17). A lock left by a run that died is the owner's to delete (`git push origin --delete claims/integrate`), as a stale phase claim is.
 - **Where the gate runs — settled 2026-10-17**: in a temporary worktree of the integrator's checkout, detached on `origin/main`, so the session's own tree is never moved. The project's `node_modules`, when the checkout has one, is linked in; a project whose gate needs other untracked setup in the tree is a known limit.
-- **What "fast checks" are — settled 2026-10-17**: `.keel/keel.json` `"delivery": {"fast": [..]}` and each `keel ready --check "<cmd>"`, run by `keel ready` itself, so the recorded exit codes are observed, not reported. A check that is the full gate (`check`, default `npm run check`) is refused.
+- **What "fast checks" are — settled 2026-10-17**: `.plates/plates.json` `"delivery": {"fast": [..]}` and each `plates ready --check "<cmd>"`, run by `plates ready` itself, so the recorded exit codes are observed, not reported. A check that is the full gate (`check`, default `npm run check`) is refused.
 
 ## Next action
 
-The owner's walk: two sessions, two small changes, each finishing with `keel ready`; one `keel integrate`; read its report (one gate run, one push) and the Actions page.
+The owner's walk: two sessions, two small changes, each finishing with `plates ready`; one `plates integrate`; read its report (one gate run, one push) and the Actions page.
 
 ## Trajectory
 

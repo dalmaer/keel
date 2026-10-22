@@ -1,0 +1,101 @@
+{
+  "name": "Plates",
+  "tagline": "Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you.",
+  "repo": "dalmaer/plates",
+  "lessonProject": "dalmaer/keel",
+  "feedbackProject": "dalmaer/keel",
+  "inbox": "dalmaer/plates-inbox",
+  "plates": "self",
+  "stack": [
+    "node",
+    "github-actions",
+    "vercel"
+  ],
+  "practice": "0.8.32",
+  "practices": [
+    "base",
+    "agents-md",
+    "phases",
+    "evidence",
+    "lessons",
+    "conduct",
+    "ci",
+    "night",
+    "claude",
+    "renovate",
+    "reconciliation",
+    "climb",
+    "cross-review",
+    "personas"
+  ],
+  "agents": {
+    "claude": {},
+    "codex": {}
+  },
+  "crossReview": {
+    "for": [
+      "claude/",
+      "codex/"
+    ]
+  },
+  "climb": {
+    "jobs": [
+      "test-time"
+    ],
+    "budget": {
+      "minutes": 45
+    },
+    "schedule": "nightly"
+  },
+  "tests": {
+    "stalls": [
+      "tests/climb.test.mjs",
+      "tests/climb-codex.test.mjs",
+      "tests/climb-guard.test.mjs",
+      "tests/climb-hygiene.test.mjs",
+      "tests/climb-pick.test.mjs",
+      "tests/climb-tend.test.mjs",
+      "tests/phase63-climb-loop.test.mjs",
+      "tests/evidence.test.mjs"
+    ]
+  },
+  "tend": {
+    "schedule": "weekly",
+    "budget": {
+      "minutes": 30
+    }
+  },
+  "ci": {
+    "gateWorkflow": "check.yml",
+    "gateReuse": "until-change"
+  },
+  "robot": {
+    "on": true,
+    "budgetMinutes": 60
+  },
+  "morning": {
+    "assignee": "dalmaer"
+  },
+  "canvas": {
+    "provider": "isocan",
+    "projectKey": "bad3fa52-5684-41dd-99a2-5d91e6eef7ca",
+    "home": "https://isocan.io",
+    "canvasId": "prj_TcSqNZw5a1",
+    "spaceId": "spc_tDxPHP-QVF",
+    "audience": "owner-only",
+    "actorId": "usr_z-oReLdjwe",
+    "enabled": true,
+    "privacy": "summary",
+    "mode": "live",
+    "cadence": "manual",
+    "liveKeys": [
+      "pulse",
+      "night-plan"
+    ]
+  },
+  "production": {
+    "version": 1,
+    "enabled": false,
+    "applicability": "not-applicable"
+  }
+}

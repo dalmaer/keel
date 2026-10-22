@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { measurementNotes } from '../practices/phases/files/scripts/roadmap.mjs';
-import { ruleCauseNotes } from '../practices/night/files/scripts/keel/lib.mjs';
+import { ruleCauseNotes } from '../practices/night/files/scripts/plates/lib.mjs';
 
 const measurements = text => measurementNotes(text, 'docs/evidence/acme.md');
 

@@ -8,8 +8,8 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { budgetUse, budgetPasses, budgetSince, budgetRaw, stepUse, BUDGET_RUNS, BUDGET_PASSES } from '../practices/night/files/scripts/keel/lib.mjs';
+import { improve } from '../practices/night/files/scripts/plates/improve.mjs';
+import { budgetUse, budgetPasses, budgetSince, budgetRaw, stepUse, BUDGET_RUNS, BUDGET_PASSES } from '../practices/night/files/scripts/plates/lib.mjs';
 import { ENV, ghStub } from './helpers/improve.mjs';
 
 const T0 = Date.parse('2026-10-01T09:42:00Z');
@@ -75,21 +75,21 @@ test('budgetPasses: a pass is on by its key, with its budget or the default', ()
 
 /** An Acme repo with this config. */
 async function acme(t, config) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-improve-budget-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-improve-budget-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], ...config }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], ...config }));
   return dir;
 }
 const pageOf = async (dir, gh) => {
-  const r = await improve({ root: dir, report: true, date: '2026-10-07' }, { env: { ...ENV, ...(gh ? { KEEL_GH: gh } : {}) }, measures: [] });
+  const r = await improve({ root: dir, report: true, date: '2026-10-07' }, { env: { ...ENV, ...(gh ? { PLATES_GH: gh } : {}) }, measures: [] });
   return { data: r.data, text: await readFile(join(dir, 'docs/health/2026-10-07.md'), 'utf8') };
 };
 const R = 'repos/acme/anvils';
-/** The REST answers for these workflows' runs: { 'keel-tend.yml': [run, …] }, ids numbered. */
+/** The REST answers for these workflows' runs: { 'plates-tend.yml': [run, …] }, ids numbered. */
 function actions(byWorkflow, { history = [] } = {}) {
   const api = { [R]: { default_branch: 'main' }, [`${R}/commits`]: history.map(h => ({ sha: h.sha, commit: { committer: { date: h.date } } })) };
-  for (const h of history) api[`${R}/contents/.keel/keel.json?ref=${h.sha}`] = h.config === null ? null : { encoding: 'base64', content: Buffer.from(JSON.stringify(h.config)).toString('base64') };
+  for (const h of history) api[`${R}/contents/.plates/plates.json?ref=${h.sha}`] = h.config === null ? null : { encoding: 'base64', content: Buffer.from(JSON.stringify(h.config)).toString('base64') };
   let id = 100;
   for (const [wf, runs] of Object.entries(byWorkflow)) {
     api[`${R}/actions/workflows/${wf}/runs`] = { workflow_runs: runs.map(r => { const n = id++; api[`${R}/actions/runs/${n}/jobs`] = { jobs: r.jobs }; return { id: n, ...(r.created_at ? { created_at: r.created_at } : {}) }; }) };
@@ -99,8 +99,8 @@ function actions(byWorkflow, { history = [] } = {}) {
 
 test('the health page has a Budget entry for each pass that is on and none for one that is off', async t => {
   const api = actions({
-    'keel-tend.yml': [run(2), run(3), run(30, { conclusion: 'cancelled' })],
-    'keel-climb.yml': [run(41, { step: 'Climb' }), run(45, { step: 'Climb', conclusion: 'cancelled' }), run(44, { step: 'Climb' }), run(0, { step: 'Climb', conclusion: 'skipped' }), run(0.3, { step: 'Climb', ran: 'failure' }), run(45, { step: 'Climb' }), run(44.5, { step: 'Climb' })],
+    'plates-tend.yml': [run(2), run(3), run(30, { conclusion: 'cancelled' })],
+    'plates-climb.yml': [run(41, { step: 'Climb' }), run(45, { step: 'Climb', conclusion: 'cancelled' }), run(44, { step: 'Climb' }), run(0, { step: 'Climb', conclusion: 'skipped' }), run(0.3, { step: 'Climb', ran: 'failure' }), run(45, { step: 'Climb' }), run(44.5, { step: 'Climb' })],
   });
   const gh = await ghStub(t, { api });
   const both = await pageOf(await acme(t, { repo: 'acme/anvils', tend: { budget: { minutes: 30 } }, climb: { jobs: ['test-time'] } }), gh);
@@ -109,7 +109,7 @@ test('the health page has a Budget entry for each pass that is on and none for o
   assert.equal(both.data.budget, line);
   assert.doesNotMatch(both.text, /\| `budget/, 'a line, never a measure row');
   const asked = await readFile(`${gh}.api.log`, 'utf8');
-  assert.match(asked, /actions\/workflows\/keel-tend\.yml\/runs\?status=completed&per_page=20&branch=main/, 'completed runs on the default branch');
+  assert.match(asked, /actions\/workflows\/plates-tend\.yml\/runs\?status=completed&per_page=20&branch=main/, 'completed runs on the default branch');
 
   const tendOnly = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), gh);
   assert.match(tendOnly.text, /^Budget: tend 2, 3, 30⏱ of 30 min \(last 3 runs; too few to say\)$/m);
@@ -124,21 +124,21 @@ test('GitHub unreadable is n/a with why, never an empty line', async t => {
   const unread = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: {} }));
   assert.match(unread.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
 
-  const noWorkflow = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {}, climb: { jobs: ['test-time'] } }), await ghStub(t, { api: actions({ 'keel-tend.yml': [run(2)] }) }));
-  assert.match(noWorkflow.text, /^Budget: tend 2 of 30 min \(last 1 run; too few to say\) · climb n\/a \(gh api repos\/acme\/anvils\/actions\/workflows\/keel-climb\.yml\/runs: exit 1, gh: Not Found \(HTTP 404\)\) of 45 min$/m, 'one pass unread, the other still said');
+  const noWorkflow = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {}, climb: { jobs: ['test-time'] } }), await ghStub(t, { api: actions({ 'plates-tend.yml': [run(2)] }) }));
+  assert.match(noWorkflow.text, /^Budget: tend 2 of 30 min \(last 1 run; too few to say\) · climb n\/a \(gh api repos\/acme\/anvils\/actions\/workflows\/plates-climb\.yml\/runs: exit 1, gh: Not Found \(HTTP 404\)\) of 45 min$/m, 'one pass unread, the other still said');
 
   const noRepo = await pageOf(await acme(t, { tend: {} }));
-  assert.match(noRepo.text, /^Budget: tend n\/a \(no repo in \.keel\/keel\.json\) of 30 min$/m);
+  assert.match(noRepo.text, /^Budget: tend n\/a \(no repo in \.plates\/plates\.json\) of 30 min$/m);
 
-  const noGh = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), join(tmpdir(), 'keel-no-such-gh'));
-  assert.match(noGh.text, /^Budget: tend n\/a \(gh api: gh is not installed \(.*keel-no-such-gh\)\) of 30 min$/m);
+  const noGh = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), join(tmpdir(), 'plates-no-such-gh'));
+  assert.match(noGh.text, /^Budget: tend n\/a \(gh api: gh is not installed \(.*plates-no-such-gh\)\) of 30 min$/m);
 
-  const empty = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: actions({ 'keel-tend.yml': [] }) }));
+  const empty = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: actions({ 'plates-tend.yml': [] }) }));
   assert.match(empty.text, /^Budget: tend: no runs yet of 30 min \(too few to say\)$/m);
 });
 
 test('the read is bounded: it stops once eight runs reached the step', async t => {
-  const gh = await ghStub(t, { api: actions({ 'keel-tend.yml': Array(15).fill(0).map(() => run(2)) }) });
+  const gh = await ghStub(t, { api: actions({ 'plates-tend.yml': Array(15).fill(0).map(() => run(2)) }) });
   const p = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), gh);
   assert.match(p.text, /^Budget: tend 2, 2, 2, 2, 2, 2, 2, 2 of 30 min \(last 8: none ran out; shorten to 5\)$/m);
   const jobs = (await readFile(`${gh}.api.log`, 'utf8')).split('\n').filter(l => l.includes('/jobs'));
@@ -157,11 +157,11 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
     { sha: 'c1', date: '2026-08-30T10:00:00Z', config: { tend: { budget: { minutes: 15 } } } },
     { sha: 'c0', date: '2026-08-01T10:00:00Z', config: { tend: {} } },
   ];
-  const gh = await ghStub(t, { api: actions({ 'keel-tend.yml': runs }, { history }) });
+  const gh = await ghStub(t, { api: actions({ 'plates-tend.yml': runs }, { history }) });
   const p = await pageOf(await acme(t, { repo: 'acme/anvils', tend: { budget: { minutes: 30 } } }), gh);
   assert.match(p.text, /^Budget: tend 3, 2 of 30 min since 2026-09-20 \(last 2 runs; too few to say\)$/m, 'not shorten: the runs at 15 were another budget');
   const asked = (await readFile(`${gh}.api.log`, 'utf8')).split('\n');
-  assert.ok(asked.includes('repos/acme/anvils/commits?path=.keel/keel.json&sha=main&per_page=30'));
+  assert.ok(asked.includes('repos/acme/anvils/commits?path=.plates/plates.json&sha=main&per_page=30'));
   assert.deepEqual(asked.filter(l => l.includes('/contents/')).map(l => l.split('ref=')[1]), ['c3', 'c2', 'c1'], 'read until one differs, newest first');
   assert.equal(asked.filter(l => l.includes('/jobs')).length, 2, 'no run before the since is read');
 
@@ -184,7 +184,7 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
   // Every shipped pass's newest default is its default today: a changed default must be recorded.
   for (const p of BUDGET_PASSES) assert.equal(p.defaults.at(-1)[1], p.minutes, p.pass);
   // And today's defaults are the passes' own: the scripts that set the timeout.
-  const own = { tend: (await import('../scripts/keel/tend.mjs')).TEND_DEFAULTS.minutes, climb: (await import('../scripts/keel/climb.mjs')).DEFAULTS.minutes, 'cross-review': Number(/export const DEFAULTS = Object\.freeze\(\{ minutes: (\d+) \}\)/.exec(await readFile(new URL('../practices/cross-review/files/scripts/keel/cross-review.mjs', import.meta.url), 'utf8'))?.[1]) };
+  const own = { tend: (await import('../scripts/plates/tend.mjs')).TEND_DEFAULTS.minutes, climb: (await import('../scripts/plates/climb.mjs')).DEFAULTS.minutes, 'cross-review': Number(/export const DEFAULTS = Object\.freeze\(\{ minutes: (\d+) \}\)/.exec(await readFile(new URL('../practices/cross-review/files/scripts/plates/cross-review.mjs', import.meta.url), 'utf8'))?.[1]) };
   assert.deepEqual(Object.fromEntries(BUDGET_PASSES.map(p => [p.pass, p.minutes])), own);
 
   // Lowered 30 to 15: the long runs before are not counted against 15 either.
@@ -194,11 +194,11 @@ test('a budget changed is judged only by its runs since: raised 15 to 30, three 
 
 test('the budget\'s history unreadable is n/a with why, never every run', async t => {
   const runs = [run(3), run(2), run(3), run(4)];
-  const noCommits = actions({ 'keel-tend.yml': runs });
+  const noCommits = actions({ 'plates-tend.yml': runs });
   delete noCommits[`${R}/commits`];
   const a = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: noCommits }));
   assert.match(a.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils\/commits: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
-  const noContent = actions({ 'keel-tend.yml': runs }, { history: [{ sha: 'abc1234def', date: '2026-09-20T10:00:00Z', config: null }] });
+  const noContent = actions({ 'plates-tend.yml': runs }, { history: [{ sha: 'abc1234def', date: '2026-09-20T10:00:00Z', config: null }] });
   const b = await pageOf(await acme(t, { repo: 'acme/anvils', tend: {} }), await ghStub(t, { api: noContent }));
   assert.match(b.text, /^Budget: tend n\/a \(gh api repos\/acme\/anvils\/contents\/\.keel\/keel\.json: exit 1, gh: Not Found \(HTTP 404\)\) of 30 min$/m);
 });

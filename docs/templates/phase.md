@@ -8,7 +8,7 @@ note: "What is known, and what remains."
 evidence: []
 ---
 
-<!-- Optional front matter, not set by default: `review: wait` makes this phase land through a PR that waits for its reviewers (`keel review <repo>#<n> --gate`); the phase's issue labelled keel:wait-for-review does the same. Delete this line. -->
+<!-- Optional front matter, not set by default: `review: wait` makes this phase land through a PR that waits for its reviewers (`plates review <repo>#<n> --gate`); the phase's issue labelled keel:wait-for-review does the same. Delete this line. -->
 
 # Outcome, as the person who uses it would say it
 
@@ -27,7 +27,7 @@ The smallest useful slice, and its boundaries.
 ## Your part
 
 <!-- Only for a phase with a ⚑ walk: what the owner is asked, in plain words, for someone who has not read this phase. Delete the section when there is no walk. `**Ready when:** <what must happen first>` in place of `**Ready:** yes` keeps it off the owner's list until then. Add `- **Keeps it open:** <choice> | …` for choices that record an answer but leave the walk open ("Not enough data yet"). A table of the data may follow. -->
-- **Ask:** What the owner does, in one plain sentence, with no keel words.
+- **Ask:** What the owner does, in one plain sentence, with no plates words.
 - **Why:** What it settles or unblocks, in one sentence.
 - **Look at:** The one thing to read or open first; a [link](url) is fine.
 - **Choices:** First choice | Second choice

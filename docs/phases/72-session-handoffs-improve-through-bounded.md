@@ -39,7 +39,7 @@ installed fleet skills do not change in this phase.
 - `node --import ./tests/helpers/hermetic.mjs --test tests/session-trials.test.mjs tests/cli.test.mjs`
 - `npm run typecheck`
 - `npm run check`
-- Pack the CLI into `/tmp/keel-phase72`, extract it and run the lifecycle in an isolated Acme project; retain inputs and output paths in evidence.
+- Pack the CLI into `/tmp/plates-phase72`, extract it and run the lifecycle in an isolated Acme project; retain inputs and output paths in evidence.
 
 ## Deliberately open
 

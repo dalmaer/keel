@@ -44,7 +44,7 @@ export async function fleetUpdatesHarness() {
     target: {
       repoId: 103,
       repositoryNodeId: "R_acme_103",
-      repo: "acme/keel",
+      repo: "acme/plates",
       commit: "e".repeat(40),
       cliVersion: "1.0.0",
       practiceVersion: "1.0.0",
@@ -60,14 +60,14 @@ export async function fleetUpdatesHarness() {
     },
     tree = treeEntries(targetFiles);
   h.config.fleetUpdates.target.bundleDigest = hash(tree.sha);
-  h.source.files[".keel/keel.json"] = JSON.stringify({
+  h.source.files[".plates/plates.json"] = JSON.stringify({
     name: "Acme Studio",
     repo: "acme/studio",
     practice: "1.0.0",
     migrations: [],
     check: "npm run check",
   });
-  h.source.files[".keel/lock.json"] = JSON.stringify({
+  h.source.files[".plates/lock.json"] = JSON.stringify({
     practice: "1.0.0",
     files: {
       "docs/acme.md": { practice: "base", sha256: hash("Acme before\n") },
@@ -233,7 +233,7 @@ export async function fleetUpdatesHarness() {
       return Response.json({
         id: 103,
         node_id: "R_acme_103",
-        full_name: "acme/keel",
+        full_name: "acme/plates",
         private: false,
       });
     if (

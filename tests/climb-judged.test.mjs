@@ -26,7 +26,7 @@ async function stepIn(text, dir, name, env) {
 }
 
 const temp = async (t, tag) => {
-  const d = await mkdtemp(join(tmpdir(), `keel-judged-${tag}-`));
+  const d = await mkdtemp(join(tmpdir(), `plates-judged-${tag}-`));
   t.after(() => rm(d, { recursive: true, force: true }));
   return d;
 };
@@ -124,9 +124,9 @@ test('#68 climb: the judge bundles the commit it named before the agent\'s code 
   assert.equal(ok.r.status, 0, ok.r.out);
   const tip = pushed(bare, target);
   assert.equal(git(bare, ['rev-parse', `${tip}^`]), kept, 'the guarded commit, and the rotation state on it');
-  assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.keel/climb.json']);
-  assert.deepEqual(JSON.parse(git(bare, ['show', `${tip}:.keel/climb.json`])), { last: { job: 'test-time', date: DAY, kept: 1 } });
-  assert.equal(git(bare, ['log', '-1', '--format=%s', tip]), `keel climb: test-time ${DAY}, rotation state`);
+  assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.plates/climb.json']);
+  assert.deepEqual(JSON.parse(git(bare, ['show', `${tip}:.plates/climb.json`])), { last: { job: 'test-time', date: DAY, kept: 1 } });
+  assert.equal(git(bare, ['log', '-1', '--format=%s', tip]), `plates climb: test-time ${DAY}, rotation state`);
 
   // The recheck is publish's own: a named commit that changes a workflow is refused there too.
   const src = await checkout(t, bare, 'off');
@@ -163,7 +163,7 @@ test('#68 tend: the judge names the pass with its page before the gate runs, bun
   const take = await stepIn(text, judge, "Take the pass's commits", env);
   assert.equal(take.status, 0, take.out);
   const page = git(judge, ['rev-parse', 'HEAD']);
-  assert.equal(git(judge, ['log', '-1', '--format=%s', page]), `keel tend: ${DAY}, 1 proposal for the owner`);
+  assert.equal(git(judge, ['log', '-1', '--format=%s', page]), `plates tend: ${DAY}, 1 proposal for the owner`);
   assert.equal(take.outputs.validated, page, 'the commit named is the judge\'s page, on the agent\'s commits');
 
   const later = await commit(judge, { 'docs/acme.md': '# Acme\n\nNever guarded.\n' }, 'docs: after the gate\n\nTend: drift:acme');
@@ -235,7 +235,7 @@ test('#68: climb.mjs held names the checkout\'s state as one line, and with --si
   assert.equal(climb(dir, ['held', '--since', '{"acme":1}', '--head', head]).status, 2);
   assert.equal(climb(dir, ['held', '--since', state]).status, 2, '--since needs --head');
   for (const [move, said] of [
-    [async () => { await writeFile(join(dir, '.keel/keel.json'), '{}\n'); }, /changed the tracked tree or the index/],
+    [async () => { await writeFile(join(dir, '.plates/plates.json'), '{}\n'); }, /changed the tracked tree or the index/],
     [async () => { await writeFile(join(dir, '.git/hooks/post-checkout'), '#!/bin/sh\n', { mode: 0o755 }); }, /changed the git dir's config, hooks or attributes/],
     [async () => { await commit(dir, { 'acme.txt': 'later\n' }, 'acme: later'); }, /moved HEAD from/],
   ]) {
@@ -251,8 +251,8 @@ test('#68: climb.mjs held names the checkout\'s state as one line, and with --si
   assert.equal(climb(dir, ['sandbox', '--base', head, '--head', head, '--job', 'test-time']).status, 2);
 });
 
-// keel#147: willNotTouch holds for the head that is pushed, keel's own rotation commit included.
-test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a plan that will not touch .keel/climb.json gets no rotation commit; any other keeps it', async t => {
+// plates#147: willNotTouch holds for the head that is pushed, plates's own rotation commit included.
+test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a plan that will not touch .plates/climb.json gets no rotation commit; any other keeps it', async t => {
   const { bare, base } = await origin(t);
   const BRANCH = `keel-climb/test-time/${DAY}`, target = `refs/heads/${BRANCH}`;
   const text = await readFile(WORKFLOW, 'utf8');
@@ -265,7 +265,7 @@ test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a 
   const publish = async willNotTouch => {
     run('git', ['update-ref', '-d', target], { cwd: bare });
     const pub = await checkout(t, bare, 'publish');
-    await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/keel/night-plan.mjs'));
+    await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/plates/night-plan.mjs'));
     const pubTemp = await temp(t, 'publish-temp');
     await mkdir(join(pubTemp, 'night/record'), { recursive: true });
     await mkdir(join(pubTemp, 'plan'), { recursive: true });
@@ -274,21 +274,21 @@ test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a 
     await writeFile(join(pubTemp, 'plan/night-plan.json'), JSON.stringify({ schema: 1, date: DAY, shapedBy: 'owner', readyBy: null, willNotTouch, settledToday: [], leftOpen: [], items: [] }));
     return stepIn(text, pub, "Open the climb's pull request", { RUNNER_TEMP: pubTemp, GITHUB_SHA: base, PLAN_USED: 'true', KEPT: '1', LINE: 'climb test-time: kept 1', JOB: 'test-time', DAY, BRANCH, VALIDATED: kept, BASE: 'main', GH_TOKEN: 'acme', PATH: `${gh}:${process.env.PATH}` });
   };
-  // The owner listed keel's state file: the kept change is pushed alone, and the night is remembered by its record.
-  const held = await publish(['.keel/climb.json']);
+  // The owner listed plates's state file: the kept change is pushed alone, and the night is remembered by its record.
+  const held = await publish(['.plates/climb.json']);
   assert.equal(held.status, 0, held.out);
-  assert.match(held.out, /::notice::Tonight's plan will not touch \.keel\/climb\.json: no rotation commit/);
+  assert.match(held.out, /::notice::Tonight's plan will not touch \.plates\/climb\.json: no rotation commit/);
   assert.equal(pushed(bare, target), kept, 'no rotation commit on top of the kept change');
   // A willNotTouch that does not cover it: the rotation commit, as before, and the pushed head passes the check.
-  const other = await publish(['lib/anvil.mjs', '.keel/climb']);
+  const other = await publish(['lib/anvil.mjs', '.plates/climb']);
   assert.equal(other.status, 0, other.out);
   const tip = pushed(bare, target);
   assert.equal(git(bare, ['rev-parse', `${tip}^`]), kept);
-  assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.keel/climb.json']);
+  assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.plates/climb.json']);
   // A plan that cannot be read: nothing is pushed.
   run('git', ['update-ref', '-d', target], { cwd: bare });
   const pub = await checkout(t, bare, 'unread');
-  await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/keel/night-plan.mjs'));
+  await cp(join(NIGHT, 'night-plan.mjs'), join(pub, 'scripts/plates/night-plan.mjs'));
   const pubTemp = await temp(t, 'unread-temp');
   await mkdir(join(pubTemp, 'night/record'), { recursive: true });
   await mkdir(join(pubTemp, 'plan'), { recursive: true });
