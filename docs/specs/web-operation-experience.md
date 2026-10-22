@@ -81,7 +81,15 @@ Use strict CAS, a client save identity and content digest. A lost response is
 Save unconfirmed; readback may confirm that save or show a newer conflict, never
 blindly repeat it. Conditional deletion/expiry must not permit stale resurrection
 or deletion of a newer generation. Bound payload, active count and total storage,
-with an explicit 30-day expiry. Distinguish Saved, Unsaved, Save unconfirmed,
+with an explicit 30-day expiry. Use a never-reused database generation for CAS:
+reading an absent draft may reserve an empty private metadata row, but never save
+content or approve work. Mutations and expiry advance that generation; saves
+against missing rows refuse. Bounded tombstone collection may then reclaim old
+rows without making an old revision valid again. The initial instance cap is
+1,000 rows (including empty/tombstone metadata) and 50 MiB of encrypted payloads,
+with explicit capacity errors; this is
+an instance limit, not a promised per-project allocation. Distinguish Saved,
+Unsaved, Save unconfirmed,
 Conflict and Source changed. Disabled or unavailable storage remains explicit.
 New SQL012 and enablement require the owner's resource approval before activation;
 local implementation/tests grant no remote permission.
@@ -106,6 +114,58 @@ CLI copy action or registry entry does not complete those journeys. The original
 fleet trial explicitly includes failed-night retry: retain that gap in phase107
 and G7 rather than silently substituting the typecheck worker. No generic remote
 shell is introduced to fill it. Follow-ups name the missing adapter and proof.
+
+## Night controls: bounded first adapters
+
+Settled 2026-10-22 after reading the canonical workflow and GitHub rerun contract:
+use a native provider rerun, with its actual semantics, rather than claiming an
+immutable replay. A retry targets the latest failed attempt of an explicitly
+registered canonical night run. GitHub retains the original SHA/ref and original
+actor privileges, but the workflow reads the current UTC date and current plan.
+The preview names all declared writes and commands. A successful request does not
+establish a successful night, acceptance, or attribution of a later attempt.
+
+Activation is off by default and requires a private, per-project reviewed source
+profile, numeric repository/workflow identity, complete bounded source inventory,
+explicit effects and a 60-minute reservation within the existing shared workspace
+and project allowance. Source drift, incomplete inventory, custom or dynamic
+commands, model-producing work, secret-dependent setup, optional publication and
+undeclared downstream workflows refuse v1. The supported profile must include
+real canonical measurement/report behavior; no typecheck substitute. Source,
+current grants, original actor and latest failed attempt are rechecked before a
+single POST. Review explicitly permits the normal current-plan/date reads and
+canonical Git ref/data PR effects; it never grants a new model allowance.
+
+A new private attempt-aware receipt store shares the same atomic admission lock,
+active project lane and conservative accounting with existing jobs. It records
+prepared, sending, request-accepted, uncertain and refused separately from bounded
+successor observations, whose attribution remains unverified. A lost response is
+never redispatched. Neither elapsed time nor observing a successor proves an
+uncertain POST cannot still execute; retain its charge and unresolved lane until
+an expressly designed settlement can establish otherwise. External/scheduled runs
+are outside web admission and are not represented as budget-controlled. V1 does
+not cancel a run by logical ID after its attempt changes. New storage activation
+requires separate owner approval and actual database proof.
+
+Plan publication first supports an existing canonical `keel-night-plan` branch.
+Review exact canonical plan bytes, UTC date, numeric repository/ref identities,
+prior head/blob, source digest, human attribution, effects and a complete diff.
+Validate the canonical non-draft schema. Permit measure/triage edits, preserve
+existing build allocations and owner-authored lines/results, and refuse pending
+robot items or unknown/escalated execution policy. A concurrent tick, newer date,
+source edit or ref replacement invalidates review; never silently rebase. A
+conditional commit uses the immutable ref ID and expected parent and preserves
+all other files and history. It does not invoke `goodnight --yes`, create issues,
+force-push, start a run, or turn a private draft into approval. Missing-branch
+bootstrap remains an explicit unsupported setup operation, not a successful
+publication. SQL004 may hold this distinct typed intent, provided other consumers
+reject or correctly render its new kind and recovery verifies exact identity,
+parent, message, path and bytes. Lost-response recovery uses the original intent.
+
+The initial UI offers review/publish from Daily and review/retry from a failed
+night's retained attempt detail, with permanent receipt links and inspection-only
+reconnect. Native adapters still require real provider and owner-device proof;
+restricted eligibility is visible and must not be called universal execution.
 
 ## Proof and completion
 
