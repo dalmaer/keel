@@ -87,7 +87,7 @@
     },
     ".github/workflows/keel-robot-route.yml": {
       "practice": "climb",
-      "sha256": "7384236e2762ad896fd3fcfa7a9fee8d0cd165d89d8b285c3728c7a7b7dde434"
+      "sha256": "ef849b7f2ec221a883ef570ddb1ac4404757af760cea9315f94a4de594e6b512"
     },
     ".github/workflows/keel-robot.yml": {
       "practice": "climb",
@@ -127,7 +127,7 @@
     },
     "docs/keel-lessons.md": {
       "practice": "lessons",
-      "sha256": "f2e75d474fc8361515a93aef403b1c786f6feb533945ae82add12b88ed49d8ed"
+      "sha256": "f3cd5b51e910e268a3559a4c8ee7695df9a381a9d8256934244e07302ed72860"
     },
     "docs/phases/README.md": {
       "practice": "phases",
@@ -167,7 +167,7 @@
     },
     "scripts/keel/decision-context.mjs": {
       "practice": "reconciliation",
-      "sha256": "7f2a5caa469c9e241fce5a649124ef7fc5ac64f7aa9fa3b9c1ce5ea9c438be0a"
+      "sha256": "30bee9d7888d848e59621206a4508976ddc42eacb0ef777e3a7c7139d331ce3a"
     },
     "scripts/keel/distill.mjs": {
       "practice": "climb",

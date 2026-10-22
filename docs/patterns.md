@@ -126,8 +126,8 @@ Decided in [2026-10-06-distill-family-a-wait-not-sized-to-what-it-waits-on.md](i
 | # | The shape of it | Provenance | Where |
 | --- | --- | --- | --- |
 | 13 | A tool that restores its own copy erases the edit it should have reported. | keel, phase 5 | — |
-| 27 | An editor reads part of a record and writes what it read back as the whole. | dalmaer/ledger | — |
-| 31 | A machine edits another owner's copy. | keel, 5 Oct; duo | — |
+| 27 | An editor reads part of a record and writes what it read back as the whole. | dalmaer/ledger; recurred keel, 20–21 Oct: the night's finalize | — |
+| 31 | A machine edits another owner's copy. | keel, 5 Oct; duo; recurred keel, 21 Oct: the Plates migration in #216 | — |
 | 32 | A write lands on a target nobody checked. | dalmaer/ledger | — |
 | 52 | A file declared generated whose generator does not rewrite it whole. | dglazkov/isocan | — |
 | 54 | A deliberate break made in the shared checkout. | dglazkov/isocan | — |
@@ -162,7 +162,7 @@ Decided in [2026-10-06-distill-family-lost-reads-as-empty.md](inbox/2026-10-06-d
 | 8 | A fake that mirrors the implementation can only confirm it. | ledger 11 | — |
 | 11 | A check that dispatches events proves the handler, not that a person can reach it. | duo 4 | web |
 | 17 | A test whose injected value doesn't reach every path is green only while the real value happens to match. | keel, v0.3.1 | — |
-| 18 | A gate that passes on a tree it does not commit. | ledger, phase 14 | — |
+| 18 | A gate that passes on a tree it does not commit. | ledger, phase 14; recurred keel, 17 Oct: phase 83's integrator in #186, five ways | — |
 | 28 | What you test is not what people get. | keel, 4 Oct; ledger 2 is the deploy-side twin | — |
 | 30 | Code inside another language's string is checked by neither. | keel, 4 Oct | — |
 
