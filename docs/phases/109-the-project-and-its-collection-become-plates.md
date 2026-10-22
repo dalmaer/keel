@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved one further fix-and-review cycle after review5607617432 on cd5592f. Finish the bounded compatibility audit and local validation, then push the correction and obtain exact-head hosted checks and review. The project-wide review limit is unchanged. Merge only after the findings are resolved and normal gates pass, then publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior.
+The further approved cycle completed on1a98eeb after2,385 passing tests and the required phase103 integration. Review5607806502 identified two new migration issues: restrictive runtime-directory modes are not preserved, and executable legacy pins in workflow/shell sources escape refusal. Fix and validate locally; another publication/review cycle requires an owner decision under the unchanged review limit. Do not merge or deploy a candidate with the private-directory issue. After approval and normal gates, publish the source release, migrate every managed consumer, and verify repository/hosting/local rollout and exact production/live behavior.
 
 ## Trajectory
 

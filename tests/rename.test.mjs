@@ -1,7 +1,7 @@
 import './helpers/hermetic.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, link, rm, stat, readdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, readlink, symlink, link, rm, stat, readdir, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -856,4 +856,116 @@ test('generic migration preserves immutable artifact names and executes the old 
     assert.equal(reader('unused', 'base')[0].page, true, brand);assert.deepEqual(reader('unused', 'base')[0].cites, []);
   }
   for (const value of ['keel-test-runs', 'keel-production-2', '`keel-production-${run.run_attempt}`', "artifact: 'keel-production-'", 'keel-tend-page', 'keel_connection_rpc', 'create function public.keel_connection_rpc()']) assert.equal(renameActiveText(value), value);
+});
+
+
+async function privateRuntimeFixture(t) {
+  const root = await fixture(t);
+  for (const path of ['feedback', 'feedback/records', 'feedback/empty']) {
+    await mkdir(join(root, '.keel', path), { recursive: true });await chmod(join(root, '.keel', path), 0o700);
+  }
+  await put(root, '.keel/feedback/records/acme.json', 'private original receipt');await chmod(join(root, '.keel/feedback/records/acme.json'), 0o600);
+  return root;
+}
+test('runtime directory modes are reviewed and private/empty directories survive before bytes publish', async t => {
+  const root = await privateRuntimeFixture(t), preview = await planRename(root);
+  assert.ok(preview.runtimeDirectories.some(d => d.from === '.keel/feedback/empty' && d.to === '.plates/feedback/empty' && d.mode === 0o700));
+  const original = await stat(join(root, '.keel/feedback'));
+  const directory = preview.runtimeDirectories.find(d => d.from === '.keel/feedback');
+  assert.equal(directory.uid, original.uid);assert.equal(directory.gid, original.gid);
+  const { safeDirectory } = await import('../lib/feedback-store.mjs');let observed = false;
+  await applyRename(root, { digest: preview.digest, async afterBackup(index) {
+    if (preview.files[index].to !== '.plates/feedback/records/acme.json') return;
+    observed = true;
+    await safeDirectory(join(root, '.plates/feedback'), { privateMode: true });
+    await safeDirectory(join(root, '.plates/feedback/records'), { privateMode: true });
+    await absent(root, '.plates/feedback/records/acme.json');
+  } });
+  assert.equal(observed, true);
+  for (const path of ['feedback', 'feedback/records', 'feedback/empty']) await safeDirectory(join(root, '.plates', path), { privateMode: true });
+  const migrated = await stat(join(root, '.plates/feedback'));
+  assert.equal(migrated.uid, original.uid);assert.equal(migrated.gid, original.gid);
+  assert.equal(await get(root, '.plates/feedback/records/acme.json'), 'private original receipt');
+  assert.equal((await stat(join(root, '.plates/feedback/records/acme.json'))).mode & 0o777, 0o600);
+});
+
+test('runtime permission changes invalidate the preview without touching canonical directories', async t => {
+  const root = await privateRuntimeFixture(t), preview = await planRename(root);
+  await chmod(join(root, '.keel/feedback/records'), 0o750);
+  await assert.rejects(applyRename(root, { digest: preview.digest }), /preview changed/);
+  await absent(root, '.plates');await absent(root, '.git/plates-rename/receipt.json');
+});
+
+test('runtime permissions survive crash recovery and changed canonical modes are refused without chmod repair', async t => {
+  for (const changed of [false, true]) {
+    const root = await privateRuntimeFixture(t), preview = await planRename(root);
+    const index = preview.files.findIndex(f => f.to === '.plates/feedback/records/acme.json');
+    await assert.rejects(applyRename(root, { digest: preview.digest, afterBackup(at) { if (at === index) throw Error('private publication interrupted'); } }), /private publication interrupted/);
+    assert.equal((await stat(join(root, '.plates/feedback/records'))).mode & 0o777, 0o700);
+    if (changed) {
+      await chmod(join(root, '.plates/feedback/records'), 0o755);
+      await assert.rejects(applyRename(root, { digest: preview.digest }), /runtime directory.*changed/);
+      assert.equal((await stat(join(root, '.plates/feedback/records'))).mode & 0o777, 0o755);
+      await absent(root, '.plates/feedback/records/acme.json');
+    } else {
+      await applyRename(root, { digest: preview.digest });
+      assert.equal(await get(root, '.plates/feedback/records/acme.json'), 'private original receipt');
+      assert.equal((await stat(join(root, '.plates/feedback/empty'))).mode & 0o777, 0o700);
+    }
+  }
+});
+
+test('runtime modes are rechecked after the last backup before private publication', async t => {
+  const root = await privateRuntimeFixture(t), preview = await planRename(root);
+  await assert.rejects(applyRename(root, { digest: preview.digest, async afterBackup(index) {
+    if (preview.files[index].to === '.plates/feedback/records/acme.json') await chmod(join(root, '.plates/feedback/records'), 0o755);
+  } }), /runtime directory.*changed/);
+  await absent(root, '.plates/feedback/records/acme.json');
+});
+
+test('runtime ownership evidence is enforced during recovery without changing owners', async t => {
+  for (const identity of ['uid', 'gid']) {
+    const root = await privateRuntimeFixture(t), preview = await planRename(root);
+    const index = preview.files.findIndex(f => f.to === '.plates/feedback/records/acme.json');
+    await assert.rejects(applyRename(root, { afterBackup(at) { if (at === index) throw Error('interrupted'); } }), /interrupted/);
+    const path = '.git/plates-rename/receipt.json', receipt = JSON.parse(await get(root, path));
+    const original = await stat(join(root, '.plates/feedback/records'));
+    receipt.plan.runtimeDirectories.find(d => d.to === '.plates/feedback/records')[identity] = original[identity] + 1;
+    delete receipt.plan.digest;receipt.plan.digest = sha(JSON.stringify(receipt.plan));await put(root, path, JSON.stringify(receipt));
+    await assert.rejects(applyRename(root), /runtime directory.*changed/);
+    assert.equal((await stat(join(root, '.plates/feedback/records')))[identity], original[identity]);
+    await absent(root, '.plates/feedback/records/acme.json');
+  }
+});
+
+test('older incomplete receipts without directory mode evidence require explicit recovery review', async t => {
+  const root = await privateRuntimeFixture(t);
+  await assert.rejects(applyRename(root, { afterBackup() { throw Error('interrupted'); } }), /interrupted/);
+  const path = '.git/plates-rename/receipt.json', receipt = JSON.parse(await get(root, path));
+  delete receipt.plan.runtimeDirectories;delete receipt.plan.digest;receipt.plan.digest = sha(JSON.stringify(receipt.plan));
+  await put(root, path, JSON.stringify(receipt));
+  const before = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /legacy migration receipt.*directory.*review/);
+  assert.equal(git(root, 'diff', 'HEAD'), before);
+});
+
+test('tracked workflow and shell executable pins refuse before any rename across case and SSH variants', async t => {
+  for (const [path, source] of [
+    ['.github/workflows/check.yml', 'jobs:\n  check:\n    steps:\n      - run: npx -y github:dalmaer/keel#v0.8.0 doctor --json\n'],
+    ['scripts/check.sh', '#!/bin/sh\nnpx -y git+ssh://git@github.com/Dalmaer/KeEl.git#v0.8.0 doctor --json\n'],
+    ['scripts/check', '#!/usr/bin/env bash\nnpx -y GitHub:Dalmaer/Keel#v0.8.0 doctor --json\n'],
+  ]) {
+    const root = await fixture(t);await put(root, path, source);git(root, 'add', path);const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /legacy product Git pin.*explicit compatible upgrade/);
+    assert.equal(git(root, 'diff', 'HEAD'), before);assert.equal(await get(root, path), source);await absent(root, '.plates');
+  }
+});
+
+test('historical command evidence and inactive shell comments do not become executable pin refusals', async t => {
+  const root = await fixture(t), history = '# Original check\nRan `npx github:dalmaer/keel#v0.8.0 doctor`.\n';
+  await put(root, 'docs/evidence/2020-keel-check.md', history);
+  await put(root, 'scripts/check.sh', '#!/bin/sh\n# Originally ran npx github:dalmaer/keel#v0.8.0 doctor\nnode scripts/keel/check.mjs\n');git(root, 'add', 'scripts/check.sh');
+  await applyRename(root);
+  assert.equal(await get(root, 'docs/evidence/2020-plates-check.md'), history);
+  assert.match(await get(root, 'scripts/check.sh'), /node scripts\/plates\/check.mjs/);
 });
