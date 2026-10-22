@@ -1081,6 +1081,25 @@ test('migration preserves fleet update RPC and durable publication reconciliatio
   assert.equal(renameActiveText(source), source);
 });
 
+test('migration preserves model store and credential RPC identities against existing private records', async () => {
+  const { modelHarness } = await import('./helpers/web-model-tasks.mjs');
+  const { fakeKey } = await import('./helpers/web-connections.mjs');
+  const h = await modelHarness(), requests = [];
+  const fetcher = (url, options) => { requests.push(new URL(url).pathname); return h.fetcher(url, options); };
+  async function migrated(relative) {
+    const url = new URL(relative, import.meta.url);
+    const source = renameActiveText(await readFile(url, 'utf8')).replace(/from (["'])(\.[^"']+)\1/g, (_, quote, path) => 'from ' + quote + new URL(path, url).href + quote);
+    return import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  }
+  const models = (await migrated('../lib/web/model-store.mjs')).createModelStore(h.config, fetcher);
+  assert.deepEqual(await models.list(h.access.userId, h.project), { rows: [], nextCursor: null });
+  const vault = (await migrated('../lib/web/connection-store.mjs')).createConnectionStore(h.config, fetcher);
+  const policy = h.workspace.files['connections/acme-openai.json'], descriptor = JSON.parse(policy);
+  assert.equal(await vault.readKey(descriptor, { policyDigest: sha(policy), expectedVersion: 1 }), fakeKey);
+  assert.deepEqual(requests, ['/rest/v1/rpc/keel_model_rpc', '/rest/v1/rpc/keel_model_credential_read']);
+  assert.equal(h.model.calls.length, 0);
+});
+
 
 test('symlink migration preserves the absolute checkout root while moving its inventoried target', async t => {
   const root = await fixture(t, 'keel-rename-acme-');

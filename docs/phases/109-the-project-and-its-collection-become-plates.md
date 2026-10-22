@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Published b9e96d03 passed2,539 local tests and hosted CI against frozen b26ed63. Exact-head review found two private-record continuity gaps: historical inbox proposal prefixes and feedback repository identity. Complete their bounded corrections, full combined gate and exact-head review. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Signed-in browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Local f4df68a fixes both private-record continuity findings and passes2,543 tests plus the full gate. Required already-landed phase106 is being integrated against frozen09eec5ef after main advanced and the PR conflicted. Preserve its durable data contracts and disabled activation gates, then validate and publish the combined candidate for exact-head review. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Signed-in browser verification awaits manual Mac unlock.
 
 ## Trajectory
 

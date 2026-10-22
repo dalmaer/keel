@@ -234,8 +234,12 @@ review of exact update PR bytes. Durable receipts recover interrupted publicatio
 lesson traces distinguish canonical decisions, releases and observed adoption.
 The update worker, migration 010 and publication permissions remain disabled until
 their selected-project isolation, hosted storage and real rollout are verified.
-[Phases 106–108](docs/specs/web-fleet-operations.md#delivery-and-proof) plan model
-routing, then verify complete
+[Model choice and project planning](docs/guide/web-model-routing.md) add private
+model policies, exact source review, separate count/run approvals, monetary ceilings
+and continuation from a saved evidence summary. Unknown capacity remains explicit;
+unsupported build, review and subscription execution wait. Migration 011, provider
+credentials, data transfer and monetary allowance require separate activation proof.
+[Phases 107–108](docs/specs/web-fleet-operations.md#delivery-and-proof) verify complete
 mobile/desktop operating journeys. The phase records distinguish implementation
 from hosted activation and owner acceptance.
 
@@ -355,6 +359,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
+| [Model choice and project planning](docs/guide/web-model-routing.md) | you want to review a private model policy, approve exact project text and bounded cost, or follow an original attempt and saved-summary continuation |
 | [Scoped connections and capacity](docs/guide/web-connections.md) | you want to review private project grants, manage a verified credential binding or inspect supported capacity and gaps |
 | [Fleet versions and lesson rollout](docs/guide/web-fleet-updates.md) | you want to compare observed versions, prepare a canary, review exact update PRs or trace a lesson through source, release and adoption |
 | [Run supported routines](docs/guide/web-workers.md) | you want to review an approved worker, reserve bounded runtime, recover an original request or inspect a cancellation and linked retry |
