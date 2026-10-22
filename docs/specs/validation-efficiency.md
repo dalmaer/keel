@@ -164,6 +164,45 @@ paired fixed-head runs with cache/runtime/workload recorded. Require lower
 median complete wall path, no reliability loss and p95 regression <=5% where
 sample size supports that estimate. Otherwise retain defaults and report unknown.
 
+### Phase 111 implementation boundary — 22 October 2026
+
+Parent accepted phase 110 at 0f8b157 for continuing implementation only.
+The next draft PR is stacked on that reviewed head. It adds source-only tools,
+not consumer adoption, default concurrency changes or a new gate policy.
+
+- A read-only planner resolves a target from the managed manifest and actual
+  repository configuration, inspects committed/staged/unstaged/untracked paths,
+  and records the current revision and dirty state. Explicit source mappings
+  always retain conventions. Unmapped, renamed, shared/helper, configuration,
+  workflow, generated or consumer inputs request broad coverage. Planning never
+  runs tests, authorizes reuse, waives the configured gate or silently narrows
+  unknown inputs. Record original gate commands unchanged.
+- Capability preflight records actual Node executable/version/architecture,
+  PATH child runtime and required Git/npm availability, validates supported
+  engine constraints, and reports unavailable evidence. The focused runner
+  refuses unsupported Node before spawning tests. Source package binding uses
+  the existing reviewed boundary; it is never refreshed automatically. Review
+  input availability is distinct from completed independent exact-head review;
+  missing input cannot establish approval. Build/runtime observations do not
+  establish a fresh deployed-function capability claim.
+- Heavy-run admission is opt-in and cooperative: all participating worktrees
+  and managed consumer roots must use the same explicit canonical host state
+  directory. Atomic reservations enforce one immutable configured capacity;
+  conflicting capacities, unknown ownership, unsafe state and ambiguous prior
+  execution refuse admission. No stale lease is stolen based on age or a PID
+  guess. No global settings are changed; nonparticipants are explicitly outside
+  enforcement. The wrapper preserves the explicit command argv, environment,
+  exit result and whole child lifecycle, retaining uncertain execution evidence
+  rather than releasing capacity while descendants may still be alive.
+- Focused negative controls cover mappings/invalidation, runtime mismatch,
+  unavailable tools and bindings, concurrency across different roots, capacity
+  conflicts, crash/uncertain ownership, failed children, process cleanup and
+  unsafe state paths. Synthetic paired admitted/unadmitted runs verify the
+  same workload/result and contention behavior, with wall/CPU/overlap limits
+  explicit. They are correctness evidence, not pipeline speedup benchmarks.
+  Five paired fixed-head full workloads remain necessary before proposing any
+  default change; no such change or benchmark campaign is part of this PR.
+
 ## Independent consumer jobs (112–113)
 
 Ledger: extract scope determination into its own read-only job. Core and web
