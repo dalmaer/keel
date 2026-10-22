@@ -167,6 +167,40 @@ test('interruption between removing the old path and publishing the new path rec
   await absent(root, '.keel');
 });
 
+test('publication under a restrictive umask exposes complete modes before interruption and recovery', async t => {
+  for (const recovery of [false, true]) {
+    const root = await fixture(t);
+    await chmod(join(root, '.keel/keel.json'), 0o644);
+    const script = `
+      import assert from 'node:assert/strict';
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      import { applyRename } from ${JSON.stringify(new URL('../lib/rename.mjs', import.meta.url).href)};
+      const root = process.argv[1], recovering = process.argv[2] === 'true';
+      process.umask(0o077);
+      if (recovering) await assert.rejects(applyRename(root, { afterBackup() { throw Error('before publish'); } }), /before publish/);
+      const original = fs.promises.rename;
+      let published;
+      fs.promises.rename = async (from, to) => {
+        await original(from, to);
+        if (String(from).includes('/plates-rename/after-')) {
+          published = to;
+          throw Error('after atomic publish');
+        }
+      };
+      syncBuiltinESMExports();
+      try { await assert.rejects(applyRename(root), /after atomic publish/); }
+      finally { fs.promises.rename = original; syncBuiltinESMExports(); }
+      const receipt = JSON.parse(await fs.promises.readFile(root + '/.git/plates-rename/receipt.json', 'utf8'));
+      const operation = receipt.plan.operations.find(op => root + '/' + op.to === published);
+      assert.equal((await fs.promises.stat(published)).mode & 0o777, operation.after.mode);
+      assert.equal((await applyRename(root)).state, 'completed');
+    `;
+    const result = run(process.execPath, ['--input-type=module', '-e', script, root, String(recovery)], { cwd: root });
+    assert.equal(result.status, 0, result.stderr);
+  }
+});
+
 test('historical immutable source links keep their pinned path', async t => {
   const root = await fixture(t);
   const pinned = 'https://github.com/acme/source/blob/0123456789abcdef0123456789abcdef01234567/docs/keel-adoption.md';
