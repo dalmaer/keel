@@ -413,13 +413,30 @@ test('timeout terminates its owned foreground group and preserves timeout outcom
 });
 
 test('a surviving foreground descendant retains capacity after its direct parent exits', async t => {
-  const f = await fixture(t), release = join(f.dir, 'descendant-release');
-  const argv = ['/bin/sh', '-c', '(while [ ! -f "$1" ]; do sleep 0.01; done) >/dev/null 2>&1 &', 'acme', release];
+  const f = await fixture(t), release = join(f.dir, 'descendant-release'), stopped = join(f.dir, 'descendant-stopped'), leader = join(f.dir, 'descendant-group');
+  // The surviving supervisor reaps the polling worker before acknowledging.
+  // Fixture deletion cannot race a worker that still needs its release file.
+  const argv = ['/bin/sh', '-c', 'printf "%s\\n" "$$" > "$3"; ((while [ ! -f "$1" ]; do sleep 0.01; done) & worker=$!; wait "$worker"; printf stopped > "$2") >/dev/null 2>&1 &', 'acme', release, stopped, leader];
+  let group;
   try {
-    const result = run(process.execPath, f.args('run', 0, [], argv)); assert.equal(result.status, 75, result.stderr);
+    const result = run(process.execPath, f.args('run', 0, [], argv));
+    group = await waitForMarker(leader, decodePid);
+    assert.equal(result.status, 75, result.stderr);
     const report = JSON.parse(result.stdout); assert.equal(report.released, false); assert.equal(report.childStatus, 0);
     const state = await inspectBudget({ stateDir: f.stateDir }); assert.equal(state.used, 1); assert.equal(state.leases[0].state, 'uncertain');
-  } finally { await writeFile(release, 'stop'); }
+    assert.equal(state.leases[0].id, report.id); assert.equal(state.leases[0].childPid, group); assert.equal(state.leases[0].root, f.roots[0]);
+  } finally {
+    await writeFile(release, 'stop');
+    try { await waitForText(stopped, 'stopped'); }
+    finally {
+      // Also terminate any remaining supervisor, or the worker if its bounded
+      // acknowledgement failed. Never signal zero/unknown groups or wait for
+      // Linux PID1 to reap an exited orphan before removing this fixture.
+      if (validPid(group)) {
+        try { process.kill(-group, 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
+      }
+    }
+  }
   const next = run(process.execPath, f.args('run', 1)); assert.equal(next.status, 2); assert.match(next.stderr, /capacity_busy/);
 });
 
