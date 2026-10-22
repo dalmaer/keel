@@ -193,3 +193,13 @@ installing this implementation.
 See the [worker contract](../specs/web-workers.md),
 [fleet operating contract](../specs/web-fleet-operations.md), and
 [service setup guide](web-auth-service.md).
+
+## Restore and reconnect trial
+
+After a configured workspace restore, `jobs.restoreReconciledAt` must be a
+canonical past instant at or after `recovery.startedAt`, and global quarantine
+must have ended, before starts/retries/schedule writes can be enabled. Existing
+permissions and allowance checks still apply. Original receipt inspection after
+reopening stays separate from enabling execution.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.

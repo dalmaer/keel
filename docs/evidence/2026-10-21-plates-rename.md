@@ -340,3 +340,12 @@ Ledger's actual main4c7e923f has one stale robot-route lock hash after the Node 
 
 
 Minimum restore integration completed:16 focused restore/authentication/deployment cases and55 affected server/navigation/worker/capability cases passed. The conductor independently passed four restore/quarantine/configuration/recovery-HTML proofs. Direct Git comparison confirmed recovery bytes and authentication bytes apart from the pre-existing comment match landed7bb17de0. Capability inventory parity remains valid without refreshing hashes. The frozen combined tree receives the required full check and typecheck after the other owned local gate finishes.
+
+
+## Required phase108 integration after the restore gate
+
+Frozen restore tree06446ec28bdba75ebabe65e84f9ba57d2edf6978 passed2,725 tests with zero failures/skips, all eight stall suites, roadmap/render/inbox guards and typecheck (exit0). Ordinary tests took444.395 seconds. It was committed as3aed222cdb801a04f8b2b8de9075655a87460e22. A separate Codex integration process simultaneously published main2093f8f152787fc4e56fe30f521a6c70a559276b, phase108 fleet recovery. Both local test processes had ended by05:01:52UTC; no process was stopped.
+
+The required merge adds only that landed snapshot. Its sole Git conflict was the generated roadmap, resolved by the generator. Existing fresh restore assertions, original receipt inspection and independent credential gates are retained. Incoming historical evidence remains intact. Focused integration validation precedes the final frozen gate; no feature activation, provider operation or schema migration is performed.
+
+The phase108 integration audit changed four active wording references in its two new guides/specs; no production or test correction was needed. New recovery16/16, directly affected115/115, model provider/handoff11/11 and capability inventory checks passed. The conductor independently passed four restore/receipt/credential boundaries and compared all three incoming historical evidence files byte-for-byte. The combined tree is now frozen for the complete check/typecheck gate.

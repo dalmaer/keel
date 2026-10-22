@@ -298,7 +298,11 @@ GET receipt recovery and worker callbacks; fresh authentication and explicitly
 listed deployment/session observations remain available. An old snapshot cannot
 establish that external work never ran or that a budget is unused. Reconcile
 original intents privately before reopening; operator assertions are not backup
-or production proof. See [the recovery guide](docs/guide/web-recovery.md).
+or production proof. After reopening, execution also needs a feature restore
+assertion no earlier than this restore's start; disabled execution must not prevent
+current-authorized inspection of an original receipt. See the
+[recovery guide](docs/guide/web-recovery.md) and
+[fleet trial](docs/guide/web-fleet-trial.md).
 
 ## Rules for plates's code
 

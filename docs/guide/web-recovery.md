@@ -104,7 +104,8 @@ Only after the operator records the audit may deployment configuration set
 `startedAt`. This is an operator assertion, not automatic verification. Keep
 individual execution features disabled until their own fresh restore proofs
 and approvals hold. The initial workspace drill does not establish the expanded
-fleet worker/routing recovery matrix in phase 108.
+fleet worker/routing recovery matrix in phase 108. The
+[fleet trial](web-fleet-trial.md) gives its additional observation steps.
 
 ## Private owner trial worksheet
 
