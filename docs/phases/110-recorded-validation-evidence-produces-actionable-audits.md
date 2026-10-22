@@ -72,3 +72,5 @@ Complete exact-head checks and normal review, then ask the parent to review this
 - **2026-10-22** — The new shared instruction exposed an omitted downstream adoption guard. Expanded the preflight to adoption, skill and selected-guide conventions and retained the interrupted known-red run; no gate exemption follows from focused success.
 
 - **2026-10-22** — The new package alias invalidated the reviewed executable-metadata fingerprint, another omitted audit preflight lesson. Inspected the single alias addition, refreshed only its package binding for PR review, and made capability invalidation checks mandatory in the preflight.
+
+- **2026-10-22** — Independent Claude review of complete pinned inputs found silent unknown setup completion and omitted staged whitespace. Add regression-proven corrections; keep the old head’s pass/review distinct from the corrected candidate’s required checks.

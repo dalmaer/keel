@@ -17,7 +17,7 @@ export const REQUIRED_CONVENTIONS = Object.freeze([
   'tests/check-focused.test.mjs',
 ]);
 const PATH = /^tests\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*\.test\.mjs$/;
-const usage = 'Usage: node scripts/check-focused.mjs [--plan] [--json] [tests/name.test.mjs ...]\nRuns required source conventions plus explicit focused tests, then roadmap, render, inbox and whitespace checks.\nThis is early feedback only; the mandatory integrated gate remains unchanged.';
+const usage = 'Usage: node scripts/check-focused.mjs [--plan] [--json] [tests/name.test.mjs ...]\nRuns required source conventions plus explicit focused tests, then roadmap, render, inbox and whitespace checks.\nThis is early feedback only; the mandatory integrated gate remains unchanged.\nNew untracked files need explicit git add -N before verification; this command never stages files.';
 
 /** Explicit argv only: no glob expansion, shell, inferred dependency map or gate eligibility. */
 export async function focusedPlan(paths, root = ROOT) {
@@ -38,7 +38,7 @@ export async function focusedPlan(paths, root = ROOT) {
       { id: 'roadmap', command: 'npm', args: ['run', 'roadmap:check'], timeout: 120000 },
       { id: 'render', command: 'npm', args: ['run', 'render:check'], timeout: 120000 },
       { id: 'inbox', command: 'npm', args: ['run', 'inbox:check'], timeout: 120000 },
-      { id: 'whitespace', command: 'git', args: ['-c', 'core.fsmonitor=false', 'diff', '--check'], timeout: 120000 },
+      { id: 'whitespace', command: 'git', args: ['-c', 'core.fsmonitor=false', 'diff', '--check', 'HEAD'], timeout: 120000 },
     ],
   };
 }

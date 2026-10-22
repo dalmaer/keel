@@ -28,7 +28,7 @@ test('every plan unconditionally includes source conventions and its own regress
     assert.equal(plan.authority, 'feedback-only');
     assert.deepEqual(plan.stages[0].args, ['--import', './tests/helpers/hermetic.mjs', '--test', '--test-concurrency=2', ...plan.tests]);
     assert.deepEqual(plan.stages.slice(1).map(s => [s.command, ...s.args]), [
-      ['npm', 'run', 'roadmap:check'], ['npm', 'run', 'render:check'], ['npm', 'run', 'inbox:check'], ['git', '-c', 'core.fsmonitor=false', 'diff', '--check'],
+      ['npm', 'run', 'roadmap:check'], ['npm', 'run', 'render:check'], ['npm', 'run', 'inbox:check'], ['git', '-c', 'core.fsmonitor=false', 'diff', '--check', 'HEAD'],
     ]);
     assert.equal(plan.stages.some(s => s.command === 'npm' && (s.args.includes('test') || s.args.includes('check'))), false, 'never runs the integrated gate');
   }
@@ -112,4 +112,33 @@ test('upstream and rendered spin require the configured convention preflight bef
     assert.match(verify, /does not replace or weaken the integrated gate/);
     assert.ok(verify.indexOf('Inventory conventions') < verify.indexOf('The named Proof'), file);
   }
+});
+
+
+test('whitespace preflight covers staged, intent-to-add and unstaged changes without staging them', async t => {
+  const root = await acme(t);
+  const git = args => { const result = run('git', args, { cwd: root }); assert.equal(result.status, 0, result.stderr); return result.stdout; };
+  git(['init', '-q']); git(['add', 'tests']); git(['commit', '-qm', 'Acme baseline']);
+  const plan = await focusedPlan([], root);
+  const whitespace = { ...plan, stages: plan.stages.filter(stage => stage.id === 'whitespace') };
+  const check = () => runFocusedPlan(whitespace, { json: true });
+  const tracked = join(root, 'tests/acme.test.mjs');
+  assert.equal(check().status, 0, 'clean baseline');
+  await writeFile(tracked, '// Acme staged whitespace  \n');
+  git(['add', 'tests/acme.test.mjs']);
+  assert.notEqual(check().status, 0, 'staged whitespace must fail');
+  git(['restore', '--source=HEAD', '--staged', '--worktree', '--', 'tests/acme.test.mjs']);
+  const added = join(root, 'tests/new.test.mjs');
+  await writeFile(added, '// Acme new whitespace  \n');
+  git(['add', '-N', 'tests/new.test.mjs']);
+  const intent = git(['status', '--porcelain']);
+  assert.notEqual(check().status, 0, 'intent-to-add whitespace must fail');
+  assert.equal(git(['status', '--porcelain']), intent, 'the preflight never stages files');
+  git(['reset', '-q', 'HEAD', '--', 'tests/new.test.mjs']); await rm(added);
+  await writeFile(tracked, '// Acme unstaged whitespace  \n');
+  assert.notEqual(check().status, 0, 'unstaged whitespace must fail');
+  git(['restore', '--source=HEAD', '--worktree', '--', 'tests/acme.test.mjs']);
+  assert.equal(check().status, 0, 'clean restored baseline');
+  const help = run(process.execPath, [join(ROOT, 'scripts/check-focused.mjs'), '--help']);
+  assert.equal(help.status, 0); assert.match(help.stdout, /git add -N/); assert.match(help.stdout, /never stages files/);
 });

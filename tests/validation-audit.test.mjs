@@ -115,6 +115,19 @@ test('stalled setup preserves failure and missing deadline is an explicit gap', 
   assert.equal(rules([{ ...setup, timeoutMs: 900000 }]).includes('setup-stalled'), false);
 });
 
+test('unknown setup completion is reported past its deadline and remains a gap before it', () => {
+  const setup = { id: 'unknown-install', repo, kind: 'setup', startedAt: '2026-10-22T19:50:00Z', timeoutMs: 300000 };
+  for (const completion of [{}, { completed: null }]) {
+    const overdue = report([{ ...setup, ...completion }]).findings.find(f => f.rule === 'setup-stalled');
+    assert.ok(overdue, 'omitted/null completion cannot hide overdue setup');
+    assert.equal(overdue.reason, 'No confirmed setup completion was recorded by the deadline.');
+    assert.equal(overdue.measurement.elapsedMs, 600000);
+    const early = report([{ ...setup, ...completion, timeoutMs: 900000 }]).findings;
+    assert.ok(early.some(f => f.rule === 'setup-coverage-gap'), 'unknown completion remains explicit before the deadline');
+    assert.equal(early.some(f => f.rule === 'setup-stalled'), false);
+  }
+});
+
 test('completed setup duration and heartbeat stop at the recorded end, never the audit cutoff', () => {
   const setup = { id: 'historical-install', repo, kind: 'setup', startedAt: '2026-10-22T19:00:00Z', endedAt: '2026-10-22T19:05:00Z', heartbeatAt: '2026-10-22T19:04:00Z', timedOut: true, completed: true, status: 124, timeoutMs: 300000 };
   const finding = records => report(records).findings.find(f => f.rule === 'setup-stalled');

@@ -101,8 +101,9 @@ Missing wall/CPU evidence produces a telemetry gap.
 
 For `setup`, a recorded timeout or incomplete installation past its recorded
 start/deadline produces `setup-stalled`, with elapsed and heartbeat age when
-known. Active setup ages to the collection cutoff; completed setup duration and
-heartbeat age stop at its recorded end. A completed record without an end keeps
+known. Setup without confirmed completion ages to the collection cutoff; unknown
+completion remains an explicit gap before its deadline and an unresolved-setup
+warning after it. This does not assert the underlying process is still running. Completed setup duration and heartbeat age stop at its recorded end. A completed record without an end keeps
 those ages unknown instead of growing on every later audit. Incomplete setup
 without a start/deadline produces a gap. Completion
 stdout alone is not completion evidence. The next action retains the failure
@@ -155,7 +156,10 @@ When changing this analyzer, run
 always includes helper, README, guide, CLI, adoption, managed-skill, package capability and preflight
 regression tests under
 the hermetic preload with concurrency two, then checks roadmap, managed render,
-inbox and whitespace in order. Add other affected test files explicitly. Inspect
+inbox and whitespace in order. Whitespace checks compare staged and unstaged tracked
+changes against HEAD. Mark new files with `git add -N <files>` first, as /spin
+requires; untracked files are not covered and the preflight never stages them.
+Add other affected test files explicitly. Inspect
 the argv without execution with `node scripts/check-focused.mjs --plan --json
 tests/validation-audit.test.mjs`. A failed stage stops the preflight with a nonzero
 exit; there is no option to omit the mandatory conventions.

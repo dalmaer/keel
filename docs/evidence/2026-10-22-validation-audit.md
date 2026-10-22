@@ -194,3 +194,43 @@ isocan watchdog, consumer attestations and shadow selection. No schedules,
 recipients, blocked email automation, credentials, callback URLs, deployments,
 consumer code, required gate policy or local canonical main were changed.
 The branch excludes the unpushed email-renderer commit `c33084dd`.
+
+## Independent review of 647f6afc
+
+PR 225, ready-for-review run 39860218543, ran Claude against the Codex-authored
+head. Retained `pr.json` pins base f62268ec189b06cf71d41721d80dc11fd86a2944 and
+head 647f6afcb5bf23822de418e81f7c4bc4cb741087. Its 23-file `pr.diff` is byte-identical
+to the expected local PR diff (SHA-256
+29f3c658c674dc32296fa95b74eebb019afb0608c223e7c23a30ca199769ead5).
+The CLI `review --wait` had no configured named reviewers and returned before
+review; it was not treated as approval. The actual review and `--gate` receipt
+were inspected independently.
+
+Validated two findings: unknown setup completion with known start/deadline could
+be silent, and plain `git diff --check` omitted staged changes. The correction
+reports unknown completion as a gap before the deadline and lack of confirmed
+completion after it, preserving historical completion bounds. Whitespace checks
+compare against HEAD; new files still need the existing /spin `git add -N` step,
+and the runner never stages files. Focused regressions and generated `plates
+prove` trailers establish the corrections; exact results follow in the fix
+commit. The unchanged required integrated gate and a fresh complete review of
+the corrected head remain mandatory.
+
+Conductor correction preflight: exit 0, 142/142 tests across the same twelve
+files, reporter wall 35.974510541 s; all roadmap/render/inbox/HEAD-whitespace
+stages passed. The two new cases have generated VERIFIED trailers, including
+a real staged/intent-to-add/unstaged Git fixture, retained in
+`phase110-review-prove-audit.log` and `phase110-review-prove-whitespace.log`.
+
+The earlier complete local gate on 647f6afc passed 2,803 ordinary tests and all
+eight stall files, plus roadmap/render/inbox guards: 340.96 s wall, 1,849.98 s
+user CPU, 939.86 s system CPU. The disposable-copy end-to-end negative control
+then reintroduced all four known convention failures together. The actual
+preflight reported helper, guide placement, adoption and package-binding
+failures and exited 1 after stage one; no later stage ran and the candidate was
+untouched (`phase110-preflight-negative-result.json`). This is intentional
+negative-control success, separate from accidental failed checkpoints.
+
+The corrected tree's required full gate runs after this record. Its result
+belongs in the fix commit body and `phase110-review-integrated.log`; the prior
+head’s result cannot substitute for it.
