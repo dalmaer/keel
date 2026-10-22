@@ -165,7 +165,11 @@ existing build allocations and owner-authored lines/results, and refuse pending
 robot items or unknown/escalated execution policy. A concurrent tick, newer date,
 source edit or ref replacement invalidates review; never silently rebase. A
 conditional commit uses the immutable ref ID and expected parent and preserves
-all other files and history. It does not invoke `goodnight --yes`, create issues,
+all other files and history. The default-branch policy is rechecked before dispatch
+and its reviewed revision/digest remains in the receipt, but it is not part of
+GitHub's atomic condition on the plan branch. A policy change after that read can
+race with publication; the receipt must disclose this limit and cannot claim
+execution or acceptance. It does not invoke `goodnight --yes`, create issues,
 force-push, start a run, or turn a private draft into approval. Missing-branch
 bootstrap remains an explicit unsupported setup operation, not a successful
 publication. Same-date edits preserve all existing progress and protected items.
