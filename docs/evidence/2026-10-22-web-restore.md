@@ -104,3 +104,26 @@ The owner still needs to complete real decisions, failed/successful guided tests
 visual discovery, revocation and separate Git/database/private-media restore
 checks on mobile and desktop over the chosen window. A merge, screenshot or
 synthetic commit cannot substitute for any of those observations.
+
+## Integrated gate follow-up — 22 October 2026
+
+Implementation `b0c29fd885772162f40844a4839c4842395fb2ed` landed on `main` in
+`7bb17de0bd5d28d77f6cb9b140a23eebbc5dc52c`. One `keel integrate --json`
+gate completed with exit **0**: **2,580/2,580** tests, all eight pinned stall
+checks, roadmap, 89 practice render targets and inbox guards. The test ledger
+reported no flaky/slower test and omitted one busy run from timing comparison.
+`keel ready --check 'npm run typecheck' --json` exited **0** before integration.
+
+The implementation commit's wall-time estimate was too high: claim was recorded
+at 04:13:10 UTC and ready/typecheck at 04:27:58 UTC (about 15 minutes); main landing
+and claim release followed at about 04:38 UTC. CI and production are separate
+from this local gate. No real owner acceptance was checked by this landing.
+
+### CI follow-up — 22 October 2026
+
+Exact integrated revision `7bb17de0bd5d28d77f6cb9b140a23eebbc5dc52c` completed
+[check run 39723490539](https://github.com/dalmaer/keel/actions/runs/39723490539)
+and [typecheck run 39723490534](https://github.com/dalmaer/keel/actions/runs/39723490534)
+with `success`, observed through `gh run view <id> --json
+status,conclusion,url,headSha` (exit 0). This is CI evidence; it does not deploy
+this revision or close the owner acceptance.

@@ -120,3 +120,13 @@ not prove live entitlement, actual cost or owner acceptance.
 See the [model-routing contract](../specs/web-model-routing.md) for exact protocol
 bounds and the pending live run/checkpoint proof. This phase adds no subscription
 scraping, copied managed credentials or paid fallback by default.
+
+## Restore and reconnect trial
+
+After a configured workspace restore, new runs and checkpoint continuations
+require a model restore assertion at or after `recovery.startedAt` and completed
+global reconciliation. Disabling execution does not block current-authorized
+readback of an original known response ID; current credential/policy checks still
+apply. An unknown response ID remains uncertain and charged, without a resend.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.
