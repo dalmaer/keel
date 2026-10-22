@@ -193,7 +193,13 @@ not consumer adoption, default concurrency changes or a new gate policy.
   guess. No global settings are changed; nonparticipants are explicitly outside
   enforcement. The wrapper preserves the explicit command argv, environment,
   exit result and whole child lifecycle, retaining uncertain execution evidence
-  rather than releasing capacity while descendants may still be alive.
+  rather than releasing capacity while in-scope descendants may still be alive.
+  On POSIX this is cooperative foreground process-group admission, not arbitrary
+  process containment: commands that daemonize or escape into another session
+  are unsupported. Running requires explicit acknowledgement of that foreground
+  contract, recorded in the receipt. An existing or unknown process group retains
+  capacity after the direct child ends. Unsupported platforms refuse execution;
+  no claim is made that this wrapper contains malicious or detached processes.
 - Focused negative controls cover mappings/invalidation, runtime mismatch,
   unavailable tools and bindings, concurrency across different roots, capacity
   conflicts, crash/uncertain ownership, failed children, process cleanup and

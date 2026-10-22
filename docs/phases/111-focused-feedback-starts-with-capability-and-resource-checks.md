@@ -24,7 +24,7 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 
 - [ ] Explicit source mappings retain conventions; unknown/shared/config/rename and consumer inputs request broad coverage without executing gates: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-plan.test.mjs`.
 - [ ] Actual runtime/tool/binding capability gaps fail closed; unsupported runtime is refused before focused execution: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-plan.test.mjs tests/check-focused.test.mjs`.
-- [ ] Opt-in shared host admission preserves commands and child lifecycle across roots, refuses ambiguous or stale ownership, and changes no default: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-budget.test.mjs`.
+- [ ] Opt-in shared host admission preserves commands and foreground process-group lifecycle across roots, refuses ambiguous or stale ownership, and changes no default: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-budget.test.mjs`.
 - [ ] Synthetic paired evidence preserves outcomes and demonstrates bounded contention without claiming pipeline savings: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-budget.test.mjs`.
 - [ ] Focused negative controls prove the phase contract: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-plan.test.mjs tests/validation-budget.test.mjs`.
 - [ ] Required integrated checks pass: `npm run check`; `npm run typecheck`.
@@ -53,6 +53,8 @@ Source required integrated checkpoint: `npm run check`; `npm run typecheck`.
 Run focused checks first; do not repeat full suites during builder iteration.
 
 ## Deliberately open
+
+Admission is cooperative POSIX foreground process-group coordination, not containment of arbitrary or daemonizing processes. Explicit acknowledgement is required for execution; escaped-session commands and unsupported platforms are not admitted. Existing or unknown child groups retain capacity.
 
 Observed speed savings remain unknown until matched trials. Later phases and
 consumer adoption wait for the preceding review; no policy is weakened here.
