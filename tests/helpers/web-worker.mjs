@@ -29,14 +29,21 @@ writeFileSync(${JSON.stringify(pids)}, JSON.stringify({parent: process.ppid, chi
 setInterval(() => {}, 60000);
 `);
   await writeFile(join(cwd, 'npm'), `#!${process.execPath}
-import { appendFileSync, existsSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 appendFileSync(${JSON.stringify(events)}, JSON.stringify(process.argv.slice(2)) + '\\n');
 if (${JSON.stringify(behavior)} === 'success') process.exit(0);
 if (${JSON.stringify(behavior)} === 'failure') process.exit(7);
 const descendant = spawn(process.execPath, [${JSON.stringify(child)}], {stdio:'inherit'});
 if (${JSON.stringify(behavior)} === 'parent-exit') {
-  const timer = setInterval(() => { if (existsSync(${JSON.stringify(pids)})) { clearInterval(timer); process.exit(0); } }, 10);
+  const timer = setInterval(() => {
+    // A created file may be partial, or still name the preceding npm command.
+    // Do not exit (and trigger descendant cleanup) until this write completed.
+    try {
+      const ready = JSON.parse(readFileSync(${JSON.stringify(pids)}, 'utf8'));
+      if (ready.parent === process.pid && ready.child === descendant.pid) { clearInterval(timer); process.exit(0); }
+    } catch {}
+  }, 10);
 } else setInterval(() => {}, 60000);
 `);
   await writeFile(join(cwd, 'package.json'), '{"type":"module"}\n');

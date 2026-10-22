@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { runJobWorker, createWorkerTransport, workerChildEnvironment } from '../lib/web/job-worker.mjs';
 import { workerFixture, waitFor, alive } from './helpers/web-worker.mjs';
 
@@ -130,6 +132,29 @@ test('actual worker kills sleeping child and descendant on cancellation, revoked
       assert.equal(p.calls.some(call => call.stage === 'complete'), false);
     });
   }
+});
+
+test('synthetic parent waits for a complete PID payload from its current descendant', async t => {
+  const fixture = await workerFixture(t, 'parent-exit');
+  // Execute the generated parent's actual readiness callback deterministically.
+  // The real process-group test below still establishes descendant cleanup.
+  const source = (await readFile(join(fixture.cwd, 'npm'), 'utf8'))
+    .replace(/^#![^\n]*\n/, '').replace(/^import [^\n]*\n/gm, '');
+  let poll, payload;
+  const exits = [];
+  runInNewContext(source, {
+    process: { execPath: '/acme/node', argv: [], pid: 100, exit: code => exits.push(code) },
+    spawn: () => ({ pid: 101 }), appendFileSync() {},
+    existsSync: () => true, readFileSync: () => payload,
+    setInterval: callback => { poll = callback; return 1; }, clearInterval() {},
+  });
+  assert.equal(typeof poll, 'function', 'the parent-exit fixture installed its readiness poll');
+  for (payload of ['', '{', '{"parent":100,"child":', '{}', '{"parent":99,"child":101}', '{"parent":100,"child":98}']) {
+    poll();
+    assert.deepEqual(exits, [], `must wait on partial or stale PID payload ${JSON.stringify(payload)}`);
+  }
+  payload = '{"parent":100,"child":101}';poll();
+  assert.deepEqual(exits, [0], 'only this parent and descendant can signal readiness');
 });
 
 test('actual worker kills leftover descendants when their parent exits before moving to next command', async t => {

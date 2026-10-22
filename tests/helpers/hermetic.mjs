@@ -39,6 +39,7 @@ process.env.PLATES_CI_OFFLINE = '1';
 process.env.PLATES_MILESTONES_OFFLINE = '1';
 // climb.mjs's pointer to Codex's git dir (plates phase 47): a Codex night that runs plates's own suite must not aim the tests' climb.mjs at it.
 delete process.env.PLATES_AGENT_GIT;
+delete process.env.KEEL_AGENT_GIT;
 process.env.GIT_CONFIG_NOSYSTEM = '1';
 
 const identity = { GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test', GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test' };

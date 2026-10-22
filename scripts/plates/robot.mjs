@@ -463,7 +463,7 @@ export async function judgeRobot({ root, config, baseSha, headSha, repo, issueNu
         if (existsSync(join(root,p,'node_modules')) && existsSync(join(dir,p)) && !existsSync(join(dir,p,'node_modules'))) await symlink(join(root,p,'node_modules'), join(dir,p,'node_modules'), 'dir');
       }
       const before = new Set((await readRuns(dir)).runs.map(r => r.id));
-      const clean = Object.fromEntries(Object.entries(env).filter(([k]) => !/^(?:GH_|GITHUB_|ACTIONS_|PLATES_AGENT_GIT|NODE_TEST_)/.test(k)));
+      const clean = Object.fromEntries(Object.entries(env).filter(([k]) => !/^(?:GH_|GITHUB_|ACTIONS_|PLATES_AGENT_GIT|KEEL_AGENT_GIT|NODE_TEST_)/.test(k)));
       const ran = spawnSync(gate, { cwd: dir, shell: true, env: gateEnv(clean, config), encoding: 'utf8', timeout: 60 * 60_000, maxBuffer: 64 * 1024 * 1024 });
       if (ran.error || ran.status !== 0) return { ok: false, problems: [`full gate failed on ${ref}`] };
       const record = ranOn((await readRuns(dir)).runs.filter(r => !before.has(r.id)), ref);

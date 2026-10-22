@@ -207,7 +207,7 @@
     },
     "scripts/plates/lib.mjs": {
       "practice": "night",
-      "sha256": "9c48fe21528ef669d21e1b36d39add8dd0648182ede7cf17dcb25453dc8b034b"
+      "sha256": "d1295a719141e9ed56326a1da5b99476f6b72ce41d3c616ac6caf6c8a1a2f738"
     },
     "scripts/plates/milestones.mjs": {
       "practice": "night",
@@ -275,7 +275,7 @@
     },
     "scripts/plates/robot.mjs": {
       "practice": "climb",
-      "sha256": "16a5cf032d47f09b10ee2d04f689cf92e3d4470cbef2144c0550336c16173f39"
+      "sha256": "8f216273b20af14a3b7b4a9ffd12f0cadef9ccdd666d13c596f58241f4aa25da"
     },
     "scripts/plates/stalls.mjs": {
       "practice": "night",
