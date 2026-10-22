@@ -516,6 +516,13 @@ It exits 1 on findings (drift or a broken practice rule), 0 when clean.
 
 <!-- topic: update | how a project takes a new practice version, in the order that matters -->
 
+Before updating a legacy Keel checkout, use `plates migrate [root] --json`.
+Review its exact inventory and apply with `--yes --digest <sha>`. Affected
+unowned machine files, package scripts and configured commands require explicit
+preparation; they are not automatically rewritten as product prose. Preserve
+external interfaces and private records, then verify the complete consumer gate.
+See `docs/guide/plates-rename.md` for the migration and compatibility boundary.
+
 ```bash
 plates update --local          # look first: a working-tree diff on this branch
 plates update                  # commit on keel/update-v<version>; exit 3, plan printed

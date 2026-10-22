@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Published998b297 passed exact-head hosted check39731954715, typecheck and impact; source compiler installation is verified. Review5609941427 found one remaining unowned workflow-interface transformation. Finish the bounded ownership refusal, verify the finite actual consumer preparations, run the frozen final gate and obtain exact-head review. Historical review-status markers await specific owner approval. Then complete source release/deployment, all four consumers, authoritative Ledger card sync and final directory move. Browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining default limits and required gates. Published85316da passed2,766 local tests, eight stall suites and remaining checks on frozen main2093f8f1. Review5610165767 found an external-URL transformation through schema command fields. Finish bounded command refusal and explicit consumer preparation, run the frozen final gate and obtain exact-head review. Historical review-status markers await specific owner approval. Then complete source release/deployment, all four consumers, authoritative Ledger card sync and final directory move. Browser verification awaits manual Mac unlock.
 
 ## Trajectory
 

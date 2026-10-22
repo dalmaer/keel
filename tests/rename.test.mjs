@@ -40,7 +40,8 @@ async function fixture(t, prefix = 'plates-rename-acme-') {
     '.agents/skills/keel/SKILL.md': '# Keel\nRun keel --agent-help.\n',
     'AGENTS.md': guide,
     'README.md': '# Acme\nThis project uses Keel. See [adoption](docs/keel-adoption.md).\n',
-    'package.json': JSON.stringify({ name: 'acme', scripts: { check: 'node scripts/keel/check.mjs' } }),
+    // Consumer commands are explicitly prepared; source ownership does not extend to shell arguments.
+    'package.json': JSON.stringify({ name: 'acme', scripts: { check: 'node scripts/plates/check.mjs' } }),
     'docs/keel-adoption.md': '# Adoption\nThe Keel configuration is .keel/keel.json.\n',
     'docs/evidence/2020-keel-check.md': '# Keel check in 2020\nRan `keel doctor`; old receipt `keel-proof`.\n[Guide](../keel-adoption.md)\n',
     'NOTICE': 'Keel adapted this historical upstream material.\n',
@@ -210,13 +211,13 @@ test('configuration and package identities survive while owned integration paths
   const config = {
     name: 'Keelboat', repo: 'acme/keel-tools', keel: 'github:dalmaer/keel',
     lessonProject: 'acme/keel-original', inbox: 'acme/keel-inbox',
-    check: 'node scripts/keel/check.mjs', ci: { gateWorkflow: 'keel-night.yml' },
+    check: 'node scripts/plates/check.mjs', ci: { gateWorkflow: 'keel-night.yml' },
     local: { phases: 'Keel originally declined this local variant' },
     canvas: { projectKey: 'keel-identity', operation: 'keel-op', home: 'https://keel.example.com' },
     production: { sources: [{ id: 'keel-prod', project: 'keel-project', service: 'keel-service' }] },
   };
   await put(root, '.keel/keel.json', JSON.stringify(config));
-  await put(root, 'package.json', JSON.stringify({ name: 'keel-user-package', repository: 'acme/keel-tools', scripts: { check: 'node scripts/keel/check.mjs' } }));
+  await put(root, 'package.json', JSON.stringify({ name: 'keel-user-package', repository: 'acme/keel-tools', scripts: { check: 'node scripts/plates/check.mjs' } }));
   await applyRename(root);
   const next = JSON.parse(await get(root, '.plates/plates.json'));
   assert.deepEqual(next, { ...Object.fromEntries(Object.entries(config).filter(([key]) => key !== 'keel')), plates: 'github:dalmaer/plates', check: 'node scripts/plates/check.mjs', ci: { gateWorkflow: 'plates-night.yml' } });
@@ -473,8 +474,8 @@ test('decision and walk RPC identities stay exact in Acme code and SQL while act
   assert.equal(renameActiveText('keel_future_rpc keel_decision_rpc_extra keel_walk_rpc_extra'), 'plates_future_rpc plates_decision_rpc_extra plates_walk_rpc_extra', 'the compatibility allowlist does not freeze arbitrary keel_ symbols');
 });
 
-test('supported local configuration commands execute after their paths move without rewriting remote identities', async t => {
-  const root = await fixture(t), command = 'node scripts/keel/acme.mjs';
+test('explicitly prepared configuration commands execute after paths move without rewriting remote identities', async t => {
+  const root = await fixture(t), command = 'node scripts/plates/acme.mjs';
   await put(root, 'scripts/keel/acme.mjs', 'import { readFileSync } from "node:fs"; console.log(JSON.parse(readFileSync(".keel/keel.json", "utf8")).name);\n');
   await put(root, 'docs/keel-guide.md', '# Acme guide\n');
   await put(root, 'docs/keel-output.md', 'Acme output\n');
@@ -552,7 +553,7 @@ test('absent ejected managed targets remain excluded so rendering cannot recreat
 
 test('package migration preserves script-key references and executes the npm gate after paths move', async t => {
   const root = await fixture(t);
-  const scripts = { keel: 'node scripts/keel/check.mjs', check: 'npm run keel', yarnGate: 'yarn keel', pnpmGate: 'pnpm run keel', 'keel-tools': 'node -e "console.log(\'keel-tools\')"', tools: 'npm run keel-tools' };
+  const scripts = { keel: 'node scripts/plates/check.mjs', check: 'npm run keel', yarnGate: 'yarn keel', pnpmGate: 'pnpm run keel', 'keel-tools': 'node -e "console.log(\'keel-tools\')"', tools: 'npm run keel-tools' };
   await put(root, 'package.json', JSON.stringify({ name: 'acme-keel-tools', scripts }));
   await applyRename(root);
   const pkg = JSON.parse(await get(root, 'package.json'));
@@ -605,7 +606,10 @@ test('script calls retain consumer aliases while explicit CLI calls use Plates w
     cli: 'keel doctor && npx keel doctor && npm exec -- keel doctor && pnpm exec keel doctor && yarn exec keel doctor',
     prose: 'node -e "console.log(\'npx keel\')"',
   };
-  await put(root, 'package.json', JSON.stringify({ scripts }));await applyRename(root);
+  await put(root, 'package.json', JSON.stringify({ scripts }));
+  await assert.rejects(planRename(root), /package script.*explicit migration/);
+  const prepared = { ...scripts, keel: 'plates doctor', cli: scripts.cli.replaceAll('keel doctor', 'plates doctor') };
+  await put(root, 'package.json', JSON.stringify({ scripts: prepared }));await applyRename(root);
   const next = JSON.parse(await get(root, 'package.json')).scripts;
   assert.deepEqual(next, { ...scripts, keel: 'plates doctor', cli: scripts.cli.replaceAll('keel doctor', 'plates doctor') });
 });
@@ -645,7 +649,7 @@ test('npm shrinkwrap refuses legacy product pins and dependency-name collisions 
   await absent(root, '.plates');
 });
 
-test('CLI migration preserves quoted separators and nested commands while renaming unquoted command positions', async t => {
+test('explicit CLI preparation preserves quoted separators and nested commands without automatic rewriting', async t => {
   const root = await fixture(t), scripts = {
     keel: '  keel doctor', npm: ' npm exec -- keel doctor', pnpm: 'pnpm exec keel doctor', yarn: 'yarn exec keel doctor',
     quoted: `node -e "console.log('example; keel doctor && npx keel doctor')"`,
@@ -653,14 +657,17 @@ test('CLI migration preserves quoted separators and nested commands while renami
     escaped: 'node -e "console.log(\\"example; keel doctor\\")" && keel doctor',
     incomplete: `echo "example; keel doctor`,
   };
-  await put(root, 'package.json', JSON.stringify({ scripts }));await applyRename(root);
+  await put(root, 'package.json', JSON.stringify({ scripts }));
+  await assert.rejects(planRename(root), /package script.*explicit migration/);
+  const prepared = { ...scripts, keel: '  plates doctor', npm: ' npm exec -- plates doctor', pnpm: 'pnpm exec plates doctor', yarn: 'yarn exec plates doctor', escaped: 'node -e "console.log(\\"example; keel doctor\\")" && plates doctor' };
+  await put(root, 'package.json', JSON.stringify({ scripts: prepared }));await applyRename(root);
   const next = JSON.parse(await get(root, 'package.json')).scripts;
   assert.deepEqual(next, { ...scripts, keel: '  plates doctor', npm: ' npm exec -- plates doctor', pnpm: 'pnpm exec plates doctor', yarn: 'yarn exec plates doctor', escaped: 'node -e "console.log(\\"example; keel doctor\\")" && plates doctor' });
 });
 
 test('managed workflow and unchanged shell callers retain package script aliases after migration and execute the gate', async t => {
   const root = await fixture(t);
-  await put(root, 'package.json', JSON.stringify({ scripts: { keel: 'node scripts/keel/check.mjs', check: 'npm run keel' } }));
+  await put(root, 'package.json', JSON.stringify({ scripts: { keel: 'node scripts/plates/check.mjs', check: 'npm run keel' } }));
   const workflow = 'jobs:\n  check:\n    steps:\n      - run: npm run keel\n      - run: pnpm run keel\n      - run: yarn run keel\n      - run: yarn keel\n      - run: pnpm keel\n      - run: keel doctor\n';
   await put(root, '.github/workflows/acme.yml', workflow);await put(root, 'scripts/acme-gate.sh', 'npm run keel\n');
   const lock = JSON.parse(await get(root, '.keel/lock.json')); lock.files['.github/workflows/acme.yml'] = { practice: 'night', sha256: sha(workflow) };
@@ -1347,7 +1354,7 @@ test('package paths: migrated exports, main, bin and pack contents remain execut
   await put(root, 'src/keel-entry.mjs', 'export default 43;\n');
   await put(root, 'bin/keel-command.cjs', '#!/usr/bin/env node\nconsole.log(47);\n');
   await put(root, 'keel-assets/message.txt', 'asset bytes\n');
-  await put(root, 'packages/keel-addon/package.json', JSON.stringify({ name: 'acme-keel-addon', main: 'lib/keel-main.cjs', bin: 'lib/keel-main.cjs', scripts: { 'keel-check': 'node ./lib/keel-main.cjs' } }));
+  await put(root, 'packages/keel-addon/package.json', JSON.stringify({ name: 'acme-keel-addon', main: 'lib/keel-main.cjs', bin: 'lib/keel-main.cjs', scripts: { 'keel-check': 'node ./lib/plates-main.cjs' } }));
   await put(root, 'packages/keel-addon/lib/keel-main.cjs', 'module.exports = 53;\n');
   await lockManagedFiles(root, 'src/keel-entry.mjs', 'bin/keel-command.cjs', 'packages/keel-addon/lib/keel-main.cjs');
   git(root, 'add', 'package.json', 'src', 'bin', 'keel-assets', 'packages');
@@ -1894,4 +1901,68 @@ test('unowned runtime bytes: nested loader text never leaves internal placeholde
   git(root, 'add', 'src/entry.test.mjs');
   await applyRename(root);
   assert.equal(await get(root, 'src/entry.test.mjs'), source);
+});
+
+test('command interfaces: every configuration command refuses affected external endpoints before writes', async t => {
+  const command = 'curl --fail https://acme.example/.keel/status';
+  const variants = [
+    { setup: command }, { check: command },
+    { climb: { testCommand: command } }, { climb: { build: command } },
+    { climb: { perf: { command } } }, { climb: { perf: { check: command } } },
+    { loop: { run: command } }, { loop: { afterRender: command } },
+    { loop: { contexts: [{ command }] } }, { prove: { command } },
+  ];
+  for (const fields of variants) {
+    const root = await fixture(t);
+    const config = { ...JSON.parse(await get(root, '.keel/keel.json')), ...fields };
+    await put(root, '.keel/keel.json', JSON.stringify(config));
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /configuration command.*explicit migration/);
+    assert.equal(git(root, 'diff', 'HEAD'), before);
+    await absent(root, '.plates'); await absent(root, '.git/plates-rename/receipt.json');
+  }
+});
+
+test('command interfaces: package embedded URLs and path-shaped API payloads refuse with executable bytes unchanged', async t => {
+  for (const value of ['https://acme.example/.keel/status', 'scripts/keel/check.mjs', '.keel/keel.json']) {
+    const root = await fixture(t);
+    const command = `node -e 'console.log(${JSON.stringify(value)})'`;
+    const pkg = { name: 'acme', scripts: { check: command } };
+    await put(root, 'package.json', JSON.stringify(pkg));
+    const execute = () => run('sh', ['-c', command], { cwd: root });
+    const beforeRun = execute(); assert.equal(beforeRun.status, 0, beforeRun.stderr); assert.equal(beforeRun.stdout.trim(), value);
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /package\.json.*script.*explicit migration/);
+    assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates'); await absent(root, '.git/plates-rename/receipt.json');
+    assert.deepEqual(JSON.parse(await get(root, 'package.json')), pkg);
+    const afterRun = execute(); assert.equal(afterRun.status, 0, afterRun.stderr); assert.equal(afterRun.stdout, beforeRun.stdout);
+  }
+});
+
+
+test('command interfaces: only verified source identity permits its canonical command migration', async t => {
+  const root = await fixture(t);
+  const config = { ...JSON.parse(await get(root, '.keel/keel.json')), keel: 'self', check: 'node scripts/keel/check.mjs' };
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  await assert.rejects(planRename(root), /configuration command.*explicit migration/);
+  await put(root, '.keel/keel.json', JSON.stringify({ ...config, repo: 'dalmaer/keel' }));
+  await assert.rejects(planRename(root), /configuration command.*explicit migration/);
+  await put(root, 'package.json', JSON.stringify({ name: 'keel', scripts: { check: config.check, doctor: 'keel doctor' } }));
+  await applyRename(root);
+  assert.equal(JSON.parse(await get(root, '.plates/plates.json')).check, 'node scripts/plates/check.mjs');
+  assert.deepEqual(JSON.parse(await get(root, 'package.json')).scripts, { check: 'node scripts/plates/check.mjs', doctor: 'plates doctor' });
+  assert.equal(run(process.execPath, ['scripts/plates/check.mjs'], { cwd: root }).status, 0);
+});
+
+test('command interfaces: unchanged external commands and payloads remain byte-exact', async t => {
+  const root = await fixture(t);
+  const command = 'node -e \'console.log("https://acme.example/keel/status")\'';
+  const config = { ...JSON.parse(await get(root, '.keel/keel.json')), check: command };
+  await put(root, '.keel/keel.json', JSON.stringify(config));
+  await put(root, 'package.json', JSON.stringify({ name: 'acme', scripts: { check: command } }));
+  await applyRename(root);
+  assert.equal(JSON.parse(await get(root, '.plates/plates.json')).check, command);
+  assert.equal(JSON.parse(await get(root, 'package.json')).scripts.check, command);
+  const result = run('sh', ['-c', command], { cwd: root });
+  assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), 'https://acme.example/keel/status');
 });

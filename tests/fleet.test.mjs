@@ -808,7 +808,7 @@ test('the rehearsal runs at most 4 projects at once, and skips (saying so) when 
 
 test('rehearsal migrates only disposable legacy consumers and compares failure with their original main', async t => {
  const fixtures = [];
- for (const [name, check] of [['legacy-ok', 'test -f .keel/keel.json'], ['legacy-picky', 'test -f .keel/keel.json && if test -d .plates; then exit 7; fi']]) {
+ for (const [name, check] of [['legacy-ok', 'test -f package.json'], ['legacy-picky', 'test -f package.json && if test -d .plates; then exit 7; fi'], ['legacy-unprepared', 'test -f .keel/keel.json']]) {
   const prepared = join(await scratch(t,'plates-legacy-rehearsal-'),name);
   await mkdir(join(prepared,'.keel'),{recursive:true});
   const legacy = JSON.stringify({name:'Acme legacy',tagline:'Acme keeps legacy notes.',repo:`acme/${name}`,practice:BEHIND,practices:['base'],check});
@@ -819,10 +819,12 @@ test('rehearsal migrates only disposable legacy consumers and compares failure w
  }
  const gh=await stubGh(t,{prepared:Object.fromEntries(fixtures.map(f=>[`acme/${f.name}`,f.prepared]))});
  const env={...gh.env,...GIT_ENV}, practices=await loadPractices();
- const rows=[];
- for(const f of fixtures) rows.push(await rehearseOne({repo:`acme/${f.name}`,from:BEHIND,to:CLI},{env,cli:CLI,cliRoot:PLATES,practices,migrations:[]}));
+ const rows=[];let refusedUpdates=0;
+ for(const f of fixtures) rows.push(await rehearseOne({repo:`acme/${f.name}`,from:BEHIND,to:CLI},{env,cli:CLI,cliRoot:PLATES,practices,migrations:[],...(f.name==='legacy-unprepared'?{update:async()=>{refusedUpdates++;throw Error('unprepared consumer must stop before update');}}:{})}));
  assert.equal(rows[0].status,'passed',JSON.stringify(rows));assert.equal(rows[0].renamed,true);
  assert.equal(rows[1].status,'fails',JSON.stringify(rows));assert.equal(rows[1].mainCheck.exit,0,'baseline checks the actual old-config commit');assert.equal(rows[1].check.exit,7);
+ assert.equal(rows[2].status,'error');assert.equal(rows[2].step,'rename');assert.match(rows[2].error,/configuration command needs an explicit migration/);
+ assert.equal(rows[2].check,undefined);assert.equal(rows[2].mainCheck,undefined);assert.equal(refusedUpdates,0,'an unprepared command is a rehearsal gap, not an update attempt');
  for(const f of fixtures){assert.equal(git(f.prepared,'rev-parse','HEAD'),f.head);assert.equal(git(f.prepared,'status','--porcelain'),'');assert.equal(await readFile(join(f.prepared,'.keel/keel.json'),'utf8'),f.legacy);await assert.rejects(readFile(join(f.prepared,'.plates/plates.json')),{code:'ENOENT'});}
  assert.deepEqual(await gh.prs(),[]);assert.equal((await gh.calls()).filter(c=>c[0]==='pr'&&c[1]==='create').length,0);
  const { update } = await import('../lib/update.mjs');
