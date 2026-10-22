@@ -18,6 +18,12 @@ const put = async (root, path, value) => { await mkdir(join(root, path, '..'), {
 const get = (root, path) => readFile(join(root, path), 'utf8');
 const absent = async (root, path) => assert.rejects(stat(join(root, path)), { code: 'ENOENT' });
 
+async function lockManagedFiles(root, ...paths) {
+  const lock = JSON.parse(await get(root, '.keel/lock.json'));
+  for (const path of paths) lock.files[path] = { practice: 'night', sha256: sha(await get(root, path)) };
+  await put(root, '.keel/lock.json', JSON.stringify(lock));
+}
+
 async function fixture(t, prefix = 'plates-rename-acme-') {
   const root = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -232,7 +238,7 @@ test('migration keeps remote plan blob identity and adapts shipped plan writer s
   await put(root, 'scripts/keel/morning.mjs', "import { PLAN, PLAN_BRANCH, NIGHT_AT } from './night-plan.mjs';\nawait at(`${PLAN_BRANCH}:${PLAN}`, () => remoteFile(root, PLAN_BRANCH, PLAN), PLAN_BRANCH);\n");
   await put(root, '.github/workflows/keel-plan-reader.yml', 'name: keel-impact\nrun: git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json"\napi: repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan\n');
   const lock = JSON.parse(await get(root, '.keel/lock.json'));
-  for (const path of ['scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs'])
+  for (const path of ['scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs', '.github/workflows/keel-plan-reader.yml'])
     lock.files[path] = { practice: 'night', sha256: sha(await get(root, path)) };
   await put(root, '.keel/lock.json', JSON.stringify(lock));
   git(root, 'add', 'scripts/keel/night-plan.mjs', 'scripts/keel/morning.mjs', '.github/workflows/keel-plan-reader.yml', '.keel/lock.json');
@@ -349,8 +355,8 @@ test('tracked ignore rewrites protect both old and new literal runtime files thr
   } }), /stop after ignore rewrite/);
   const protectedRules = await get(root, '.git/info/exclude');
   assert(protectedRules.includes('/.plates/test-runs/acme\\[1\\]\\*\\?.json'));
-  // The old rule is retained narrowly: a similar old filename is not covered.
-  assert(!ignored(root, '.keel/test-runs/acme11-other.json'));
+  // Keep the original owner rule protective for future old-name files too.
+  assert(ignored(root, '.keel/test-runs/acme11-other.json'));
   await applyRename(root, { digest: preview.digest });
   assert.equal(await get(root, '.plates/test-runs/acme[1]*?.json'), 'private test run');
   assert.equal(await get(root, '.git/info/exclude'), protectedRules);
@@ -480,6 +486,7 @@ test('supported local configuration commands execute after their paths move with
     loop: { run: command, afterRender: command, afterRenderWrites: ['docs/keel-output.md'], source: 'acme:keel', name: 'Keel-shaped Acme', intro: 'Keel originally supplied this practice', contexts: [{ command, source: 'keel:context', description: 'Ran scripts/keel/acme.mjs before adoption', annotations: { original: 'scripts/keel/acme.mjs' } }] },
     prove: { command: command + ' {file}', tap: true }, tests: { junit: '.keel/test-runs/acme.xml', stalls: ['tests/keel-acme.test.mjs'], configEnv: ['KEEL_ACME'] }, contracts: [{ paths: ['scripts/keel/**', 'tests/keel-acme.test.mjs'], read: 'docs/keel-guide.md', why: 'Keel originally required this contract' }], retros: { dir: '.keel/retros' }, paths: { retros: '.keel/retros', remote: 'keel:remote' } };
   await put(root, '.keel/keel.json', JSON.stringify(config));
+  await lockManagedFiles(root, 'scripts/keel/acme.mjs', 'tests/keel-acme.test.mjs');
   git(root, 'add', 'scripts/keel/acme.mjs', 'docs', 'tests'); git(root, 'commit', '-qm', 'Acme integration commands');
   await applyRename(root, { digest: (await planRename(root)).digest });
   const next = JSON.parse(await get(root, '.plates/plates.json'));
@@ -512,6 +519,9 @@ test('ejected file and block ownership follows canonical paths and still exclude
   config.practices = ['base', 'agents-md', 'night', 'phases', 'evidence', 'lessons', 'conduct'];
   config.ejected = ['scripts/keel/improve.mjs', '.agents/skills/keel/SKILL.md', 'AGENTS.md#agents-md', 'docs/keel-guide.md#keel-local-rule', '.agents/skills/conduct/SKILL.md', 'scripts/keel/not-present.mjs', 'scripts/keel/missing-tracked.mjs'];
   await put(root, '.keel/keel.json', JSON.stringify(config));
+  await assert.rejects(planRename(root), /unowned executable source/);
+  await put(root, 'scripts/plates/improve.mjs', custom); await rm(join(root, 'scripts/keel/improve.mjs'));
+  git(root, 'add', 'scripts/plates/improve.mjs');
   await applyRename(root, { digest: (await planRename(root)).digest });
   const next = JSON.parse(await get(root, '.plates/plates.json'));
   const all = await load(), selected = targets(next, all), unrestricted = targets({ ...next, ejected: [] }, all);
@@ -648,12 +658,14 @@ test('CLI migration preserves quoted separators and nested commands while renami
   assert.deepEqual(next, { ...scripts, keel: '  plates doctor', npm: ' npm exec -- plates doctor', pnpm: 'pnpm exec plates doctor', yarn: 'yarn exec plates doctor', escaped: 'node -e "console.log(\\"example; keel doctor\\")" && plates doctor' });
 });
 
-test('workflow and shell callers retain package script aliases after migration and execute the gate', async t => {
+test('managed workflow and unchanged shell callers retain package script aliases after migration and execute the gate', async t => {
   const root = await fixture(t);
   await put(root, 'package.json', JSON.stringify({ scripts: { keel: 'node scripts/keel/check.mjs', check: 'npm run keel' } }));
   const workflow = 'jobs:\n  check:\n    steps:\n      - run: npm run keel\n      - run: pnpm run keel\n      - run: yarn run keel\n      - run: yarn keel\n      - run: pnpm keel\n      - run: keel doctor\n';
   await put(root, '.github/workflows/acme.yml', workflow);await put(root, 'scripts/acme-gate.sh', 'npm run keel\n');
-  git(root, 'add', 'package.json', '.github/workflows/acme.yml', 'scripts/acme-gate.sh');await applyRename(root);
+  const lock = JSON.parse(await get(root, '.keel/lock.json')); lock.files['.github/workflows/acme.yml'] = { practice: 'night', sha256: sha(workflow) };
+  await put(root, '.keel/lock.json', JSON.stringify(lock));
+  git(root, 'add', 'package.json', '.github/workflows/acme.yml', 'scripts/acme-gate.sh', '.keel/lock.json');await applyRename(root);
   assert.equal(await get(root, '.github/workflows/acme.yml'), workflow.replace('run: keel doctor', 'run: plates doctor'));
   assert.equal(await get(root, 'scripts/acme-gate.sh'), 'npm run keel\n');
   const result = run('sh', ['scripts/acme-gate.sh'], { cwd: root });assert.equal(result.status, 0, result.stderr);assert.match(result.stdout, /scripts\/plates\/check.mjs/);
@@ -867,7 +879,7 @@ const legacyHistorySource = name => {
 };
 async function migratedHistory(t, name) {
   const root = await fixture(t), path = 'scripts/keel/' + name;
-  await put(root, path, legacyHistorySource(name));git(root, 'add', path);
+  await put(root, path, legacyHistorySource(name)); await lockManagedFiles(root, path); git(root, 'add', path);
   const cfg = JSON.parse(await get(root, '.keel/keel.json'));cfg.ci = { gateWorkflow: 'check.yml' };
   await put(root, '.keel/keel.json', JSON.stringify(cfg));
   await put(root, '.github/workflows/check.yml', 'on: push\njobs:\n  check:\n    steps:\n      - run: npm run check\n');git(root, 'add', '.github/workflows/check.yml');
@@ -1062,6 +1074,8 @@ test('historical command evidence and inactive shell comments do not become exec
   const root = await fixture(t), history = '# Original check\nRan `npx github:dalmaer/keel#v0.8.0 doctor`.\n';
   await put(root, 'docs/evidence/2020-keel-check.md', history);
   await put(root, 'scripts/check.sh', '#!/bin/sh\n# Originally ran npx github:dalmaer/keel#v0.8.0 doctor\nnode scripts/keel/check.mjs\n');git(root, 'add', 'scripts/check.sh');
+  const lock = JSON.parse(await get(root, '.keel/lock.json')); lock.files['scripts/check.sh'] = { practice: 'night', sha256: sha(await get(root, 'scripts/check.sh')) };
+  await put(root, '.keel/lock.json', JSON.stringify(lock));
   await applyRename(root);
   assert.equal(await get(root, 'docs/evidence/2020-plates-check.md'), history);
   assert.match(await get(root, 'scripts/check.sh'), /node scripts\/plates\/check.mjs/);
@@ -1209,6 +1223,7 @@ test('module references: relative imports follow actual moved files while untrac
     "import { value as colocated } from './private.mjs';",
     'console.log(JSON.stringify([managed, untracked, colocated]));',
   ].join('\n'));
+  await lockManagedFiles(root, 'keel-entry/main.mjs', 'scripts/keel/part.mjs');
   git(root, 'add', 'scripts/keel/part.mjs', 'keel-entry/main.mjs');
   const before = run(process.execPath, ['keel-entry/main.mjs'], { cwd: root });
   assert.equal(before.status, 0, before.stderr);
@@ -1233,6 +1248,7 @@ test('module references: only the nearest identified product dependency changes 
     await put(root, `${dir}/package.json`, JSON.stringify({ main: 'lib/acme.cjs' }));
     await put(root, `${dir}/lib/acme.cjs`, `module.exports = ${value};\n`);
   }
+  await lockManagedFiles(root, 'src/product.mjs');
   git(root, 'add', 'package.json', 'src/product.mjs', 'packages/acme/package.json', 'packages/acme/index.mjs');
   await applyRename(root);
   assert.match(await get(root, 'src/product.mjs'), /from 'plates\/lib\/acme.cjs'/);
@@ -1283,7 +1299,9 @@ test('module references: managed lazy and URL loaders follow exact inventoried f
     'const fresh = await import(`../scripts/keel/part.mjs?cache=${count++}`);',
     'console.log((await load()).value, other.value, fresh.value);',
   ].join('\n'));
-  git(root, 'add', 'src/lazy.mjs', 'scripts/keel/part.mjs');
+  const lock = JSON.parse(await get(root, '.keel/lock.json')); for (const path of ['src/lazy.mjs', 'scripts/keel/part.mjs']) lock.files[path] = { practice: 'night', sha256: sha(await get(root, path)) };
+  await put(root, '.keel/lock.json', JSON.stringify(lock));
+  git(root, 'add', 'src/lazy.mjs', 'scripts/keel/part.mjs', '.keel/lock.json');
   const before = run(process.execPath, ['src/lazy.mjs'], { cwd: root });
   assert.equal(before.status, 0, before.stderr);
   await applyRename(root);
@@ -1309,6 +1327,7 @@ test('module references: escaped literals preserve external spelling and map ide
   const root = await fixture(t);
   await put(root, 'src/keel-part.mjs', 'export const value = 31;\n');
   await put(root, 'src/escaped.mjs', String.raw`import { value } from './\u006beel-part.mjs'; console.log(value);`);
+  await lockManagedFiles(root, 'src/escaped.mjs', 'src/keel-part.mjs');
   git(root, 'add', 'src');
   await applyRename(root);
   const result = run(process.execPath, ['src/escaped.mjs'], { cwd: root });
@@ -1330,6 +1349,7 @@ test('package paths: migrated exports, main, bin and pack contents remain execut
   await put(root, 'keel-assets/message.txt', 'asset bytes\n');
   await put(root, 'packages/keel-addon/package.json', JSON.stringify({ name: 'acme-keel-addon', main: 'lib/keel-main.cjs', bin: 'lib/keel-main.cjs', scripts: { 'keel-check': 'node ./lib/keel-main.cjs' } }));
   await put(root, 'packages/keel-addon/lib/keel-main.cjs', 'module.exports = 53;\n');
+  await lockManagedFiles(root, 'src/keel-entry.mjs', 'bin/keel-command.cjs', 'packages/keel-addon/lib/keel-main.cjs');
   git(root, 'add', 'package.json', 'src', 'bin', 'keel-assets', 'packages');
   const entry = "import a from 'acme-keel-public'; import b from 'acme-keel-public/keel-api'; import c from '#keel-internal'; console.log(a,b,c);";
   const before = run(process.execPath, ['--input-type=module', '-e', entry], { cwd: root });
@@ -1364,6 +1384,7 @@ test('package paths: related filesystem fields move while public keys and extern
     files: ['src/**', 'types'], repository: 'acme/keel-public', custom: { entry: './src/keel.mjs' } };
   await put(root, 'package.json', JSON.stringify(pkg));
   for (const path of ['src/keel.mjs', 'src/keel-browser.mjs', 'types/keel.d.ts']) await put(root, path, 'export {};\n');
+  await lockManagedFiles(root, 'src/keel.mjs', 'src/keel-browser.mjs', 'types/keel.d.ts');
   git(root, 'add', 'package.json', 'src', 'types');
   await applyRename(root);
   const next = JSON.parse(await get(root, 'package.json'));
@@ -1395,6 +1416,7 @@ test('package paths: man and directory metadata map while workspace and local li
   await put(root, 'package.json', JSON.stringify({ name: 'acme', man: ['docs/keel.1'], directories: { bin: 'keel-bin', man: 'keel-man' }, workspaces: ['packages/*'] }));
   for (const path of ['docs/keel.1', 'keel-bin/keel-run.cjs', 'keel-bin/keel-sub/tool.txt', 'keel-man/keel.1', 'packages/acme/keel-source.mjs']) await put(root, path, 'fixture\n');
   await put(root, 'packages/acme/package.json', JSON.stringify({ name: 'acme-child' }));
+  await lockManagedFiles(root, 'docs/keel.1', 'keel-bin/keel-run.cjs', 'keel-man/keel.1', 'packages/acme/keel-source.mjs');
   git(root, 'add', 'package.json', 'docs/keel.1', 'keel-bin', 'keel-man', 'packages');
   await applyRename(root);
   const pkg = JSON.parse(await get(root, 'package.json'));
@@ -1418,6 +1440,7 @@ test('package paths: extensionless main resolves its inventoried target and unre
   await put(root, 'packages/acme/package.json', JSON.stringify({ name: 'acme-child', main: './keel-main' }));
   await put(root, 'packages/acme/keel-main.js', 'module.exports = 59;\n');
   await put(root, 'packages/stable/package.json', JSON.stringify({ name: 'stable', main: 'keel-private.cjs' }));
+  await lockManagedFiles(root, 'packages/acme/keel-main.js');
   git(root, 'add', 'packages/acme', 'packages/stable/package.json');
   await put(root, 'packages/stable/keel-private.cjs', 'module.exports = 61;\n');
   await applyRename(root);
@@ -1436,6 +1459,7 @@ test('package paths: matching root lock bin metadata follows manifest without ch
   await put(root, 'package.json', JSON.stringify(pkg));
   await put(root, 'package-lock.json', JSON.stringify(lock));
   await put(root, 'bin/keel.cjs', 'console.log(67);\n');
+  await lockManagedFiles(root, 'bin/keel.cjs');
   git(root, 'add', 'package.json', 'package-lock.json', 'bin');
   await applyRename(root);
   const nextPkg = JSON.parse(await get(root, 'package.json')), nextLock = JSON.parse(await get(root, 'package-lock.json'));
@@ -1448,6 +1472,7 @@ test('package paths: matching root lock bin metadata follows manifest without ch
     await put(target, 'package.json', JSON.stringify(pkg));
     await put(target, 'package-lock.json', JSON.stringify({ ...lock, packages: { '': { ...pkg, bin } } }));
     await put(target, 'bin/keel.cjs', 'console.log(67);\n');
+    await lockManagedFiles(target, 'bin/keel.cjs');
     git(target, 'add', 'package.json', 'package-lock.json', 'bin');
     const before = git(target, 'diff', 'HEAD');
     await assert.rejects(applyRename(target), /root bin metadata and manifest disagree/);
@@ -1507,11 +1532,12 @@ test('external bindings: unaffected APIs, owned relative bindings and example st
     'const example = "import { keel } from \'@acme/sdk\';";',
     "console.log(keel, basename('stable'));",
   ].join('\n'));
+  await lockManagedFiles(root, 'src/control.mjs', 'src/keel-api.mjs');
   git(root, 'add', 'src');
   await applyRename(root);
   const result = run(process.execPath, ['src/control.mjs'], { cwd: root });
   assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), '79 stable');
-  assert.match(await get(root, 'src/control.mjs'), /import \{ keel \} from '\.\/plates-api.mjs'/);
+  assert.match(await get(root, 'src/control.mjs'), /import \{ plates \} from '\.\/plates-api.mjs'/);
 });
 
 test('durable phase107 identities: editor and night retry RPCs and migration lock retain exact names', () => {
@@ -1525,6 +1551,7 @@ test('unsupported module forms: moved CommonJS directory references refuse befor
     await put(root, `src/keel/${entry}`, 'module.exports = 83;\n');
     if (entry !== 'index.js') await put(root, 'src/keel/package.json', JSON.stringify({ main: entry }));
     await put(root, 'src/main.cjs', `console.log(${reference});\n`);
+    await lockManagedFiles(root, `src/keel/${entry}`);
     git(root, 'add', 'src');
     const before = run(process.execPath, ['src/main.cjs'], { cwd: root });
     assert.equal(before.status, 0, before.stderr);
@@ -1601,6 +1628,7 @@ test('unsupported TypeScript schemas: exact source files move and unchanged meta
   const pkg = { name: 'acme', types: 'types/index.d.ts', typesVersions: { '*': { '*': ['types/index.d.ts'] } } };
   await put(root, 'package.json', JSON.stringify(pkg));
   await put(root, 'types/index.d.ts', 'export type Label = string;\n');
+  await lockManagedFiles(root, 'src/keel-check.ts');
   git(root, 'add', 'src', 'tsconfig.json', 'tsconfig.base.json', 'package.json', 'types');
   const before = typecheckFixture(root); assert.equal(before.status, 0, before.stdout + before.stderr);
   await applyRename(root);
@@ -1676,10 +1704,10 @@ test('consumer runtime contracts: external option keys and arguments retain exec
   const root = await fixture(t);
   await put(root, 'node_modules/@acme/sdk/package.json', JSON.stringify({ type: 'module', main: 'index.mjs' }));
   await put(root, 'node_modules/@acme/sdk/index.mjs', 'export default value => value.keel;\n');
-  const source = "import configure from '@acme/sdk'; const key = 'keel'; console.log(configure({ keel: 'enabled' }), configure({ [key]: 'keel-value' }), configure({ keel: '.keel' }));\n";
+  const source = "import configure from '@acme/sdk'; const key = 'keel'; console.log(configure({ keel: 'enabled' }), configure({ [key]: 'keel-value' }));\n";
   await put(root, 'src/options.mjs', source); git(root, 'add', 'src/options.mjs');
   const before = run(process.execPath, ['src/options.mjs'], { cwd: root });
-  assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), 'enabled keel-value .keel');
+  assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), 'enabled keel-value');
   await applyRename(root);
   const after = run(process.execPath, ['src/options.mjs'], { cwd: root });
   assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
@@ -1726,16 +1754,17 @@ test('consumer runtime contracts: managed branding preserves configured environm
   }
 });
 
-test('consumer runtime contracts: exact metadata paths move while owner keys and arguments stay unchanged', async t => {
+test('consumer runtime contracts: metadata path literals require explicit preparation while owner keys stay unchanged', async t => {
   const root = await fixture(t);
   await put(root, '.keel/bounds.json', '{}\n');
   const source = "import { existsSync } from 'node:fs'; const keel = { keel: 'keel-value' }; console.log(existsSync('.keel/lock.json'), existsSync('.keel/bounds.json'), keel.keel);\n";
   await put(root, 'src/metadata.mjs', source); git(root, 'add', '.keel/bounds.json', 'src/metadata.mjs');
   const before = run(process.execPath, ['src/metadata.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
-  await applyRename(root);
+  await assert.rejects(applyRename(root), /src\/metadata.mjs:.*consumer runtime path.*explicit migration/);
+  await absent(root, '.plates');
   const after = run(process.execPath, ['src/metadata.mjs'], { cwd: root });
   assert.equal(after.status, 0, after.stderr); assert.equal(after.stdout, before.stdout);
-  assert.equal(await get(root, 'src/metadata.mjs'), source.replaceAll('.keel/', '.plates/'));
+  assert.equal(await get(root, 'src/metadata.mjs'), source);
 });
 
 test('consumer runtime contracts: ambiguous external path arguments refuse before writes', async t => {
@@ -1746,7 +1775,7 @@ test('consumer runtime contracts: ambiguous external path arguments refuse befor
   await put(root, 'src/path-argument.mjs', source); git(root, 'add', 'src/path-argument.mjs');
   const before = run(process.execPath, ['src/path-argument.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
   const state = git(root, 'diff', 'HEAD');
-  await assert.rejects(applyRename(root), /src\/path-argument.mjs:.*runtime path.*external module/);
+  await assert.rejects(applyRename(root), /src\/path-argument.mjs:.*runtime path.*explicit migration/);
   assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
   const after = run(process.execPath, ['src/path-argument.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
 });
@@ -1761,4 +1790,108 @@ test('consumer runtime contracts: unchanged directory URL spelling is not a prop
   await applyRename(root);
   const after = run(process.execPath, ['src/url.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
   assert.equal(await get(root, 'src/url.mjs'), source);
+});
+
+test('unowned automation: external workflow action input environment and command contracts refuse atomically', async t => {
+  const root = await fixture(t);
+  const path = '.github/workflows/acme.yml';
+  const source = 'name: Acme\non: push\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    env:\n      KEEL_ACME: enabled\n    steps:\n      - uses: acme/keel-lint@v1\n        with:\n          keel-config: strict\n      - run: keel-lint --keel-config strict\n';
+  await put(root, path, source); git(root, 'add', path);
+  const before = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /acme.yml:.*unowned automation.*explicit migration/);
+  assert.equal(await get(root, path), source); assert.equal(git(root, 'diff', 'HEAD'), before); await absent(root, '.plates');
+});
+
+test('unowned automation: shell environment and arguments refuse before executable behavior changes', async t => {
+  const root = await fixture(t), path = 'scripts/acme.sh';
+  const source = '#!/bin/sh\nprintf "%s %s\\n" "$KEEL_ACME" "keel-config"\n';
+  await put(root, path, source); git(root, 'add', path);
+  const execute = () => run('sh', [path], { cwd: root, env: { ...process.env, KEEL_ACME: 'enabled' } });
+  const before = execute(); assert.equal(before.status, 0, before.stderr); assert.equal(before.stdout.trim(), 'enabled keel-config');
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /acme.sh:.*unowned automation.*explicit migration/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = execute(); assert.equal(after.stdout, before.stdout);
+});
+
+test('unowned runtime paths: local wrappers and builtins do not establish literal ownership', async t => {
+  const root = await fixture(t);
+  const source = "import { readFileSync } from 'node:fs'; const read = path => readFileSync(path, 'utf8'); console.log(JSON.parse(read('.keel/keel.json')).name);\n";
+  await put(root, 'src/local-wrapper.mjs', source); git(root, 'add', 'src/local-wrapper.mjs');
+  const before = run(process.execPath, ['src/local-wrapper.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /local-wrapper.mjs:.*consumer runtime path.*explicit migration/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = run(process.execPath, ['src/local-wrapper.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
+});
+
+test('unowned runtime paths: import text inside a literal is not syntax authority', async t => {
+  const root = await fixture(t);
+  await put(root, 'src/keel-part.mjs', 'export default 1;\n');
+  const source = 'const example = "import value from \'./keel-part.mjs\'"; console.log(example);\n';
+  await put(root, 'src/example.mjs', source); git(root, 'add', 'src');
+  const before = run(process.execPath, ['src/example.mjs'], { cwd: root }); assert.equal(before.status, 0, before.stderr);
+  const state = git(root, 'diff', 'HEAD');
+  await assert.rejects(applyRename(root), /example.mjs:.*unowned executable source.*explicit migration/);
+  assert.equal(git(root, 'diff', 'HEAD'), state); await absent(root, '.plates');
+  const after = run(process.execPath, ['src/example.mjs'], { cwd: root }); assert.equal(after.stdout, before.stdout);
+});
+
+test('unowned machine text: languages and extensionless automation require explicit preparation', async t => {
+  for (const [path, source] of [
+    ['src/acme.py', 'options = {"keel": "enabled"}\n'],
+    ['src/acme.go', 'package acme\nvar options = map[string]string{"keel": "enabled"}\n'],
+    ['Makefile', 'check:\n\tacme-check --keel-config strict\n'],
+  ]) {
+    const root = await fixture(t); await put(root, path, source); git(root, 'add', path);
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /unowned machine file.*explicit migration/);
+    assert.equal(git(root, 'diff', 'HEAD'), state); assert.equal(await get(root, path), source); await absent(root, '.plates');
+  }
+});
+
+test('unowned machine paths: unchanged executable bytes cannot authorize a filename move', async t => {
+  for (const [path, source] of [['src/keel-adapter.mjs', 'console.log(17);\n'], ['src/keel_adapter.py', 'print(17)\n']]) {
+    const root = await fixture(t); await put(root, path, source); git(root, 'add', path);
+    const state = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /unowned (?:machine file|executable source).*explicit migration/);
+    assert.equal(git(root, 'diff', 'HEAD'), state); assert.equal(await get(root, path), source); await absent(root, '.plates');
+  }
+});
+
+
+test('ignore privacy: unrelated old private files stay ignored and metadata protection is additive', async t => {
+  const root = await fixture(t);
+  const rules = 'keel-secret.txt\n/.keel/test-runs/*.json\n# keep owner rules\n';
+  await put(root, '.gitignore', rules);
+  await put(root, 'keel-secret.txt', 'private unrelated bytes');
+  git(root, 'add', '.gitignore');
+  assert(ignored(root, 'keel-secret.txt'));
+  await applyRename(root);
+  assert(ignored(root, 'keel-secret.txt'));
+  assert(ignored(root, '.keel/test-runs/future.json'));
+  assert(ignored(root, '.plates/test-runs/future.json'));
+  assert((await get(root, '.gitignore')).startsWith(rules));
+  assert.equal(await get(root, 'keel-secret.txt'), 'private unrelated bytes');
+});
+
+test('bounds privacy: budget identities and opaque bytes move unchanged', async t => {
+  const root = await fixture(t);
+  const source = '{  "keel-owner": {"id":"keel-budget-42", "project":"Keel", "remaining":7} }\n';
+  await put(root, '.keel/bounds.json', source);
+  git(root, 'add', '.keel/bounds.json');
+  await applyRename(root);
+  assert.equal(await get(root, '.plates/bounds.json'), source);
+});
+
+test('unowned runtime bytes: nested loader text never leaves internal placeholders', async t => {
+  const root = await fixture(t);
+  const source = '/** `import { connect } from "@acme/sdk"` by NAME; `export * from` is unavailable. */\n'
+    + 'const repo = path.resolve(here, "../../..");\n'
+    + 'const command = ["-e", `const m = await import(${JSON.stringify(entry)});`];\n'
+    + 'const refs = `# pack-refs with: peeled sorted\\n${sha} refs/heads/main\\n`;\n';
+  await put(root, 'src/entry.test.mjs', source);
+  git(root, 'add', 'src/entry.test.mjs');
+  await applyRename(root);
+  assert.equal(await get(root, 'src/entry.test.mjs'), source);
 });
