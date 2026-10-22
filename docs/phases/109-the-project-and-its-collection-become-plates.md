@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Local f4df68a fixes both private-record continuity findings and passes2,543 tests plus the full gate. Required already-landed phase106 is being integrated against frozen09eec5ef after main advanced and the PR conflicted. Preserve its durable data contracts and disabled activation gates, then validate and publish the combined candidate for exact-head review. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Signed-in browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Published9589289 integrates frozen09eec5ef and passes2,605 local tests plus the full gate. Exact-head review found unrelated consumer module imports being rewritten and legacy closed robot subjects blocking new work. Both bounded corrections pass focused checks; all four consumer previews succeed. Complete the integrated full gate and exact-head review. The original source checkout has a verified stale managed lock, to reconcile through normal rendering once its active writer finishes. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Signed-in browser verification awaits manual Mac unlock; the canonical checkout still has an active parallel task.
 
 ## Trajectory
 

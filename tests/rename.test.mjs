@@ -1160,3 +1160,156 @@ test('symlink migration keeps stable unowned targets and relative semantics when
   assert.equal(await readlink(join(root, 'dangling')), 'missing-keel-target');
   assert.equal(await get(root, 'user-keel-assets/note.txt'), 'private untracked target\n');
 });
+
+// Synthetic installed modules exercise Node resolution, not just string output.
+test('module references: migration preserves unrelated static, exported, dynamic and required package specifiers', async t => {
+  const root = await fixture(t);
+  const dependencies = { '@acme/keel-tools': '1.0.0', 'keel-supplies': '1.0.0', '@keel-lab/widgets': '1.0.0', keel: '1.0.0' };
+  const pkg = { name: 'acme', type: 'module', dependencies };
+  await put(root, 'package.json', JSON.stringify(pkg));
+  for (const name of Object.keys(dependencies)) {
+    await put(root, `node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', main: 'index.cjs' }));
+    await put(root, `node_modules/${name}/index.cjs`, 'module.exports = 7;\n');
+    await put(root, `node_modules/${name}/keel-part.cjs`, 'module.exports = 11;\n');
+  }
+  await put(root, 'src/reexport.mjs', "export { default as value } from '@keel-lab/widgets/keel-part.cjs';\nexport * from '@acme/keel-tools';\n");
+  await put(root, 'src/require.cjs', "require.resolve(`@acme/keel-tools/keel-part.cjs`);\nmodule.exports = require(/* acme */ 'keel-supplies/keel-part.cjs') + require('keel');\n");
+  await put(root, 'src/modules.mjs', [
+    "import tools from '@acme/keel-tools';",
+    "import '@keel-lab/widgets';",
+    "import { value } from './reexport.mjs';",
+    "import required from './require.cjs';",
+    "const lazy = await import(/* acme */ `keel-supplies/keel-part.cjs`);",
+    "if (!import.meta.resolve('@keel-lab/widgets/keel-part.cjs').includes('node_modules')) throw Error('missing module');",
+    "console.log(JSON.stringify([tools, value, required, lazy.default]));",
+  ].join('\n'));
+  git(root, 'add', 'package.json', 'src');
+  const before = run(process.execPath, ['src/modules.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['src/modules.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr);
+  assert.equal(after.stdout, before.stdout);
+  assert.deepEqual(JSON.parse(await get(root, 'package.json')), pkg);
+  assert.match(await get(root, 'src/modules.mjs'), /@acme\/keel-tools/);
+});
+
+test('module references: relative imports follow actual moved files while untracked local targets stay put', async t => {
+  const root = await fixture(t);
+  await put(root, 'scripts/keel/part.mjs', 'export const value = 13;\n');
+  await put(root, 'src/keel-private.mjs', 'export const value = 17;\n');
+  await put(root, 'keel-entry/private.mjs', 'export const value = 19;\n');
+  await put(root, 'keel-entry/main.mjs', [
+    "import { value as managed } from '../scripts/keel/part.mjs?acme';",
+    "import { value as untracked } from '../src/keel-private.mjs';",
+    "import { value as colocated } from './private.mjs';",
+    'console.log(JSON.stringify([managed, untracked, colocated]));',
+  ].join('\n'));
+  git(root, 'add', 'scripts/keel/part.mjs', 'keel-entry/main.mjs');
+  const before = run(process.execPath, ['keel-entry/main.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['plates-entry/main.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr);
+  assert.equal(after.stdout, before.stdout);
+  const source = await get(root, 'plates-entry/main.mjs');
+  assert.match(source, /scripts\/plates\/part\.mjs\?acme/);
+  assert.match(source, /src\/keel-private\.mjs/);
+  assert.match(source, /\.\.\/keel-entry\/private\.mjs/);
+  await absent(root, 'src/plates-private.mjs');
+});
+
+test('module references: only the nearest identified product dependency changes package roots, preserving subpaths', async t => {
+  const root = await fixture(t);
+  await put(root, 'package.json', JSON.stringify({ type: 'module', dependencies: { keel: 'github:dalmaer/keel' } }));
+  await put(root, 'src/product.mjs', "export { default } from 'keel/lib/acme.cjs';\n");
+  await put(root, 'packages/acme/package.json', JSON.stringify({ type: 'module', dependencies: { keel: '1.0.0' } }));
+  await put(root, 'packages/acme/index.mjs', "export { default } from 'keel/lib/acme.cjs';\n");
+  for (const [dir, value] of [['node_modules/plates', 23], ['packages/acme/node_modules/keel', 29]]) {
+    await put(root, `${dir}/package.json`, JSON.stringify({ main: 'lib/acme.cjs' }));
+    await put(root, `${dir}/lib/acme.cjs`, `module.exports = ${value};\n`);
+  }
+  git(root, 'add', 'package.json', 'src/product.mjs', 'packages/acme/package.json', 'packages/acme/index.mjs');
+  await applyRename(root);
+  assert.match(await get(root, 'src/product.mjs'), /from 'plates\/lib\/acme.cjs'/);
+  assert.match(await get(root, 'packages/acme/index.mjs'), /from 'keel\/lib\/acme.cjs'/);
+  const result = run(process.execPath, ['--input-type=module', '-e', "import a from './src/product.mjs'; import b from './packages/acme/index.mjs'; console.log(a,b);"], { cwd: root });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '23 29');
+});
+
+test('module references: computed package expressions and constants retain executable resolution', async t => {
+  const root = await fixture(t);
+  await put(root, 'node_modules/@acme/keel-tools/package.json', JSON.stringify({ main: 'index.cjs' }));
+  await put(root, 'node_modules/@acme/keel-tools/index.cjs', 'module.exports = 37;\n');
+  await put(root, 'src/computed.mjs', [
+    "import { createRequire } from 'node:module';",
+    'const require = createRequire(import.meta.url);',
+    "const name = '@acme/keel-tools', prefix = '@acme', suffix = 'tools';",
+    "const a = await import(name), b = await import(prefix + '/keel-tools');",
+    "const c = await import('@acme/' + 'keel-tools');",
+    'const d = await import(`@acme/keel-${suffix}`);',
+    "if (require.resolve(prefix + '/keel-tools') !== import.meta.resolve(name).replace('file://', '')) throw Error('resolution changed');",
+    "console.log(JSON.stringify([a.default, b.default, c.default, d.default, require(name), require(prefix + '/keel-tools')]));",
+    "// Keel product copy is ordinary prose, even beside a computed import.",
+    "const productCopy = 'Keel keeps projects moving';",
+  ].join('\n'));
+  git(root, 'add', 'src/computed.mjs');
+  const before = run(process.execPath, ['src/computed.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['src/computed.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr);
+  assert.equal(after.stdout, before.stdout);
+  const source = await get(root, 'src/computed.mjs');
+  assert.match(source, /const name = '@acme\/keel-tools'/);
+  assert.match(source, /Plates keeps projects moving/);
+});
+
+test('module references: managed lazy and URL loaders follow exact inventoried files', async t => {
+  const root = await fixture(t);
+  await put(root, 'scripts/keel/part.mjs', 'export const value = 41;\n');
+  await put(root, 'src/lazy.mjs', [
+    "import { pathToFileURL } from 'node:url';",
+    "import { join } from 'node:path';",
+    'const lazy = path => () => import(path);',
+    "const load = lazy('../scripts/keel/part.mjs');",
+    "const other = await import(pathToFileURL(join(process.cwd(), 'scripts/keel/part.mjs')).href);",
+    'let count = 0;',
+    'const fresh = await import(`../scripts/keel/part.mjs?cache=${count++}`);',
+    'console.log((await load()).value, other.value, fresh.value);',
+  ].join('\n'));
+  git(root, 'add', 'src/lazy.mjs', 'scripts/keel/part.mjs');
+  const before = run(process.execPath, ['src/lazy.mjs'], { cwd: root });
+  assert.equal(before.status, 0, before.stderr);
+  await applyRename(root);
+  const after = run(process.execPath, ['src/lazy.mjs'], { cwd: root });
+  assert.equal(after.status, 0, after.stderr);
+  assert.equal(after.stdout, before.stdout);
+  assert.match(await get(root, 'src/lazy.mjs'), /scripts\/plates\/part.mjs/);
+});
+
+test('module references: affected unresolved interpolation refuses with its path before writes', async t => {
+  for (const source of ['import(`./keel-${name}.mjs`);', 'import(`@acme/${keelName}`);']) {
+    const root = await fixture(t);
+    await put(root, 'src/computed.mjs', source);
+    git(root, 'add', 'src/computed.mjs');
+    const before = git(root, 'diff', 'HEAD');
+    await assert.rejects(applyRename(root), /src\/computed.mjs: affected computed module interpolation/, source);
+    assert.equal(git(root, 'diff', 'HEAD'), before);
+    await absent(root, '.plates');
+  }
+});
+
+test('module references: escaped literals preserve external spelling and map identified local targets', async t => {
+  const root = await fixture(t);
+  await put(root, 'src/keel-part.mjs', 'export const value = 31;\n');
+  await put(root, 'src/escaped.mjs', String.raw`import { value } from './\u006beel-part.mjs'; console.log(value);`);
+  git(root, 'add', 'src');
+  await applyRename(root);
+  const result = run(process.execPath, ['src/escaped.mjs'], { cwd: root });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '31');
+  const external = String.raw`export { default } from '@acme/\u006beel-tools';`;
+  assert.equal(renameActiveText(external), external);
+});

@@ -489,3 +489,47 @@ test('repository rename reuses old uncertain intent and subject identity without
  const denied=await ensureRobotIssue({...work,repo:current,stateDir,yes:true,github:async r=>r.path==='/repos/acme/app'?{status:403}:github(r)});assert.equal(denied.state,'blocked');assert.equal(api.posts().length,1);
  const stolen=await ensureRobotIssue({...work,repo:current,stateDir,yes:true,github:async r=>r.path==='/repos/acme/app'?{status:200,data:{id:8,full_name:'acme/app'}}:github(r)});assert.equal(stolen.state,'blocked');assert.equal(api.posts().length,1);
 });
+
+test('repository rename releases a positively closed subject for a new instance without rebinding old work', async t => {
+ for(const changedWork of [false,true]){
+  const stateDir=await temp(t),api=remote(),current='acme/renamed';let renamed=false;
+  const github=async request=>{
+   if(request.path===`/repos/${current}`||request.path==='/repos/acme/app')return {status:200,data:{id:7,full_name:renamed?current:'acme/app'}};
+   const response=await api.github(request);
+   const change=row=>row&&({...row,html_url:row.html_url.replace('/acme/app/','/acme/renamed/'),url:row.url.replace('/acme/app/','/acme/renamed/')});
+   return renamed?{...response,data:Array.isArray(response.data)?response.data.map(change):change(response.data)}:response;
+  };
+  assert.equal((await ensureRobotIssue({...work,stateDir,github,yes:true})).state,'created');
+  const [directory]=await readdir(stateDir),dir=join(stateDir,directory);
+  const original=(await readdir(dir)).find(name=>name.endsWith('.json')&&!name.startsWith('subject-')),bytes=await readFile(join(dir,original));
+  renamed=true;api.rows[0].state='closed';
+  const request={...work,repo:current,instanceId:'acme-sort-2',...(changedWork?{title:'Another Acme boundary',rubric:{...rubric,change:'Fix the newly found Acme boundary.'}}:{}),stateDir,github,yes:true};
+  const next=await ensureRobotIssue(request);
+  assert.equal(next.state,'created',JSON.stringify(next));assert.equal(next.issue.number,2);assert.equal(next.issue.repo,current);assert.equal(api.posts().length,2);
+  assert.equal(api.posts()[1].path,`/repos/${current}/issues`);assert.match(api.posts()[1].body.body,/"instanceId":"acme-sort-2"/);
+  assert.equal((await ensureRobotIssue(request)).state,'recovered');assert.equal(api.posts().length,2);
+  assert.equal((await recoverRobotIssue({...work,repo:current,stateDir,github})).issue.number,1);
+  assert.deepEqual(await readFile(join(dir,original)),bytes);
+ }
+});
+
+test('repository rename never releases open unknown unavailable or inconsistent subjects for different work', async t => {
+ for(const mode of ['open','unknown','unavailable','wrong-repo','wrong-marker','uncertain-post','reopened']){
+  const stateDir=await temp(t),api=remote(),current='acme/renamed';let renamed=false,reads=0;
+  const github=async request=>{
+   if(request.path===`/repos/${current}`||request.path==='/repos/acme/app')return {status:200,data:{id:7,full_name:renamed?current:'acme/app'}};
+   if(mode==='uncertain-post'&&request.method==='POST'){api.calls.push(request);throw Error('Acme unknown POST outcome');}
+   if(renamed&&mode==='unavailable'&&request.path.endsWith('/issues/1'))return {status:503};
+   const response=await api.github(request);
+   const change=row=>row&&({...row,html_url:row.html_url.replace('/acme/app/','/acme/renamed/'),url:row.url.replace('/acme/app/','/acme/renamed/')});
+   if(!renamed)return response;
+   const data=Array.isArray(response.data)?response.data.map(change):change(response.data);
+   if(request.path.endsWith('/issues/1')&&data){if(mode==='wrong-repo')data.url='https://api.github.com/repos/acme/other/issues/1';if(mode==='wrong-marker')data.body='Acme unrelated issue';if(mode==='reopened'&&++reads===2)api.rows[0].state='open';}
+   return {...response,data};
+  };
+  await ensureRobotIssue({...work,stateDir,github,yes:true});renamed=true;
+  if(api.rows[0])api.rows[0].state=mode==='open'?'open':mode==='unknown'?'unknown':'closed';
+  const next=await ensureRobotIssue({...work,repo:current,instanceId:'acme-sort-2',rubric:{...rubric,change:'Different Acme work.'},stateDir,github,yes:true});
+  assert.ok(['blocked','pending','ambiguous'].includes(next.state),mode+': '+JSON.stringify(next));assert.equal(api.posts().length,1,mode);
+ }
+});

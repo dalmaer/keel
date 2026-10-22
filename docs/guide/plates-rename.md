@@ -30,6 +30,8 @@ plates render --check
 
 Review the preview's exact paths, changes, and refusals. The digest binds application to that inventory. The migration validates managed-file hashes before changing them, refuses conflicting destinations, and preserves opaque runtime journals byte for byte. Previously ignored runtime targets retain local Git-ignore protection before their bytes move. Its recovery receipt lives in Git metadata, outside the directory being renamed. An interrupted migration resumes the recorded operation; it does not invent a fresh plan over partial state. After migration, render the current practices through the normal reviewed update flow, run the project's own gate, and commit its complete file moves together.
 
+Module references follow the inventoried file mapping. Unrelated package names and subpaths remain unchanged; a bare product dependency is renamed only when the owning package manifest identifies the supported product source. Ambiguous module expressions are preserved or refused, not guessed from their spelling.
+
 Release rehearsal can apply this migration inside its disposable clone before testing the candidate practices. It keeps the original commit for a baseline comparison and pushes nothing. Ordinary project updates do not silently migrate a real checkout.
 
 For a project collection, inventory each actual checkout and remote configuration first. Keep scheduled workflows and existing concurrency groups coordinated; changing a filename must not start a second independent schedule or allowance. Preserve the original deployment environment until the new revision and its consumers are verified. Git remotes and hosting project metadata are separate rollout steps from local file migration.
