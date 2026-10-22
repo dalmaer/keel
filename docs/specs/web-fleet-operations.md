@@ -85,6 +85,9 @@ reporting; do not scan arbitrary local machines or upload transcripts wholesale.
 
 ## Execute work through supported workers
 
+Phase104’s [worker contract](web-workers.md) selects the first existing workflow,
+its identity, budget, recovery and activation boundaries.
+
 The Vercel app is the authenticated control surface. Long jobs run on an explicit
 adapter such as existing GitHub workflows or an authorized local runner; worker
 selection is a phase 104 decision, not permission to create another paid service.

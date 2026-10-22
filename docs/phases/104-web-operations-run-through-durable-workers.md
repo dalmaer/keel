@@ -1,10 +1,10 @@
 ---
-status: planned
+status: designed
 since: 2026-10-21
 goal: G7
 spec: 2
 depends: [97, 102, 103]
-note: "Expanded fleet operating goal; design and proof remain to be implemented."
+note: "Existing typecheck workflow selected for the first bounded OIDC worker; durable jobs, recovery, source schedule edits and live activation remain."
 evidence: []
 ---
 
@@ -18,7 +18,7 @@ The owner can start, cancel, retry and manage supported routines from the web wi
 
 Introduce a typed operation registry and approved worker adapters, reusing existing schedules. Implement preview, project/ref validation, atomic reservations, fenced leases, dispatch recovery and source reconciliation. Browser and Vercel request lifetimes cannot own a long job.
 
-Contract: [Fleet operations](../specs/web-fleet-operations.md),
+Contract: [Durable workers](../specs/web-workers.md), [Fleet operations](../specs/web-fleet-operations.md),
 [workspace](../specs/web-workspace.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance
@@ -30,6 +30,7 @@ Contract: [Fleet operations](../specs/web-fleet-operations.md),
 ## Real surfaces
 
 - Workflow shell: dispatch and reconcile an approved real routine, then verify cancellation/retry and duplicate request behavior.
+- Existing scheduled workflow: review an approved exact cron change, preserve unrelated bytes and verify its actual source budget/overlap behavior.
 
 ## Proof
 
@@ -43,11 +44,17 @@ Test paths below are planned implementation targets, not existing passing checks
 
 ## Deliberately open
 
-Worker hosting, local runner transport and additional GitHub permissions remain explicit connection decisions; no paid runner or broader App permission is approved by this plan.
+Settled 2026-10-21 by local workflow inspection and the dated provider contract:
+use the existing contributor typecheck workflow as the first fixed-command
+GitHub/OIDC adapter. Local runners and provider-secret injection remain open;
+no paid runner, broader App permission or workflow execution is approved by this
+plan. See the worker contract for exact activation and budget boundaries.
 
 ## Next action
 
-Select the first existing workflow adapter and specify its dispatch, identity, cancellation and recovery protocol.
+Implement the registry, atomic job/budget store, OIDC worker bridge, conservative
+reconciliation, cancel/retry and reviewed schedule-source routes against the
+worker contract. Keep all effects disabled until explicit hosted/worker proof.
 
 ## Trajectory
 
