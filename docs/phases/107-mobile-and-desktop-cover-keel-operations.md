@@ -74,6 +74,8 @@ only the registered canonical retry adapter can satisfy the night-recovery trial
 - **2026-10-22** — Native night retry retains original GitHub privileges but reads the current date/plan. Exact private source profiles, shared admission and conservative uncertain receipts replace an unsafe promise of immutable replay. Conditional plan publication retains a disclosed cross-branch policy race. See dated evidence.
 - **2026-10-22** — Review reproduced stale-budget admission and migration reapplication bypasses. Fresh allowances now govern send; SQL013 preserves its delegate, while 009/010 refuse after it. Single-connection actual SQL proves these transitions; hosted concurrency remains owed.
 
+- **2026-10-22** — The first integrated gate caught a checkout-only canonical-policy dependency in the npm package. Extracted-package launch remains the real packaging proof; source-only adapter tests cannot establish installability.
+
 ## Your part
 
 - **Ask:** Use a phone and desktop to investigate a run, record a test, update a project and inspect capacity; record every required terminal detour.

@@ -80,6 +80,21 @@ The whole gate runs after this record through `keel integrate`: `npm run check`
 checks the selected production JSDoc scope before handoff. Their result belongs
 to the integration receipt and subsequent record; no result is anticipated here.
 
+## Integration finding
+
+The first full gate on `f7ce43f` reported **2,567/2,568 passing**, with the
+extracted npm-package HTTP launch failing. `night-plan-model.mjs` imported the
+canonical assembled `scripts/keel/climb.mjs`, which existed in the checkout but
+was absent from the package. This is a packaging defect, not a flaky test; it
+was corrected by packaging the public assembled `scripts/keel/*.mjs` closure
+(39 modules, 1,190,536 unpacked bytes). No copied policy implementation or runtime
+dependency was introduced. The conductor reran the exact extracted-package test:
+1/1, exit 0. The full gate must run again before landing. The exact failing
+check is `tests/web-server.test.mjs`, “extracted npm package launches with external
+config and serves through the real HTTP boundary”. All eight pinned stall checks
+passed in the first gate; its ledger reported no flaky or slower test. No code
+landed from that failed integration.
+
 ## Browser observations
 
 Actual local authenticated application with synthetic Acme external transports;

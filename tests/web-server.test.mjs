@@ -93,7 +93,7 @@ test('extracted npm package launches with external config and serves through the
   const packed = run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', temporary], { cwd: resolve('.') });
   assert.equal(packed.status, 0, packed.stderr);
   const metadata = JSON.parse(packed.stdout)[0], paths = metadata.files.map(file => file.path);
-  for (const path of ['lib/web/serve.mjs', 'lib/web/migrations/001-auth.sql', 'api/index.mjs', 'vercel.json']) assert.ok(paths.includes(path), path);
+  for (const path of ['lib/web/serve.mjs', 'lib/web/migrations/001-auth.sql', 'api/index.mjs', 'vercel.json', 'scripts/keel/climb.mjs', 'scripts/keel/lib.mjs', 'scripts/keel/tend.mjs', 'scripts/keel/test-ledger.mjs']) assert.ok(paths.includes(path), path);
   assert.equal(paths.some(path => /(^|\/)(\.env|members\.json|instance\.json)$/.test(path)), false);
   assert.equal(run('tar', ['-xzf', join(temporary, metadata.filename), '-C', temporary]).status, 0);
   // Model the function's excluded development/source-data trees before loading it.
