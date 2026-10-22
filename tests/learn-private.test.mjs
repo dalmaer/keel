@@ -301,6 +301,62 @@ test('decide accepted with --shape/--cost/--guard: exactly those words become th
   await assert.rejects(decide({ dir, slug: '12', decision: 'accepted', yes: true, ...ROW }, { env: gh.env }), /already decided/);
 });
 
+test('legacy private proposal: accepting a Keel link retains its lesson and note without rewriting history', async t => {
+  const dir = await home(t);
+  const proposal = 'keel learn: proposed link\nnote: already covered by the existing guard\nlink: 2\n\nread docs/lessons.md';
+  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:link'], comments: [proposal] })] }));
+  const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
+  const preview = await decide({ dir, slug: '12', decision: 'accepted' }, { env: gh.env, now: NOW });
+  assert.equal(preview.exitCode, 3);
+  assert.equal(preview.data.link, 2);
+  assert.match(preview.text, /already plates lesson 2.*already covered by the existing guard/);
+  assert.deepEqual(writes(await gh.calls()), []);
+  const result = await decide({ dir, slug: '12', decision: 'accepted', yes: true }, { env: gh.env, now: NOW });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.data.link, 2);
+  assert.equal(result.data.status, 'linked');
+  assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), lessons);
+  const issue = (await gh.state()).repos[INBOX].issues[0];
+  assert.equal(issue.number, 12);
+  assert.equal(issue.state, 'CLOSED');
+  assert.deepEqual(issue.labels, ['lesson', 'proposed:link', 'decided:link']);
+  assert.deepEqual(issue.comments, [proposal, 'plates learn: accepted (link): already plates lesson 2. already covered by the existing guard']);
+});
+
+test('legacy private proposal: declining reuses the Keel note without a replacement note', async t => {
+  const dir = await home(t);
+  const proposal = 'keel learn: proposed decline\nnote: project-specific, no general lesson\n\nread docs/lessons.md';
+  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:decline'], comments: [proposal] })] }));
+  const preview = await decide({ dir, slug: '12', decision: 'declined' }, { env: gh.env, now: NOW });
+  assert.equal(preview.exitCode, 3);
+  assert.match(preview.text, /project-specific, no general lesson/);
+  assert.deepEqual(writes(await gh.calls()), []);
+  const result = await decide({ dir, slug: '12', decision: 'declined', yes: true }, { env: gh.env, now: NOW });
+  assert.equal(result.exitCode, 0);
+  const issue = (await gh.state()).repos[INBOX].issues[0];
+  assert.equal(issue.state, 'CLOSED');
+  assert.deepEqual(issue.labels, ['lesson', 'proposed:decline', 'decided:decline']);
+  assert.deepEqual(issue.comments, [proposal, 'plates learn: declined. project-specific, no general lesson']);
+});
+
+test('legacy private proposal: the newest matching comment wins across both names, ignoring quoted proposals', async t => {
+  for (const latest of ['keel', 'plates']) {
+    const dir = await home(t);
+    const previous = latest === 'keel' ? 'plates' : 'keel';
+    const comments = [
+      `${previous} learn: proposed link\nnote: older proposal\nlink: 1\n\nread docs/lessons.md`,
+      `${latest} learn: proposed link\nnote: newest proposal\nlink: 2\n\nread docs/lessons.md`,
+      'A quoted proposal is data:\nplates learn: proposed link\nnote: quoted\nlink: 1',
+    ];
+    const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:link'], comments })] }));
+    const result = await decide({ dir, slug: '12', decision: 'accepted', yes: true }, { env: gh.env, now: NOW });
+    assert.equal(result.exitCode, 0, latest);
+    assert.equal(result.data.link, 2, latest);
+    const issue = (await gh.state()).repos[INBOX].issues[0];
+    assert.deepEqual(issue.comments, [...comments, 'plates learn: accepted (link): already plates lesson 2. newest proposal'], latest);
+  }
+});
+
 test('decide practice on a private inbox: the row and an inert stub written from the approved words', async t => {
   const dir = await home(t);
   const gh = await stubGh(t, seed({ issues: [lessonIssue(5, 2, '**Shape two.**', { labels: ['lesson', 'proposed:practice'] })] }));

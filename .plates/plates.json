@@ -3,6 +3,7 @@
   "tagline": "Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you.",
   "repo": "dalmaer/plates",
   "lessonProject": "dalmaer/keel",
+  "feedbackProject": "dalmaer/keel",
   "inbox": "dalmaer/plates-inbox",
   "plates": "self",
   "stack": [

@@ -217,11 +217,11 @@ test('configuration and package identities survive while owned integration paths
   assert.deepEqual(JSON.parse(await get(root, 'package.json')), { name: 'keel-user-package', repository: 'acme/keel-tools', scripts: { check: 'node scripts/plates/check.mjs' } });
 });
 
-test('self configuration retains lesson fingerprint identity across repository rename', async t => {
+test('self configuration retains lesson and feedback identity across repository rename', async t => {
   const root = await fixture(t);
   await put(root, '.keel/keel.json', JSON.stringify({ name: 'Keel', repo: 'dalmaer/keel', keel: 'self', inbox: 'dalmaer/keel-inbox' }));
   await applyRename(root);
-  assert.deepEqual(JSON.parse(await get(root, '.plates/plates.json')), { name: 'Plates', repo: 'dalmaer/plates', plates: 'self', lessonProject: 'dalmaer/keel', inbox: 'dalmaer/keel-inbox' });
+  assert.deepEqual(JSON.parse(await get(root, '.plates/plates.json')), { name: 'Plates', repo: 'dalmaer/plates', plates: 'self', lessonProject: 'dalmaer/keel', feedbackProject: 'dalmaer/keel', inbox: 'dalmaer/keel-inbox' });
 });
 
 
