@@ -131,6 +131,11 @@ handler's deadline. An explicit **Continue publication** action advances only
 undispatched stages of the same immutable approval. Recovery inspects uncertain
 stages without issuing another POST. A lost response retains the operation link;
 it never starts a replacement publication.
+While the browser remains connected, the initial approval may drive sequential
+requests for known undispatched stages, with visible progress and a stop control.
+It does not require one tap per Git object. A lost response or uncertain stage
+halts this progression; reopening the receipt requires explicit continuation
+after any necessary readback.
 
 The branch is deterministic for the operation and is never force-pushed. Preserve
 existing CLI update branches and PRs as verified existing work or visible conflicts.
