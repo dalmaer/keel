@@ -90,6 +90,10 @@ subscription work to a billed API. A provider throttle blocks the affected candi
 and conservatively its connection when shared scope is unknown; do not cycle through
 aliases/accounts to evade a limit. Record cooldown durably. A known reset is a time
 to check again, not a promise of capacity; stale success cannot shorten cooldown.
+After expiry, observed-capacity mode needs fresh post-throttle evidence and reentry
+headroom. Explicit unknown-budgeted mode may offer a new reviewed attempt while
+still displaying unknown capacity and retaining earlier charges; this is not an
+automatic retry or a claim that provider quota recovered.
 
 Thresholds, freshness, cooldown and reentry headroom are explicit policy values
 with units and bounded integers, not invented recommendations. The policy evaluator
