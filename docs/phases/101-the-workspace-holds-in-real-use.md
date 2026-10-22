@@ -1,10 +1,10 @@
 ---
-status: planned
-since: 2026-10-21
+status: designed
+since: 2026-10-22
 goal: G7
 spec: 2
 depends: [100]
-note: "Authorized web workspace sequence; acceptance remains unverified."
+note: "Serving identity and restore quarantine contract settled; implementation and owner backup/use trial remain."
 evidence: []
 ---
 
@@ -21,7 +21,8 @@ This phase verifies the first decision/testing workspace. Phase 108 verifies the
 Restore private Git records, transactional database records and private media separately, expiring restored sessions. Run the full human acceptance journey and backup/restore drill on the approved deployment; measure actual usefulness, verify revocation and preserve unresolved receipts. Record deployment, production verification and lived-in observations separately.
 
 Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
-[UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
+[UX](../specs/web-ui.md), [CLI mapping](../specs/web-ui-command-map.md) and
+[restore verification](../specs/web-restore.md).
 
 ## Acceptance
 
@@ -52,7 +53,9 @@ A merge or green test suite does not establish production verification or lived-
 
 ## Next action
 
-Agree the named real-use observation window and run the acceptance/restore worksheet after phase 100.
+Implement the restore epoch/quarantine and authenticated deployment observation,
+prove the named service/restore boundaries, and prepare the private owner trial
+worksheet. The owner still selects backup destination, participants and window.
 
 ## Trajectory
 
