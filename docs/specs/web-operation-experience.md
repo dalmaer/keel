@@ -128,9 +128,14 @@ establish a successful night, acceptance, or attribution of a later attempt.
 Activation is off by default and requires a private, per-project reviewed source
 profile, numeric repository/workflow identity, complete bounded source inventory,
 explicit effects and a 60-minute reservation within the existing shared workspace
-and project allowance. Source drift, incomplete inventory, custom or dynamic
+and project allowance. Source drift, incomplete inventory, unreviewed or dynamically selected
 commands, model-producing work, secret-dependent setup, optional publication and
-undeclared downstream workflows refuse v1. The supported profile must include
+undeclared downstream workflows refuse v1. A private profile may approve exact
+static project setup/check commands and their complete source/dependency closure;
+source hashes establish reviewed identity, not a proof of zero possible network
+or model effects. The profile and preview must disclose that distinction, and
+activation requires review of that declared command/effect boundary. No command
+is supplied by an HTTP caller or inferred safe merely because it is npm test. The supported profile must include
 real canonical measurement/report behavior; no typecheck substitute. Source,
 current grants, original actor and latest failed attempt are rechecked before a
 single POST. Review explicitly permits the normal current-plan/date reads and
@@ -142,7 +147,12 @@ prepared, sending, request-accepted, uncertain and refused separately from bound
 successor observations, whose attribution remains unverified. A lost response is
 never redispatched. Neither elapsed time nor observing a successor proves an
 uncertain POST cannot still execute; retain its charge and unresolved lane until
-an expressly designed settlement can establish otherwise. External/scheduled runs
+an expressly designed settlement can establish otherwise. For a durably recorded201 only, a fresh latest-run read showing a completed
+successor beyond the parent attempt may release the active lane. Keep the full
+60-minute charge for seven days from that observation. This is provider-request
+settlement, not proof that Keel caused that particular successor or that its work
+was accepted. Sending/uncertain requests never use this settlement shortcut.
+External/scheduled runs
 are outside web admission and are not represented as budget-controlled. V1 does
 not cancel a run by logical ID after its attempt changes. New storage activation
 requires separate owner approval and actual database proof.
@@ -158,7 +168,13 @@ conditional commit uses the immutable ref ID and expected parent and preserves
 all other files and history. It does not invoke `goodnight --yes`, create issues,
 force-push, start a run, or turn a private draft into approval. Missing-branch
 bootstrap remains an explicit unsupported setup operation, not a successful
-publication. SQL004 may hold this distinct typed intent, provided other consumers
+publication. Same-date edits preserve all existing progress and protected items.
+Rollover to the current canonical upcoming night may replace an older plan with
+a reviewed measure/triage-only plan: the entire old plan remains in immutable
+parent history and the preview explicitly shows that rollover. New-date items
+start planned, have no result and grant no build budget; old builds are not
+implicitly carried forward. Unknown existing build policy refuses same-date
+publication rather than treating its mere presence as current authorization. SQL004 may hold this distinct typed intent, provided other consumers
 reject or correctly render its new kind and recovery verifies exact identity,
 parent, message, path and bytes. Lost-response recovery uses the original intent.
 
