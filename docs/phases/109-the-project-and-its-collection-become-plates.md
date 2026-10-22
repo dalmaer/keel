@@ -45,7 +45,7 @@ Legacy names used as durable operation identities remain recognized until recove
 
 ## Next action
 
-The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Candidate85e1206 integrates frozen main7c3161d and passed2,466 local tests and all hosted checks. Correct the two validated review5608132807 findings in actual symlink target mapping and night/morning canvas shell legacy bindings; verify failure-before/success-after and obtain complete exact-head review. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Preserve disabled hosted features and existing security boundaries; signed-in browser verification awaits manual Mac unlock.
+The owner approved continued PR216 fix-and-review cycles until migration checks are clean, retaining the default limit and all checks. Correction f1c2ecc passed2,471 tests, was published and resolved both sixth-review findings. Validate the minimal integration of landed dependency PR219 at frozen main8480bbd, then obtain complete exact-head review and hosted checks. Once clean, finish the reviewed source release, every managed consumer, repository/hosting/local migration, Ledger card wording and final source directory move. Preserve disabled hosted features and existing security boundaries; signed-in browser verification awaits manual Mac unlock.
 
 ## Trajectory
 

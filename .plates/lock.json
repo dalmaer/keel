@@ -95,7 +95,7 @@
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
-      "sha256": "ba48cb4f1acc62460ad6803d908bdfa87e41ea5a67f4bc1686d07d03c50c1781"
+      "sha256": "53ef4753bb82fadf648d1dc68807593891a75561c134b7a93fefe82029290e48"
     },
     ".github/workflows/plates-robot.yml": {
       "practice": "climb",
