@@ -74,10 +74,13 @@ test('fleet continuation keeps per-project cursors scoped and calls missing read
   const html=jobsView({projects:[{project,items:[],after:'opaque-cursor',hasMore:true,gaps:[]}],nextProjectPage:2,gaps:[{reason:'Additional Acme projects unread.'}]},access);assert.match(html,/\/projects\/studio\/jobs\?after=opaque-cursor/);assert.match(html,/\/jobs\?projectPage=2/);assert.match(html,/Additional Acme projects unread/);assert.match(html,/not.*complete history|before treating this as complete history/);
 });
 function clientFixture(fetch,{operation=null}={}) {
-  const output={innerHTML:''},receiptHost=operation?{innerHTML:jobReceipt(operation,project)}:null,status={textContent:''},checked={checked:true},control={disabled:false};
+  const focused=[];
+  const heading={setAttribute(name,value){assert.equal(name,'tabindex');assert.equal(value,'-1');},focus(){focused.push('heading');},scrollIntoView(){focused.push('scroll');}};
+  const output={innerHTML:'',querySelector:()=>heading},receiptHost=operation?{innerHTML:jobReceipt(operation,project),querySelector:()=>heading}:null,status={textContent:''},checked={checked:true},control={disabled:false};
   const root={innerHTML:'',querySelector(selector){return {'[data-job-model]':{value:JSON.stringify({...routine,...(operation?{operation}:{})})},'[data-job-receipt]':receiptHost,'[data-job-csrf]':{value:'fake-csrf'},'[data-job-output]':output,'[data-job-status]':status,'[data-approve-job]':checked,'[data-start-job]':control}[selector]||null;},querySelectorAll(){return [control];},addEventListener(){},removeEventListener(){}};
   const history={path:null,replaceState(_a,_b,path){this.path=path;}};
-  return {root,output,receiptHost,status,history,client:startJobClient({document:{querySelector:()=>root},window:{history},fetch})};
+  const document={querySelector:()=>root};
+  return {root,output,receiptHost,status,history,document,focused,client:startJobClient({document,window:{history},fetch})};
 }
 test('lost dispatch retains original bookmark and only explicit reconciliation can issue another request',async()=>{
   const calls=[];let fixture,resolve;
@@ -88,7 +91,8 @@ test('lost dispatch retains original bookmark and only explicit reconciliation c
     return Response.json(receipt);
   });
   await fixture.client.review();assert.match(fixture.output.innerHTML,/Review this exact run/);
-  const pending=fixture.client.start();assert.equal(calls.length,2);await fixture.client.start();assert.equal(calls.length,2);
+  assert.equal(fixture.document.title,'Review operation · Keel');assert.deepEqual(fixture.focused,['heading','scroll']);
+  const pending=fixture.client.start();assert.equal(fixture.document.title,'Original operation · Keel');assert.deepEqual(fixture.focused.slice(-2),['heading','scroll']);assert.equal(calls.length,2);await fixture.client.start();assert.equal(calls.length,2);
   resolve(Response.json({error:'request_unavailable'},{status:503}));await pending;assert.match(fixture.output.innerHTML,/uncertain/);
   await fixture.client.start();assert.equal(calls.length,2);await fixture.client.act('reconcile');assert.equal(calls.length,3);assert.ok(calls[2].url.endsWith(`/jobs/${id}/reconcile`));assert.deepEqual(Object.keys(calls[2].body),['csrf']);
 });

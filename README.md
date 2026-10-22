@@ -158,7 +158,7 @@ Keel's hosted UI is being built around a Home screen that answers three things:
 **which decisions need you, what to test step by step, and what changed recently**.
 Guided walks retain “works”, “does not work” and “cannot test yet” observations;
 recent additions can include private screenshots, tested revisions and links to try them.
-Project cards will refresh independently, retain source freshness, and preserve
+Project cards refresh independently, retain source freshness, and preserve
 an open decision or walk when new updates arrive. The full goal is to operate
 every authorized project from mobile and desktop: inspect every observed routine
 run, learn across the fleet, compare versions and launch update PRs, manage scoped
@@ -172,6 +172,8 @@ and project summaries, with project lenses, search, source links and explicit
 coverage gaps. The first source read fills a loading view; later updates wait
 behind **Show changes** so the card you are reading stays stable. See
 [Using Home](docs/guide/web-home.md) for refresh behavior and limits.
+The [visual tour](docs/guide/web-tour.md) collects desktop/mobile captures and
+links to the guides and proof for testing, changes, routines, updates and models.
 
 Local [result feedback](docs/guide/feedback.md) now retains exact reviewed bytes,
 private revision history and explicit resolutions. It prepares issue or shaping
@@ -230,9 +232,17 @@ model policies, exact source review, separate count/run approvals, monetary ceil
 and continuation from a saved evidence summary. Unknown capacity remains explicit;
 unsupported build, review and subscription execution wait. Migration 011, provider
 credentials, data transfer and monetary allowance require separate activation proof.
-[Phases 107–108](docs/specs/web-fleet-operations.md#delivery-and-proof) verify complete
-mobile/desktop operating journeys. The phase records distinguish implementation
-from hosted activation and owner acceptance.
+[Consistent navigation and saved drafts](docs/guide/web-operation-experience.md)
+are being completed in phase107: one Fleet/project lens, a task-oriented operation
+catalogue, safe return after sign-in, and explicitly saved daily/model editor
+drafts. The catalogue maps CLI arguments but does not make unsupported operations
+executable. [Night controls](docs/guide/web-night-operations.md) add reviewed
+existing-branch plan publication and a separately activated canonical-night retry;
+arbitrary workflows and unregistered source profiles remain unsupported. Confirmed
+private drafts can follow an authorized user across devices; unsaved offline text
+can be lost when a phone closes its tab. [Phases107–108](docs/specs/web-fleet-operations.md#delivery-and-proof)
+retain those execution gaps and the real mobile/desktop operating trial. The phase
+records distinguish implementation, hosted activation and owner acceptance.
 
 ### Keep application code and private data separate
 
@@ -356,11 +366,14 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Run supported routines](docs/guide/web-workers.md) | you want to review an approved worker, reserve bounded runtime, recover an original request or inspect a cancellation and linked retry |
 | [Routine definitions and observed activity](docs/guide/web-routine-history.md) | you want to inspect workflow definitions, retries, stages, evidence, costs and bounded history coverage |
 | [Daily work and private learning](docs/guide/web-daily-learning.md) | you want to inspect nightly sources, draft within explicit limits, review private lesson copies or download exact approved text |
+| [Visual web tour](docs/guide/web-tour.md) | you want desktop/mobile screenshots and links to explore each implemented journey |
 | [Private Home board](docs/guide/web-home.md) | you want to understand project attention, refresh, source coverage and the browser walkthrough |
 | [Visual changes and private captures](docs/guide/web-changes.md) | you want to explore additions, review private screenshot uploads and recover or delete exact artifacts |
 | [Guided web walks](docs/guide/web-walks.md) | you want to author tests, save private observations, review exact acceptance files and prepare a repair |
 | [Web decisions](docs/guide/web-decisions.md) | you want to review exact changes, understand write access and recover an original operation receipt |
 | [Web authentication service](docs/guide/web-auth-service.md) | you are configuring the server, private membership, session database and production secrets |
+| [Night plan publication and retries](docs/guide/web-night-operations.md) | you want to review canonical plan changes or request a bounded, registered failed-night retry |
+| [Navigation, operation coverage and saved drafts](docs/guide/web-operation-experience.md) | you want to change project lens, understand supported operations or resume a confirmed private draft |
 | [Private web workspace setup](docs/guide/web-workspace-setup.md) | you want a private data repo and the path to hosted sign-in and Home |
 | [Private result feedback](docs/guide/feedback.md) | you want to preserve the exact result reviewed and explicitly propose or resolve follow-up work |
 | [The board](docs/guide/the-board.md) | you are asking "what's next?", or what is waiting on you |

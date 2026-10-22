@@ -108,3 +108,19 @@ than silently exporting other source. Background work may outlive the browser;
 there is no scheduler or automatic wall-clock cancellation. Uncertain delivery
 holds its charge and blocks that connection across projects. These limitations
 remain visible and feed the operation-coverage audit in phase107.
+
+## Post-commit integration
+
+On 2026-10-22 UTC, `node bin/keel.mjs ready --check 'npm run typecheck' --json`
+exited 0 for implementation `7ff0d7dc71d396f234d69930fc7fa091f8ce661b`.
+`node bin/keel.mjs integrate --json` exited 0 with one gate and landed it on
+`main` at `09eec5ef1ec54dc5a6d6a6340558906e993aac49`. The integrated
+`npm run check` passed 2,481/2,481 tests, all eight pinned timing suites and the
+roadmap/render/inbox/pattern guards. The ledger reported no flaky or slower test;
+the busy run was omitted from timing comparisons. Historical undated-measurement
+advice remained advisory. These are local results, not reused CI or deployment.
+
+CI subsequently completed successfully on that exact main revision: [typecheck
+39711984998](https://github.com/dalmaer/keel/actions/runs/39711984998) and [check
+39711985080](https://github.com/dalmaer/keel/actions/runs/39711985080). Both were
+read as completed/success with `gh run list --commit 09eec5ef1ec54dc5a6d6a6340558906e993aac49 --json databaseId,name,status,conclusion,url`.
