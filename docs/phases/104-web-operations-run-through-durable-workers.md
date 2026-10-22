@@ -31,7 +31,7 @@ Contract: [Durable workers](../specs/web-workers.md), [Fleet operations](../spec
 ## Real surfaces
 
 - Workflow shell: dispatch and reconcile an approved real routine, then verify cancellation/retry and duplicate request behavior.
-- Existing scheduled workflow: review an approved exact cron change, preserve unrelated bytes and verify its actual source budget/overlap behavior.
+- GitHub API: review an approved exact cron change on an existing scheduled workflow, preserve unrelated bytes and verify its actual source budget/overlap behavior.
 
 ## Proof
 

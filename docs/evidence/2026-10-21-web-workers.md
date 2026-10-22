@@ -147,3 +147,25 @@ After explicit approval, the owner/operator exercise must:
    repo's no-cron typecheck cannot establish that surface.
 5. Complete those journeys on the owner's desktop and phone and record usability
    findings. A local pass or merge does not establish production or lived-in use.
+
+## Integration correction, 2026-10-21 local
+
+The first integrated test suite on implementation `514305eff946472de3eccdb17c51f3d078077dbb`
+reported 2,363 tests: 2,361 passed and two failed. Both failures were the same
+phase-record defect: `Existing scheduled workflow` was not an allowed Real
+surfaces category. The CLI JSON contract and self-doctor tests correctly rejected
+that record. The surface now uses `GitHub API`, retaining the same existing-cron
+exercise and acceptance requirement. No test assertion was weakened.
+
+After the correction, the conductor ran:
+
+```sh
+node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='--json parses for every verb|keel itself is clean' tests/cli.test.mjs tests/doctor.test.mjs
+# exit 0; 2/2
+npm run roadmap
+# exit 0; 109 phases, 8 goals
+```
+
+The corrected doctor read reports no lint and no edited/both managed-file drift.
+The failed integrated result remains part of this record; the next integration
+attempt must check the corrected tree in full.
