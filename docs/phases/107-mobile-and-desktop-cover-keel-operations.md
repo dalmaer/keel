@@ -1,10 +1,10 @@
 ---
-status: planned
-since: 2026-10-21
+status: designed
+since: 2026-10-22
 goal: G7
 spec: 2
 depends: [98, 99, 105, 106]
-note: "Expanded fleet operating goal; design and proof remain to be implemented."
+note: "Coverage, shared navigation and typed draft contract settled; implementation and unsupported core execution remain open."
 evidence: []
 ---
 
@@ -19,7 +19,8 @@ Every current Keel operation has a deliberate web treatment, and core fleet/proj
 Reaudit public commands, arguments and installed routines against a shared capability registry. Finish native workflows and supported worker/local bridges. Verify project-lens switching, accessible controls, deep links, drafts and reconnect without unsafe mutation replay.
 
 Contract: [Fleet operations](../specs/web-fleet-operations.md),
-[workspace](../specs/web-workspace.md) and [CLI mapping](../specs/web-ui-command-map.md).
+[workspace](../specs/web-workspace.md), [CLI mapping](../specs/web-ui-command-map.md)
+and [operation experience](../specs/web-operation-experience.md).
 
 ## Acceptance
 
@@ -34,6 +35,9 @@ Contract: [Fleet operations](../specs/web-fleet-operations.md),
 ## Proof
 
 Test paths below are planned implementation targets, not existing passing checks.
+The operation-experience spec distinguishes coverage from executable core journeys
+and names the actual browser and SQL proof; unsupported failed-night retry remains
+an implementation gap, not an owner walk.
 
 - `node --import ./tests/helpers/hermetic.mjs --test tests/web-operation-coverage.test.mjs tests/web-responsive.test.mjs`
 - `npm run check`
@@ -45,9 +49,16 @@ Test paths below are planned implementation targets, not existing passing checks
 
 Local-only operations may require an authorized runner; unsupported capabilities stay visible and cannot count as complete core journeys.
 
+Settled 2026-10-22: preserve the existing domain execution adapters; catalogue
+coverage does not establish execution. Save typed daily/model editor drafts in a
+separate encrypted CAS store, with explicit expiry and activation approval.
+Offline unsaved edits remain in memory; no private browser persistence is added.
+
 ## Next action
 
-Build the executable operation-coverage matrix and identify missing core journeys before responsive acceptance.
+Implement the shared coverage registry, scoped navigation/recovery and typed private
+drafts against the operation-experience contract; retain failed-night retry and
+other unsupported required adapters as implementation gaps before acceptance.
 
 ## Trajectory
 

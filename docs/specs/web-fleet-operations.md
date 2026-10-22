@@ -45,8 +45,11 @@ Mobile uses Home / Projects / Activity / More, full-page details and a persisten
 project selector. Routines, Learning, Updates and Connections remain reachable
 through More; do not cut features to achieve a narrow layout. Rows become labeled
 cards with at least 44px touch targets, keyboard/focus support and text status.
-A sticky action footer shows the actual operation, project and scope. Filters,
-selected record and drafts survive navigation, backgrounding and reconnection.
+A sticky action footer shows the actual operation, project and scope. Filters and selected records use validated deep links. Explicitly server-saved
+drafts survive navigation, backgrounding and reconnection; unsaved offline edits
+remain only in the open page and may be lost on mobile process eviction. The
+[operation experience](web-operation-experience.md) defines typed persistence,
+source revalidation and current capability gaps.
 Offline pages show their age; queue no consequential mutation silently for replay.
 An expired session preserves a draft but requires fresh authorization and preview
 before submission. Large logs are paginated, searchable and downloadable with
