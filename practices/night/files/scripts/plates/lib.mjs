@@ -1156,8 +1156,9 @@ export function climbLine(config, night) {
   const kept = night.tried.filter(a => a?.verdict === 'keep').length;
   if (kept) return `Climb: ${night.date} ${night.job}: kept ${kept}, ${Number.isInteger(night.pr) ? `PR #${night.pr}` : `no PR opened${night.gate ? '' : ' (the guard did not pass)'}`}.`;
   const none = night.job === 'hygiene' ? 'none proven steady' : `none beat the noise${Number.isFinite(night.margin) ? ` (margin ${Math.round(night.margin * 100)}%)` : ''}`;
-  const why = night.tried.length ? `${night.tried.length} tried, ${none}` : 'nothing was tried';
-  return `Climb: ${night.date} ${night.job}: kept nothing (${why}).`;
+  const why = night.tried.length ? `${night.tried.length} tried, ${none}` : 'no measured attempts recorded';
+  const unsettled = night.settlements?.length ? '; incomplete: unmeasured work recorded at settlement' : '';
+  return `Climb: ${night.date} ${night.job}: kept nothing (${why}${unsettled}).`;
 }
 
 /** A climb job's PR branch prefix. */
