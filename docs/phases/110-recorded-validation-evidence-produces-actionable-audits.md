@@ -1,11 +1,11 @@
 ---
-status: partial
+status: built
 since: 2026-10-22
 goal: G5
 spec: 2
 depends: []
 review: wait
-note: "Read-only analyzer and real replay verified; exact-head CI/review and parent rollout review pending."
+note: "Implemented and verified at 0f8b157; parent approves continuing phase 111 only. PR 225 remains unmerged; no rollout or deployment approval."
 evidence: ["evidence/2026-10-22-validation-audit.md"]
 ---
 
@@ -26,9 +26,9 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 - [x] `tests/validation-audit.test.mjs` proves unknown evidence cannot authorize reuse or hide missing fleet coverage, and the CLI runs no gates or network calls.
 - [x] Real retained audit evidence produces an attributable report with CPU/wall/overlap limitations explicit: `node scripts/validation-audit.mjs --manifest plates.json --input ../audit-input.json --json`.
 - [x] `tests/check-focused.test.mjs` proves mandatory convention selection and failure propagation; /spin invokes preflight before integration.
-- [ ] Required integrated checks pass: `npm run check`; `npm run typecheck`.
-- [ ] Exact-head review is recorded: `node bin/plates.mjs review dalmaer/plates#<PR> --gate --json` plus inspection of pinned complete review inputs.
-- [ ] ⚑ by hand: parent reviews evidence before broader rollout.
+- [x] Required integrated checks pass: `npm run check`; `npm run typecheck`.
+- [x] Exact-head review is recorded: `node bin/plates.mjs review dalmaer/plates#<PR> --gate --json` plus inspection of pinned complete review inputs.
+- [x] ⚑ by hand: parent reviews evidence before broader rollout. Approval permits phase 111 implementation only, not merge, consumer adoption or deployment.
 
 ## Your part
 
@@ -38,7 +38,7 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 - **Choices:** Proceed with the next stage | Revise the stage
 - **Takes:** About five minutes once review and checks finish.
 - **Then:** A separate implementation PR advances the next stage; no production rollout is automatic.
-- **Ready when:** Exact-head checks and normal review have completed.
+- **Ready:** yes; parent review is complete for the implementation-continuation boundary only.
 
 ## Real surfaces
 
@@ -58,7 +58,7 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Complete exact-head checks and normal review, then ask the parent to review this stage before broader rollout.
+None. Parent approved continuing implementation in a separate phase 111 draft PR; PR 225 remains unmerged.
 
 ## Trajectory
 
@@ -74,3 +74,5 @@ Complete exact-head checks and normal review, then ask the parent to review this
 - **2026-10-22** — The new package alias invalidated the reviewed executable-metadata fingerprint, another omitted audit preflight lesson. Inspected the single alias addition, refreshed only its package binding for PR review, and made capability invalidation checks mandatory in the preflight.
 
 - **2026-10-22** — Independent Claude review of complete pinned inputs found silent unknown setup completion and omitted staged whitespace. Add regression-proven corrections; keep the old head’s pass/review distinct from the corrected candidate’s required checks.
+
+- **2026-10-22** — Parent independently verified 0f8b157, its complete 23-file diff, CI and zero-finding Claude review, and accepted phase 110 as the boundary for continuing phase 111. This is implementation acceptance, not merge, deployment, consumer adoption or measured speedup.

@@ -234,3 +234,41 @@ negative-control success, separate from accidental failed checkpoints.
 The corrected tree's required full gate runs after this record. Its result
 belongs in the fix commit body and `phase110-review-integrated.log`; the prior
 head’s result cannot substitute for it.
+
+
+## Parent acceptance and phase 111 boundary — 22 October 2026
+
+The final phase 110 head is `0f8b157a9a879d7ec1383c19b0d0f1b67ae6f2a9`,
+tree `3594086abe1ce7251e4baf39317781efa6724f9e`, in [PR 225](https://github.com/dalmaer/plates/pull/225).
+Local focused preflight passed 142/142 and all five stages; local configured
+gate passed 2,805/2,805 ordinary tests, all eight stall files and remaining
+guards: 382.61 s wall, 2,038.48 s user CPU, 979.65 s system CPU on explicit
+Node 26.12.1. [Exact-head CI](https://github.com/dalmaer/plates/actions/runs/39863808673)
+passed on clean head/tree with Node 24.22.1; outer gate wall was 295.259 s,
+CPU duration unavailable. Its 2,801 passes and four existing filesystem-specific
+skips cover 2,805 cases; the four skipped cases passed on local macOS. All
+eight stall receipt files match the same clean revision.
+
+[Fresh Claude review](https://github.com/dalmaer/plates/actions/runs/39863866770)
+reported zero findings; both earlier findings were answered and resolved.
+The retained 23-file diff equals the local expected bytes, SHA-256
+`ac595fed6a2e3a21bf007a3180d468db38324d00488128bbf56014c71abaf62e`.
+Both downloaded CI and review archives match the provider digests. These
+are validation observations, not observed speed savings or new reuse authority.
+
+Recovery also exposed a separate preflight omission: after terminal transport
+loss, the shell selected unsupported Node 24.13.0. That run failed four cases
+and cost 407.89 s wall / 965.90 s user CPU / 980.29 s system CPU. All four
+passed unchanged after explicit runtime restoration, followed by the complete
+preflight and successful full gate. The interrupted and failed logs are retained;
+neither is treated as success. Parent additionally found the missed physical
+local data-directory rename, then confirmed its correction at 22:01 with an
+old-path compatibility link and unchanged clean head. This task did not change
+that checkout. The retrospective preserves both completeness omissions.
+
+Parent independently reviewed this exact head, diff, checks and fresh review
+and approves phase 110 as the boundary for continuing phase 111 implementation.
+That decision does not authorize merge, deployment, consumer rollout, changing
+gate defaults or another schedule. Phase 111 is explicitly stacked on 0f8b157
+in a separate worktree and draft PR; this acceptance reconciliation travels
+with that next PR so the reviewed phase 110 head stays immutable.

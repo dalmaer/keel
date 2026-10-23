@@ -2552,3 +2552,12 @@ In a Plates source checkout, `node scripts/validation-audit.mjs --help` describe
 the bounded read-only analyzer. See `docs/development/validation-audit.md`. It reports
 retained evidence and gaps; it does not execute checks, authorize gate reuse or
 create a schedule. This development entrypoint is not an installed CLI verb.
+
+
+In a source checkout, `node scripts/validation-plan.mjs --help --json` describes
+read-only capability checks and conservative focused suggestions; it never
+executes tests or waives the configured gate. `node scripts/validation-budget.mjs
+--help --json` describes opt-in cooperative host admission, with an explicit
+foreground process-group contract and no automatic stale cleanup. See
+`docs/development/validation-preflight.md`. These are development entrypoints,
+not installed CLI verbs or automatic consumer adoption.

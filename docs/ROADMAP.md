@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**49 of 116 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
+**50 of 116 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). Move the approved canvas's weekly "Loop across projects" report to one live card. The owner approved this on 2026-10-13. That binding is published by the weekly script, which calls `canvasSync` with its own keys, not by `plates canvas sync`. Three steps, in the reporting workspace, after this work is released there: 1. Change the script's key for that card from a dated one to the fixed key `loop-across-projects`. The title may keep its date. 2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved writer: `plates canvas live --card loop-across-projects` (preview), then the same with `--yes`. No card has that key yet, so nothing is adopted and no re-base is needed; the dated editions stay on the canvas as history. 3. Let one weekly run create the card and the next one edit it in place. Confirm both in the browser, then edit the card as a person and see the next run refuse. Record it as evidence. If `pulse` is also kept in `--card` and that journal has a pulse published before 2026-10-13, its receipt has no recorded metadata: the preview says `unrecorded-metadata` and it needs one `plates canvas rebase --onto <version-id> --yes` after the owner has looked at the card. After that, provision the dedicated GitHub writer using the project-canvas guide and verify night/restart behavior, including a restored pending edit. Scheduled-use evidence (seven nights) is still owed. Do not ask again for the destination, writer or dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -233,7 +233,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Plates can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-2/10 built; 3 owe a walk.
+3/10 built; 3 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -244,8 +244,8 @@ Plates can show, with numbers across the fleet, whether projects it manages ship
 | [56. plates knows where time goes](phases/56-plates-knows-where-time-goes.md) | partial, walk owed (time) | 2026-10-09 | [33](phases/33-every-test-run-is-remembered-and-a-flaky-or.md) | Timing context, usual times, failure memory, root-gate trends and bounded local transcript reporting are implemented. Linux CI capture is verified; the owner's two-week usefulness read remains open. · [#43](https://github.com/dalmaer/plates/issues/43) |
 | [61. CI cost is a measure, and adoption says what plates adds](phases/61-ci-cost-is-a-measure-and-adoption-says-what.md) | partial, walk owed | 2026-10-09 | [43](phases/43-each-budgeted-pass-shows-what-it-used.md) | Implemented: bounded CI usage estimates, exact clean default-branch CI reuse and adoption cost previews. Real API accounting, estimates and clean committed CI reuse verified; the owner’s month on a metered project remains owed. · [#48](https://github.com/dalmaer/plates/issues/48) |
 | [72. Session handoffs improve through bounded measured trials](phases/72-session-handoffs-improve-through-bounded.md) | built | 2026-10-12 | [40](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md), [67](phases/67-cli-cost-and-checked-contracts.md) | Explicit session trials, bounded admission, safe handoffs, paired audit and policy rollback implemented; packed lifecycle verified. Real-world savings and host lifecycle adapters remain unproven. |
-| [110. Recorded validation evidence produces actionable audits](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | partial | 2026-10-22 | — | Read-only analyzer and real replay verified; exact-head CI/review and parent rollout review pending. |
-| [111. Focused feedback starts with capability and resource checks](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | designed | 2026-10-22 | [110](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | Staged implementation from the migration audit; required gate policy unchanged. |
+| [110. Recorded validation evidence produces actionable audits](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | built | 2026-10-22 | — | Implemented and verified at 0f8b157; parent approves continuing phase 111 only. PR 225 remains unmerged; no rollout or deployment approval. |
+| [111. Focused feedback starts with capability and resource checks](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | partial | 2026-10-22 | [110](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | Source implementation awaits integrated checks, exact-head review and parent review; defaults unchanged. |
 | [115. Measured shadow selection preserves full validation](phases/115-measured-shadow-selection-preserves-full-validation.md) | designed | 2026-10-22 | [111](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md), [114](phases/114-complete-consumer-attestations-support-exact-head-reuse.md) | Staged implementation from the migration audit; required gate policy unchanged. |
 
 - **12 done when:** `plates fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `plates.json` and `gh`, in under ten seconds.
