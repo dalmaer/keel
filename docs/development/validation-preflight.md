@@ -104,6 +104,15 @@ an unresolved lock leaves its ownership uncertain. It has no automatic stale
 cleanup. A new attempt never overwrites an uncertain
 prior attempt or silently retries its command.
 
+Read-only owner observation makes at most four strict JSON reads during a
+publication overlap (three retries, 5 ms apart). Persistent malformed JSON or a
+writer paused beyond that bound still refuses inspection. An opened owner inode removed by
+cleanup is unavailable only after all other file safety checks pass and its
+original path is absent; a present replacement is refused. Both a missing and
+a just-removed owner leave the observed coordination directory busy. Observation
+never releases leases, removes a guard, retries a workload or establishes gate
+evidence. State and archive file reads retain their strict link checks.
+
 `--capacity N` is required for plan/run; `--weight N` defaults to one;
 `--timeout-ms N` bounds execution. `--json` keeps command output on stderr and
 structured results on stdout. Retained receipts contain a command digest and
