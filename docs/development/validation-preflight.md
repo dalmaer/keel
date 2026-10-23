@@ -63,6 +63,14 @@ admission refuses state inside its target. Capacity and weight are explicit admi
 measurement of CPU time or an automatic change to test worker concurrency.
 Conflicting capacity settings refuse admission instead of expanding the budget.
 
+For the first run, pass an absent state-directory path beneath an existing
+canonical parent; the wrapper creates that directory privately. Do not pre-create
+the state directory. An existing directory without `state.json`, even an empty
+one, is refused because missing metadata may conceal lost active ownership.
+First-time concurrent initialization can also refuse the losing caller. Stop and
+inspect the original path and any participating processes before an operator
+chooses a recovery action; the wrapper never resets, deletes or repairs it.
+
 Preview a source gate with capacity one; this neither creates state nor runs it:
 
 ```sh
