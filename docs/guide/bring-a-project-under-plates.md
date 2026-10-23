@@ -9,6 +9,21 @@ practice, copied by hand from another project, and the copy has drifted.
 
 For an empty directory, [Start a project](start-a-project.md) is shorter.
 
+## Complete adoption and enrollment separately
+
+A successful adoption changes the consumer repository only. Its JSON result,
+terminal output and adoption report explicitly leave central fleet membership
+**not checked**. Do not report a project as registered from that result, from a
+merged consumer PR, or from a temporary validation manifest.
+
+When the owner asks for fleet enrollment, use the verified `repo` identity and
+review a `managed` entry in Plates’s root `plates.json`. Preserve every existing
+entry’s role and policy. Run the [registration completion check](keep-the-fleet-current.md#complete-fleet-registration)
+against that actual manifest, record its source revision, and distinguish a
+passing local proposal from merged central membership. Hosted workspace listing,
+GitHub App access, worker registration, routines and budgets are separate scopes;
+this registration step does not configure them.
+
 ## What it does, and why it works that way
 
 `plates adopt` surveys the repo and switches a practice **on only where the

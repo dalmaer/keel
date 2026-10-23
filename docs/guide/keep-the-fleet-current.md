@@ -204,3 +204,33 @@ with its plan (0 when nothing is behind) and 1 when any repo failed. With
 - [Lessons and learning](lessons-and-learning.md): sending an edit home.
 - [`docs/design.md`](../design.md), sections 1 and 3: file kinds, versions
   and migrations.
+
+## Complete fleet registration
+
+The supported CLI fleet registry is `plates.json` at the Plates source root,
+not a consumer’s `.plates/plates.json` or an admission manifest. After owner
+approval, add the verified repository identity with the appropriate existing
+`kind` and `role: "managed"` policy in a separate reviewed change. Adoption
+itself never writes the registry.
+
+Use the [source checkout completion procedure](../development/fleet-registration.md)
+to verify the exact proposed or merged manifest. The checker is deliberately not
+an installed consumer command.
+
+This is a source-only completion check, not an installed CLI verb. It uses the
+same manifest parser as `plates fleet`, requires the root `plates.json` beside a
+Plates `plates: "self"` configuration, reads local bytes and writes nothing.
+An admission manifest or consumer configuration is refused.
+Exit 0 means that exact manifest contains the repo as `managed`; exit 1 means
+missing managed membership (a `source` entry does not count); exit 2 means
+unavailable/invalid evidence or usage. Preserve the inspected revision: a
+passing unmerged branch is not current remote fleet membership. Check remote
+main again after merge before calling registration complete.
+
+Enrollment adds the project to existing manifest-driven fleet reads, update
+planning and release rehearsal under their existing policies. It starts no
+command or schedule. Private hosted workspace manifests and server project
+allowlists, GitHub App grants, update-worker registries, audit target lists and
+user automations are separate. Inspect their actual configuration and obtain
+any required approval before extending access or scheduling; never infer those
+changes from a green consumer adoption or this check.
