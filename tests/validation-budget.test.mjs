@@ -4,9 +4,9 @@ import assert from 'node:assert/strict';
 import childProcesses from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { createHash } from 'node:crypto';
-import { mkdirSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
+import { constants, mkdirSync, writeFileSync, unlinkSync, rmdirSync } from 'node:fs';
 import fileOperations from 'node:fs/promises';
-import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, chmod, link, unlink, rmdir, readdir, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink, chmod, link, unlink, rmdir, readdir, stat, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -221,6 +221,141 @@ test('owned completion waits for a healthy competing writer and never steals a s
       if (validPid(childPid)) { try { process.kill(-childPid, 'SIGKILL'); } catch {} }
       await pending;
     }
+  }
+});
+
+for (const resume of [true, false]) test(`owner observation bounds partial publication with writer resume=${resume}`, { timeout: 15000 }, async t => {
+  const f = await fixture(t), target = await inspectBudgetTarget(f.options(0));
+  const options = { stateDir: f.stateDir, capacity: 1, target, argv: [process.execPath, '-e', 'process.exit(0)'], foreground: true, json: true, timeoutMs: 5000 };
+  assert.equal((await runBudget(options)).status, 0);
+  const path = join(f.stateDir, 'coordination/owner.json');
+  const ready = Promise.withResolvers(), release = Promise.withResolvers(), written = Promise.withResolvers();
+  const originalOpen = fileOperations.open; let held = false, reads = 0;
+  const observer = t.mock.method(fileOperations, 'open', async (...args) => {
+    const file = await Reflect.apply(originalOpen, fileOperations, args);
+    if (args[0] !== path) return file;
+    if ((args[1] & constants.O_CREAT) && !held) {
+      held = true; const write = file.writeFile.bind(file);
+      t.mock.method(file, 'writeFile', async (...values) => {
+        ready.resolve(); await release.promise;
+        const result = await write(...values); written.resolve(); return result;
+      });
+    } else if (!(args[1] & constants.O_CREAT)) {
+      const read = file.readFile.bind(file);
+      t.mock.method(file, 'readFile', async (...values) => {
+        const bytes = await read(...values); reads++;
+        if (reads === 1) {
+          assert.equal(bytes.length, 0, 'the actual writer has not published JSON yet');
+          if (resume) { release.resolve(); await written.promise; }
+        }
+        return bytes;
+      });
+    }
+    return file;
+  });
+  syncBuiltinESMExports();
+  const pending = runBudget(options);
+  try {
+    await ready.promise;
+    await assert.rejects(runBudget(options), { code: 'coordination_busy_inspect_do_not_steal' });
+    if (resume) {
+      const observed = await inspectBudget({ stateDir: f.stateDir });
+      assert.equal(observed.coordinationBusy, true);
+      assert.ok(observed.coordinationOwner === null || typeof observed.coordinationOwner.id === 'string');
+    } else {
+      await assert.rejects(inspectBudget({ stateDir: f.stateDir }), SyntaxError);
+      assert.equal(reads, 4, 'persistent incomplete publication has a fixed read bound');
+      assert.equal(await readFile(path, 'utf8'), '');
+    }
+  } finally {
+    release.resolve(); await pending; observer.mock.restore(); syncBuiltinESMExports();
+  }
+  assert.equal((await pending).status, 0);
+  const after = await inspectBudget({ stateDir: f.stateDir });
+  assert.equal(after.used, 0); assert.equal(after.coordinationBusy, false);
+  assert.equal(after.history.length, 2, 'observation never launches or retries a command');
+});
+
+test('owner observation remains busy when its opened owner is removed by the actual writer', { timeout: 15000 }, async t => {
+  const f = await fixture(t), target = await inspectBudgetTarget(f.options(0));
+  const options = { stateDir: f.stateDir, capacity: 1, target, argv: [process.execPath, '-e', 'process.exit(0)'], foreground: true, json: true, timeoutMs: 5000 };
+  assert.equal((await runBudget(options)).status, 0);
+  const path = join(f.stateDir, 'coordination/owner.json'), originalOpen = fileOperations.open;
+  const writerReady = Promise.withResolvers(), writerRelease = Promise.withResolvers();
+  const readerReady = Promise.withResolvers(), readerRelease = Promise.withResolvers();
+  let held = false, holdReader = false, detachedLinks;
+  const observer = t.mock.method(fileOperations, 'open', async (...args) => {
+    const file = await Reflect.apply(originalOpen, fileOperations, args);
+    if (args[0] !== path) return file;
+    if ((args[1] & constants.O_CREAT) && !held) {
+      held = true; const write = file.writeFile.bind(file);
+      t.mock.method(file, 'writeFile', async (...values) => { const result = await write(...values); writerReady.resolve(); await writerRelease.promise; return result; });
+    } else if (!(args[1] & constants.O_CREAT) && holdReader) {
+      holdReader = false; const stat = file.stat.bind(file);
+      t.mock.method(file, 'stat', async (...values) => { readerReady.resolve(); await readerRelease.promise; const result = await stat(...values); detachedLinks = result.nlink; return result; });
+    }
+    return file;
+  });
+  syncBuiltinESMExports();
+  const pending = runBudget(options); let reading;
+  try {
+    await writerReady.promise; holdReader = true;
+    reading = inspectBudget({ stateDir: f.stateDir });
+    await readerReady.promise; writerRelease.resolve(); assert.equal((await pending).status, 0);
+    readerRelease.resolve(); const observed = await reading;
+    assert.equal(detachedLinks, 0, 'real cleanup removed the opened inode');
+    assert.equal(observed.coordinationBusy, true); assert.equal(observed.coordinationOwner, null);
+  } finally {
+    writerRelease.resolve(); readerRelease.resolve(); await Promise.allSettled([pending, reading]);
+    observer.mock.restore(); syncBuiltinESMExports();
+  }
+  const after = await inspectBudget({ stateDir: f.stateDir });
+  assert.equal(after.used, 0); assert.equal(after.coordinationBusy, false); assert.equal(after.history.length, 2);
+});
+
+test('owner observation refuses persistent malformed data, unsafe files and replacement after open', async t => {
+  for (const kind of ['malformed', 'mode', 'hardlink', 'symlink', 'replacement', 'detached-unsafe', 'state-unlinked', 'guard-replacement', 'state-replacement', 'io']) {
+    const f = await fixture(t); assert.equal(run(process.execPath, f.args('run')).status, 0);
+    const guard = join(f.stateDir, 'coordination'), path = join(guard, 'owner.json'), bytes = '{"id":"Acme-owner"}';
+    await mkdir(guard, { mode: 0o700 }); await writeFile(path, kind === 'malformed' ? '{' : bytes, { mode: 0o600 });
+    const stateBefore = await readFile(join(f.stateDir, 'state.json'));
+    if (kind === 'mode' || kind === 'detached-unsafe') await chmod(path, 0o644);
+    if (kind === 'hardlink') await link(path, join(f.dir, 'alias'));
+    if (kind === 'symlink') { await unlink(path); const target = join(f.dir, 'target'); await writeFile(target, bytes, { mode: 0o600 }); await symlink(target, path); }
+    const originalOpen = fileOperations.open; let changed = false;
+    const observedPath = kind === 'state-unlinked' ? join(f.stateDir, 'state.json') : path;
+    const observer = t.mock.method(fileOperations, 'open', async (...args) => {
+      const file = await Reflect.apply(originalOpen, fileOperations, args);
+      if (args[0] === observedPath && !changed && ['replacement', 'detached-unsafe', 'state-unlinked', 'guard-replacement', 'state-replacement', 'io'].includes(kind)) {
+        changed = true; const stat = file.stat.bind(file);
+        t.mock.method(file, 'stat', async (...values) => {
+          if (kind === 'io') throw Object.assign(new Error('Acme I/O failure'), { code: 'EIO' });
+          if (kind === 'guard-replacement' || kind === 'state-replacement') {
+            const directory = kind === 'guard-replacement' ? guard : f.stateDir;
+            await rename(directory, join(f.dir, 'old-directory')); await mkdir(directory, { mode: 0o700 });
+            if (kind === 'state-replacement') {
+              await writeFile(join(f.stateDir, 'state.json'), stateBefore, { mode: 0o600 });
+              await mkdir(guard, { mode: 0o700 });
+            }
+            await writeFile(path, '{"id":"Acme-replacement"}', { mode: 0o600 });
+          } else {
+            await unlink(observedPath);
+            if (kind === 'replacement') await writeFile(path, '{"id":"Acme-replacement"}', { mode: 0o600 });
+          }
+          return stat(...values);
+        });
+      }
+      return file;
+    });
+    syncBuiltinESMExports();
+    try {
+      const code = { replacement: 'coordination_owner_replaced', symlink: 'symlink_path_refused', 'guard-replacement': 'coordination_directory_replaced', 'state-replacement': 'state_directory_replaced', io: 'EIO' }[kind] ?? 'unsafe_input_file';
+      await assert.rejects(inspectBudget({ stateDir: f.stateDir }), kind === 'malformed' ? SyntaxError : { code });
+    } finally { observer.mock.restore(); syncBuiltinESMExports(); }
+    if (kind !== 'state-unlinked') assert.deepEqual(await readFile(join(f.stateDir, 'state.json')), stateBefore);
+    const refused = run(process.execPath, f.args('run')); assert.equal(refused.status, 2);
+    assert.equal((await stat(guard)).isDirectory(), true, 'inspection cannot remove or steal the guard');
+    if (kind === 'replacement') assert.equal(await readFile(path, 'utf8'), '{"id":"Acme-replacement"}');
   }
 });
 

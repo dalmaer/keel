@@ -815,3 +815,21 @@ test('renamed workflows read the durable legacy remote blob while working plans 
     assert(!text.includes('keel-night-plan:.plates/night/plan.json'));
   }
 });
+
+test('climb plan distinguishes a judged no-improvement from blocked and no-candidate runs', async t => {
+  for (const [execution, completion, judged, expected, prefix] of [
+    ['executed', 'no-improvement', 'success', 'done', 'no-improvement:'],
+    ['executed', 'no-candidate', 'success', 'failed', 'no-candidate:'],
+    ['blocked', '', 'skipped', 'failed', 'blocked:'],
+    ['', 'no-improvement', 'success', 'failed', 'no pull request:'],
+  ]) {
+    const { dir, temp, show } = await planRemote(t, plannedTonight());
+    await mkdir(join(temp, 'plan'), { recursive: true });
+    await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ plan: { item: 'climb-tests', admitted: { lane: 'climb:test-time', number: plannedTonight().items[0].number }, skipped: [] } }));
+    const r = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: judged, EXECUTION: execution, COMPLETION: completion, OPENED: 'skipped', PR: '', LINE: 'kept nothing; two attempts were judged' });
+    assert.equal(r.status, 0, r.out);
+    const item = show().items.find(i => i.id === 'climb-tests');
+    assert.equal(item.status, expected);
+    assert.ok(item.result.note.startsWith(prefix), item.result.note);
+  }
+});

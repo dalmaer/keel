@@ -5,7 +5,7 @@ goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Fresh complete local review found a collector type-coercion defect; focused correction preserves unknowns. Corrected-head gates/review and complete producers/equivalence remain separate."
+note: "Ledger collector correction passed complete local review and source CI at 0eac65c. Current-main integration is being revalidated; complete producers/equivalence/adoption remain separate."
 evidence: ["evidence/2026-10-23-validation-evidence-foundation.md", "evidence/2026-10-23-ledger-retained-evidence.md"]
 ---
 
@@ -78,7 +78,7 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Complete corrected-head source integration, CI and independent correction review after the fresh full local review found non-string digest coercion. Preserve prior gate/review attempts separately. Then consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
+Complete final-head integration checks and independent review of the collector PR against current main, then await the parent's merge decision. Preserve prior gate/review attempts separately. Consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
 
 ## Trajectory
 
