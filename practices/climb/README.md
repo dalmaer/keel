@@ -145,9 +145,13 @@ paths. Each job uploads its handoff (`plates-climb-agent`,
 A run whose agent failed before its budget ran out (no secret, a bad
 model: an error after one turn) is red: `agent-ran`, the step after the
 agent's, reads the step's outcome and the action's execution file and
-prints only the result's error text (at most 300 characters, saying whether
-the secret or the model was refused), and nothing is judged or pushed. A
-budget timeout is not red; what was kept is judged (lesson 29).
+prints a sanitized diagnosis (never raw provider error text), and nothing is
+judged or pushed. A budget timeout can be judged only with a valid execution
+result and no permission denials. Missing, empty, invalid or oversized evidence
+stays blocked even at timeout: work may have run, but execution is unverified
+(lesson 29). Evidence is read through EOF within an 8 MiB limit; a short read
+does not end the file, and logs over the limit are explicitly reported as too
+large. Reading only the tail could discard denial evidence, so it is not used.
 
 **The tend pass** (phase 38). With `"tend": { "schedule": "weekly",
 "budget": { "minutes": 30 } }` in `.plates/plates.json` (no `tend`, no pass),
@@ -310,3 +314,32 @@ CI's `plates-test-runs` artifacts first, and its workflow may file one issue
 **Lineage.** Plates phases 35, 36, 37 (perf, lessons, loop), 38 (tend) and 47 (Codex), from the 6 October 2026 hill-climb on plates's own
 suite; design in plates's `docs/research/2026-10-06-climb-nights.md` and
 `docs/research/2026-10-06-tend-pass.md`.
+
+### Execution receipts and elapsed time
+
+Before baseline measurements, a bounded runner preflight checks scratch-file
+read/write access, Node/npm availability and an isolated Git commit. This does
+not prove the later agent action's permissions. No policy, credentials or tool
+allowlist is broadened. A failed preflight stops before measurement.
+
+A successful action still needs execution evidence. Claude permission denials
+block judging, including success with an unchanged head; missing or oversized
+execution evidence also blocks. Receipts keep denial counts and at most eight
+tool categories, never denied arguments, paths or session messages. A reported
+count without details stays explicitly unknown. Codex supplies only a final
+message here: missing output blocks, and denial telemetry is unavailable.
+
+The baseline clock begins before measurement. Artifacts retain runner setup,
+baseline, agent elapsed and judge wall seconds separately, with unavailable
+phases and CPU time represented by null. Total is elapsed wall time through the
+snapshot, including inter-job queue/transfer; it excludes checkout before the
+first timestamp and later publication. The phase fields are not summed as a
+total; later setup and queue intervals may remain unallocated. The provider's
+reported duration is separate from the action's elapsed wall time.
+
+Reports distinguish `blocked`, `no-candidate`, `incomplete`, `no-improvement` and `candidate`.
+A successful judge that retained completed comparison or failing proof evidence for every attempt but retained none can complete its
+plan item as `no-improvement` without a PR. No candidate and missing execution
+remain distinct failures. These receipts are advisory: existing sandbox,
+changed-file, test-ledger, mandatory gate and publish checks still decide what
+can proceed.

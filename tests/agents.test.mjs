@@ -31,7 +31,7 @@ const scripts = () => loaded ??= (async () => {
   await mkdir(plates, { recursive: true });
   for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
   await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
-  for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
+  for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
   const at = f => import(pathToFileURL(join(plates, f)).href);
   return { cross: await at('cross-review.mjs'), climb: await at('climb.mjs'), tend: await at('tend.mjs') };
 })();
@@ -572,9 +572,9 @@ test('a budget timeout never swallows a short budget: on a one-minute budget a f
   // Claude, in climb.mjs and cross-review.mjs's copy alike.
   for (const [where, v] of [['climb.mjs', climb.agentVerdict], ['cross-review.mjs', cross.agentVerdict]]) {
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 5, minutes: 1 }).ok, false, `${where}: 5 s of a 1-minute budget`);
-    assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 58, minutes: 1 }).timedOut, true, `${where}: 58 s`);
+    assert.equal(v({ outcome: 'failure', result: { is_error: false }, elapsedSec: 58, minutes: 1 }).timedOut, true, `${where}: 58 s`);
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 0, minutes: 1 }).ok, false, `${where}: 0 s`);
-    assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 15 * 60 - 30, minutes: 15 }).timedOut, true, `${where}: 15 min`);
+    assert.equal(v({ outcome: 'failure', result: { is_error: false }, elapsedSec: 15 * 60 - 30, minutes: 15 }).timedOut, true, `${where}: 15 min`);
   }
 });
 
@@ -588,7 +588,7 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
     const plates = join(dir, 'scripts/plates');
     await mkdir(plates, { recursive: true });
     for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
-    for (const f of ['climb.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
+    for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
     // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/plates ($RUNNER_TEMP is dir here).
     await cp(plates, join(dir, 'plates/scripts/plates'), { recursive: true });
     const now = Math.floor(Date.now() / 1000);
@@ -619,7 +619,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       const ran = env => outputs('Did the agent run?', { MINUTES: '30', STARTED: String(now - 20), EXECUTION: '', ...env });
       const red = await ran({ AGENT: 'codex', OUTCOME: 'failure' });
       assert.equal(red.status, 1, red.stdout + red.stderr);
-      assert.match(red.stdout, /^::error::Codex did not start: the agent step ended failure after \d+ s, before its 30-minute budget, with no final message; check OPENAI_API_KEY/);
+      assert.match(red.stdout, /^::error::blocked: Codex final execution evidence is missing; execution cannot be verified/);
+      assert.doesNotMatch(red.stdout, /did not start|OPENAI_API_KEY/, 'missing evidence does not establish a credential failure');
       await writeFile(join(dir, 'codex-final-message.md'), 'Kept one change.\n');
       const ok = await ran({ AGENT: 'codex', OUTCOME: 'success' });
       assert.equal(ok.status, 0, ok.stdout + ok.stderr);
@@ -627,7 +628,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       assert.doesNotMatch(ok.stdout, /Kept one change/, 'never the agent\'s words');
       const claude = await ran({ AGENT: 'claude', OUTCOME: 'failure' });
       assert.equal(claude.status, 1);
-      assert.match(claude.stdout, /^::error::Claude did not start/);
+      assert.match(claude.stdout, /^::error::blocked: Claude execution evidence is missing/);
+      assert.doesNotMatch(claude.stdout, /did not start|secret/, 'missing evidence does not establish that the agent never ran');
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

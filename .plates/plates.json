@@ -51,6 +51,7 @@
     "stalls": [
       "tests/climb.test.mjs",
       "tests/climb-codex.test.mjs",
+      "tests/climb-execution-regression.test.mjs",
       "tests/climb-guard.test.mjs",
       "tests/climb-hygiene.test.mjs",
       "tests/climb-pick.test.mjs",

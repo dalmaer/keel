@@ -48,7 +48,7 @@ async function load(t, { climb = false } = {}) {
   const dir = await acme(t);
   if (climb) {
     for (const f of ['test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
-    for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(dirname(CLIMB), f), join(dir, 'scripts/plates', f));
+    for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(dirname(CLIMB), f), join(dir, 'scripts/plates', f));
   }
   const at = f => import(pathToFileURL(join(dir, 'scripts/plates', f)).href);
   return climb ? { m: await at('cross-review.mjs'), climb: await at('climb.mjs') } : at('cross-review.mjs');
@@ -335,18 +335,29 @@ test('agent ran: red with only the error line when the agent failed before its b
   assert.ok(text.indexOf('- name: Did the agent run?') < text.indexOf('- name: Post the summary'));
 });
 
-test("agent ran: cross-review.mjs's copy of the check is climb.mjs's, function for function", async t => {
+test("agent ran: shared result parsing stays aligned; climb additionally requires denial-free execution evidence", async t => {
   const { m, climb } = await load(t, { climb: true });
-  for (const f of ['lastResult', 'agentVerdict', 'errorText', 'errorCause']) assert.equal(m[f].toString(), climb[f].toString(), `${f} drifted from climb.mjs`);
+  for (const f of ['lastResult', 'errorText', 'errorCause']) assert.equal(m[f].toString(), climb[f].toString(), `${f} drifted from climb.mjs`);
   assert.equal(m.ERROR_CHARS, climb.ERROR_CHARS);
   // And by behaviour, on the cases phase 35 named.
-  const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success', result: 'model: claude-acme-9 not_found_error' };
+  const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success' };
   for (const c of [
-    { outcome: 'success', result: early, elapsedSec: 5, minutes: 15 },
-    { outcome: 'failure', result: null, elapsedSec: 3, minutes: 15 },
-    { outcome: 'failure', result: null, elapsedSec: 15 * 60, minutes: 15 },
-    { outcome: 'success', result: { is_error: true, num_turns: 80, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 15 },
+    { outcome: 'failure', result: early, elapsedSec: 3, minutes: 15 },
+    { outcome: 'success', result: { is_error: true, num_turns: 80, duration_ms: 900000, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 15 },
   ]) assert.deepEqual(m.agentVerdict(c), climb.agentVerdict(c));
+  const providerError = { outcome: 'failure', result: { ...early, result: 'model: claude-acme-9 not_found_error' }, elapsedSec: 3, minutes: 15 };
+  assert.equal(m.agentVerdict(providerError).ok, false);
+  assert.equal(climb.agentVerdict(providerError).ok, false);
+  assert.match(m.agentVerdict(providerError).line, /It said:/);
+  assert.doesNotMatch(climb.agentVerdict(providerError).line, /It said:|claude-acme-9/, 'climb does not retain raw provider error text');
+  const missing = { outcome: 'failure', result: null, elapsedSec: 3, minutes: 15 };
+  const review = m.agentVerdict(missing), execution = climb.agentVerdict(missing);
+  assert.equal(review.ok, false, 'cross-review still refuses missing evidence before the budget');
+  assert.match(review.line, /with no result in the execution file/);
+  assert.equal(execution.ok, false);
+  assert.equal(execution.state, 'blocked');
+  assert.match(execution.line, /execution evidence has no valid result/);
+  assert.doesNotMatch(execution.line, /did not start|secret/, 'climb now reports unavailable evidence without inferring its cause');
 });
 
 test('summary: the agent\'s final message, posted as a COMMENT review on the head commit under the status marker; the budget said when it ran out', async t => {

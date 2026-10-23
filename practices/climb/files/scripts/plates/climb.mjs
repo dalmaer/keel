@@ -62,8 +62,9 @@
 // `agent-ran` reads the agent step's outcome and claude-code-action's
 // execution file after the step: an agent that failed before its budget ran
 // out (no secret, a bad model: is_error after one turn) ends the run red, so a
-// run that did nothing never reports success (lesson 29); a budget timeout is
-// not red, and what was kept is judged. Phase 38's tend pass (tend.mjs) shares
+// run that did nothing never reports success (lesson 29). A budget timeout needs
+// valid execution evidence without permission denials before judging kept work.
+// Phase 38's tend pass (tend.mjs) shares
 // this script, the workflow's rights and this check. With --agent codex (phase
 // 47) the file is Codex's final message, and lib.mjs codexVerdict judges it.
 // Codex commits to .plates/agent-git (its sandbox keeps .git read-only): with
@@ -82,7 +83,8 @@
 // scripts/loop.mjs propose. Their guard refuses any other path, any change to
 // the lessons table, and any finding decided tonight: deciding is the owner's
 // (lesson 53). Loop unreachable is a notice, never red.
-import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat } from 'node:fs/promises';
+import { denialEvidence, durations, completion } from './climb-execution.mjs';
+import { readFile, readdir, writeFile, mkdir, mkdtemp, rm, symlink, stat, open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -666,13 +668,14 @@ export async function measure({ root, config, env, job, runs = DEFAULTS.runs, ba
   const c = on(config);
   if (!Object.hasOwn(JOBS, job)) throw new ClimbError(`unknown job ${JSON.stringify(job)} (known: ${Object.keys(JOBS).join(', ')})`);
   const kind = JOBS[job].kind;
+  const started = new Date().toISOString();
   const m = kind === 'ledger' ? await flakyNow(root, config) : kind === 'proposals' ? await proposalsNow(root, config, job) : measureIn(root, { config, job, runs, env });
   if (baseline) {
     await writeNight(root, {
-      job, kind, date: today(), started: new Date().toISOString(), base: sha(root, 'HEAD'),
+      job, kind, date: today(), started, base: sha(root, 'HEAD'),
       command: m.command, margin: c.margin, attempts: c.attempts, rounds: DEFAULTS.rounds,
       ...(m.better ? { better: m.better, unit: m.unit, reads: 'output' } : {}),
-      baseline: { median: m.median, spread: m.spread, times: m.times },
+      baseline: { median: m.median, spread: m.spread, times: m.times, started, ended: new Date().toISOString() },
       ...(m.flaky ? { flaky: m.flaky } : {}),
       tried: [], gate: null, final: null,
     });
@@ -1764,7 +1767,7 @@ export function issueOf(night, { minutes = 0 } = {}) {
   return { title, body };
 }
 
-export async function report({ root, config, input, body, state = false, issue, base }) {
+export async function report({ root, config, input, body, state = false, issue, base, env = {} }) {
   on(config);
   const night = await readNight(root, input ? resolve(input) : undefined);
   if (!night) throw new ClimbError(`no night record at ${input ?? NIGHT}`);
@@ -1788,9 +1791,10 @@ export async function report({ root, config, input, body, state = false, issue, 
   if (state) await writeFile(join(root, STATE), `${JSON.stringify({ last: { job: night.job, date: night.date, kept: r.kept } }, null, 2)}\n`);
   const filed = issue ? issueOf(night, { minutes: r.minutes }) : null;
   if (filed) await writeFile(resolve(issue), filed.body);
+  const timing = durations({ started: env.PLATES_CLIMB_STARTED ?? Date.parse(night.started) / 1000, baselineStarted: env.PLATES_CLIMB_BASELINE_STARTED ?? Date.parse(night.baseline?.started) / 1000, baselineEnded: env.PLATES_CLIMB_BASELINE_ENDED ?? Date.parse(night.baseline?.ended) / 1000, agentSeconds: env.PLATES_CLIMB_AGENT_SECONDS, judgeStarted: env.PLATES_CLIMB_JUDGE_STARTED });
   night.line = r.line;
   await writeNight(root, night);
-  return { job: night.job, date: night.date, kept: r.kept, tried: r.tried, minutes: r.minutes, line: r.line, body: text && body ? resolve(body) : null, text, issue: filed ? { title: filed.title, path: resolve(issue) } : null };
+  return { state: completion(r, night), durations: timing, job: night.job, date: night.date, kept: r.kept, tried: r.tried, minutes: r.minutes, line: r.line, body: text && body ? resolve(body) : null, text, issue: filed ? { title: filed.title, path: resolve(issue) } : null };
 }
 
 // ---- did the agent run? ------------------------------------------------------------
@@ -1808,24 +1812,28 @@ export function lastResult(text) {
  * Whether the agent step did its work, pure: { ok, line }. Red (ok: false)
  * when the step failed, or its result is an error, before the budget ran out:
  * an agent that never started is not a quiet night (lesson 29). Running out
- * the budget (the step's time box) or its turns is not red: what it kept is judged.
+ * the budget or turns still requires a valid result without permission denials.
+ * A timeout with missing/invalid evidence is blocked, even if work may have run.
  * Ran out means a failed step past the larger of the budget less a minute and
  * nine tenths of it (and past 0 s): the slack never swallows a short budget,
  * so a failure at the start of a one-minute box is red (Codex on duo#83).
  */
-export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
-  const secs = r => `${Math.round((r ?? 0) / 1000)} s`;
+export function agentVerdict({ outcome, result, elapsedSec, minutes, evidence }) {
+  const secs = r => `${Number.isFinite(r) && r >= 0 ? Math.round(r / 1000) : '?'} s`;
+  const denials = denialEvidence(result);
+  if (denials.count) return { ok: false, state: 'blocked', denials, line: `blocked: the agent recorded ${denials.count} permission denials; nothing is judged or pushed` };
   const budget = minutes * 60;
-  if (outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec > 0 && elapsedSec >= Math.max(budget - 60, budget * 0.9)) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
-  if (result?.subtype === 'error_max_turns') return { ok: true, line: `the agent ran out its turns (${result.num_turns}) in ${secs(result.duration_ms)}: what it kept is judged` };
-  if (outcome === 'success' && !result?.is_error) return { ok: true, line: result ? `the agent ran: ${result.num_turns ?? '?'} turns in ${secs(result.duration_ms)}` : 'the agent step succeeded (no execution file to read)' };
-  if (result) {
-    const turns = Number(result.num_turns ?? 0);
+  if (result && typeof result.is_error === 'boolean' && outcome !== 'success' && Number.isFinite(elapsedSec) && Number.isFinite(budget) && elapsedSec > 0 && elapsedSec >= Math.max(budget - 60, budget * 0.9)) return { ok: true, timedOut: true, line: `the agent ran out its budget (${minutes} min, ${Math.round(elapsedSec)} s elapsed): what it kept is judged` };
+  if (typeof result?.is_error === 'boolean' && result?.subtype === 'error_max_turns') return { ok: true, line: `the agent ran out its turns (${Number.isSafeInteger(result.num_turns) ? result.num_turns : '?'}) in ${secs(result.duration_ms)}: what it kept is judged` };
+  if (outcome === 'success' && result?.is_error === false) return { ok: true, line: `the agent ran: ${Number.isSafeInteger(result.num_turns) ? result.num_turns : '?'} turns in ${secs(result.duration_ms)}` };
+  if (result && typeof result.is_error === 'boolean') {
+    const turns = Number.isSafeInteger(result.num_turns) && result.num_turns >= 0 ? result.num_turns : 0;
     const head = turns <= 1 ? 'Claude did not start' : 'Claude stopped with an error';
     const said = errorText(result);
-    return { ok: false, line: `${head}: is_error after ${turns} turn${turns === 1 ? '' : 's'} in ${secs(result.duration_ms)}${result.subtype ? ` (${result.subtype})` : ''}, before its ${minutes}-minute budget; ${errorCause(said)}. Nothing is judged or pushed.${said ? ` It said: "${said}"` : ''}` };
+    return { ok: false, line: `${head}: is_error after ${turns} turn${turns === 1 ? '' : 's'} in ${secs(result.duration_ms)}${['success', 'error_max_turns', 'error_during_execution'].includes(result.subtype) ? ` (${result.subtype})` : ''}, before its ${minutes}-minute budget; ${errorCause(said)}. Nothing is judged or pushed.` };
   }
-  return { ok: false, line: `Claude did not start: the agent step ended ${outcome || 'without an outcome'} after ${Number.isFinite(elapsedSec) ? `${Math.round(elapsedSec)} s` : 'an unknown time'}, before its ${minutes}-minute budget, with no result in the execution file; check the secret / model. Nothing is judged or pushed.` };
+  const unavailable = evidence === 'missing' ? 'is missing' : evidence === 'empty' ? 'is empty' : 'has no valid result';
+  return { ok: false, state: 'blocked', line: `blocked: Claude execution evidence ${unavailable}; the step ended ${outcome || 'without an outcome'} after ${Number.isFinite(elapsedSec) ? `${Math.round(elapsedSec)} s` : 'an unknown time'} (budget ${minutes} min). Execution cannot be verified, including at timeout. Nothing is judged or pushed.` };
 }
 
 /**
@@ -1851,16 +1859,37 @@ export function errorCause(text) {
 export async function agentRan({ outcome, file, minutes, started, agent, now = Date.now() }) {
   if (!Number.isFinite(minutes) || minutes <= 0) throw new ClimbError('agent-ran needs --minutes <the budget>');
   if (agent !== undefined && agent !== 'claude' && agent !== 'codex') throw new ClimbError(`agent-ran --agent must be claude or codex (got ${agent})`);
-  let text = null;
-  if (file) try { text = await readFile(file, 'utf8'); } catch (e) { if (e.code !== 'ENOENT') throw new ClimbError(`${file}: ${e.message}`); }
+  let text = null, evidence = 'missing';
+  if (file) {
+    let handle;
+    try {
+      handle = await open(file, 'r');
+      // Bound memory even if the provider log grows while it is read. Oversize evidence is unavailable, not success.
+      const buffer = Buffer.alloc(8 * 1024 * 1024 + 1);
+      let offset = 0;
+      while (offset < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+        if (bytesRead === 0) break;
+        offset += bytesRead;
+      }
+      if (offset === buffer.length) evidence = 'oversized';
+      else { text = buffer.subarray(0, offset).toString('utf8'); evidence = text.trim() ? 'complete' : 'empty'; }
+    } catch (e) { if (e.code !== 'ENOENT') throw new ClimbError('execution evidence could not be read'); }
+    finally { await handle?.close(); }
+  }
+  const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
+  if (evidence === 'oversized') return { ok: false, state: 'blocked', evidence, outcome: outcome ?? null, agent: agent ?? 'claude', result: null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, line: 'blocked: execution evidence exceeds the 8 MiB limit; execution cannot be verified. Nothing is judged or pushed.' };
   if (agent === 'codex') {
     // Codex writes no execution log: its outcome and its final message (the output-file) are the evidence (phase 45).
     const elapsed = Number.isFinite(started) ? now / 1000 - started : NaN;
-    return { outcome: outcome ?? null, agent, result: null, elapsedSec: Number.isFinite(elapsed) ? Math.round(elapsed) : null, ...codexVerdict({ outcome, message: text, elapsedSec: elapsed, minutes }) };
+    const verdict = codexVerdict({ outcome, message: text, elapsedSec: elapsed, minutes });
+    if (!text?.trim()) Object.assign(verdict, { ok: false, timedOut: false, line: `blocked: Codex final execution evidence is ${evidence}; execution cannot be verified. Nothing is judged or pushed.` });
+    return { state: verdict.ok ? 'executed' : 'blocked', evidence, outcome: outcome ?? null, agent, result: null, elapsedSec: Number.isFinite(elapsed) ? Math.round(elapsed) : null, ...verdict };
   }
   const result = lastResult(text);
-  const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
-  return { outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: result.num_turns ?? null, duration_ms: result.duration_ms ?? null, subtype: result.subtype ?? null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...agentVerdict({ outcome, result, elapsedSec, minutes }) };
+  if (evidence === 'complete' && typeof result?.is_error !== 'boolean') evidence = 'no-valid-result';
+  const verdict = agentVerdict({ outcome, result, elapsedSec, minutes, evidence });
+  return { state: verdict.ok ? 'executed' : 'blocked', evidence, denials: denialEvidence(result), outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: Number.isSafeInteger(result.num_turns) ? result.num_turns : null, duration_ms: Number.isFinite(result.duration_ms) ? result.duration_ms : null, subtype: ['success', 'error_max_turns', 'error_during_execution'].includes(result.subtype) ? result.subtype : null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...verdict };
 }
 
 // ---- the command line ------------------------------------------------------------

@@ -22,6 +22,7 @@
   "files": [
     { "path": ".github/workflows/plates-climb.yml", "from": ".github/workflows/plates-climb.yml", "kind": "managed" },
     { "path": ".github/workflows/plates-tend.yml", "from": ".github/workflows/plates-tend.yml", "kind": "managed" },
+    { "path": "scripts/plates/climb-execution.mjs", "from": "scripts/plates/climb-execution.mjs", "kind": "managed" },
     { "path": "scripts/plates/climb.mjs", "from": "scripts/plates/climb.mjs", "kind": "managed" },
     { "path": "scripts/plates/tend.mjs", "from": "scripts/plates/tend.mjs", "kind": "managed" },
     { "path": "scripts/plates/distill.mjs", "from": "scripts/plates/distill.mjs", "kind": "managed" },

@@ -75,7 +75,7 @@
     },
     ".github/workflows/plates-climb.yml": {
       "practice": "climb",
-      "sha256": "d791ff53d52febd60a9e0a1b4cbaf876df512a31db06ef9fab289fb8ee0eaa8f"
+      "sha256": "d71f7b6abd8afdf04f3deea56826f32001f9ddf60af80e8290c243a4668179d1"
     },
     ".github/workflows/plates-cross-review.yml": {
       "practice": "cross-review",
@@ -165,9 +165,13 @@
       "practice": "night",
       "sha256": "8de9e6591255ec8fe50eb93d75fbd22f4ff90191d0136d34d51c19bc702994c9"
     },
+    "scripts/plates/climb-execution.mjs": {
+      "practice": "climb",
+      "sha256": "1488458e0b37abdef7d808f0737e6ddd19b8c4ba72a1100bafa8ebe712b6c841"
+    },
     "scripts/plates/climb.mjs": {
       "practice": "climb",
-      "sha256": "773412b2b768c3f01756b2e698cd77d8cd744ff54637c1ff6ad58ef49ccc1780"
+      "sha256": "5d103b53837527dd5f4d5cda72cfba929f72e5f470b7d19489f23760e689ffb6"
     },
     "scripts/plates/cross-review.mjs": {
       "practice": "cross-review",
