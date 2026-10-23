@@ -77,6 +77,13 @@ A project that uses plates carries `.plates/plates.json`, which records:
 Existing agent guides are preserved: adoption selects `AGENTS.md`, then
 `CLAUDE.md`, or an explicit `--guide <path>`. See the [adoption guide](docs/guide/bring-a-project-under-plates.md).
 
+Consumer adoption and fleet enrollment are separate. `plates adopt` reports
+central membership as **not checked**; it does not edit this source checkout's
+`plates.json` or grant hosted workspace access. When enrollment is requested,
+review a `managed` entry in the actual central manifest, then run the
+[read-only registration completion check](docs/guide/keep-the-fleet-current.md#complete-fleet-registration).
+A local validation/admission manifest is not fleet registration.
+
 Projects can also keep GitHub milestones as their plan with
 `"phases": {"source": "milestones"}`. Plates projects them into `next`, the
 board and the night without editing GitHub or claiming acceptance from closure.

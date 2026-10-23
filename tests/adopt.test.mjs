@@ -900,3 +900,29 @@ test('milestone adoption proposes read-only source, preserves local plans and di
   const local = await copyFixture(t, 'acme-groove');
   await survey(local, { ...opts, milestoneRead: async () => { assert.fail('local plans must never trigger discovery'); } });
 });
+
+test('successful consumer adoption explicitly leaves central fleet registration unverified', async t => {
+  const dir = await copyFixture(t, 'acme-fold');
+  const { data, text } = await adopt({ dir }, { version: VERSION });
+  assert.equal(data.dryRun, false);
+  assert.ok(data.written.includes(REPORT));
+  assert.equal(data.fleetRegistration.status, 'not-checked');
+  assert.equal(data.fleetRegistration.scope, 'cli-fleet');
+  assert.match(text, /Fleet registration: not checked/);
+  const report = await readFile(join(dir, REPORT), 'utf8');
+  assert.match(report, /Fleet registration — separate completion check/);
+  assert.match(report, /A missing entry fails the check/);
+  assert.match(report, /check-fleet-registration\.mjs/);
+  assert.equal(data.written.includes('plates.json'), false, 'consumer adoption must not write a central manifest');
+});
+
+test('the registration handoff emits a command only for a validated repository identity', () => {
+  const input = { config: { name: 'Acme', practice: '0.0.0', check: 'npm test', repo: 'acme/project' }, practices: [], files: [] };
+  assert.match(adoptionReport(input), /--repo acme\/project --json/);
+  for (const repo of [undefined, 42, { toString: 'not callable' }, ['acme/project'], 'acme/project; echo acme-untrusted', 'acme/a b', 'acme/a\nacme/b', '$(echo acme-untrusted)/repo']) {
+    const report = adoptionReport({ ...input, config: { ...input.config, repo } });
+    assert.match(report, /No verified owner\/repo identity is available/);
+    assert.ok(!report.includes('node scripts/check-fleet-registration.mjs --manifest'), 'no copyable command from malformed repository input');
+    assert.ok(!report.includes('acme-untrusted'));
+  }
+});

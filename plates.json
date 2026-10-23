@@ -3,5 +3,6 @@
   { "repo": "dalmaer/duo", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
   { "repo": "dalmaer/cajones", "kind": "static", "role": "managed", "note": "To be adopted (phase 4). The project is the repo root, which is ritmo." },
   { "repo": "dalmaer/ledger", "kind": "web", "role": "managed", "note": "To be adopted (phase 4)." },
+  { "repo": "dalmaer/white-elephant", "kind": "web", "role": "managed", "note": "Adopted in white-elephant#1 (23 Oct 2026); project-owned app, photos and deployment settings remain its own." },
   { "repo": "dglazkov/isocan", "kind": "node", "role": "managed", "note": "plates's source, and adopted (isocan#392, 5 Oct 2026): it keeps its own phases, conduct, CI, night, renovate and loop as local variants; plates still pins its conduct skill as a source." }
 ]
