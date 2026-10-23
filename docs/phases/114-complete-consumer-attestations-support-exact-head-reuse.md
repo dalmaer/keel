@@ -5,8 +5,8 @@ goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Source shadow validator has focused proof; integrated checkpoint/review and real consumer producers remain pending. No gate or reuse defaults changed."
-evidence: ["evidence/2026-10-23-validation-evidence-foundation.md"]
+note: "Ledger collector correction passed complete local review and source CI at 0eac65c. Current-main integration is being revalidated; complete producers/equivalence/adoption remain separate."
+evidence: ["evidence/2026-10-23-validation-evidence-foundation.md", "evidence/2026-10-23-ledger-retained-evidence.md"]
 ---
 
 # Complete consumer attestations support exact-head reuse
@@ -30,7 +30,16 @@ No source gate, freshness policy or acceptance default changes in this slice.
 The current gate validator remains untouched. See the source-slice contract in
 [the spec](../specs/validation-efficiency.md#phase-114-independent-source-slice).
 
+## Ledger collector slice — authorized 23 October 2026
+
+The shadow foundation merged as PR 228 and main 1407926 passed its complete
+gate/typecheck. This next slice only ingests existing Ledger jobs/artifacts
+against a reviewed versioned coverage manifest. It grants no reuse authority.
+See the [collector contract](../specs/validation-efficiency.md#phase-114-ledger-retained-evidence-collector-slice).
+
 ## Acceptance
+
+- [x] Ledger retained-evidence ingestion preserves archive/provenance and coverage gaps: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs`.
 
 - [x] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
 
@@ -55,7 +64,7 @@ The current gate validator remains untouched. See the source-slice contract in
 
 ## Proof
 
-Source slice: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs`. Run required changed-file conventions using `npm run check:focused -- tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs` before the unchanged integrated checkpoint.
+Source collector slice: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs tests/validation-audit.test.mjs tests/validation-evidence.test.mjs`. Run required changed-file conventions using `npm run check:focused -- tests/validation-ledger.test.mjs tests/validation-audit.test.mjs tests/validation-evidence.test.mjs` before the unchanged integrated checkpoint. Existing gate-reuse compatibility remains covered at integration; no active gate code changes.
 
 Complete phase: the source proof plus real producer and consumer equivalence tests in each consumer. Those later contracts wait for phases 112/113; synthetic fixtures do not satisfy them.
 
@@ -69,9 +78,13 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Complete the source slice’s independent review and unchanged integrated checkpoint after the reserved consumer heavy slots, then open the separate draft PR. Consumer producers, real stage equivalence, existing-validator integration and reuse adoption remain pending completed phases 112/113 and explicit review.
+Complete final-head integration checks and independent review of the collector PR against current main, then await the parent's merge decision. Preserve prior gate/review attempts separately. Consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
 
 ## Trajectory
 
 - **2026-10-23** — The parent authorized independent schema/validator work while consumer stages remain in flight. Keep phase 114 partial and preserve dependency requirements for real equivalence/adoption; shadow coverage is not gate authority. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
 - **2026-10-23** — GitHub artifact identity and expiry are assigned after upload, so producer bytes cannot embed them. Bind execution source inside records and validate separate download metadata/hash outside the bytes; checksum identity still does not authenticate origin. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
+
+- **2026-10-23** — A real retained-run walk exposed raw-plus-JSON source-byte transformation after the focused source-size control passed. Preserve the failed walk, use fixed plain-raw transport, and reject altered hashes without refreshing expected bindings. All seven source bindings and both archives then verified, while 69 explicit legacy gaps remain. [Evidence](../evidence/2026-10-23-ledger-retained-evidence.md).
+
+- **2026-10-23** — A fresh local review covered all 1,255 diff lines and required lessons/spec/phase context, exposing a non-string regex coercion defect missed by the partial hosted reviews. Preserve that finding and prove the typed-boundary correction fails without its fix; no passing prior-head gate is carried to the changed candidate. [Evidence](../evidence/2026-10-23-ledger-retained-evidence.md#fresh-complete-local-review-and-boundary-correction).

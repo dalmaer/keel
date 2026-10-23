@@ -320,6 +320,75 @@ manifests/inputs, timestamps, duplicate or missing children and no active gate
 integration. These are correctness checks, not observed speed savings or a
 real consumer producer-to-validator round trip.
 
+### Phase 114 Ledger retained-evidence collector slice
+
+Authorized after the source shadow foundation merged as PR 228. This separate
+source-only draft PR adds one explicit-run Ledger collector and a versioned
+coverage manifest. No consumer/workflow/gate changes, acceptance/reuse defaults,
+schedules, permissions, credentials, phase 115 trials or fleet-scope changes.
+The existing nightly analyzer and published fleet manifest remain unchanged.
+
+Pin the initial coverage contract to Ledger main
+`ab69eccf029458dfee26c33822a085445705d629`. Keep two distinct profiles:
+configured local `npm run check:all` (13 logical stages), and hosted Tests
+`.github/workflows/test.yml` (scope plus independent test/web jobs). Voice
+diagnostics and performance budgets are required local-only gaps. The hosted
+documentation contract is additional coverage, not a replacement. Preserve
+both clocks and the production-install/build order. Private ledger-data is a
+moving input until its revision/tree and relevant environment are actually
+observed; never infer it from the code SHA. A build-dirtied web record stays
+dirty. Stage mappings and their source file SHA-256 bindings are reviewed data,
+not permission to execute commands or claim complete local/hosted equivalence.
+
+The CLI accepts the existing fleet manifest and an explicit positive run ID;
+its repository is restricted to the manifest-managed `dalmaer/ledger` profile.
+Read only fixed GitHub.com API paths through existing gh access: run/workflow
+identity, immutable head/tree, attempt-scoped paginated jobs, artifact metadata,
+source bytes at the run head, and the two named lane archives. No auto-latest
+selection, rerun, dispatch, install, script execution, arbitrary URLs or writes.
+Use bounded pages/requests/timeouts, compressed/uncompressed bytes, entries,
+records and JSON fields. No auth/settings changes. Injectable transports remain
+labelled test/override observations rather than fabricated live authentication.
+
+Validate run/repository/workflow/head/attempt links, expected job identities and
+both named artifacts; require nonexpired provider SHA-256 metadata and verify
+actual archive bytes before bounded data-only extraction. Reuse the existing
+ZIP safety reader where suitable. Wrong/duplicate/missing lanes, changed coverage
+sources, corrupt/oversized/traversal/duplicate archives, foreign or expired
+artifacts, failed/partial jobs, missing child inventory, dirty trees and unknown
+private-data/runtime/cache/harness observations remain explicit gaps. Preserve
+failed/cancelled outcomes and original intervals. Artifact-to-job attribution
+by a reviewed name convention must not be called an observed provider job link.
+Do not promote workflow success, job step success or legacy suite telemetry to
+an enclosing configured-check attestation. This slice never reports complete
+configured-gate equivalence or grants reuse, including when ingestion succeeds.
+
+Emit an advisory report with a schema-1 nightly `auditInput` projection and a
+provenance sidecar. Retain every available binding in a versioned joint input
+representation: command/config/workflow/lock/harness/runtime/environment/
+selection/cache, plus private-data observations. The nightly schema contains
+cache but no harness key; the shadow schema contains harness but no cache key.
+Project each known value without renaming or hashing one into another, preserve
+the full joint representation/provenance, and mark missing/unsupported bridge
+coverage explicitly. Leave unknowns null/absent. Never pad legacy short hashes
+or claim equivalent comparison merely because fields have valid syntax. The
+unchanged nightly analyzer must still see the configured-gate gaps. Expected
+manifest/source bindings stay separate from observed execution bindings.
+
+CLI JSON results and errors use safe bounded fields and opaque evidence IDs;
+raw logs/test bodies, private data and credential values are not output. No
+file is written automatically; callers explicitly retain stdout/stderr. Exit 0
+means no collector gaps, 1 means advisory gaps to retain, 2 means invalid input
+or an unusable collection request. No result authorizes a gate exemption.
+
+Focused tests use synthetic Acme metadata/ZIPs and the normal subprocess helper,
+with corruption, provenance mismatch, missing lane/stage, dirty build, changed
+sources/private data, incomplete pagination and schema-bridge controls. Walk
+one real already-completed Ledger run read-only and retain attributable gaps,
+not a fabricated producer success. Required source conventions and one final
+integrated checkpoint/review remain mandatory; no consumer/full-suite rerun is
+needed merely to populate the collector's evidence.
+
 ## Telemetry and later adoption (115)
 
 Collect invocation + stage spans, child CPU and wall separately, queue/setup/

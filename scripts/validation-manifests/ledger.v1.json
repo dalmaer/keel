@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "repo": "dalmaer/ledger",
+  "baseline": "ab69eccf029458dfee26c33822a085445705d629",
+  "workflow": ".github/workflows/test.yml",
+  "workflowName": "Tests",
+  "sources": [
+    {
+      "path": "package.json",
+      "sha256": "5a209f909ceb8b1aa39e76819bba935b32aee82936890c8e3a4e20339a7876e5"
+    },
+    {
+      "path": "web/package.json",
+      "sha256": "47f5d69078ac0899918f41134aaf0bd2912ac8799029d39fe67f4b1d6d0137d7"
+    },
+    {
+      "path": ".plates/plates.json",
+      "sha256": "840bd9e26871e81e2e3e0aaaa1d6ef83c80c32198f3becb584d5f62a4b72f9ad"
+    },
+    {
+      "path": ".github/workflows/test.yml",
+      "sha256": "61c841ffce609bd860c654a913eaecbe1bdd8262463cf79f9c08e22c9979a74d"
+    },
+    {
+      "path": "scripts/shift-clock.mjs",
+      "sha256": "745fae4e4c22c62f93e195230f4d415dfa596899c9c368468502d26ec58fbeb4"
+    },
+    {
+      "path": "scripts/ci-scope.mjs",
+      "sha256": "2893c0b5835cf903660b9d0757dc5049fea3fe5d08e5d27ba8d254ed019be89f"
+    },
+    {
+      "path": "scripts/plates/test-ledger.mjs",
+      "sha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238"
+    }
+  ],
+  "configured": {
+    "command": "npm run check:all",
+    "stages": [
+      {
+        "id": "root-normal",
+        "command": "npm test",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "Run npm test"
+        }
+      },
+      {
+        "id": "voice",
+        "command": "npm run test:voice-diagnostic",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": null
+      },
+      {
+        "id": "root-future",
+        "command": "npm test",
+        "directory": ".",
+        "clockShiftDays": 400,
+        "hosted": {
+          "job": "test",
+          "step": "The tests, a year from now"
+        }
+      },
+      {
+        "id": "web-future",
+        "command": "npm --prefix web test",
+        "directory": "web",
+        "clockShiftDays": 400,
+        "hosted": {
+          "job": "web",
+          "step": "The tests, a year from now"
+        }
+      },
+      {
+        "id": "root-types",
+        "command": "npm run typecheck",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "Type-check core and CLI"
+        }
+      },
+      {
+        "id": "web-types",
+        "command": "npm run typecheck:web",
+        "directory": "web",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "web",
+          "step": "Run npx tsc --noEmit"
+        }
+      },
+      {
+        "id": "web-normal",
+        "command": "npm --prefix web test",
+        "directory": "web",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "web",
+          "step": "Run npm test"
+        }
+      },
+      {
+        "id": "web-build",
+        "command": "npm --prefix web run build",
+        "directory": "web",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "web",
+          "step": "Run npm run build"
+        }
+      },
+      {
+        "id": "roadmap",
+        "command": "npm run roadmap -- --check",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "The roadmap is current"
+        }
+      },
+      {
+        "id": "loop",
+        "command": "npm run loop -- render --check",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "The Loop findings view is current"
+        }
+      },
+      {
+        "id": "agent-workflows",
+        "command": "npm run agents:workflows -- --check",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "The agent workflows match their agents"
+        }
+      },
+      {
+        "id": "perf",
+        "command": "npm run perf -- --check",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": null
+      },
+      {
+        "id": "data",
+        "command": "node cli/ledge.ts check",
+        "directory": ".",
+        "clockShiftDays": 0,
+        "hosted": {
+          "job": "test",
+          "step": "Validate the ledger"
+        }
+      }
+    ]
+  },
+  "hosted": {
+    "jobs": [
+      "scope",
+      "test",
+      "web"
+    ],
+    "needs": {
+      "scope": [],
+      "test": [
+        "scope"
+      ],
+      "web": [
+        "scope"
+      ]
+    },
+    "extraStages": [
+      {
+        "id": "scope",
+        "job": "scope",
+        "step": "Does this change need code checks?"
+      },
+      {
+        "id": "doc-contracts",
+        "job": "test",
+        "step": "Documentation and deployment contracts"
+      }
+    ],
+    "webInstallOrder": [
+      "The repo root, exactly as Vercel installs it",
+      "Run npm ci",
+      "Run npx tsc --noEmit",
+      "Run npm run build",
+      "Install the root package, for core's own dependencies",
+      "Run npm test",
+      "The tests, a year from now"
+    ]
+  },
+  "lanes": [
+    {
+      "id": "core",
+      "artifact": "plates-test-runs",
+      "job": "test",
+      "directory": "."
+    },
+    {
+      "id": "web",
+      "artifact": "plates-test-runs-web",
+      "job": "web",
+      "directory": "web"
+    }
+  ],
+  "equivalenceEstablished": false,
+  "privateData": {
+    "repo": "dalmaer/ledger-data",
+    "revision": null,
+    "tree": null,
+    "policy": "separately-moving-input"
+  },
+  "limitations": [
+    "Reviewed source bindings are requirements, not execution observations.",
+    "Voice diagnostics and performance budgets are required local-only gaps.",
+    "Hosted steps do not attest an enclosing configured local gate.",
+    "Web build can dirty tracked configuration; preserve child dirty observations.",
+    "Artifact lane-to-job mapping is a reviewed naming convention, not a provider job link."
+  ]
+}
