@@ -289,10 +289,14 @@ identity, parent invocation, completed successful outer and child statuses,
 versioned manifest digest, nonempty unique required stage IDs/command digests,
 and immutable config/command/workflow/lock/harness/runtime/environment/selection
 digests. Bind each child to its parent, expected stage command and the same
-candidate/input/manifest/source identities. Reject missing, extra or duplicate
+candidate/input/manifest/execution-source identities. Reject missing, extra or duplicate
 stages and unknown/incomplete values; never accept a false wrapper around
-partial children. Explicit source run/attempt/artifact identity and expiration
-must match expected metadata. Check canonical timestamps, chronology and future
+partial children. Execution source (provider/repository/workflow/run/attempt) binds outer and
+children. Post-upload artifact ID, expiry and SHA-256 live in separately
+supplied download metadata: a producer cannot embed an ID assigned after
+upload into the bytes being uploaded. Preserve that external provenance and
+check its expiry without pretending the checksum authenticates it. Check
+canonical timestamps, chronology and future
 records using an explicit evaluation instant; apply the caller's explicit
 freshness contract without inventing a new default or overriding expiration.
 

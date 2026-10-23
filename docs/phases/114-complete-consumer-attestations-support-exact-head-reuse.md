@@ -1,12 +1,12 @@
 ---
-status: designed
-since: 2026-10-22
+status: partial
+since: 2026-10-23
 goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Staged implementation from the migration audit; required gate policy unchanged."
-evidence: []
+note: "Source shadow validator has focused proof; integrated checkpoint/review and real consumer producers remain pending. No gate or reuse defaults changed."
+evidence: ["evidence/2026-10-23-validation-evidence-foundation.md"]
 ---
 
 # Complete consumer attestations support exact-head reuse
@@ -32,7 +32,7 @@ The current gate validator remains untouched. See the source-slice contract in
 
 ## Acceptance
 
-- [ ] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
+- [x] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
 
 - [ ] Focused negative controls prove the phase contract: `node --import ./tests/helpers/hermetic.mjs --test tests/gate-reuse.test.mjs`.
 - [ ] Required integrated checks pass: `npm run check`; `npm run typecheck`.
@@ -69,4 +69,9 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Implement the authorized source-only shadow contract and adversarial validator tests first. Consumer producers, real stage equivalence, existing-validator integration and reuse adoption remain blocked on completed phases 112/113 and explicit review.
+Complete the source slice’s independent review and unchanged integrated checkpoint after the reserved consumer heavy slots, then open the separate draft PR. Consumer producers, real stage equivalence, existing-validator integration and reuse adoption remain pending completed phases 112/113 and explicit review.
+
+## Trajectory
+
+- **2026-10-23** — The parent authorized independent schema/validator work while consumer stages remain in flight. Keep phase 114 partial and preserve dependency requirements for real equivalence/adoption; shadow coverage is not gate authority. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
+- **2026-10-23** — GitHub artifact identity and expiry are assigned after upload, so producer bytes cannot embed them. Bind execution source inside records and validate separate download metadata/hash outside the bytes; checksum identity still does not authenticate origin. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
