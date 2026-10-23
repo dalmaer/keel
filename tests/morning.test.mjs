@@ -1,3 +1,5 @@
+import { formatVerification, parseVerifications, verificationReceipt } from '../scripts/plates/verification.mjs';
+import { observation, results } from './helpers/verification.mjs';
 // The morning (phase 77): when the night is over, one message says what it
 // did. The brief is rendered in isocan's order from the plan as it finished
 // (its record, the plan branch, each item at its furthest tick) and the health
@@ -82,7 +84,7 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
+  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {
@@ -306,6 +308,9 @@ test('the workflow\'s decision: over and unsent, or not yet; already sent; no as
 
 test('plates#137: finalization puts a later build outcome in the night\'s record and its health page, keeping the rest of the page', async t => {
   const p = await project(t);
+  const receipt=verificationReceipt(observation(),results());
+  const hp=join(p.root,`docs/health/${NIGHT}.md`);
+  await writeFile(hp,(await readFile(hp,'utf8'))+'\n## Verification\n'+formatVerification(receipt)+'\n');
   const pageBefore = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
   // The project's own script, as plates-morning.yml's finalize job runs it.
   const r = run(process.execPath, [join(p.root, 'scripts/plates/morning.mjs'), 'finalize', '--date', NIGHT, '--pr-input', join(p.base, 'pr.json'), '--json'], { cwd: p.root, env: { ...ENV, PLATES_GH: p.gh } });
@@ -317,6 +322,7 @@ test('plates#137: finalization puts a later build outcome in the night\'s record
   assert.equal(record.items.find(i => i.id === 'perf-bundle').status, 'done', 'the record holds the later outcome');
   assert.equal(record.items.find(i => i.id === 'perf-bundle').result.link, PR);
   const pageAfter = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
+  assert.equal(parseVerifications(pageAfter)[0].attempt,receipt.attempt,'shipped finalization preserves verification bytes');
   assert.match(pageAfter, new RegExp(`\\| perf-bundle: Entry chunk back under 747 kB \\| build \\| climb:perf \\| \`bundle_bytes\` ≤ 747000 \\| done \\| Split the vendor chunk — ${PR.replaceAll('/', '\\/').replaceAll('.', '\\.')} \\|`), 'the page holds the later outcome');
   assert.doesNotMatch(pageAfter, /What the night recorded\./, 'the old section is replaced');
   assert.equal(pageAfter.split('## Tonight\'s plan')[0], pageBefore.split('## Tonight\'s plan')[0], 'what came before it is kept');

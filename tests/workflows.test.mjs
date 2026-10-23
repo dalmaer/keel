@@ -217,7 +217,7 @@ test('the night workflow measures before it drains, pushes only its dated branch
   const at = s => { const i = night.indexOf(s); assert.ok(i >= 0, `missing: ${s}`); return i; };
   assert.ok(at('node scripts/plates/improve.mjs --report --json') < at('node scripts/plates/drain.mjs keel-night/'), 'improve runs before the drain, so machine_prs counts last night\'s PR');
   assert.ok(at('git status --porcelain') < at('git commit'));
-  assert.match(night, /git push --force origin "HEAD:refs\/heads\/keel-night\/\$DAY"/);
+  assert.match(night, /git push --force-with-lease="refs\/heads\/keel-night\/\$DAY:\$EXPECTED" origin "HEAD:refs\/heads\/keel-night\/\$DAY"/);
   assert.match(night, /cancel-in-progress: false/);
   assert.match(night, /- name: Verdict\n\s+if: always\(\)\n/, 'the verdict runs even after a failed step');
   assert.match(night, /if \[ "\$CODE" = 2 \] \|\| \[ -z "\$CODE" \]; then[\s\S]*?exit 1/, 'a broken instrument (or no reading) is red');
@@ -235,7 +235,7 @@ test('mutations: a workflow that breaks a rule fails', async () => {
     const found = problems('plates-night.yml', text, w.declared);
     assert.ok(found.some(p => pattern.test(p)), `${why}: expected a problem matching ${pattern}, got ${JSON.stringify(found)}`);
   };
-  const push = 'git push --force origin "HEAD:refs/heads/keel-night/$DAY"';
+  const push = 'git push --force-with-lease="refs/heads/keel-night/$DAY:$EXPECTED" origin "HEAD:refs/heads/keel-night/$DAY"';
   assert.ok(night.includes(push));
   fails(night.replace(push, 'git push origin main'), /names main|no explicit/, 'git push origin main');
   fails(night.replace(push, 'git push'), /no explicit/, 'a bare git push');
@@ -644,7 +644,7 @@ if (args[0] === 'pr' && args[1] === 'list') {
   await after(dir);
   // improve's --pr-input, as improve writes it (nightPr), for a night with a measure outside.
   const { nightPr } = await import('../practices/night/files/scripts/plates/improve.mjs');
-  await writeFile(join(temp, 'improve.json'), JSON.stringify({ date: '2026-10-05', report: `${page}/2026-10-05.md`, changedHistoricalHealthPaths: [] }));
+  await writeFile(join(temp, 'improve.json'), JSON.stringify({ date: '2026-10-05', report: `${page}/2026-10-05.md`, nightRecovery:{branch:'keel-night/2026-10-05',head:'',attempts:0}, changedHistoricalHealthPaths: [] }));
   await writeFile(join(temp, 'pr.json'), JSON.stringify(nightPr({ date: '2026-10-05', report: `${page}/2026-10-05.md`, proposal: { id: 'prs_stale', state: 'outside', text: 'Close or merge the Acme PRs.' },
     results: [{ id: 'gate', state: 'ok', detail: 'npm test passed, 12 tests', bound: 0, better: 'lower', value: 0 }, { id: 'prs_stale', state: 'outside', detail: '2 stale', bound: 0, better: 'lower', value: 2 }] })));
   const o = run('bash', ['-e', '-c', open.script], { cwd: dir, env: { ...env, DAY: '2026-10-05', PLAN_DAY: planDay, BASE: 'main', HEALTH: page ?? '' } });

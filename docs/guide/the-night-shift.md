@@ -725,3 +725,25 @@ The optional `production` configuration adds bounded read-only log collection to
 the existing night. Recurring signatures enter triage; unavailable collection is
 reported separately from findings and the gate. See [Production errors](production-errors.md)
 for configuration, retention and the evidence required to verify a deployed fix.
+
+## Each plate verifies itself
+
+The night owns this project's validation. Its verification report binds the
+observed source revision, default branch, gate outcome and reuse attribution to
+record-reconciliation coverage and claim findings. A claim on a completed phase
+is cleanup work, not proof that a session is still building it. No recent push
+means activity is unknown; it does not establish that a session has stopped.
+
+`plates fleet --json` compares each project's report with current remote facts.
+A successful older report cannot verify a newer revision. Missing, malformed or
+unavailable reports remain visible gaps. The fleet never runs a consumer's gate
+as part of this read. Local checkout and session activity require local evidence;
+a hosted workflow cannot attest to them.
+
+Plates home includes the fleet summary in its own nightly report; each adopter
+only collects its own evidence. A workflow token that cannot read another private
+repository produces an unavailable row, not an implied access grant.
+
+These observations extend the existing reports. They do not accept phases,
+merge work, remove claims or launch agents. See the
+[distributed verification contract](../specs/plate-verification.md).

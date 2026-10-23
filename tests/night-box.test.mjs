@@ -37,6 +37,7 @@ import { fixture as isocanHome } from './helpers/isocan.mjs';
 import { goodnight } from '../lib/goodnight.mjs';
 import { publishPlanCard, planCard, titleOf, PLAN_CARD, LABEL } from '../lib/morning.mjs';
 import { PLAN, PLAN_BRANCH, REMOTE_PLAN } from '../lib/night-plan.mjs';
+import { parseVerifications } from '../practices/night/files/scripts/plates/verification.mjs';
 
 const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PRELOAD = pathToFileURL(join(PLATES, 'tests/helpers/night-box-preload.mjs')).href;
@@ -202,9 +203,19 @@ async function box(t, { broken = null } = {}) {
     texts[yml] ??= await readFile(join(PLATES, yml), 'utf8');
     const blocks = runBlocks(texts[yml]).filter(b => b.step === name);
     assert.equal(blocks.length, 1, `${yml} has one step "${name}"`);
+    // runBlocks extracts shell only; Actions also supplies this step's literal
+    // recovery setting. Read it from the Measure header, never forge a lease.
+    const stepEnv = {};
+    if (yml === NIGHT_YML && name === 'Measure') {
+      const preceding = texts[yml].split('\n').slice(0, blocks[0].line - 1);
+      const start = preceding.findLastIndex(line => /^\s*- name: Measure$/.test(line));
+      const recovery = /^\s+PLATES_NIGHT_RECOVERY: "([^"]+)"$/m.exec(preceding.slice(start).join('\n'))?.[1];
+      assert.equal(recovery, '1', 'the shipped Measure step enables actual prior-branch recovery');
+      stepEnv.PLATES_NIGHT_RECOVERY = recovery;
+    }
     const output = join(j.temp, `output-${Math.random().toString(36).slice(2)}`);
     await writeFile(output, '');
-    const r = run('bash', ['-e', '-c', blocks[0].script], { cwd: j.dir, env: { ...world(now), RUNNER_TEMP: j.temp, GITHUB_OUTPUT: output, GITHUB_ENV: join(j.temp, 'env'), ...env } });
+    const r = run('bash', ['-e', '-c', blocks[0].script], { cwd: j.dir, env: { ...world(now), RUNNER_TEMP: j.temp, GITHUB_OUTPUT: output, GITHUB_ENV: join(j.temp, 'env'), ...stepEnv, ...env } });
     const outputs = Object.fromEntries((await readFile(output, 'utf8')).split('\n').filter(l => /^\w+=/.test(l)).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
     return { status: r.status, out: r.stdout + r.stderr, outputs };
   };
@@ -305,6 +316,8 @@ async function night(t, options) {
   await stage('measure', async () => {
     const measured = await b.step(NIGHT_YML, 'Measure', b.night, AT.night);
     assert.equal(measured.outputs.day, NIGHT, measured.out);
+    const measurement = JSON.parse(await readFile(join(b.night.temp, 'improve.json'), 'utf8'));
+    assert.deepEqual(measurement.nightRecovery, { branch: `keel-night/${NIGHT}`, head: '', attempts: 0 }, 'the real reader observed no prior branch in the bare origin');
     const pr = await b.step(NIGHT_YML, 'Open the night\'s pull request', b.night, AT.night, { DAY: measured.outputs.day, PLAN_DAY: NIGHT, BASE: 'main', HEALTH: 'docs/health' });
     assert.equal(pr.status, 0, pr.out);
     assert.match(pr.out, /the default plan is not written to keel-night-plan: tonight's plan is the owner's/);
@@ -312,7 +325,9 @@ async function night(t, options) {
     assert.ok(record, `the night's PR branch carries docs/night/${NIGHT}.json`);
     assert.equal(item(record, 'measures').status, 'failed', 'a broken instrument fails the measure item');
     assert.match(item(record, 'measures').result.note, /broken \(.*build_time.*\)/, 'and says which one');
-    assert.ok(b.onOrigin(`keel-night/${NIGHT}`, `docs/health/${NIGHT}.md`), 'with tonight\'s health page');
+    const retained = parseVerifications(b.onOrigin(`keel-night/${NIGHT}`, `docs/health/${NIGHT}.md`));
+    assert.equal(retained.length, 1);
+    assert.equal(retained[0].attempt, measurement.verification.attempt, 'the leased publication retains the measured receipt');
     assert.deepEqual((await b.ghState()).prs.map(p => [p.number, p.headRefName]), [[20, `keel-night/${NIGHT}`]], 'one night PR');
   });
 
@@ -441,7 +456,8 @@ test('a whole night: the brief says what was done, what failed and why, and what
   // Its links: the canvas, and the night's health page on GitHub where the night's record was read
   // (its PRs are unmerged, so the page is on the morning's own final branch).
   assert.match(brief, new RegExp(`^Canvas: https://acme\\.test/p/prj_acme · Health page: https://github\\.com/${REPO}/blob/keel-night/${NIGHT}-final/docs/health/${NIGHT}\\.md$`, 'm'));
-  assert.deepEqual(Object.keys(s), ['Done', 'Tried', 'Failed, and why', 'Left alone', `Not finished by ${READY_BY}`, 'Your next'], 'isocan\'s order');
+  assert.deepEqual(Object.keys(s), ['Retained verification', 'Done', 'Tried', 'Failed, and why', 'Left alone', `Not finished by ${READY_BY}`, 'Your next'], 'isocan\'s order');
+  assert.match(s['Retained verification'], /current remote coverage was not read here/, 'the brief keeps retained verification separate from fresh remote evidence');
   // Done: climb's item, with its note and its PR.
   assert.deepEqual(s.Done.split('\n'), [`- **${item(final, 'climb-test-time').title}** (\`climb-test-time\`) — \`slow_tests\` ≤ 0 (not measured on a health page) — ${CLIMB_LINE} — ${CLIMB_PR}`]);
   assert.equal(s.Tried, 'Nothing.');

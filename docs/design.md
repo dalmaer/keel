@@ -397,3 +397,15 @@ dependency-free runtime gate. This is not a decision to port Plates.
 - **License.** **Settled 2026-10-03:** Apache-2.0, matching isocan, chosen when
   the owner decided plates goes public (phase 17). Adapted isocan material keeps
   its attribution in each file.
+
+## Distributed verification (23 October 2026)
+
+Each plate owns its validation and verification. Its existing night measures its
+configured gate and record consistency, then retains a revision-bound report.
+Plates reads those reports against fresh default-branch identities to distinguish
+current evidence, stale evidence, missing coverage and actionable findings. A
+fleet read does not execute consumer gates. Unchanged source may reuse eligible
+CI evidence under the existing gate policy, but remote claims and PRs still need
+fresh observations. The [contract](specs/plate-verification.md) and phase 116
+keep session activity unknown where it cannot be observed. Corrections, claim
+cleanup and acceptance remain separate from detection.

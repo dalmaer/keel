@@ -1,3 +1,4 @@
+import { parseVerifications } from '../scripts/plates/verification.mjs';
 // plates improve: measures with bounds, a ratchet, one proposal, and a grader
 // that is itself graded. The selftest must fail when any one measure is made
 // to say "fine" (lesson 6); an instrument that cannot run is broken, never 0.
@@ -159,7 +160,9 @@ test('--report writes that day\'s page and the bounds, nothing else; the one pro
   await rm(join(dir, '.plates', 'test-runs'), { recursive: true, force: true });
   const r2 = plates(['improve', '--report', '--json'], dir, env);
   assert.deepEqual(r2.json().proposal, d1.proposal);
-  assert.equal(await readFile(join(dir, d1.report), 'utf8'), pageText, 'the same day overwrites its own page, identically');
+  const updated=await readFile(join(dir,d1.report),'utf8');
+  assert.deepEqual(new Set(parseVerifications(updated).map(r=>r.attempt)),new Set([d1.verification.attempt,r2.json().verification.attempt]),'same-day reports retain both observations');
+  assert.equal(updated.match(/^## Proposal$/gm).length,1,'the original deterministic proposal remains singular');
   assert.equal((await readdir(join(dir, 'docs', 'health'))).length, 2);
 });
 
