@@ -892,6 +892,11 @@ export async function settle({ root, config, base }) {
   const target = night.tried.filter(a => a.verdict === 'keep').at(-1)?.candidate ?? night.base;
   if (head === target && !dirty) return { head, dropped: false };
   if (!isAncestor(root, target, head)) throw new ClimbError(`HEAD ${head.slice(0, 7)} is not on top of the last decision ${target.slice(0, 7)}: the branch moved outside climb.mjs`);
+  // Retain the observed undecided work before resetting it. A retry on the
+  // settled HEAD must not erase this evidence or turn it into no-candidate.
+  night.settlements ??= [];
+  night.settlements.push({ from: head, to: target, uncommitted: Boolean(dirty), at: new Date().toISOString() });
+  await writeNight(root, night);
   git(root, ['reset', '--quiet', '--hard', target]);
   git(root, ['clean', '--quiet', '-fd']); // never -x: ignored files (.plates/climb, the ledger) stay
   return { head: target, dropped: true, from: head };
@@ -1591,8 +1596,9 @@ export function reportOf(night, { files = [], pkg = null, now = new Date(), prop
   const pctMargin = `${Math.round(night.margin * 100)}%`;
   if (!kept.length) {
     const none = night.job === 'hygiene' ? 'none proven steady' : `none beat the noise (margin ${pctMargin})`;
-    const tried = night.tried.length ? `${night.tried.length} tried, ${none}` : 'nothing was tried';
-    return { kept: 0, tried: night.tried.length, minutes, line: `climb ${night.job} ${night.date}: kept nothing; ${tried}; ${minutes} min`, input: null };
+    const tried = night.tried.length ? `${night.tried.length} tried, ${none}` : 'no measured attempts recorded';
+    const unsettled = night.settlements?.length ? '; incomplete: unmeasured work recorded at settlement' : '';
+    return { kept: 0, tried: night.tried.length, minutes, line: `climb ${night.job} ${night.date}: kept nothing; ${tried}${unsettled}; ${minutes} min`, input: null };
   }
   if (night.job === 'hygiene') return hygieneReport(night, { kept, reverted, minutes, files, pkg });
   const before = night.final ? mean(night.final.rounds.map(r => r.base)) : night.baseline.median;
@@ -1761,7 +1767,7 @@ export function issueOf(night, { minutes = 0 } = {}) {
     'Run it alone:', '', '```sh', t.alone ?? aloneCommand(t), '```', '',
     `Prove a fix: \`node scripts/plates/climb.mjs prove-steady --test "${t.file}: ${t.name}" --runs ${STEADY_RUNS}\` (every run must pass, on one clean tree).`, '',
     '## Tried', '',
-    ...(night.tried.length ? night.tried.map(a => `- ${a.what}: ${a.why}`) : ['Nothing was tried.']), '',
+    ...(night.tried.length ? night.tried.map(a => `- ${a.what}: ${a.why}`) : ['No measured attempts recorded.']), '',
     'Never rerun until green: a rerun hides the flake.', '',
   ].join('\n');
   return { title, body };

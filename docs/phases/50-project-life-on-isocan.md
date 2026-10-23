@@ -5,7 +5,7 @@ goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
 note: "Local collection, interactive render, reviewed retro capture, immutable sync and the conditional live pulse are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Live mode is proven on a fake transport and a throwaway local daemon only: the deployed concurrent-edit walk, GitHub writer and night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md", "evidence/2026-10-13-canvas-live-cards.md"]
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md", "evidence/2026-10-13-canvas-live-cards.md", "evidence/2026-10-23-roadmap-followthrough.md"]
 ---
 
 # A project's isocan canvas shows what Plates improves
@@ -93,31 +93,16 @@ deployed integration.
 
 ## Next action
 
-Move the approved canvas's weekly "Loop across projects" report to one live
-card. The owner approved this on 2026-10-13. That binding is published by the
-weekly script, which calls `canvasSync` with its own keys, not by `plates canvas
-sync`. Three steps, in the reporting workspace, after this work is released
-there:
-
-1. Change the script's key for that card from a dated one to the fixed key
-   `loop-across-projects`. The title may keep its date.
-2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved
-   writer: `plates canvas live --card loop-across-projects` (preview), then the
-   same with `--yes`. No card has that key yet, so nothing is adopted and no
-   re-base is needed; the dated editions stay on the canvas as history.
-3. Let one weekly run create the card and the next one edit it in place.
-   Confirm both in the browser, then edit the card as a person and see the
-   next run refuse. Record it as evidence.
-
-If `pulse` is also kept in `--card` and that journal has a pulse published
-before 2026-10-13, its receipt has no recorded metadata: the preview says
-`unrecorded-metadata` and it needs one `plates canvas rebase --onto <version-id>
---yes` after the owner has looked at the card.
-
-After that, provision the dedicated GitHub writer using the project-canvas
-guide and verify night/restart behavior, including a restored pending edit.
-Scheduled-use evidence (seven nights) is still owed. Do not ask again for the
-destination, writer or dashboards.
+The approved reporting workspace already uses the fixed `loop-across-projects`
+key and live mode (configured 14 October). Do not repeat that setup. The
+19 October publication preflight stopped because the owner-only adapter rejects
+the owner's explicitly approved named Editor grant. Specify and review exact
+approved-grant matching before implementing that support; preserve the grant,
+writer, binding, historical cards and receipts. Do not remove access or bypass
+preflight. Once supported, verify one real create, a later conditional edit and
+a refusal after a human edit. These deployed walks remain unverified. Dedicated
+GitHub writer/restart proof and seven scheduled nights remain separate work.
+Do not ask again for the approved destination, writer or retained dashboards.
 
 ## Trajectory
 
@@ -136,3 +121,5 @@ destination, writer or dashboards.
 - **2026-10-13** — A second review finding: adoption compared three keel properties, the title and the hashes, so a property a person added before the first live sync rode in as the base. Publication now records the pulse's full metadata and adoption compares all of it. A receipt without it is not assumed unchanged, which costs the approved binding one explicit re-base on its way to live.
 
 - **2026-10-13** — The owner approved live for the approved canvas, and that showed live mode could not reach it: only a card keyed `pulse` was ever live, and that binding is published by a weekly script with its own dated keys. A binding now names its live card keys. The script must send one fixed key, because a live card is found by key; a new key has no card to adopt, so the earlier re-base cost does not apply to it. keel#127's two stuck states were fixed in the same work.
+
+- **2026-10-23** — The reporting binding and publisher prove fixed-key/live setup already happened; the retained 19 October preflight names an audience-contract limitation. Reconciled next action without changing acceptance or claiming remote publication. [Evidence](../evidence/2026-10-23-roadmap-followthrough.md).

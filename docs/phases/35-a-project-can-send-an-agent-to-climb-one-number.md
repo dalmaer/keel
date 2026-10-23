@@ -7,7 +7,7 @@ goal: G4
 spec: 2
 depends: [10, 15, 33, 39]
 note: "Built and on for plates (test-time, 45 minutes, nightly): plates-climb.yml, climb.mjs, the protocol brief; the \"Did the agent run?\" step after the first night's silent failure. The dispatched night after the token fix ran green and kept nothing. Waits on a scheduled night's PR (or its Climb line) read by the owner."
-evidence: ["evidence/2026-10-06-climb.md"]
+evidence: ["evidence/2026-10-23-roadmap-followthrough.md", "evidence/2026-10-06-climb.md"]
 issue: 13
 ---
 
@@ -97,3 +97,5 @@ Read the next scheduled climb night's PR, or its Climb line on the health page i
 - **2026-10-06** — Escape: the compare test passed locally and failed on GitHub's runner (150 ms vs 10 ms sleepers swamped by ~650 ms of node startup); fixed in 2ab0607 with margins that dominate startup.
 - **2026-10-06** — Escape: the first real climb night went green while the agent never started (continue-on-error over an `is_error` result); fixed in b6362a4 with the "Did the agent run?" step.
 - **2026-10-08** — Escape: the compare test failed on keel's CI once (9734581: round 2 −26.4%, inside the 30% margin): its 600 ms base against ~650 ms of node start-up left only a ~2× gap, which runner noise closed. The base now sleeps 1500 ms (~3×). The same shape as 2ab0607's escape: a timing test's margin must dominate the runner's start-up.
+
+- **2026-10-23** — Empty measurement records hid exploration: the 22 October agent committed a candidate, but permission denials left it unmeasured and settlement discarded it. Retain settlement evidence and report incomplete work separately from no candidate; no new budget or wider permissions follows. [Evidence](../evidence/2026-10-23-roadmap-followthrough.md).

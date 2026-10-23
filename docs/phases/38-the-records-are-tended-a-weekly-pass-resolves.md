@@ -6,8 +6,8 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "Built and on for plates and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). plates's first pass (plates#22) was read and closed with a reason. Owes ledger's first pass and the night after it."
-evidence: ["evidence/2026-10-06-tend.md"]
+note: "Built and on for plates and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). plates's first pass (plates#22) was read and closed with a reason. Ledger #130 merged on 21 October; still owes the post-merge record comparison and owner assessment."
+evidence: ["evidence/2026-10-06-tend.md", "evidence/2026-10-23-roadmap-followthrough.md"]
 issue: 16
 ---
 
@@ -80,7 +80,12 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 
 ## Next action
 
-Tend is on for ledger (ledger#92, weekly, 30 minutes; first pass Monday 2026-10-12 at 10:18 UTC, on the sandboxed three-job workflows): read its first PR, merge or close it with a reason, and check the next night's record findings against it.
+Ledger's first retained tend PR [#130](https://github.com/dalmaer/ledger/pull/130)
+merged on 21 October as `30f454899bbaeb2615cd3a81f892ca0b1b7f206f`.
+Compare the next night's record findings with that PR's one-finding worksheet,
+then obtain the owner's assessment. Its reported lint change from one to zero
+is branch evidence, not proof of the post-merge night or acceptance. Preserve
+partial status until that remaining walk is recorded; do not ask to merge #130.
 
 ## Trajectory
 
@@ -89,3 +94,5 @@ Tend is on for ledger (ledger#92, weekly, 30 minutes; first pass Monday 2026-10-
 - **2026-10-06** — On keel itself the first worksheet found no record findings (every record measure 0); its loose ends were this session's uncommitted files, two ⚑ phases and seven repos missing from fleet.json.
 - **2026-10-07** — keel's first tend PR (#22) was read and closed with a reason, on the owner's "merge what's valid": its one edit, phase 38's stale next action, was right but had already landed (7263b36). It missed phase 35's equally stale next action, and leaked the runner's checkout path into its loose ends (fixed in 2c6e105).
 - **2026-10-07** — Escape: Claude's cross-review of ledger#92 found the tend (and climb) agent could edit a script it may run (package.json, climb.mjs, roadmap.mjs) and push with the job's token, git's persisted credentials, or the GitHub App token the action exchanges OIDC for. Fixed in 10c59b5: three jobs, the agent's and the judge's tokens read-only, the publish job running nothing from the branch. keel's tend run 37641282288 on the new shape: all three jobs green, the agent 35 s, nothing to resolve (six owner steps), so no PR; the push path is proven by tests, not yet on GitHub.
+
+- **2026-10-23** — Fresh GitHub merge facts replace the obsolete first-PR merge request. Kept the next-night comparison and owner walk outstanding. [Evidence](../evidence/2026-10-23-roadmap-followthrough.md).

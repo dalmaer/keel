@@ -38,7 +38,7 @@ test('the health page says what the newest climb night kept and its PR, or that 
   const nothing = await pageOf(await acme(t, { night: { job: 'test-time', date: '2026-10-06', margin: 0.05, tried: tried('revert', 'revert') } }));
   assert.match(nothing.text, /^Climb: 2026-10-06 test-time: kept nothing \(2 tried, none beat the noise \(margin 5%\)\)\.$/m);
   const idle = await pageOf(await acme(t, { night: { job: 'test-time', date: '2026-10-06', tried: [] } }));
-  assert.match(idle.text, /^Climb: 2026-10-06 test-time: kept nothing \(nothing was tried\)\.$/m);
+  assert.match(idle.text, /^Climb: 2026-10-06 test-time: kept nothing \(no measured attempts recorded\)\.$/m);
 
   for (const [why, opts] of [['climb off', { climb: null, night: { job: 'test-time', date: '2026-10-06', tried: tried('keep'), pr: 3 } }], ['never ran', {}]]) {
     const p = await pageOf(await acme(t, opts));
@@ -50,6 +50,19 @@ test('the health page says what the newest climb night kept and its PR, or that 
 
   // Kept with no PR (the guard failed, or Actions may not open PRs): said, not invented.
   assert.equal(climbLine({ climb: {} }, { job: 'test-time', date: '2026-10-06', tried: tried('keep') }), 'Climb: 2026-10-06 test-time: kept 1, no PR opened (the guard did not pass).');
+});
+
+test('the health page retains incomplete settlement evidence without inferring historical candidates', async t => {
+  const night = { job: 'test-time', date: '2026-10-06', tried: [], line: 'historical summary: nothing was tried' };
+  const settlements = [{ from: 'a'.repeat(40), to: 'b'.repeat(40), uncommitted: false, at: '2026-10-06T12:00:00Z' }];
+  const current = await pageOf(await acme(t, { night: { ...night, settlements } }));
+  assert.equal(current.data.climb, 'Climb: 2026-10-06 test-time: kept nothing (no measured attempts recorded; incomplete: unmeasured work recorded at settlement).');
+  assert.ok(current.text.includes(current.data.climb));
+  for (const record of [night, { ...night, settlements: [] }]) {
+    const historical = await pageOf(await acme(t, { night: record }));
+    assert.match(historical.data.climb, /no measured attempts recorded/);
+    assert.doesNotMatch(historical.data.climb, /incomplete|candidate|nothing was tried/, 'missing settlement evidence cannot establish whether a candidate existed');
+  }
 });
 
 /** A gh that answers `pr list --state all` with these PRs, `--state closed` with those not OPEN (as gh does), and fails anything else. */

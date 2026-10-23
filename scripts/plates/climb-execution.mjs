@@ -50,6 +50,7 @@ export function durations({ started, baselineStarted, baselineEnded, agentSecond
 
 export function completion({ kept }, night) {
   if (kept > 0) return 'candidate';
+  if (night?.settlements?.length) return 'incomplete';
   const attempts = night?.tried ?? [];
   if (!attempts.length) return 'no-candidate';
   const evaluated = a => a.verdict === 'revert' && (
