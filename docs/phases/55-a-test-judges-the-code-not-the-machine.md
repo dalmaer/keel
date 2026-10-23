@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G0
 spec: 2
 depends: [33]
-note: "Built: keel test <file> --stalls (scripts/keel/stalls.mjs, shipped by the night practice); files pinned in tests.stalls run with stalls through the test ledger in every gate; keel:inconclusive is recorded as neither pass nor fail; keel's three climb compare tests run on the suite's own clock (KEEL_CLIMB_CLOCK), and its six suite-timing files are pinned. Owes the owner's read of what moved and the gate's time before and after."
+note: "Built: plates test <file> --stalls (scripts/plates/stalls.mjs, shipped by the night practice); files pinned in tests.stalls run with stalls through the test ledger in every gate; keel:inconclusive is recorded as neither pass nor fail; plates's three climb compare tests run on the suite's own clock (PLATES_CLIMB_CLOCK), and its six suite-timing files are pinned. Owes the owner's read of what moved and the gate's time before and after."
 evidence: ["evidence/2026-10-09-stalls.md", "evidence/2026-10-11-coffee-audit.md"]
 issue: 42
 ---
@@ -14,16 +14,16 @@ issue: 42
 
 ## Done when
 
-`keel test <file> --stalls` names every test that passes plainly and fails when paused at random moments; keel's own tests it names have moved to mock timers or an injected clock, and run with stalls without failing; the timing-hygiene rule requires stall pins for suite-timing files, using mock or injected clocks to make their assertions independent of wall time, instead of a sleep floor; and the practice ships it to the fleet.
+`plates test <file> --stalls` names every test that passes plainly and fails when paused at random moments; plates's own tests it names have moved to mock timers or an injected clock, and run with stalls without failing; the timing-hygiene rule requires stall pins for suite-timing files, using mock or injected clocks to make their assertions independent of wall time, instead of a sleep floor; and the practice ships it to the fleet.
 
 ## Scope
 
-The design is [The robot, and keel's sense of time](../research/2026-10-09-robot-and-time.md), phase 55.
+The design is [The robot, and plates's sense of time](../research/2026-10-09-robot-and-time.md), phase 55.
 
-- **Stalls**: `keel test <file> [--name <pattern>] --stalls [--seed N]` runs the file in its own process group and, at random moments from a printed seed (about once a second, never two seconds apart), pauses the whole group with SIGSTOP for 50 to 500 ms, then SIGCONT. Paused time does not count against the test's timeout. It then runs the same files without stalls (or uses a pass from the ledger on the same tree within a day), and names each test that passed without and failed with: it judges the wall clock. `--seed N` replays the same stalls.
-- **Pinned**: `.keel/keel.json` `"tests": { "stalls": ["<file>"] }` runs those files with stalls on every gate, from a fresh seed each time, which a failure prints.
+- **Stalls**: `plates test <file> [--name <pattern>] --stalls [--seed N]` runs the file in its own process group and, at random moments from a printed seed (about once a second, never two seconds apart), pauses the whole group with SIGSTOP for 50 to 500 ms, then SIGCONT. Paused time does not count against the test's timeout. It then runs the same files without stalls (or uses a pass from the ledger on the same tree within a day), and names each test that passed without and failed with: it judges the wall clock. `--seed N` replays the same stalls.
+- **Pinned**: `.plates/plates.json` `"tests": { "stalls": ["<file>"] }` runs those files with stalls on every gate, from a fresh seed each time, which a failure prints.
 - **Inconclusive**: a test that judges real time on purpose can report itself inconclusive (`t.diagnostic('keel:inconclusive <what it measured>')`); the ledger records it as neither pass nor fail.
-- **keel's own tests**: every test `--stalls` names in keel moves to `mock.timers` or an injected clock; the climb comparison test's 1500 ms sleeper is the first.
+- **plates's own tests**: every test `--stalls` names in plates moves to `mock.timers` or an injected clock; the climb comparison test's 1500 ms sleeper is the first.
 - **The rule**: tests/timing-hygiene.test.mjs requires a stall pin for every file that times a suite. Mock or injected clocks remove timing assumptions; merely mentioning mock timers cannot exempt the whole file. This is a local guard, not a shipped practice lint.
 
 ## Acceptance
@@ -32,28 +32,28 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 - [x] A synthetic wall-clock test (a 100 ms deadline on a 50 ms wait) passes plainly and is named under stalls; the same test under `mock.timers` passes both. `tests/stalls.test.mjs`
 - [x] A file pinned in `"tests": { "stalls": [...] }` runs with stalls in the gate and a failure prints its seed. `tests/stalls.test.mjs`
 - [x] An inconclusive diagnostic is recorded as inconclusive, never pass or fail. `tests/test-ledger.test.mjs`
-- [x] keel's own suite has no test `--stalls` names, and its timing tests are pinned to stalls. `tests/timing-hygiene.test.mjs`
+- [x] plates's own suite has no test `--stalls` names, and its timing tests are pinned to stalls. `tests/timing-hygiene.test.mjs`
 - [ ] ⚑ by hand: the owner reads the list of tests that moved and the gate's time before and after.
 
 ## Your part
 
-- **Ask:** Read which of keel's tests turned out to depend on the machine's speed, and whether the gate got faster once they stopped waiting on real time.
+- **Ask:** Read which of plates's tests turned out to depend on the machine's speed, and whether the gate got faster once they stopped waiting on real time.
 - **Why:** It decides whether the rule ships to the fleet's projects as it is.
 - **Look at:** This phase's evidence: the tests that moved, and the gate's time before and after.
-- **Choices:** Ship it to the fleet | Ship it as advice only | Keep it in keel
+- **Choices:** Ship it to the fleet | Ship it as advice only | Keep it in plates
 - **Takes:** 10 minutes.
-- **Then:** Ship it: the rule goes out in the next release, and the night names wall-clock tests in each project. Advice only: the rule is a note, never a failure. Keep it in keel: nothing ships.
-- **Ready when:** keel's own timing tests have moved.
+- **Then:** Ship it: the rule goes out in the next release, and the night names wall-clock tests in each project. Advice only: the rule is a note, never a failure. Keep it in plates: nothing ships.
+- **Ready when:** plates's own timing tests have moved.
 
 ## Real surfaces
 
-- Owner's machine: `keel test --stalls` on macOS.
+- Owner's machine: `plates test --stalls` on macOS.
 - Workflow shell: the gate on GitHub Actions (Linux), with pinned files running with stalls.
 
 ## Proof
 
 Automated: `node --test tests/stalls.test.mjs tests/test-ledger.test.mjs tests/timing-hygiene.test.mjs`; `npm run check`.
-By hand: keel's gate time before and after, from the ledger.
+By hand: plates's gate time before and after, from the ledger.
 
 ## Deliberately open
 
@@ -62,11 +62,11 @@ By hand: keel's gate time before and after, from the ledger.
 
 ## Next action
 
-⚑ The owner reads which of keel's tests moved and the gate's time before and after (this phase's evidence), and picks: ship the rule to the fleet, advice only, or keep it in keel.
+⚑ The owner reads which of plates's tests moved and the gate's time before and after (this phase's evidence), and picks: ship the rule to the fleet, advice only, or keep it in plates.
 
 ## Trajectory
 
-- **2026-10-09** — `keel test` did not exist; it is a new verb (`lib/test.mjs`), and its engine is `scripts/keel/stalls.mjs` in the night practice, beside the ledger, so a project's gate runs it from its own repo.
+- **2026-10-09** — `keel test` did not exist; it is a new verb (`lib/test.mjs`), and its engine is `scripts/plates/stalls.mjs` in the night practice, beside the ledger, so a project's gate runs it from its own repo.
 - **2026-10-09** — Pinned files run through the test ledger, not the test script: every node project already loads the ledger (`keel init`, migration 0004), so a pin is one line of `.keel/keel.json` and no migration rewrites anyone's `scripts.test`. The ledger starts a pinned file's stalled run once that file's own run is over (PR #57's review: two copies at once share ports and fixtures), while the rest of the suite goes on, from one fresh seed per run; a narrowed run starts none. It imports `stalls.mjs` only when something is pinned, so a copy of `test-ledger.mjs` alone keeps working.
 - **2026-10-09** — Paused time is kept out of the limit by running `node --test` with no timeout of its own and keeping one of running time (30 minutes). A test's own `{ timeout }` still judges the wall clock, which is what stalls should catch.
 - **2026-10-09** — `keel test --stalls` over the base commit's climb compare tests named none: at their 1500 ms base (seeds 55, 1, 2, 3) and at their old 600 ms base (seeds 1, 2, 3). A stall about once a second slows base and candidate in proportion, and the 30% margin holds. Stalls catch a fixed deadline, not a ratio with a wide margin, and not node's start-up cost, which failed CI in 9734581. The tests moved anyway: they judge the wall clock by construction, and every gate paid for their sleeps.

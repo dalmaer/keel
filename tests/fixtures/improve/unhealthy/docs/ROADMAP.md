@@ -17,9 +17,9 @@ Acme sells anvils to coyotes; this repo is its storefront.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
-| [0. The practice room: the thinnest version that runs](phases/00-practice-room.md) | planned | 2026-10-02 | — | Drafted by keel init from the description; Done when is still generic. |
+| [0. The practice room: the thinnest version that runs](phases/00-practice-room.md) | planned | 2026-10-02 | — | Drafted by plates init from the description; Done when is still generic. |
 
-- **0 done when:** A person other than the author can run the thinnest version of Acme from a fresh clone and see it do the first thing the project's description promises. (Drafted by keel init; replace it with the first thing a person could check.)
+- **0 done when:** A person other than the author can run the thinnest version of Acme from a fresh clone and see it do the first thing the project's description promises. (Drafted by plates init; replace it with the first thing a person could check.)
 
 ## Updating this roadmap
 

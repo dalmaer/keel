@@ -1,14 +1,15 @@
 {
-  "name": "keel",
-  "version": "0.8.32",
+  "name": "plates",
+  "version": "0.8.33",
   "private": true,
-  "description": "The mothership for projects run the isocan/ledger way: phases that own their status, lessons as shapes, a conductor, and a night shift.",
+  "description": "Keep projects moving with shared practices, bounded automation, and evidence-backed care.",
   "type": "module",
   "engines": {
     "node": ">=24.22.1"
   },
   "bin": {
-    "keel": "bin/keel.mjs"
+    "plates": "bin/plates.mjs",
+    "keel": "bin/plates.mjs"
   },
   "files": [
     "bin/",
@@ -16,24 +17,27 @@
     "api/",
     "vercel.json",
     "practices/",
+    "scripts/plates/*.mjs",
     "docs/lessons.md",
     "migrations/",
     "tests/fixtures/improve/",
-    ".keel/keel.json",
+    ".plates/plates.json",
     "WHATSNEW.md",
     "NOTICE"
   ],
   "scripts": {
-    "test": "node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout --test-concurrency=32 tests/*.test.mjs tests/helpers/*.test.mjs",
-    "keel": "node bin/keel.mjs",
+    "test": "node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/plates/test-ledger.mjs --test-reporter-destination=stdout --test-concurrency=32 tests/*.test.mjs tests/helpers/*.test.mjs",
+    "plates": "node bin/plates.mjs",
     "roadmap": "node scripts/roadmap.mjs",
     "roadmap:check": "node scripts/roadmap.mjs --check",
     "next": "node scripts/roadmap.mjs --next",
     "render": "node scripts/render.mjs --self",
     "render:check": "node scripts/render.mjs --self --check",
-    "inbox:check": "node bin/keel.mjs learn render --check",
-    "check": "node scripts/keel/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\"",
-    "typecheck": "tsc --project tsconfig.json"
+    "inbox:check": "node bin/plates.mjs learn render --check",
+    "check": "node scripts/plates/test-ledger.mjs --run \"npm test && npm run roadmap:check && npm run render:check && npm run inbox:check\"",
+    "typecheck": "tsc --project tsconfig.json",
+    "keel": "node bin/plates.mjs",
+    "check:focused": "node scripts/check-focused.mjs"
   },
   "devDependencies": {
     "@types/node": "24.19.2",

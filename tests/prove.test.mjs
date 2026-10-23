@@ -1,4 +1,4 @@
-// keel prove (phase 62): a fix is proven by its test failing without it. The
+// plates prove (phase 62): a fix is proven by its test failing without it. The
 // test runs once in a scratch worktree with the fix's files put back as they
 // were at the base, and once in the real tree with the fix. The user's working
 // tree is byte-identical before and after, whatever the verdict (lesson 54).
@@ -12,17 +12,17 @@ import { run } from './helpers/run.mjs';
 import { ENV, git, acmeRepo, treeState, BUGGY } from './helpers/prove.mjs';
 import { tapEntries, readNodeRun, nodePreloads } from '../lib/prove.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-// Each repo's keel prove gets its own TMPDIR, so "no scratch tree is left" reads only its own.
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+// Each repo's plates prove gets its own TMPDIR, so "no scratch tree is left" reads only its own.
 const scratchOf = new Map();
-const keel = (args, cwd) => {
+const plates = (args, cwd) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env: { ...ENV, ...(scratchOf.has(cwd) ? { TMPDIR: scratchOf.get(cwd) } : {}) } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
 
 async function repo(t) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-prove-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-prove-test-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, 'tmp'));
   const acme = await acmeRepo(join(dir, 'acme'));
@@ -30,11 +30,11 @@ async function repo(t) {
   return acme;
 }
 
-/** keel prove in dir, asserting the working tree (and git's view of it) is the same after; the JSON. */
+/** plates prove in dir, asserting the working tree (and git's view of it) is the same after; the JSON. */
 async function prove(dir, args, code) {
   const before = await treeState(dir);
-  const r = keel(['prove', ...args, '--json'], dir);
-  assert.deepEqual(await treeState(dir), before, 'the working tree is byte-identical after keel prove');
+  const r = plates(['prove', ...args, '--json'], dir);
+  assert.deepEqual(await treeState(dir), before, 'the working tree is byte-identical after plates prove');
   assert.deepEqual(await readdir(scratchOf.get(dir)), [], 'the scratch worktree is removed');
   const j = (() => { try { return r.json(); } catch { return null; } })();
   assert.equal(r.code, code, j?.verdict ? `the verdict was ${j.verdict}: ${j.reason}` : r.out + r.err);
@@ -94,7 +94,7 @@ test('INCONCLUSIVE: the test cannot load without the fix, its file is the fix, o
   assert.equal(load.verdict, 'INCONCLUSIVE', JSON.stringify(load, null, 2));
   assert.equal(load.without.loadError, true);
   assert.match(load.reason, /^the test cannot run without the fix: Error \[ERR_MODULE_NOT_FOUND\]: Cannot find module/);
-  assert.doesNotMatch(load.reason, /keel-prove-/, 'the scratch path is not in the reason');
+  assert.doesNotMatch(load.reason, /plates-prove-/, 'the scratch path is not in the reason');
   // The test file is itself part of the fix, and did not exist at the base.
   const own = await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs', 'tests/add.test.mjs'], 1);
   assert.equal(own.verdict, 'INCONCLUSIVE');
@@ -106,7 +106,7 @@ test('INCONCLUSIVE: the test cannot load without the fix, its file is the fix, o
 
 test('--trailer prints the Proven-by: line; --evidence appends it, dated, to the phase\'s evidence file', async t => {
   const dir = await repo(t);
-  const r = keel(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--trailer'], dir);
+  const r = plates(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--trailer'], dir);
   assert.equal(r.code, 0, r.err);
   assert.match(r.out, /^VERIFIED: tests\/add\.test\.mjs — red without the fix, green with it$/m);
   const trailer = 'Proven-by: tests/add.test.mjs — VERIFIED — "Expected values to be strictly equal: -1 !== 3 (adds two anvils)"';
@@ -116,55 +116,55 @@ test('--trailer prints the Proven-by: line; --evidence appends it, dated, to the
   git(dir, ['commit', '-q', '-m', 'fix: add adds', '-m', trailer]);
   assert.equal(git(dir, ['log', '-1', '--format=%(trailers:key=Proven-by,valueonly)']), trailer.slice('Proven-by: '.length));
   // A NOT WORKING verdict carries its reason in the trailer, not a failure it never saw.
-  const nw = keel(['prove', 'tests/add.test.mjs', '--name', 'zero anvils', '--fix', 'lib/add.mjs', '--trailer', '--json'], dir).json();
+  const nw = plates(['prove', 'tests/add.test.mjs', '--name', 'zero anvils', '--fix', 'lib/add.mjs', '--trailer', '--json'], dir).json();
   assert.equal(nw.trailer, 'Proven-by: tests/add.test.mjs (zero anvils) — NOT WORKING — "green without the fix: the test does not catch the bug"');
   // --evidence: the phase's evidence file, from its front matter.
-  await mkdir(join(dir, '.keel'));
+  await mkdir(join(dir, '.plates'));
   await mkdir(join(dir, 'docs', 'phases'), { recursive: true });
   await mkdir(join(dir, 'docs', 'evidence'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: ['phases', 'evidence'] }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', practices: ['phases', 'evidence'] }));
   await writeFile(join(dir, 'docs', 'goals.json'), JSON.stringify([{ id: 'G0', title: 'Anvils', outcome: 'Anvils add up.' }]));
   await writeFile(join(dir, 'docs', 'phases', '07-anvils.md'), '---\nstatus: partial\nsince: 2026-01-05\ngoal: G0\ndepends: []\nnote: "Acme anvils."\nevidence: ["evidence/2026-01-05-anvils.md"]\n---\n\n# Anvils add up\n');
   await writeFile(join(dir, 'docs', 'phases', '08-bare.md'), '---\nstatus: planned\nsince: 2026-01-05\ngoal: G0\ndepends: []\nnote: "Acme."\nevidence: []\n---\n\n# Bare\n');
   await writeFile(join(dir, 'docs', 'evidence', '2026-01-05-anvils.md'), '# Evidence: 7 — anvils add up\n');
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-q', '-m', 'acme: the record']);
-  const ev = keel(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--base', 'HEAD~2', '--evidence', '7', '--json'], dir);
+  const ev = plates(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--base', 'HEAD~2', '--evidence', '7', '--json'], dir);
   assert.equal(ev.code, 0, ev.out + ev.err);
   assert.equal(ev.json().evidence, 'docs/evidence/2026-01-05-anvils.md');
   const text = await readFile(join(dir, 'docs', 'evidence', '2026-01-05-anvils.md'), 'utf8');
   assert.match(text, /^# Evidence: 7 — anvils add up\n- \*\*\d{4}-\d{2}-\d{2}\*\* — Proven-by: tests\/add\.test\.mjs — VERIFIED — "Expected values to be strictly equal: -1 !== 3 \(adds two anvils\)" \(fix: lib\/add\.mjs; base [0-9a-f]{7}\)\n$/);
   // A phase with no evidence file is told how to make one; nothing is written.
-  const bare = keel(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--base', 'HEAD~2', '--evidence', '8', '--json'], dir);
+  const bare = plates(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--base', 'HEAD~2', '--evidence', '8', '--json'], dir);
   assert.equal(bare.code, 2);
   assert.match(bare.json().error, /phase 8 names no evidence file: create one from docs\/templates\/evidence\.md/);
 });
 
-test('a project on another runner names it in .keel/keel.json prove.command; an exit code alone never proves, TAP does', async t => {
+test('a project on another runner names it in .plates/plates.json prove.command; an exit code alone never proves, TAP does', async t => {
   const dir = await repo(t);
-  await mkdir(join(dir, '.keel'));
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node {file}' } }));
+  await mkdir(join(dir, '.plates'));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node {file}' } }));
   await writeFile(join(dir, 'tests', 'plain.mjs'), "import { add } from '../lib/add.mjs';\nif (add(2, 2) !== 4) { console.error('FAIL: 2 + 2 is', add(2, 2)); process.exit(1); }\n");
   const j = await prove(dir, ['tests/plain.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'INCONCLUSIVE', 'red then green, but by exit code alone');
   assert.match(j.reason, /read by exit code alone, which cannot tell a failing test from one that never loaded/);
-  assert.equal(j.runner, '.keel/keel.json prove.command');
+  assert.equal(j.runner, '.plates/plates.json prove.command');
   assert.equal(j.without.first, 'FAIL: 2 + 2 is 0');
   // Codex on #55: the fix adds a module the test imports; without it the command exits non-zero before any test. Never VERIFIED.
   await writeFile(join(dir, 'lib', 'mul.mjs'), 'export const mul = (a, b) => a * b;\n');
   await writeFile(join(dir, 'tests', 'mul.mjs'), "import { mul } from '../lib/mul.mjs';\nif (mul(2, 3) !== 6) process.exit(1);\n");
   assert.equal((await prove(dir, ['tests/mul.mjs', '--fix', 'lib/mul.mjs'], 1)).verdict, 'INCONCLUSIVE');
   // A command that prints TAP ("tap": true) is read as node --test is: a proof, and a load error is told apart.
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node --import ./tests/setup.mjs --test --test-reporter=tap {file}', tap: true } }));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', prove: { command: 'node --import ./tests/setup.mjs --test --test-reporter=tap {file}', tap: true } }));
   assert.equal((await prove(dir, ['tests/add.test.mjs', '--fix', 'lib/add.mjs'], 0)).verdict, 'VERIFIED');
   await writeFile(join(dir, 'tests', 'mul.test.mjs'), "import { test } from 'node:test';\nimport { mul } from '../lib/mul.mjs';\ntest('two by three', () => { if (mul(2, 3) !== 6) throw new Error('no'); });\n");
   const load = await prove(dir, ['tests/mul.test.mjs', '--fix', 'lib/mul.mjs'], 1);
   assert.equal(load.verdict, 'INCONCLUSIVE');
   assert.match(load.reason, /^the test cannot run without the fix: Error \[ERR_MODULE_NOT_FOUND\]/);
   // --name with a command that has no {name}: the whole file would run, so it is refused (Codex on #55).
-  const named = keel(['prove', 'tests/plain.mjs', '--name', 'two and two', '--fix', 'lib/add.mjs', '--json'], dir);
+  const named = plates(['prove', 'tests/plain.mjs', '--name', 'two and two', '--fix', 'lib/add.mjs', '--json'], dir);
   assert.equal(named.code, 2, named.out);
-  assert.match(named.json().error, /--name needs \{name\} in \.keel\/keel\.json "prove"\.command/);
+  assert.match(named.json().error, /--name needs \{name\} in \.plates\/plates\.json "prove"\.command/);
 });
 
 // ---- what Codex found on #55 ------------------------------------------------
@@ -189,11 +189,11 @@ test('an ignored file the test reads is in both scratch trees: the test is judge
   const j = await prove(dir, ['tests/fixture.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'NOT WORKING', `the verdict was ${j.verdict}: ${j.reason}`);
   assert.equal(j.reason, 'green without the fix: the test does not catch the bug');
-  // More ignored files than keel copies: the environment is not reproduced, so nothing is judged.
-  const r = run(process.execPath, [BIN, 'prove', 'tests/fixture.test.mjs', '--fix', 'lib/add.mjs', '--json'], { cwd: dir, env: { ...ENV, TMPDIR: scratchOf.get(dir), KEEL_PROVE_IGNORED_BYTES: '3' } });
+  // More ignored files than plates copies: the environment is not reproduced, so nothing is judged.
+  const r = run(process.execPath, [BIN, 'prove', 'tests/fixture.test.mjs', '--fix', 'lib/add.mjs', '--json'], { cwd: dir, env: { ...ENV, TMPDIR: scratchOf.get(dir), PLATES_PROVE_IGNORED_BYTES: '3' } });
   assert.equal(r.status, 1, r.stdout + r.stderr);
   assert.equal(JSON.parse(r.stdout).verdict, 'INCONCLUSIVE');
-  assert.match(JSON.parse(r.stdout).reason, /^the ignored files are more than 3 bytes, so keel cannot give the test the environment it has here$/);
+  assert.match(JSON.parse(r.stdout).reason, /^the ignored files are more than 3 bytes, so plates cannot give the test the environment it has here$/);
 });
 
 // ---- Codex's third round on #55 --------------------------------------------
@@ -206,13 +206,13 @@ test('a fix part committed and part not needs its base named: HEAD would leave t
   commitAll(dir, 'fix: add two (part one)');
   await writeFile(join(dir, 'lib', 'add.mjs'), 'export const add = (a, b) => a + b;\n');
   await writeFile(join(dir, 'tests', 'two.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { two } from '../lib/two.mjs';\nimport { add } from '../lib/add.mjs';\ntest('one and one', () => { assert.equal(add(1, 1), two); });\n");
-  const r = keel(['prove', 'tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--json'], dir);
+  const r = plates(['prove', 'tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--json'], dir);
   assert.equal(r.code, 2, r.out);
   assert.match(r.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\): name the commit before the whole fix with --base <ref>/);
   // Named, the whole fix is reverted: the test does not load without it.
   assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib/two.mjs', 'lib/add.mjs', '--base', 'HEAD~1'], 1)).verdict, 'INCONCLUSIVE');
   // One directory holding both parts is judged file by file, not as one dirty argument (Codex on #55).
-  const whole = keel(['prove', 'tests/two.test.mjs', '--fix', 'lib', '--json'], dir);
+  const whole = plates(['prove', 'tests/two.test.mjs', '--fix', 'lib', '--json'], dir);
   assert.equal(whole.code, 2, whole.out);
   assert.match(whole.json().error, /^some --fix paths are committed \(lib\/two\.mjs\) and some are not \(lib\/add\.mjs\)/);
   assert.equal((await prove(dir, ['tests/two.test.mjs', '--fix', 'lib', '--base', 'HEAD~1'], 1)).verdict, 'INCONCLUSIVE');
@@ -234,7 +234,7 @@ test('tests that share a name are never matched by place: a shift between runs i
     "test('works', () => { assert.equal(add(0, 0), 0); });", ''].join('\n'));
   const j = await prove(dir, ['tests/shift.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
-  assert.equal(j.reason, 'more than one test is named works, or the count changed with the fix: keel cannot tell them apart across runs; give each its own name');
+  assert.equal(j.reason, 'more than one test is named works, or the count changed with the fix: plates cannot tell them apart across runs; give each its own name');
 });
 
 test('the test runs with PWD set to the scratch tree, and its git commands change only the scratch clone', async t => {
@@ -327,7 +327,7 @@ test('tests are matched by their whole identity: a failing test skipped with the
   assert.equal(j.reason, 'what failed without the fix did not pass with it (skipped, todo or not run): anvils > works');
   // Same path twice: told apart by place.
   assert.deepEqual(tapEntries('# Subtest: s\n    # Subtest: w\n    ok 1 - w\n    # Subtest: w\n    not ok 2 - w\nnot ok 1 - s\n').map(e => e.label), ['s > w', 's > w #2', 's']);
-  // A name holding ' > ' is not a suite: the identities differ (keel's review of #55).
+  // A name holding ' > ' is not a suite: the identities differ (plates's review of #55).
   const [flat, nested] = tapEntries('# Subtest: a > b\nok 1 - a > b\n# Subtest: a\n    # Subtest: b\n    ok 1 - b\nok 2 - a\n');
   assert.equal(flat.label, nested.label, 'they read alike');
   assert.notEqual(flat.id, nested.id, 'but are not the same test');
@@ -361,7 +361,7 @@ test('a link pointing back into the checkout is never written through: INCONCLUS
   // prove() asserts the tree, logs/real.txt included, is byte-identical after.
   const j = await prove(dir, ['tests/log.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
-  assert.equal(j.reason, 'out.log links into your checkout: a test writing through it would change your files, so keel does not run it');
+  assert.equal(j.reason, 'out.log links into your checkout: a test writing through it would change your files, so plates does not run it');
   // A tracked link with such a target is refused too.
   await rm(join(dir, 'out.log'));
   await symlink(join(dir, 'logs', 'real.txt'), join(dir, 'tracked.log'));
@@ -393,7 +393,7 @@ test('a test script that sets environment inline is not run without it: INCONCLU
   await writeFile(join(dir, 'tests', 'env.test.mjs'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { add } from '../lib/add.mjs';\ntest('the expected sum', () => { assert.equal(add(1, 2), Number(process.env.ACME_EXPECT ?? 3)); });\n");
   const j = await prove(dir, ['tests/env.test.mjs', '--fix', 'lib/add.mjs'], 1);
   assert.equal(j.verdict, 'INCONCLUSIVE', `the verdict was ${j.verdict}: ${j.reason}`);
-  assert.equal(j.reason, 'the test script sets environment inline (ACME_EXPECT=-1): keel runs node --test without it; name the runner in .keel/keel.json "prove" instead');
+  assert.equal(j.reason, 'the test script sets environment inline (ACME_EXPECT=-1): plates runs node --test without it; name the runner in .plates/plates.json "prove" instead');
   const { inlineEnv } = await import('../lib/prove.mjs');
   assert.deepEqual([inlineEnv('node --import ./x.mjs --test --test-reporter=spec'), inlineEnv('export A=1 && node --test'), inlineEnv('cross-env A=1 node --test')], [null, 'export A=1', 'cross-env']);
 });
@@ -402,7 +402,7 @@ test('a sparse checkout is not reproduced by a full scratch copy: INCONCLUSIVE',
   const dir = await repo(t);
   commitAll(dir, 'acme: the fix');
   git(dir, ['sparse-checkout', 'set', 'lib', 'tests']);
-  const r = keel(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
+  const r = plates(['prove', 'tests/add.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
   assert.equal(r.code, 1, r.out + r.err);
   assert.equal(r.json().verdict, 'INCONCLUSIVE');
   assert.match(r.json().reason, /^this checkout is sparse \(core\.sparseCheckout\)/);
@@ -437,7 +437,7 @@ test('a workspace package linked from node_modules is the scratch copy\'s own: t
   // A link into the repository the scratch copy cannot hold (inside .git, which it never copies): no proof.
   await mkdir(join(dir, '.git', 'acme-private'));
   await symlink(join('..', '.git', 'acme-private'), join(dir, 'node_modules', 'acme-private'));
-  const r = keel(['prove', 'tests/workspace.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
+  const r = plates(['prove', 'tests/workspace.test.mjs', '--fix', 'lib/add.mjs', '--json'], dir);
   assert.equal(r.code, 1, r.out);
   assert.equal(r.json().verdict, 'INCONCLUSIVE');
   assert.match(r.json().reason, /^node_modules\/acme-private links into the repository at \.git\/acme-private, which the scratch copy does not hold$/);
@@ -492,19 +492,19 @@ test('a submodule, clean or dirty, is laid over the scratch tree (its files, not
   assert.equal(j.verdict, 'VERIFIED', JSON.stringify(j, null, 2));
 });
 
-test('usage: the test and --fix are required, and keel prove runs in a git repository', async t => {
+test('usage: the test and --fix are required, and plates prove runs in a git repository', async t => {
   const dir = await repo(t);
-  for (const [args, want] of [[['tests/add.test.mjs'], /--fix names the fix's files/], [['--fix', 'lib/add.mjs'], /keel prove <test file>/],
+  for (const [args, want] of [[['tests/add.test.mjs'], /--fix names the fix's files/], [['--fix', 'lib/add.mjs'], /plates prove <test file>/],
     [['tests/none.test.mjs', '--fix', 'lib/add.mjs'], /no test file tests\/none\.test\.mjs/], [['tests/add.test.mjs', '--fix'], /--fix needs the paths/],
     [['tests/add.test.mjs', '--fix', '../elsewhere.mjs'], /outside the repository/]]) {
-    const r = keel(['prove', ...args, '--json'], dir);
+    const r = plates(['prove', ...args, '--json'], dir);
     assert.equal(r.code, 2, `${args.join(' ')}: ${r.out}`);
     assert.match(r.json().error, want);
   }
-  const outside = await mkdtemp(join(tmpdir(), 'keel-prove-test-'));
+  const outside = await mkdtemp(join(tmpdir(), 'plates-prove-test-'));
   t.after(() => rm(outside, { recursive: true, force: true }));
   await writeFile(join(outside, 'a.test.mjs'), '');
-  const r = keel(['prove', 'a.test.mjs', '--fix', 'a.mjs', '--json'], outside);
+  const r = plates(['prove', 'a.test.mjs', '--fix', 'a.mjs', '--json'], outside);
   assert.equal(r.code, 2);
   assert.match(r.json().error, /runs in a git repository/);
 });

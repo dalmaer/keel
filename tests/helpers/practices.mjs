@@ -1,4 +1,4 @@
-// keel's practice list, read from practices/*/practice.json, for tests that
+// plates's practice list, read from practices/*/practice.json, for tests that
 // would otherwise pin it by hand. Phase 42 added a practice and a hard-coded
 // list in a test was missed: a test that lists every practice only to say
 // which are optional derives it here, and a test that pins a state per
@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 
 const PRACTICES = join(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'practices');
 
-/** Every practice keel carries, sorted, with its `optional` flag. */
+/** Every practice plates carries, sorted, with its `optional` flag. */
 export function practiceSpecs() {
   return readdirSync(PRACTICES, { withFileTypes: true })
     .filter(d => d.isDirectory() && existsSync(join(PRACTICES, d.name, 'practice.json')))
@@ -20,10 +20,10 @@ export function practiceSpecs() {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** The names of keel's optional practices, sorted. */
+/** The names of plates's optional practices, sorted. */
 export const optionalPractices = () => practiceSpecs().filter(p => p.optional).map(p => p.name);
 
-/** Assert `expected` (an object keyed by practice) names exactly keel's practices; `where` names the test to update. */
+/** Assert `expected` (an object keyed by practice) names exactly plates's practices; `where` names the test to update. */
 export function pinsEvery(expected, where) {
   const all = practiceSpecs().map(p => p.name);
   const keys = Object.keys(expected);

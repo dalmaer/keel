@@ -1,6 +1,6 @@
 #!/bin/sh
-# A git for keel improve --selftest: the fixture lives inside keel's own repo,
-# so a real git would read keel's history. Answers the calls improve makes.
+# A git for plates improve --selftest: the fixture lives inside plates's own repo,
+# so a real git would read plates's history. Answers the calls improve makes.
 # Synthetic: main has commits on the two days before today (no changelog page
 # for either), and every file was last committed on 2020-01-06. Releases
 # v0.1.0 and v0.2.0: none of the first release's commits is a fix, and one

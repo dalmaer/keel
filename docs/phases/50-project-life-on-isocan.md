@@ -5,14 +5,14 @@ goal: G5
 spec: 2
 depends: [2, 10, 26, 40]
 note: "Local collection, interactive render, reviewed retro capture, immutable sync and the conditional live pulse are implemented. Approved immutable dashboards and deployed recovery replay verified; packed connection/restart proof passes. Live mode is proven on a fake transport and a throwaway local daemon only: the deployed concurrent-edit walk, GitHub writer and night proof remain."
-evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md", "evidence/2026-10-13-canvas-live-cards.md"]
+evidence: ["evidence/2026-10-08-project-canvas.md", "evidence/2026-10-09-canvas-reconciliation.md", "evidence/2026-10-10-canvas-recovery.md", "evidence/2026-10-13-canvas-live-pulse.md", "evidence/2026-10-13-canvas-live-cards.md", "evidence/2026-10-23-roadmap-followthrough.md"]
 ---
 
-# A project's isocan canvas shows what Keel improves
+# A project's isocan canvas shows what Plates improves
 
 ## Done when
 
-An adopted project has a persistent isocan canvas showing its complete Keel lifecycle, with source-linked measures of fixes and improvement that survive repeated synchronization without changing source acceptance or overwriting human work.
+An adopted project has a persistent isocan canvas showing its complete Plates lifecycle, with source-linked measures of fixes and improvement that survive repeated synchronization without changing source acceptance or overwriting human work.
 
 ## Scope
 
@@ -25,7 +25,7 @@ aggregation follows the per-project walk; no additional tracking authority.
 ## Acceptance
 
 - [x] All lifecycle sources, both phase shapes, stable identities and unknown coverage are normalized without inventing facts: `tests/canvas-snapshot.test.mjs`. Dependency/review/queue/fleet adapters consume explicit saved artifacts; missing artifacts stay unknown.
-- [x] Metrics distinguish fixes, declined/stale findings, acceptance, merge, production verification and lived-in evidence; source links and accessible filters work: `tests/canvas-render.test.mjs` and the local Keel browser walk.
+- [x] Metrics distinguish fixes, declined/stale findings, acceptance, merge, production verification and lived-in evidence; source links and accessible filters work: `tests/canvas-render.test.mjs` and the local Plates browser walk.
 - [x] Connect, sync, retry and recovery preserve stable item ids and human edits, with no blind retries after ambiguous creation: `tests/canvas-sync.test.mjs` proves immutable mode and the stable live pulse (applied, conflict by version and by metadata, replayed, unsupported, op id reuse, retention) on a fake transport. Deployed concurrency is not an automated proof; it is owed in the by-hand item below.
 - [x] Retro capture is explicit, reviewed and redacted; owner choices remain authoritative and unsupported providers remain unknown: `tests/canvas-retro.test.mjs`.
 - [ ] The existing night publishes its measured snapshot without repeating the gate or invoking a model: `tests/canvas-night.test.mjs` exercises the workflow shell and a live journal's export and restore; the deployed credential and restart walk remains, in either mode.
@@ -34,7 +34,7 @@ aggregation follows the per-project walk; no additional tracking authority.
 
 ## Your part
 
-The owner approved the private destination and Keel writer on 2026-10-08;
+The owner approved the private destination and Plates writer on 2026-10-08;
 that decision is settled and must not be asked again. Canvas
 `prj_9CgFY5l-na`, private space `spc_JA2u7KSKSI`, writer `usr_FkZbi3ZGqT`.
 The weekly local report task is approved and active (Monday 08:00 Denver).
@@ -44,12 +44,12 @@ surface; prepare its concrete setup before requesting any new credential.
 Moving that approved canvas from immutable to live mode was a new decision
 and the owner's. The owner approved it on 2026-10-13, for one "Loop across
 projects" card updated in place each week. Nothing moves the binding until
-the owner runs `keel canvas live --card <key> --yes` there.
+the owner runs `plates canvas live --card <key> --yes` there.
 
 ## Real surfaces
 
 - Owner's machine: installed isocan creates and updates a private canvas; verify native groups, visual/source faces, source links, identity and conflicts in the browser.
-- Published package: pack and install Keel, connect and render from a fresh adopted project without importing isocan's SDK.
+- Published package: pack and install Plates, connect and render from a fresh adopted project without importing isocan's SDK.
 - Workflow shell: opt-in night uses actual credentials and one-writer configuration; prove offline/auth-expiry/interrupted-write behavior.
 - GitHub API: compare observed PR merge and CI facts with source phase acceptance, including a merged-but-unaccepted example.
 - Adopted project: follow Loop, lesson and retro outcomes to real evidence in the source records; edited cards and human notes survive a sync.
@@ -59,7 +59,7 @@ the owner runs `keel canvas live --card <key> --yes` there.
 Focused proof commands (use the test ledger reporter as shown):
 
 ```sh
-node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout tests/canvas-snapshot.test.mjs tests/canvas-render.test.mjs tests/canvas-sync.test.mjs tests/canvas-retro.test.mjs tests/canvas-night.test.mjs tests/canvas-cli.test.mjs tests/canvas-package.test.mjs
+node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/plates/test-ledger.mjs --test-reporter-destination=stdout tests/canvas-snapshot.test.mjs tests/canvas-render.test.mjs tests/canvas-sync.test.mjs tests/canvas-retro.test.mjs tests/canvas-night.test.mjs tests/canvas-cli.test.mjs tests/canvas-package.test.mjs
 npm run check
 ```
 
@@ -81,9 +81,9 @@ deployed integration.
 - **Settled 2026-10-08:** private home/space/audience and writer approved and used. Immutable editions retain history; automated retention remains open. No public sharing or GitHub night credentials are implied.
 - **Settled 2026-10-13, by isocan `7bb1f4e` shipping `edit --if-version`:** the
   stable live pulse is a second mode beside immutable, entered only by the
-  previewed `keel canvas live --yes`. A person's edit wins: a conflict is
-  recorded and stays refused until the owner runs `keel canvas rebase --onto
-  <version-id> --yes`; keel never adopts a person's version as its base by
+  previewed `plates canvas live --yes`. A person's edit wins: a conflict is
+  recorded and stays refused until the owner runs `plates canvas rebase --onto
+  <version-id> --yes`; plates never adopts a person's version as its base by
   itself. An older home returns the binding to immutable. Retention of the live
   card's versions is optional (`--keep`), off by default. Still open: atomic
   multi-card publication (isocan has none; not simulated) and retention of
@@ -93,31 +93,16 @@ deployed integration.
 
 ## Next action
 
-Move the approved canvas's weekly "Loop across projects" report to one live
-card. The owner approved this on 2026-10-13. That binding is published by the
-weekly script, which calls `canvasSync` with its own keys, not by `keel canvas
-sync`. Three steps, in the reporting workspace, after this work is released
-there:
-
-1. Change the script's key for that card from a dated one to the fixed key
-   `loop-across-projects`. The title may keep its date.
-2. ⚑ The owner, with the inspected isocan `7bb1f4e` build as the approved
-   writer: `keel canvas live --card loop-across-projects` (preview), then the
-   same with `--yes`. No card has that key yet, so nothing is adopted and no
-   re-base is needed; the dated editions stay on the canvas as history.
-3. Let one weekly run create the card and the next one edit it in place.
-   Confirm both in the browser, then edit the card as a person and see the
-   next run refuse. Record it as evidence.
-
-If `pulse` is also kept in `--card` and that journal has a pulse published
-before 2026-10-13, its receipt has no recorded metadata: the preview says
-`unrecorded-metadata` and it needs one `keel canvas rebase --onto <version-id>
---yes` after the owner has looked at the card.
-
-After that, provision the dedicated GitHub writer using the project-canvas
-guide and verify night/restart behavior, including a restored pending edit.
-Scheduled-use evidence (seven nights) is still owed. Do not ask again for the
-destination, writer or dashboards.
+The approved reporting workspace already uses the fixed `loop-across-projects`
+key and live mode (configured 14 October). Do not repeat that setup. The
+19 October publication preflight stopped because the owner-only adapter rejects
+the owner's explicitly approved named Editor grant. Specify and review exact
+approved-grant matching before implementing that support; preserve the grant,
+writer, binding, historical cards and receipts. Do not remove access or bypass
+preflight. Once supported, verify one real create, a later conditional edit and
+a refusal after a human edit. These deployed walks remain unverified. Dedicated
+GitHub writer/restart proof and seven scheduled nights remain separate work.
+Do not ask again for the approved destination, writer or retained dashboards.
 
 ## Trajectory
 
@@ -136,3 +121,5 @@ destination, writer or dashboards.
 - **2026-10-13** — A second review finding: adoption compared three keel properties, the title and the hashes, so a property a person added before the first live sync rode in as the base. Publication now records the pulse's full metadata and adoption compares all of it. A receipt without it is not assumed unchanged, which costs the approved binding one explicit re-base on its way to live.
 
 - **2026-10-13** — The owner approved live for the approved canvas, and that showed live mode could not reach it: only a card keyed `pulse` was ever live, and that binding is published by a weekly script with its own dated keys. A binding now names its live card keys. The script must send one fixed key, because a live card is found by key; a new key has no card to adopt, so the earlier re-base cost does not apply to it. keel#127's two stuck states were fixed in the same work.
+
+- **2026-10-23** — The reporting binding and publisher prove fixed-key/live setup already happened; the retained 19 October preflight names an audience-contract limitation. Reconciled next action without changing acceptance or claiming remote publication. [Evidence](../evidence/2026-10-23-roadmap-followthrough.md).

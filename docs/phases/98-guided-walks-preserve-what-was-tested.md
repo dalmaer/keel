@@ -21,7 +21,7 @@ Build the authored stepper, revision/environment display, pass/fail/blocked obse
 
 Implementation: [Hosted guided walks](../specs/web-guided-walks.md).
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

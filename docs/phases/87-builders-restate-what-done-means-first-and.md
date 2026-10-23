@@ -56,7 +56,7 @@ By hand: one report read.
 
 ## Next action
 
-Land this phase's PR (a practice change: cross-review first); then conduct one phase with the new shape, and the owner reads its builder report and answers with `keel walk done 87 --choice "<choice>"` (Your part).
+Land this phase's PR (a practice change: cross-review first); then conduct one phase with the new shape, and the owner reads its builder report and answers with `plates walk done 87 --choice "<choice>"` (Your part).
 
 ## Trajectory
 

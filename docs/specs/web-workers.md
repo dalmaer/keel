@@ -42,7 +42,7 @@ GitHub documents dispatch inputs and an optional returned run ID, but no
 idempotency key. A lost response remains uncertain. Cancellation is an accepted
 request, not proof of termination. See the dated API references below.
 
-A fixed operator-configured HTTPS Keel origin is the only worker callback
+A fixed operator-configured HTTPS Plates origin is the only worker callback
 address. It is not a workflow input or a URL taken from project content. The
 worker obtains a short-lived GitHub Actions OIDC token for that exact audience.
 The server verifies its signature against the fixed GitHub issuer/JWKS, bounded
@@ -165,7 +165,9 @@ The schedule editor is deliberately narrow: an existing single literal UTC cron
 on a project-owned simple typecheck workflow, with a known literal job timeout,
 constant noncancelling concurrency and explicit schedule budget policy. Match the
 reviewed canonical fixed-command source shape, normalizing only the cron value.
-Reject a path owned by `.keel/lock.json`: editing a managed night workflow would
+Read `.plates/lock.json`, using `.keel/lock.json` only when the complete immutable
+tree confirms the canonical path is absent. Unreadable or malformed ownership
+evidence refuses the edit. Reject a path owned by this lock: editing a managed night workflow would
 create drift that render overwrites. A separate schedule-only registration may
 expose this editor without claiming OIDC dispatch support; it has no start button.
 The private policy bounds allowed cadence and scheduled minutes separately from
@@ -242,6 +244,6 @@ Read 2026-10-21 UTC:
 - [Workflow run API](https://docs.github.com/en/rest/actions/workflow-runs?apiVersion=2022-11-28): scoped run/attempt reads and cancellation request semantics.
 - [GitHub OIDC reference](https://docs.github.com/en/actions/reference/security/oidc): issuer/audience, timing and repository/workflow/run/job claims.
 
-The fencing, recovery and budget design above is Keel's interpretation and
+The fencing, recovery and budget design above is Plates's interpretation and
 additional protocol, not a guarantee supplied by a dispatch endpoint. Live
 compatibility still requires the named exercise.

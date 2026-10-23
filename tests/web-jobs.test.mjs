@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { jobsHarness, token, blob } from "./helpers/web-jobs.mjs";
+import { TYPECHECK_WORKFLOW, LEGACY_TYPECHECK_WORKFLOW } from "../lib/web/job-workflow.mjs";
 import { createJobs } from "../lib/web/jobs.mjs";
 const project = (h) => h.access.projects[0];
 const opts = (h) => ({ reauthorize: h.refreshAccess });
@@ -317,4 +318,23 @@ test("an impossible external begin result never becomes an execution grant", asy
     h.jobs.begin(i, { ...b, fence: held.fence, jobId: held.jobId }),
     { code: "invalid_job_store" },
   );
+});
+
+
+test("reviewed workflow generations retain exact source pins and reject changed shapes", async () => {
+  for (const workflow of [TYPECHECK_WORKFLOW, LEGACY_TYPECHECK_WORKFLOW]) {
+    const h = await jobsHarness();
+    h.source.files[h.routineId] = workflow;
+    h.registration.workflow.workflowBlob = blob(workflow);
+    h.register();
+    assert.equal((await preview(h)).canApply, true);
+    h.registration.workflow.workflowBlob = "f".repeat(40);
+    h.register();
+    await assert.rejects(preview(h), { code: "worker_source_changed" });
+    h.source.files[h.routineId] = workflow.replace("timeout-minutes: 15", "timeout-minutes: 60");
+    h.registration.workflow.workflowBlob = blob(h.source.files[h.routineId]);
+    h.register();
+    await assert.rejects(preview(h), { code: "worker_source_unsupported" });
+    assert.equal(h.actions.dispatches.length, 0);
+  }
 });

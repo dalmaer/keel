@@ -10,13 +10,45 @@ import { createExport } from "../lib/web/export.mjs";
 import { createGitHub } from "../lib/web/github.mjs";
 import { validateLesson, lessonId } from "../lib/web/learning-model.mjs";
 import { gitBlob } from "../lib/web/decision-github.mjs";
-import { lessonFingerprint } from "../practices/night/files/scripts/keel/lib.mjs";
+import { lessonFingerprint } from "../practices/night/files/scripts/plates/lib.mjs";
 import { webConfig } from "../lib/web/config.mjs";
 const fresh = (h) => () =>
   createGitHub(h.config, h.fetcher).access(token, h.access.userId);
 async function first(h) {
   return (await h.learning.project(h.access, token, h.project)).records[0];
 }
+
+test('learning config prefers Plates and reads legacy only when the immutable tree lacks canonical config', async () => {
+  for (const legacy of [false, true]) {
+    const h = learningHarness();
+    h.source.files['.keel/keel.json'] = legacy ? h.source.files['.plates/plates.json'] : '{invalid legacy';
+    if (legacy) delete h.source.files['.plates/plates.json'];
+    const model = await h.learning.project(h.access, token, h.project);
+    assert.equal(model.state, 'complete');
+    assert.equal(model.records.length, 3);
+    assert.equal(model.records[0].source.blob, gitBlob(lessonTable));
+  }
+});
+
+test('learning never falls back from malformed or denied canonical config to a legacy catalogue', async () => {
+  for (const failure of ['malformed', 403, 404]) {
+    const h = learningHarness();
+    h.source.files['.keel/keel.json'] = JSON.stringify({ lessons: 'legacy/lessons.md' });
+    h.source.files['legacy/lessons.md'] = lessonTable;
+    if (failure === 'malformed') h.source.files['.plates/plates.json'] = '{broken';
+    const canonical = gitBlob(h.source.files['.plates/plates.json']), legacy = gitBlob(h.source.files['.keel/keel.json']);
+    let legacyReads = 0;
+    const learning = createLearning(h.config, { fetcher: (url, options) => {
+      if (url.endsWith('/git/blobs/' + legacy)) legacyReads++;
+      if (failure !== 'malformed' && url.endsWith('/git/blobs/' + canonical)) return Promise.resolve(Response.json({}, { status: failure }));
+      return h.fetcher(url, options);
+    } });
+    if (failure === 'malformed') assert.equal((await learning.project(h.access, token, h.project)).state, 'unavailable');
+    else await assert.rejects(learning.project(h.access, token, h.project), { code: 'access_denied' });
+    assert.equal(legacyReads, 0);
+    assert.deepEqual(h.source.writes, []);
+  }
+});
 async function sharedFile(h, record = null) {
   record ??= await first(h);
   const value = {
@@ -35,7 +67,7 @@ async function sharedFile(h, record = null) {
 
 test("learning reads configured immutable lesson rows with canonical fingerprint and keeps duplicates visible", async () => {
   const h = learningHarness();
-  h.source.files[".keel/keel.json"] = JSON.stringify({
+  h.source.files[".plates/plates.json"] = JSON.stringify({
     lessons: "design/lessons.md",
     repo: "other/forged",
   });
@@ -80,7 +112,7 @@ test("learning distinguishes absent, malformed, partial and unavailable project 
     (await h.learning.project(h.access, token, h.project)).state,
     "unavailable",
   );
-  h.source.files[".keel/keel.json"] = JSON.stringify({
+  h.source.files[".plates/plates.json"] = JSON.stringify({
     lessons: "https://private.example/secret",
   });
   assert.equal(
@@ -235,7 +267,7 @@ test("export downloads only exact approved text with fixed filename, no source m
     { reauthorize: fresh(h) },
   );
   assert.equal(download.bytes.toString(), text);
-  assert.equal(download.filename, "keel-reviewed-lessons.txt");
+  assert.equal(download.filename, "plates-reviewed-lessons.txt");
   assert.equal(download.mime, "text/plain; charset=utf-8");
   assert.equal(h.workspace.writes.length + h.source.writes.length, 0);
   assert.equal(h.db.operations.size, 0);

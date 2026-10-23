@@ -39,7 +39,7 @@ acknowledgement of the exact public file and message before submission.
 
 Submission defaults to disabled. Enabling it requires owner approval, GitHub App
 **Contents: read and write** on selected repositories, the signed-in user's write
-permission and `decisionWrites: true` in server-side `KEEL_WEB_CONFIG`. No Issues,
+permission and `decisionWrites: true` in server-side `PLATES_WEB_CONFIG`. No Issues,
 Pull Requests, Actions, administration or workflow permission is requested.
 Keep that setting absent or false for preview-only use. Prior read-only setup
 approval does not authorize broader access.
@@ -62,7 +62,7 @@ reserved after lease expiry. Do not bypass or delete that reservation to retry.
 A committed receipt links to the exact source change and retains authenticated
 actor and observation time. A shaping answer increments its revision, preserving
 existing answers and proposed decisions. A health decision uses the same transform
-as `keel walk decide`. Neither establishes implementation, tests, human acceptance
+as `plates walk decide`. Neither establishes implementation, tests, human acceptance
 or lived-in use.
 
 ## Instance setup and proof
@@ -85,5 +85,5 @@ dispatched write, including when matching history is no longer within its bounde
 search. There is currently no operator release command. Retain the operation URL
 and original receipt; do not edit the database to free it or submit a duplicate.
 An audited operator reconciliation flow is tracked in
-[issue #215](https://github.com/dalmaer/keel/issues/215). Unchanged branch HEAD is
+[issue #215](https://github.com/dalmaer/plates/issues/215). Unchanged branch HEAD is
 not proof that an in-flight request can no longer commit.

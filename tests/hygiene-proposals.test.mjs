@@ -9,16 +9,16 @@ import {join} from 'node:path';
 import {tmpdir,hostname} from 'node:os';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {makeHygieneProposal,formatHygieneProposal,parseHygieneProposal,readHygieneProposals,hygieneRobotTargetReason} from '../practices/night/files/scripts/keel/hygiene-proposals.mjs';
-import {writeHealthReport} from '../practices/night/files/scripts/keel/time-proposals.mjs';
+import {makeHygieneProposal,formatHygieneProposal,parseHygieneProposal,readHygieneProposals,hygieneRobotTargetReason} from '../practices/night/files/scripts/plates/hygiene-proposals.mjs';
+import {writeHealthReport} from '../practices/night/files/scripts/plates/time-proposals.mjs';
 import {decideHygieneProposal} from '../lib/hygiene-proposal-actions.mjs';
 import {walkDecide,proposalOf,board} from '../lib/board.mjs';
 const repo='acme/anvils',path='docs/health/2026-10-11.md',at='2026-10-11T12:00:00Z';
 const git=(root,...args)=>execFileSync('git',['-C',root,...args],{encoding:'utf8'}).trim();
 async function fixture(t,{robot={on:true,budgetMinutes:60}}={}) {
   const root=await mkdtemp(join(tmpdir(),'acme-hygiene-'));t.after(()=>rm(root,{recursive:true,force:true}));
-  await mkdir(join(root,'.keel'));await mkdir(join(root,'src'));
-  const config={repo,robot};await writeFile(join(root,'.keel/keel.json'),JSON.stringify(config));
+  await mkdir(join(root,'.plates'));await mkdir(join(root,'src'));
+  const config={repo,robot};await writeFile(join(root,'.plates/plates.json'),JSON.stringify(config));
   await writeFile(join(root,'src/acme.mjs'),'export function acme() {\n'+Array.from({length:1500},()=> '  // Acme responsibility').join('\n')+'\n}\n');
   git(root,'init','-q','-b','main');git(root,'add','.');git(root,'commit','-qm','Acme source');
   const blob=git(root,'hash-object','src/acme.mjs');
@@ -78,7 +78,7 @@ test('uncertain POST recovers after refresh/source changes/robot off with no dup
   const first=await decideHygieneProposal(f.args);assert.equal(first.decision,'accepting');assert.equal(first.state,'ambiguous');assert.equal(f.posts,1);
   await writeHealthReport({root:f.root,path,generated:'# Acme refreshed\n\n## Proposal\n\n'+formatHygieneProposal(f.proposal)});
   let page=await readFile(join(f.root,path),'utf8');assert.equal(parseHygieneProposal(page).proposal.lifecycle.state,'accepting');assert.match(page,/Acme human content/);
-  await writeFile(join(f.root,'src/acme.mjs'),'// Acme changed after POST\n');await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,robot:{on:false}}));
+  await writeFile(join(f.root,'src/acme.mjs'),'// Acme changed after POST\n');await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,robot:{on:false}}));
   f.fail=false;const recovered=await decideHygieneProposal(f.args);assert.equal(recovered.decision,'accepted');assert.equal(f.posts,1);assert.deepEqual(f.issue.labels,['keel:agent']);
   assert.equal((await decideHygieneProposal(f.args)).state,'recovered');assert.equal(f.posts,1);
   await writeHealthReport({root:f.root,path,generated:'# Acme refreshed again\n\n## Proposal\n\n'+formatHygieneProposal(f.proposal)});
@@ -101,20 +101,20 @@ test('symlink/escaping pages and source, untracked or managed source cannot issu
   assert.ok((await readHygieneProposals({root:f.root})).gaps.length);
   await rm(join(f.root,path));await writeFile(join(f.root,path),page);
   git(f.root,'rm','--cached','src/acme.mjs');assert.equal((await decideHygieneProposal(f.args)).state,'blocked');git(f.root,'add','src/acme.mjs');
-  await writeFile(join(f.root,'.keel/lock.json'),JSON.stringify({files:{'src/acme.mjs':{kind:'managed'}}}));assert.match((await decideHygieneProposal(f.args)).reasons.join(' '),/managed/);await rm(join(f.root,'.keel/lock.json'));
+  await writeFile(join(f.root,'.plates/lock.json'),JSON.stringify({files:{'src/acme.mjs':{kind:'managed'}}}));assert.match((await decideHygieneProposal(f.args)).reasons.join(' '),/managed/);await rm(join(f.root,'.plates/lock.json'));
   await writeFile(join(f.root,'owner.mjs'),await readFile(join(f.root,'src/acme.mjs')));await rm(join(f.root,'src/acme.mjs'));await symlink('../owner.mjs',join(f.root,'src/acme.mjs'));
   assert.match((await decideHygieneProposal(f.args)).reasons.join(' '),/symlink/);assert.equal(f.posts,0);
 });
 test('robot-protected and canonical practice sources remain owner work',()=>{
-  for(const file of ['scripts/keel/improve.mjs','.github/acme.mjs','.keel/acme.mjs','practices/night/files/scripts/keel/improve.mjs','.agents/acme.mjs']){
+  for(const file of ['scripts/plates/improve.mjs','.github/acme.mjs','.plates/acme.mjs','practices/night/files/scripts/plates/improve.mjs','.agents/acme.mjs']){
     assert.ok(hygieneRobotTargetReason(file));assert.throws(()=>makeHygieneProposal({repo,file,blob:'a'.repeat(40),lines:1600}),/owner-led/);
   }
 });
 test('current threshold and source-derived sections reject fabricated candidate facts',async t=>{
   const f=await fixture(t);
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,hygiene:{longFileLines:2000}}));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,hygiene:{longFileLines:2000}}));
   assert.match((await decideHygieneProposal(f.args)).reasons.join(' '),/threshold/);
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify(f.config));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify(f.config));
   const fabricated=makeHygieneProposal({...f.proposal,sections:[{name:'fake',start:2,end:100}],at});
   await writeFile(join(f.root,path),'## Proposal\n\n'+formatHygieneProposal(fabricated));
   assert.match((await decideHygieneProposal(f.args)).reasons.join(' '),/split hints/);assert.equal(f.posts,0);
@@ -136,7 +136,7 @@ test('board retains acceptance action and verified issue from older health pages
 });
 test('prepared issue intent resumes after storage failure without losing the owner decision',async t=>{
   const f=await fixture(t),hash=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
-  const dir=join(f.root,'.keel/robot-issues',hash(repo)),subject=join(dir,'subject-'+hash(f.proposal.subjectKey)+'.json');
+  const dir=join(f.root,'.plates/robot-issues',hash(repo)),subject=join(dir,'subject-'+hash(f.proposal.subjectKey)+'.json');
   let sabotage=true;
   const github=async r=>{
     // The first lookup happens after initial storage validation, but before
@@ -177,8 +177,8 @@ else if(method==='GET')data=path.includes('/issues?')?(s.issue?[s.issue]:[]):s.i
 else throw Error('unsupported synthetic method');
 fs.writeFileSync(file,JSON.stringify(s));process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));
 `);await chmod(gh,0o755);
-  const cli=new URL('../bin/keel.mjs',import.meta.url).pathname;
-  const invoke=extra=>run(process.execPath,[cli,'walk','decide','--proposal',path,...extra,'--json'],{cwd:f.root,env:{...process.env,KEEL_GH:gh}});
+  const cli=new URL('../bin/plates.mjs',import.meta.url).pathname;
+  const invoke=extra=>run(process.execPath,[cli,'walk','decide','--proposal',path,...extra,'--json'],{cwd:f.root,env:{...process.env,PLATES_GH:gh}});
   assert.notEqual(invoke(['--accept']).status,0);
   for(let i=0;i<2;i++){
     const result=invoke(['--instance',f.proposal.instanceId,'--accept']);assert.equal(result.status,0,result.stderr+result.stdout);
@@ -204,7 +204,7 @@ async function blockedSource(f,args=f.args) {
   assert.equal(result.ok,false);assert.equal(result.state,'blocked');assert.equal(result.decision,'proposed');
   assert.match(result.reasons.join(' '),/source availability:/);assert.equal(result.issue,null);assert.equal(f.posts,0);
   assert.equal(await readFile(join(f.root,path),'utf8'),before,'blocking must not save an accepting intent');
-  await assert.rejects(readFile(join(f.root,'.keel/robot-issues')),{code:'ENOENT'});
+  await assert.rejects(readFile(join(f.root,'.plates/robot-issues')),{code:'ENOENT'});
   return result;
 }
 test('source availability: matching default-branch metadata is read before acceptance intent and POST',async t=>{
@@ -258,7 +258,7 @@ test('source availability: attempted recovery bypasses unavailable source withou
   const f=await fixture(t);f.fail=true;
   assert.equal((await decideHygieneProposal(f.args)).state,'ambiguous');assert.equal(f.posts,1);
   f.fail=false;await writeFile(join(f.root,'src/acme.mjs'),'// Acme source moved after POST\n');
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,robot:{on:false}}));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,robot:{on:false}}));
   let contentsReads=0;
   const github=async r=>{if(r.path.includes('/contents/')){contentsReads++;throw Error('Acme source unavailable');}return f.github(r);};
   for(let i=0;i<2;i++)assert.equal((await decideHygieneProposal({...f.args,github})).state,'recovered');
@@ -268,7 +268,7 @@ test('source availability: attempted recovery bypasses unavailable source withou
 async function healthAlias(f) {
   await rename(join(f.root,'docs/health'),join(f.root,'acme-health'));
   await symlink('../acme-health',join(f.root,'docs/health'));
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'docs/health'}));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,health:'docs/health'}));
   return 'acme-health/2026-10-11.md';
 }
 test('configured health alias: acceptance and report refresh share the canonical page',async t=>{
@@ -364,10 +364,10 @@ test('canonical source freshness: rawDigest blocks changed bytes even when canon
 
 test('configured health alias: history retains old proposals and board actions without coverage gaps',async t=>{
   const f=await fixture(t);await healthAlias(f);
-  await symlink('../acme-health',join(f.root,'.keel/health'));
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'.keel/health'}));
-  const configured='.keel/health/2026-10-11.md';
-  await writeHealthReport({root:f.root,path:'.keel/health/2026-10-12.md',generated:'# Acme today\n\n## Proposal\n\nNone.\n'});
+  await symlink('../acme-health',join(f.root,'.plates/health'));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,health:'.plates/health'}));
+  const configured='.plates/health/2026-10-11.md';
+  await writeHealthReport({root:f.root,path:'.plates/health/2026-10-12.md',generated:'# Acme today\n\n## Proposal\n\nNone.\n'});
   const history=await readHygieneProposals({root:f.root});assert.deepEqual(history.gaps,[]);
   assert.equal(history.proposals.length,1);assert.equal(history.proposals[0].path,configured);assert.equal(history.proposals[0].instanceId,f.proposal.instanceId);
   assert.deepEqual((await readHygieneProposals({root:f.root,healthDir:'acme-health'})).gaps,[]);
@@ -385,7 +385,7 @@ test('configured health alias: history rejects alternate aliases, escaping direc
   const outside=await mkdtemp(join(tmpdir(),'acme-history-outside-'));t.after(()=>rm(outside,{recursive:true,force:true}));
   await writeFile(join(outside,'2026-10-11.md'),page);await rm(join(f.root,'docs/health'));await symlink(outside,join(f.root,'docs/health'));
   result=await readHygieneProposals({root:f.root});assert.equal(result.proposals.length,0);assert.match(result.gaps.join(' '),/outside project/);
-  await writeFile(join(f.root,'.keel/keel.json'),JSON.stringify({...f.config,health:'docs/health/missing'}));
+  await writeFile(join(f.root,'.plates/plates.json'),JSON.stringify({...f.config,health:'docs/health/missing'}));
   assert.match((await readHygieneProposals({root:f.root})).gaps.join(' '),/outside project/);
 });
 test('configured health alias: history preserves page, count and total read bounds',async t=>{
@@ -439,7 +439,7 @@ test('ordinary proposal paths: non-health regular files remain decidable while o
 });
 
 // Intercept the actual filesystem boundary, preserving the real read and its
-// bytes. This also exercises the unfixed implementation during keel prove.
+// bytes. This also exercises the unfixed implementation during plates prove.
 function afterOrdinaryPageRead(t,paths,change) {
   const original=fsPromises.readFile,seen=[];
   t.mock.method(fsPromises,'readFile',async(...args)=>{

@@ -66,7 +66,7 @@ default branch. This does not merge, rebase, roll back or clean up branches.
 Application code remains public. Target policy, registrations, shared ceilings
 and lesson trace references belong in the private workspace; encrypted rollout,
 worker-output and publication receipts belong in the external operation store.
-The target is an explicitly pinned public Keel build. The browser cannot supply
+The target is an explicitly pinned public Plates build. The browser cannot supply
 a code URL or executable revision. A named release additionally needs verified
 tag identity and relevant source content.
 
@@ -81,7 +81,7 @@ identity is synthetic and must be replaced by verified source facts before revie
     "target": {
       "repoId": 103,
       "repositoryNodeId": "R_acme_103",
-      "repo": "acme/keel",
+      "repo": "acme/plates",
       "commit": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "cliVersion": "1.0.0",
       "practiceVersion": "1.0.0",
@@ -166,8 +166,8 @@ issue, accept a lesson, cut a release or publish private trace references.
 ## What still needs real evidence
 
 This guide describes implemented source behavior. Synthetic routes, receipts and
-screenshots do not prove hosted activation or container isolation. Keel's own
-`keel: self` repository is update-ineligible. A real rollout requires an approved
+screenshots do not prove hosted activation or container isolation. Plates's own
+`plates: self` repository is update-ineligible. A real rollout requires an approved
 adopted project, explicit target/container/network/budget policy, permissions,
 independent operation-store migration proof and a verified deployment. Those are
 separate owner decisions; no real update PR is authorized by this implementation.
@@ -249,7 +249,7 @@ observed canonical values. Keep this file only in the private workspace.
   "adoptions": [
     {
       "projectId": "studio",
-      "cataloguePath": "docs/keel-lessons.md",
+      "cataloguePath": "docs/plates-lessons.md",
       "guardPaths": [
         {
           "sourcePath": "scripts/acme-bound.mjs",
@@ -263,3 +263,13 @@ observed canonical values. Keep this file only in the private workspace.
   ]
 }
 ```
+
+## Restore and reconnect trial
+
+After a configured workspace restore, preparation and publication/continuation
+require a current jobs restore assertion at or after `recovery.startedAt` and
+completed global reconciliation. Original publication readback remains separate
+from permission to send a remaining stage. A recovered PR is not an installation
+or project acceptance.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.

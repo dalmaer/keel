@@ -25,7 +25,7 @@ a test is unnecessary. Keep runtime dependencies and the no-build workflow.
 ## Acceptance
 
 - [x] An execution inventory explains reported test counts and retained ledger identities: `cat docs/research/2026-10-11-test-observations.md`.
-- [x] Coverage includes subprocesses and identifies unobserved source and measurement limitations: `node docs/evidence/2026-10-11-test-audit/coverage-summary.mjs /tmp/keel-test-audit/native-coverage`.
+- [x] Coverage includes subprocesses and identifies unobserved source and measurement limitations: `node docs/evidence/2026-10-11-test-audit/coverage-summary.mjs /tmp/plates-test-audit/native-coverage`.
 - [x] Historical failures distinguish existing catches, post-escape tests, and test or environment defects, with source references: `git show 6bbf0f6` and `cat docs/research/2026-10-11-test-history.md`.
 - [x] Removed work has an explicit surviving contract and sensitivity check: `node docs/evidence/2026-10-11-test-audit/selftest-sensitivity.mjs`.
 - [x] Matched before/after measurements show the retained optimizations reduce work and time: `node docs/evidence/2026-10-11-test-audit/phase69-launch-counts.mjs` and the focused Proof command below.

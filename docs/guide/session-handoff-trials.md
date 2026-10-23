@@ -46,8 +46,8 @@ harness must also enforce its approved execution limits. The experiment never
 increases existing project limits or authorizes a new model bill.
 
 ```sh
-keel retro sessions start --record handoff-trial.json --json
-keel retro sessions start --record handoff-trial.json --yes --json
+plates retro sessions start --record handoff-trial.json --json
+plates retro sessions start --record handoff-trial.json --yes --json
 ```
 
 The first command previews without writing. Inspect it; the second records the
@@ -73,7 +73,7 @@ Save a descriptor such as `run.json`:
 ```
 
 ```sh
-keel retro sessions begin --experiment acme-handoffs-01 --record run.json --yes --json
+plates retro sessions begin --experiment acme-handoffs-01 --record run.json --yes --json
 ```
 
 Use the returned run's policy snapshot. Trial assignments follow ABBA order;
@@ -85,12 +85,12 @@ unfinished run. No admission may silently exceed the remaining allowance.
 
 ## Handoff and resume
 
-`keel retro sessions handoff --experiment <id> --record <file>` previews a
+`plates retro sessions handoff --experiment <id> --record <file>` previews a
 structured handoff; `--yes` records it. The record names the run and a unique
 handoff id, the goal, remaining acceptance, owner choices separately from
 suggestions, revision, dirty paths, proof and evidence, active jobs, next action,
 claim reference and remaining budget. Use the complete schema in
-`keel --agent-help retro`.
+`plates --agent-help retro`.
 
 The handoff also records current `contextTokens` (or null) and
 `boundaryReached`. Only a due recommendation can become a receipt. To check a
@@ -138,9 +138,9 @@ unknown adherence cannot establish a winning threshold. A merge cannot supply ac
 not production verification or lived-in use.
 
 ```sh
-keel retro sessions finish --experiment acme-handoffs-01 --record outcome.json --yes --json
-keel retro sessions audit --experiment acme-handoffs-01 --json
-keel improve --sessions --json
+plates retro sessions finish --experiment acme-handoffs-01 --record outcome.json --yes --json
+plates retro sessions audit --experiment acme-handoffs-01 --json
+plates improve --sessions --json
 ```
 
 The audit reports better, worse or inconclusive with pair identities, evidence,
@@ -150,10 +150,10 @@ unknown quality and failed work cannot be excluded to manufacture a winner.
 ## Apply, monitor and roll back
 
 ```sh
-keel retro sessions apply --experiment acme-handoffs-01 --json
-keel retro sessions apply --experiment acme-handoffs-01 --yes --json
-keel retro sessions rollback --experiment acme-handoffs-01 --yes --json
-keel retro sessions status --experiment acme-handoffs-01 --json
+plates retro sessions apply --experiment acme-handoffs-01 --json
+plates retro sessions apply --experiment acme-handoffs-01 --yes --json
+plates retro sessions rollback --experiment acme-handoffs-01 --yes --json
+plates retro sessions status --experiment acme-handoffs-01 --json
 ```
 
 Apply rechecks current evidence under the write lock. It selects only the
@@ -167,13 +167,13 @@ old winning samples. Start a new experiment for a revised hypothesis.
 
 Observations are explicitly supplied attestations: the CLI validates their shape,
 not the truth of the linked proof or measured usage. Audit output labels that
-coverage. Records live in `.keel/session-trials/`. Keep them for audit and recovery; no
+coverage. Records live in `.plates/session-trials/`. Keep them for audit and recovery; no
 transcript text, credentials or private application data belongs there. After an
 uncertain write, read status before proceeding. A busy or abandoned-looking lock
 requires inspection, not an automatic age-based override. Invalid storage is
 unavailable rather than an empty history.
 
-The initial delivery proves the protocol, not that 250k improves Keel. Follow
+The initial delivery proves the protocol, not that 250k improves Plates. Follow
 normal authorized work, retain unsuccessful experiments, and promote fleet-wide
 defaults only after real comparable evidence. See the
 [design and limits](../specs/session-handoff-trials.md).
@@ -181,6 +181,6 @@ defaults only after real comparable evidence. See the
 A run descriptor may include `decisionTarget: {"kind":"phase","ref":"0"}`
 (or kind `issue`, with `owner/repo#n`). Begin and handoff resolve it afresh,
 refuse broken required context and retain `decisionDigest`; responses include
-`decisionBundle`. Before a resumed builder starts, run `keel decision context`
+`decisionBundle`. Before a resumed builder starts, run `plates decision context`
 again for that target and revalidate claim ownership. Existing runs without a
 target keep their previous behavior; owner choices and suggestions remain distinct.

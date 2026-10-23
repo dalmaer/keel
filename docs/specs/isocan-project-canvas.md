@@ -1,4 +1,4 @@
-# A project's Keel life on an isocan canvas
+# A project's Plates life on an isocan canvas
 
 **Implementation in progress, 13 October 2026.** Local snapshot/render, reviewed
 retro capture, immutable publication and opt-in night recovery are implemented.
@@ -8,12 +8,12 @@ guarantees, atomic publication and the owner-approved remote walk remain
 incomplete; this document retains their full acceptance requirements.
 Implementation is tracked
 in [phase 50](../phases/50-project-life-on-isocan.md). This spec covers every
-Keel-managed project, including projects with isocan's `docs/projects/*` shape;
+Plates-managed project, including projects with isocan's `docs/projects/*` shape;
 it is not limited to the isocan software repository.
 
 ## What the owner gets
 
-`keel canvas connect` creates or attaches one isocan canvas for a project.
+`plates canvas connect` creates or attaches one isocan canvas for a project.
 A stable **Project pulse** card answers: what changed, what improved, what is
 still waiting, and how trustworthy are these numbers? Beside it sit navigable
 records for goals and delivery, Loop, lessons, retros, health and upkeep.
@@ -69,15 +69,15 @@ flowchart LR
   I -. source links and discussion .-> R
 ```
 
-Keel stays dependency-free at runtime. An optional adapter invokes an explicitly
+Plates stays dependency-free at runtime. An optional adapter invokes an explicitly
 configured isocan executable using argument arrays, JSON output and bounded
 process timeouts; never shell interpolation. isocan handles identity, its home,
-and admission. Keel does not import isocan's TypeScript SDK or implement its
+and admission. Plates does not import isocan's TypeScript SDK or implement its
 internal operation protocol. Absent isocan, snapshot and local render still work.
 
 ### Existing interfaces inspected
 
-Source baseline: Keel `a7f56c3062e4d537e1e4a481c67eeaf4473d9cd4`;
+Source baseline: Plates `a7f56c3062e4d537e1e4a481c67eeaf4473d9cd4`;
 isocan `b61f7c1b665b7903e12e81576cba8f0735ac3c7b` in the local checkout.
 These are source observations, not proof of a deployed API or a live integration.
 
@@ -87,8 +87,8 @@ These are source observations, not proof of a deployed API or a live integration
 | Group placement | isocan `packages/api/src/canvas-groups.ts`; CLI `canvas group new` | native regions, preserve existing placement |
 | Source + visual | isocan CLI `add file --visual file`, `edit item file --visual file`; `packages/cli/src/agent-guide.md`, items topic | one versioned pulse document with its visual face |
 | Attributed item versions | isocan `packages/api/src/connect.ts`, `add` and `edit`; MCP `create_item`, `edit_item` in `packages/mcp/src/server.ts` | update stable item ids and verify resulting versions |
-| Identity and home | isocan `packages/api/src/direct.ts`, CLI homes/sharing topics | use isocan authentication; do not store credentials in Keel config |
-| Existing Keel readers | `lib/goals.mjs`, `lib/phases-projects.mjs`, `lib/improve.mjs`, `lib/lessons.mjs`, `lib/retro.mjs` | reuse structured readers; never scrape generated Markdown views |
+| Identity and home | isocan `packages/api/src/direct.ts`, CLI homes/sharing topics | use isocan authentication; do not store credentials in Plates config |
+| Existing Plates readers | `lib/goals.mjs`, `lib/phases-projects.mjs`, `lib/improve.mjs`, `lib/lessons.mjs`, `lib/retro.mjs` | reuse structured readers; never scrape generated Markdown views |
 | Loop local decisions | `practices/loop/README.md`, `practices/loop/files/scripts/loop.mjs` | read finding files; respect local variants and project-shaped references |
 | Reconciliation | `docs/reconciliation.md`, night `record_contradictions` instrument | reuse its findings and GitHub facts; no second contradiction engine |
 
@@ -102,12 +102,12 @@ creation. Those gaps constrain the rollout below.
 
 | Lifecycle area | Authority / collection | What appears and links |
 | --- | --- | --- |
-| Init, adoption, updates | `.keel/keel.json`, lock, migrations, Git history and update PRs | adoption date when evidenced, CLI/practice versions, drift, update pending/merged/applied separately |
+| Init, adoption, updates | `.plates/plates.json`, lock, migrations, Git history and update PRs | adoption date when evidenced, CLI/practice versions, drift, update pending/merged/applied separately |
 | Goals, planning, conduct | goals and phase adapters, dependencies, next action, evidence | outcomes, work in progress, blocked work, walks owed, accepted delivery, elapsed times only where history supplies timestamps |
 | Architecture and reconciliation | accepted decisions plus existing reconciliation engine | supersession edges, contradictions, unknown GitHub facts, proposals awaiting review |
 | Loop | configured findings, proposals, decisions, canonical source ids, linked phases/projects | incoming → proposed → accepted/declined/stale → done; our rank and upstream rank separate |
 | Lessons and learning | configured lessons file, existing sent fingerprints, mothership inbox proposals/decisions, release and update evidence | local lesson → sent → considered → accepted → shipped → adopted; provenance across repos |
-| Retros | explicit capture described below; `keel retro --json` counts when available | session friction, candidate choices and resulting guards, work still waiting, recurrence after a change |
+| Retros | explicit capture described below; `plates retro --json` counts when available | session friction, candidate choices and resulting guards, work still waiting, recurrence after a change |
 | Improve and night shift | configured health directory, existing improve JSON and report metadata | measures, bounds, proposals, broken instruments, nights missing, last successful sample |
 | Tests, CI, climb and tend | test ledger, CI run ids, climb/tend decision artifacts and PRs | flakes, slow tests, controlled before/after results, kept/reverted proposals, later verification |
 | Dependency management | Renovate PR identity, CI and merge facts, lockfile at source revision | proposed/merged updates, failing checks, current version at measured commit; no inference of deployment |
@@ -164,7 +164,7 @@ night CI. Missing Git history forbids invented retrospective transition dates.
 Backfill only explicit historical facts; show the reliable observation start.
 
 Persist generated snapshots outside authored phase/lesson files. Proposed
-`.keel/canvas/` cache is ignored and rebuildable; CI uploads snapshots and sync
+`.plates/canvas/` cache is ignored and rebuildable; CI uploads snapshots and sync
 receipts as an artifact with 90-day retention. Remote immutable snapshot items
 retain the same bounded history; weekly aggregates may be retained for one year
 with explicit lower granularity. Retention gaps stay visible. The canvas is a
@@ -191,7 +191,7 @@ reimported findings; duplicate aliases remain visible for audit.
 | Operational use | observed active days, completed nights, conducted phases, captured retros and artifact-backed operations; label partial instrumentation; never equate CLI calls with value |
 | Cost | recorded duration/model usage when available, with units and provider; unknown cost stays unknown; no estimate from commit counts |
 
-No combined improvement score and no claim that Keel caused a change merely
+No combined improvement score and no claim that Plates caused a change merely
 because it followed adoption. Compare before/after only when definitions and
 coverage match. A lesson linked to three fixes counts once as a lesson and three
 times as findings, not four fixes. A later regression preserves the earlier
@@ -199,9 +199,9 @@ proof and adds a reopening event.
 
 ## Retros need one small new authored record
 
-Current `keel retro` deliberately writes nothing and only counts supported
+Current `plates retro` deliberately writes nothing and only counts supported
 session transcripts. Leave that default intact. Propose an explicit
-`keel retro capture --session <id> --since <sha> --record <file> --json` flow:
+`plates retro capture --session <id> --since <sha> --record <file> --json` flow:
 preview counts and redaction, then persist a user-reviewed record under the
 configured `docs/retros/`. Unsupported providers can supply an explicitly
 manual summary with `coverage: manual`; no fabricated transcript counts.
@@ -226,15 +226,15 @@ All commands support `--json`; stdout is machine-readable, diagnostics stderr.
 
 | Command | Contract |
 | --- | --- |
-| `keel canvas connect --create --title <title> --space <id>` | preview home/identity/access and creation plan; `--yes` performs it and stores stable binding |
-| `keel canvas connect --canvas <address>` | validate explicit existing target and rights; preview managed region, attach only with `--yes` |
-| `keel canvas snapshot --output <file>` | local collection, no remote canvas writes; `--github` explicitly refreshes GitHub facts |
-| `keel canvas render --snapshot <file> --output <dir>` | deterministic Markdown, HTML and manifest; no external requests |
-| `keel canvas sync [--dry-run]` | plan by default; `--yes` applies approved managed content changes with a receipt |
-| `keel canvas status` | binding, last success, pending changes, conflicts and coverage; read-only |
-| `keel canvas live [--keep <N>] [--off]` | preview moving the binding between immutable and live mode, and retention; `--yes` writes the binding only |
-| `keel canvas rebase [--onto <version-id>]` | preview a refused live card; `--yes` records the named current version as the base, with no remote write |
-| `keel canvas disconnect` | preview; `--yes` disables publishing, leaves remote canvas intact |
+| `plates canvas connect --create --title <title> --space <id>` | preview home/identity/access and creation plan; `--yes` performs it and stores stable binding |
+| `plates canvas connect --canvas <address>` | validate explicit existing target and rights; preview managed region, attach only with `--yes` |
+| `plates canvas snapshot --output <file>` | local collection, no remote canvas writes; `--github` explicitly refreshes GitHub facts |
+| `plates canvas render --snapshot <file> --output <dir>` | deterministic Markdown, HTML and manifest; no external requests |
+| `plates canvas sync [--dry-run]` | plan by default; `--yes` applies approved managed content changes with a receipt |
+| `plates canvas status` | binding, last success, pending changes, conflicts and coverage; read-only |
+| `plates canvas live [--keep <N>] [--off]` | preview moving the binding between immutable and live mode, and retention; `--yes` writes the binding only |
+| `plates canvas rebase [--onto <version-id>]` | preview a refused live card; `--yes` records the named current version as the base, with no remote write |
+| `plates canvas disconnect` | preview; `--yes` disables publishing, leaves remote canvas intact |
 
 Exit 0 success/no changes; 1 conflicts, stale required sources or transport
 failure; 2 invalid input/unsupported schema; 3 a write needs approval. JSON

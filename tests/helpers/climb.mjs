@@ -1,5 +1,5 @@
 // Shared by the climb test files (tests/climb*.test.mjs): the synthetic Acme
-// repo, the climb.mjs runner, and the gh and keel stubs. Split out of
+// repo, the climb.mjs runner, and the gh and plates stubs. Split out of
 // climb.test.mjs (2026-10-09) so its tests run in parallel. `clocked` stays
 // in each test file that times a suite, beside the stalls pin
 // tests/timing-hygiene.test.mjs asks of it.
@@ -13,13 +13,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './run.mjs';
 import { runBlocks } from './workflows.mjs';
 
-export const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+export const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-export const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
+export const NIGHT = join(PLATES, 'practices/night/files/scripts/plates');
 
-export const CLIMB = join(KEEL, 'practices/climb/files/scripts/keel/climb.mjs');
+export const CLIMB = join(PLATES, 'practices/climb/files/scripts/plates/climb.mjs');
 
-export const WORKFLOW = join(KEEL, 'practices/climb/files/.github/workflows/keel-climb.yml');
+export const WORKFLOW = join(PLATES, 'practices/climb/files/.github/workflows/plates-climb.yml');
 
 export const git = (cwd, args) => {
   const r = run('git', args, { cwd });
@@ -42,26 +42,27 @@ export async function commit(dir, files, message) {
   return git(dir, ['rev-parse', 'HEAD']);
 }
 
-/** A synthetic Acme project with the night's scripts and climb.mjs in scripts/keel, committed on main. */
+/** A synthetic Acme project with the night's scripts and climb.mjs in scripts/plates, committed on main. */
 export async function acme(t, { climb = { jobs: ['test-time'] }, config = {}, files = {} } = {}) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-climb-acme-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-climb-acme-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
-  await cp(CLIMB, join(dir, 'scripts/keel/climb.mjs'));
-  await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/keel/tend.mjs'));
-  await write(dir, { '.keel/keel.json': `${JSON.stringify({ name: 'Acme', ...(climb ? { climb } : {}), ...config }, null, 2)}\n`, ...files });
+  await mkdir(join(dir, 'scripts/plates'), { recursive: true });
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
+  await cp(join(dirname(CLIMB), 'climb-execution.mjs'), join(dir, 'scripts/plates/climb-execution.mjs'));
+  await cp(CLIMB, join(dir, 'scripts/plates/climb.mjs'));
+  await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/plates/tend.mjs'));
+  await write(dir, { '.plates/plates.json': `${JSON.stringify({ name: 'Acme', ...(climb ? { climb } : {}), ...config }, null, 2)}\n`, ...files });
   git(dir, ['init', '-q', '-b', 'main']);
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-q', '-m', 'acme']);
   return dir;
 }
 
-export const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, ...env } });
+export const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/plates/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, ...env } });
 
 export const json = r => { try { return JSON.parse(r.stdout); } catch { assert.fail(`not JSON (exit ${r.status}): ${r.stdout}${r.stderr}`); } };
 
-export const load = dir => import(pathToFileURL(join(dir, 'scripts/keel/climb.mjs')).href);
+export const load = dir => import(pathToFileURL(join(dir, 'scripts/plates/climb.mjs')).href);
 
 /**
  * A stub gh: `pr list --state open` prints these open heads (or exits 1 when
@@ -70,7 +71,7 @@ export const load = dir => import(pathToFileURL(join(dir, 'scripts/keel/climb.mj
  * prints only those whose state is CLOSED or MERGED, as gh does.
  */
 export async function stubGh(t, heads, closed = []) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-climb-gh-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-climb-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const gh = join(dir, 'gh');
   const open = heads === null ? 'echo "gh: acme is unreachable" >&2\nexit 1' : `echo '${JSON.stringify(heads.map(h => ({ headRefName: h })))}'\nexit 0`;
@@ -91,14 +92,14 @@ export const page = rows => [
 export const TIMED = { jobs: ['test-time'], testCommand: 'node t.mjs', margin: 0.3 };
 
 /** An Acme suite under node --test with the test ledger as its second reporter. */
-export const LEDGER_TEST = 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout acme.test.mjs';
+export const LEDGER_TEST = 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/plates/test-ledger.mjs --test-reporter-destination=stdout acme.test.mjs';
 
 export const suite = (...names) => `import { test } from 'node:test';\n${names.map(n => (typeof n === 'string' ? `test('${n}', () => {});` : n.text)).join('\n')}\n`;
 
-/** Run one named step of keel-climb.yml in `dir`, as the workflow has it: { status, out, outputs }. */
+/** Run one named step of plates-climb.yml in `dir`, as the workflow has it: { status, out, outputs }. */
 export async function step(t, dir, name, env = {}) {
   const block = runBlocks(await readFile(WORKFLOW, 'utf8')).find(b => b.step === name);
-  assert.ok(block, `keel-climb.yml has a step "${name}"`);
+  assert.ok(block, `plates-climb.yml has a step "${name}"`);
   const out = join(dir, '..', `${dir.split('/').pop()}-${name.replace(/\W/g, '')}-out`);
   t.after(() => rm(out, { force: true }));
   await writeFile(out, '');
@@ -109,13 +110,13 @@ export async function step(t, dir, name, env = {}) {
 
 // ---- phase 36: hygiene and build-time ---------------------------------------------
 
-/** Synthetic test ledger runs (the ledger's record shape) for `tree`, written under dir's .keel/test-runs. */
+/** Synthetic test ledger runs (the ledger's record shape) for `tree`, written under dir's .plates/test-runs. */
 export async function ledgerRuns(dir, { commit, tree, outcomes, file = 'acme.test.mjs', name = 'acme waits', others = ['acme adds'] }) {
-  await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
-  await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
+  await mkdir(join(dir, '.plates/test-runs'), { recursive: true });
+  await writeFile(join(dir, '.plates/test-runs/.gitignore'), '*\n');
   for (const [i, outcome] of outcomes.entries()) {
     const run = { commit, tree, dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: 'v24.0.0', date: `2026-10-05T0${i}:00:00.000Z`, tests: [...others.map(n => ({ file, name: n, outcome: 'pass', ms: 1 })), { file, name, outcome, ms: 2 }] };
-    await writeFile(join(dir, `.keel/test-runs/2026-10-05T0${i}-00-00-000Z-${i}.json`), JSON.stringify(run));
+    await writeFile(join(dir, `.plates/test-runs/2026-10-05T0${i}-00-00-000Z-${i}.json`), JSON.stringify(run));
   }
 }
 
@@ -135,22 +136,22 @@ export const execution = result => JSON.stringify([{ type: 'system', subtype: 'i
 
 // ---- phase 38: the tend pass ---------------------------------------------------------
 
-export const keelCli = (args, cwd, env = {}) => run(process.execPath, [join(KEEL, 'bin/keel.mjs'), ...args], { cwd, env: { ...process.env, ...env } });
+export const platesCli = (args, cwd, env = {}) => run(process.execPath, [join(PLATES, 'bin/plates.mjs'), ...args], { cwd, env: { ...process.env, ...env } });
 
 /**
- * A keel-inited Acme with climb (so tend.mjs, improve.mjs and roadmap.mjs are
+ * A plates-inited Acme with climb (so tend.mjs, improve.mjs and roadmap.mjs are
  * its own), a built phase 1 whose cited test is gone (proof lost) and its
  * evidence, all committed. `tend`: the "tend" key, or null for none.
  */
 export async function tendAcme(t, { tend = { budget: { minutes: 30 } } } = {}) {
-  const base = await mkdtemp(join(tmpdir(), 'keel-tend-acme-'));
+  const base = await mkdtemp(join(tmpdir(), 'plates-tend-acme-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const dir = join(base, 'acme');
-  const r = keelCli(['init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme', '--with', 'climb'], base);
+  const r = platesCli(['init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme', '--with', 'climb'], base);
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
   await write(dir, {
-    '.keel/keel.json': `${JSON.stringify({ ...config, check: 'node -e "process.exit(0)"', ...(tend ? { tend } : {}) }, null, 2)}\n`,
+    '.plates/plates.json': `${JSON.stringify({ ...config, check: 'node -e "process.exit(0)"', ...(tend ? { tend } : {}) }, null, 2)}\n`,
     'docs/evidence/2026-10-01-acme-orders.md': '# Acme orders\n\nOrdered one anvil; it arrived.\n',
     'docs/phases/01-acme-orders.md': ['---', 'status: built', 'since: 2026-10-01', 'goal: G0', 'depends: [0]', 'note: "Acme orders work."', 'evidence: ["evidence/2026-10-01-acme-orders.md"]', '---', '',
       '# Acme orders', '', '## Done when', '', 'An anvil is ordered.', '', '## Scope', '', 'Orders.', '', '## Acceptance', '',
@@ -166,27 +167,27 @@ export async function tendAcme(t, { tend = { budget: { minutes: 30 } } } = {}) {
   return dir;
 }
 
-/** A keel CLI stub whose loose-ends lists `items` for `repo` (or prints `raw`). */
-export async function stubKeel(t, { repo = 'acme/acme', items = [], dir = '/nowhere', raw } = {}) {
-  const d = await mkdtemp(join(tmpdir(), 'keel-tend-cli-'));
+/** A plates CLI stub whose loose-ends lists `items` for `repo` (or prints `raw`). */
+export async function stubPlates(t, { repo = 'acme/acme', items = [], dir = '/nowhere', raw } = {}) {
+  const d = await mkdtemp(join(tmpdir(), 'plates-tend-cli-'));
   t.after(() => rm(d, { recursive: true, force: true }));
   const out = raw ?? JSON.stringify({ projects: [{ repo, dir, checkout: true, github: 'checked', items }], shown: items.length, hidden: 0 });
-  await writeFile(join(d, 'keel'), `#!/bin/sh\ncat <<'KEEL_EOF'\n${out}\nKEEL_EOF\n`, { mode: 0o755 });
-  return join(d, 'keel');
+  await writeFile(join(d, 'plates'), `#!/bin/sh\ncat <<'PLATES_EOF'\n${out}\nPLATES_EOF\n`, { mode: 0o755 });
+  return join(d, 'plates');
 }
 
 // ---- phase 37: perf, lessons and loop ------------------------------------------------
 
-export const DISTILL = join(KEEL, 'practices/climb/files/scripts/keel/distill.mjs');
+export const DISTILL = join(PLATES, 'practices/climb/files/scripts/plates/distill.mjs');
 
-export const LOOP = join(KEEL, 'practices/loop/files/scripts/loop.mjs');
+export const LOOP = join(PLATES, 'practices/loop/files/scripts/loop.mjs');
 
-export const STITCH = join(KEEL, 'tests/fixtures/loop/stitch.mjs');
+export const STITCH = join(PLATES, 'tests/fixtures/loop/stitch.mjs');
 
 /** A benchmark that prints a line of chatter, then its number: deterministic, never timed. */
 export const bench = n => `console.log('acme bench: warming up');\nconsole.log('${n}');\n`;
 
-export const setConfig = (dir, config) => writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`);
+export const setConfig = (dir, config) => writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`);
 
 /** A synthetic Acme lessons table: four numbered rows, provenance in each shape. */
 export const LESSONS_MD = ['# Lessons', '', '| # | The shape of it | What it cost | Guard |', '| --- | --- | --- | --- |',
@@ -209,7 +210,7 @@ export const loopInsight = (id, title) => ({ id, title, description: `${title}.`
 
 // ---- phase 47: Codex runs climb and tend, committing to its own git dir -------------
 
-export const TEND_WORKFLOW = join(KEEL, 'practices/climb/files/.github/workflows/keel-tend.yml');
+export const TEND_WORKFLOW = join(PLATES, 'practices/climb/files/.github/workflows/plates-tend.yml');
 
 /** The environment a workflow step sees on a runner: no pin of the test harness's on git's config. */
 export const runnerEnv = env => Object.fromEntries(Object.entries({ ...process.env, ...env }).filter(([k]) => !/^GIT_CONFIG_(COUNT|KEY_\d+|VALUE_\d+)$/.test(k)));
@@ -222,8 +223,8 @@ export function runStep(text, dir, name, env = {}) {
   return { status: r.status, out: r.stdout + r.stderr };
 }
 
-/** Git as Codex runs it: on .keel/agent-git, the checkout its work tree. */
-export const agentGit = (dir, args) => git(dir, ['--git-dir=.keel/agent-git', '--work-tree=.', '-c', 'core.hooksPath=/dev/null', ...args]);
+/** Git as Codex runs it: on .plates/agent-git, the checkout its work tree. */
+export const agentGit = (dir, args) => git(dir, ['--git-dir=.plates/agent-git', '--work-tree=.', '-c', 'core.hooksPath=/dev/null', ...args]);
 
 /**
  * .git read-only, as Codex's workspace-write sandbox keeps it; the returned
@@ -243,7 +244,7 @@ export async function sandboxGit(t, dir) {
  * fsmonitor command, aliases. Each writes a marker under `marks` when run.
  */
 export async function plantHostile(t, dir) {
-  const marks = await mkdtemp(join(tmpdir(), 'keel-agent-git-marks-'));
+  const marks = await mkdtemp(join(tmpdir(), 'plates-agent-git-marks-'));
   t.after(() => rm(marks, { recursive: true, force: true }));
   const hooks = join(marks, 'hooks');
   await mkdir(hooks);
@@ -252,7 +253,7 @@ export async function plantHostile(t, dir) {
   }
   await writeFile(join(marks, 'fsmonitor'), `#!/bin/sh\ntouch "${marks}/ran-fsmonitor"\n`, { mode: 0o755 });
   await writeFile(join(marks, 'included'), `[core]\n\thooksPath = ${hooks}\n`);
-  const cfg = (k, v) => git(dir, ['--git-dir=.keel/agent-git', 'config', k, v]);
+  const cfg = (k, v) => git(dir, ['--git-dir=.plates/agent-git', 'config', k, v]);
   cfg('core.hooksPath', hooks);
   cfg('core.fsmonitor', join(marks, 'fsmonitor'));
   cfg('include.path', join(marks, 'included'));
@@ -260,10 +261,10 @@ export async function plantHostile(t, dir) {
   cfg('alias.update-ref', `!touch ${marks}/ran-alias`);
   const ran = async () => (await readdir(marks)).filter(n => n.startsWith('ran-'));
   // Live: a plain git on that dir runs them.
-  const probe = run('git', ['--git-dir=.keel/agent-git', 'update-ref', 'refs/heads/acme-probe', 'HEAD'], { cwd: dir, env: runnerEnv() });
+  const probe = run('git', ['--git-dir=.plates/agent-git', 'update-ref', 'refs/heads/acme-probe', 'HEAD'], { cwd: dir, env: runnerEnv() });
   assert.equal(probe.status, 0, probe.stderr);
   assert.ok((await ran()).length, 'the planted hooks run for a git that reads the agent\'s git dir');
-  git(dir, ['--git-dir=.keel/agent-git', '-c', 'core.hooksPath=/dev/null', 'update-ref', '-d', 'refs/heads/acme-probe']);
+  git(dir, ['--git-dir=.plates/agent-git', '-c', 'core.hooksPath=/dev/null', 'update-ref', '-d', 'refs/heads/acme-probe']);
   for (const n of await ran()) await rm(join(marks, n));
   return { ran };
 }

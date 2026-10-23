@@ -1,8 +1,8 @@
-// keel release: the CLI version is package.json's, tagged v<version>; the
+// plates release: the CLI version is package.json's, tagged v<version>; the
 // practice version is practices/VERSION and moves only when practices/ or
 // migrations/ changed since the last practice release (phase 22). Each
 // release gets a WHATSNEW entry saying which kind it was.
-// Run against a synthetic keel-shaped repo ("keel": "self"), never keel's own.
+// Run against a synthetic plates-shaped repo ("plates": "self"), never plates's own.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 import { release, entries, between, prepend, practiceChange, candidatePractice, scopeCommits, GATE_CAP, WHATSNEW_HEADER } from '../lib/release.mjs';
 import { practiceVersion } from '../lib/practices.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const BASE_ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test',
@@ -32,13 +32,13 @@ const MERGED = '2026-10-08T10:00:00Z';
 const REVIEWED = { head: H7, author: 'acme-owner', mergedAt: MERGED, threads: [], reviews: [{ user: 'github-actions[bot]', commit_id: H7 }] };
 
 /**
- * A gh for keel release's review gate. State: pulls { <sha>: [{number, merged_at}] }
+ * A gh for plates release's review gate. State: pulls { <sha>: [{number, merged_at}] }
  * (the commit's PRs), defaultPull (any other commit's; null: none), prs { <n>:
  * { head, author, mergedAt, threads, reviews } }, down (every call fails).
  * Every call is logged; anything else (a write) exits 1.
  */
 async function stubGh(state = {}) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-release-gh-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-release-gh-'));
   process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, 'gh'), statePath = join(dir, 'state.json'), log = join(dir, 'gh.log');
   await writeFile(statePath, JSON.stringify({ pulls: {}, defaultPull: { number: 7, merged_at: MERGED }, prs: { 7: REVIEWED }, ...state }));
@@ -50,27 +50,27 @@ const s = JSON.parse(fs.readFileSync(${JSON.stringify(statePath)}, 'utf8'));
 if (s.down) { console.error('error connecting to api.github.com'); process.exit(1); }
 const field = k => (argv.find(a => a.startsWith(k + '=')) ?? '').slice(k.length + 1);
 let m;
-if (argv[0] === 'api' && (m = /^repos\\/acme\\/keel\\/commits\\/([0-9a-f]{40})\\/pulls$/.exec(argv[1] ?? ''))) {
+if (argv[0] === 'api' && (m = /^repos\\/acme\\/plates\\/commits\\/([0-9a-f]{40})\\/pulls$/.exec(argv[1] ?? ''))) {
   console.log(JSON.stringify(s.pulls[m[1]] ?? (s.defaultPull ? [s.defaultPull] : [])));
 } else if (argv[0] === 'api' && argv[1] === 'graphql' && !field('query').startsWith('mutation')) {
   const n = Number(field('number')), p = s.prs[n];
   if (!p) { console.log(JSON.stringify({ data: { repository: { pullRequest: null } } })); process.exit(0); }
-  const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: '2026-10-08T09:00:00Z', url: 'https://github.com/acme/keel/pull/' + n });
+  const node = c => ({ databaseId: c.databaseId, author: { login: c.author }, body: c.body, createdAt: '2026-10-08T09:00:00Z', url: 'https://github.com/acme/plates/pull/' + n });
   console.log(JSON.stringify({ data: { repository: { pullRequest: {
-    number: n, title: 'Acme practice', url: 'https://github.com/acme/keel/pull/' + n, state: p.mergedAt ? 'MERGED' : 'OPEN', mergedAt: p.mergedAt ?? null, headRefOid: p.head,
+    number: n, title: 'Acme practice', url: 'https://github.com/acme/plates/pull/' + n, state: p.mergedAt ? 'MERGED' : 'OPEN', mergedAt: p.mergedAt ?? null, headRefOid: p.head,
     author: { login: p.author },
     reviewThreads: { pageInfo: { hasNextPage: false }, nodes: p.threads.map(t => ({ id: t.id, isResolved: !!t.isResolved, path: 'practices/base/AGENTS.md', line: 1, comments: { pageInfo: { hasNextPage: false }, nodes: t.comments.map(node) } })) },
     comments: { pageInfo: { hasNextPage: false }, nodes: [] },
     reviews: { pageInfo: { hasNextPage: false }, nodes: [] },
   } } } }));
-} else if (argv[0] === 'api' && (m = /^repos\\/acme\\/keel\\/pulls\\/(\\d+)\\/reviews/.exec(argv[1] ?? ''))) {
+} else if (argv[0] === 'api' && (m = /^repos\\/acme\\/plates\\/pulls\\/(\\d+)\\/reviews/.exec(argv[1] ?? ''))) {
   console.log(JSON.stringify((s.prs[m[1]]?.reviews ?? []).map(r => ({ user: { login: r.user }, state: 'COMMENTED', commit_id: r.commit_id, submitted_at: '2026-10-08T09:30:00Z' }))));
 } else { console.error('stub gh: unexpected ' + argv.join(' ')); process.exit(1); }
 `);
   await chmod(path, 0o755);
   return {
     path,
-    env: { ...BASE_ENV, KEEL_GH: path },
+    env: { ...BASE_ENV, PLATES_GH: path },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     set: async f => { const st = JSON.parse(await readFile(statePath, 'utf8')); f(st); await writeFile(statePath, JSON.stringify(st)); },
   };
@@ -80,30 +80,30 @@ const ENV = (await stubGh()).env;
 const git = (dir, ...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', env: ENV, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const NOTES = 'Acme projects get a conductor that names their gate.\n';
 
-/** A keel-shaped repo on 0.0.0: package.json, practices/VERSION and a template, .keel/keel.json ("keel": "self", its gate `check`), a lock, WHATSNEW.md. */
-async function keelLike(t, { self = true, check = 'node -e 0' } = {}) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-release-')));
+/** A plates-shaped repo on 0.0.0: package.json, practices/VERSION and a template, .plates/plates.json ("plates": "self", its gate `check`), a lock, WHATSNEW.md. */
+async function platesLike(t, { self = true, check = 'node -e 0' } = {}) {
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-release-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'));
-  await writeFile(join(dir, 'package.json'), '{\n  "name": "keel",\n  "version": "0.0.0",\n  "type": "module"\n}\n');
-  await writeFile(join(dir, '.keel/keel.json'), `{\n  "name": "Acme Keel",\n  "repo": "acme/keel",\n  ${self ? '"keel": "self",\n  ' : ''}"check": ${JSON.stringify(check)},\n  "practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
-  await writeFile(join(dir, '.keel/lock.json'), '{\n  "practice": "0.0.0",\n  "files": {}\n}\n');
+  await mkdir(join(dir, '.plates'));
+  await writeFile(join(dir, 'package.json'), '{\n  "name": "plates",\n  "version": "0.0.0",\n  "type": "module"\n}\n');
+  await writeFile(join(dir, '.plates/plates.json'), `{\n  "name": "Acme Plates",\n  "repo": "acme/plates",\n  ${self ? '"plates": "self",\n  ' : ''}"check": ${JSON.stringify(check)},\n  "practice": "0.0.0",\n  "practices": ["base", "phases"]\n}\n`);
+  await writeFile(join(dir, '.plates/lock.json'), '{\n  "practice": "0.0.0",\n  "files": {}\n}\n');
   await writeFile(join(dir, 'WHATSNEW.md'), WHATSNEW_HEADER);
   await mkdir(join(dir, 'practices', 'base'), { recursive: true });
   await writeFile(join(dir, 'practices', 'VERSION'), '0.0.0\n');
   await writeFile(join(dir, 'practices', 'base', 'AGENTS.md'), '# Acme agents\n');
   git(dir, 'init', '-q', '-b', 'main');
   git(dir, 'add', '-A');
-  git(dir, 'commit', '-qm', 'acme keel');
+  git(dir, 'commit', '-qm', 'acme plates');
   return dir;
 }
 const attempt = p => p.then(r => ({ ...r, exitCode: r.exitCode ?? 0 }), error => ({ error, exitCode: error.exitCode ?? 1, text: error.message }));
-const files = async dir => Promise.all(['package.json', 'practices/VERSION', '.keel/keel.json', '.keel/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f), 'utf8')));
+const files = async dir => Promise.all(['package.json', 'practices/VERSION', '.plates/plates.json', '.plates/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f), 'utf8')));
 const versions = async dir => ({
   cli: JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).version,
   practice: (await readFile(join(dir, 'practices/VERSION'), 'utf8')).trim(),
-  config: JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8')).practice,
-  lock: JSON.parse(await readFile(join(dir, '.keel/lock.json'), 'utf8')).practice,
+  config: JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8')).practice,
+  lock: JSON.parse(await readFile(join(dir, '.plates/lock.json'), 'utf8')).practice,
 });
 /** Change a practice template and commit it: the next release is a practice release. */
 async function changePractice(dir, line = 'Acme keeps a gate.') {
@@ -112,14 +112,14 @@ async function changePractice(dir, line = 'Acme keeps a gate.') {
   git(dir, 'commit', '-qam', 'practice: base');
 }
 
-test('release refuses outside keel, a version that does not increase, and empty notes', async t => {
-  const project = await keelLike(t, { self: false });
-  assert.throws(() => candidatePractice(project, ENV), { exitCode: 2, message: /rehearsal runs at home, on keel/ });
+test('release refuses outside plates, a version that does not increase, and empty notes', async t => {
+  const project = await platesLike(t, { self: false });
+  assert.throws(() => candidatePractice(project, ENV), { exitCode: 2, message: /rehearsal runs at home, on plates/ });
   let r = await attempt(release({ root: project, version: '0.1.0', notes: NOTES }));
   assert.equal(r.exitCode, 2);
-  assert.match(r.text, /runs only in keel itself/);
+  assert.match(r.text, /runs only in plates itself/);
 
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   const before = await files(dir);
   for (const [version, notes, why] of [['0.0.0', NOTES, /must be newer than the current version 0\.0\.0/], ['banana', NOTES, /not a version/],
     ['0.1.0', '  \n', /--notes is required/], ['0.1.0', undefined, /--notes is required/]]) {
@@ -136,13 +136,13 @@ test('release refuses outside keel, a version that does not increase, and empty 
 });
 
 test('a dry run shows the entry and writes nothing', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   const before = await files(dir);
   const r = await release({ root: dir, version: 'v0.1.0', notes: NOTES, dryRun: true }, { env: ENV, date: '2026-10-02' });
   assert.equal(r.data.dryRun, true);
-  assert.equal(r.data.entry.heading, '## v0.1.0 — keel only; practice unchanged at 0.0.0 (2026-10-02)');
+  assert.equal(r.data.entry.heading, '## v0.1.0 — plates only; practice unchanged at 0.0.0 (2026-10-02)');
   assert.deepEqual(r.data.files, ['WHATSNEW.md', 'package.json']);
-  assert.match(r.text, /keel only; practice unchanged at 0\.0\.0/);
+  assert.match(r.text, /plates only; practice unchanged at 0\.0\.0/);
   assert.equal(r.data.entry.body, NOTES.trim());
   assert.match(r.text, /git push origin main v0\.1\.0/);
   assert.deepEqual(await files(dir), before);
@@ -150,7 +150,7 @@ test('a dry run shows the entry and writes nothing', async t => {
 });
 
 test('release bumps the version, prepends the entry, commits and tags locally, and never pushes', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   const origin = join(dir, '..', `${dir.split('/').pop()}-origin.git`);
   execFileSync('git', ['init', '-q', '--bare', origin], { env: ENV });
   t.after(() => rm(origin, { recursive: true, force: true }));
@@ -161,7 +161,7 @@ test('release bumps the version, prepends the entry, commits and tags locally, a
   assert.match(r.text, /Nothing was pushed/);
   assert.deepEqual(await versions(dir), { cli: '0.1.0', practice: '0.1.0', config: '0.1.0', lock: '0.1.0' }, 'a practice release bumps both');
   assert.equal(r.data.entry.heading, '## v0.1.0 — practice 0.1.0 (2026-10-02)');
-  assert.match(await readFile(join(dir, '.keel/keel.json'), 'utf8'), /"practices": \["base", "phases"\]/, 'keel.json keeps its own formatting');
+  assert.match(await readFile(join(dir, '.plates/plates.json'), 'utf8'), /"practices": \["base", "phases"\]/, 'plates.json keeps its own formatting');
   assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
   assert.equal(git(dir, 'rev-parse', 'v0.1.0^{commit}'), git(dir, 'rev-parse', 'HEAD'));
   assert.equal(git(dir, 'status', '--porcelain'), '');
@@ -180,12 +180,12 @@ test('release bumps the version, prepends the entry, commits and tags locally, a
 });
 
 test('a release with no change under practices/ or migrations/ bumps only the CLI; a practice change bumps both', async t => {
-  const dir = await keelLike(t);
-  // Keel-side only: the practice and every project's "current" stay where they are.
+  const dir = await platesLike(t);
+  // Plates-side only: the practice and every project's "current" stay where they are.
   let r = await release({ root: dir, version: '0.1.0', notes: 'Acme fleet reads faster.' }, { env: ENV, date: '2026-10-04' });
   assert.deepEqual(await versions(dir), { cli: '0.1.0', practice: '0.0.0', config: '0.0.0', lock: '0.0.0' });
   assert.deepEqual(r.data.practice, { from: '0.0.0', to: '0.0.0', changed: false, since: git(dir, 'rev-list', '--max-parents=0', '--abbrev-commit', 'HEAD'), files: [] });
-  assert.equal(r.data.entry.heading, '## v0.1.0 — keel only; practice unchanged at 0.0.0 (2026-10-04)');
+  assert.equal(r.data.entry.heading, '## v0.1.0 — plates only; practice unchanged at 0.0.0 (2026-10-04)');
   assert.deepEqual(git(dir, 'show', '--name-only', '--format=', 'HEAD').split('\n').sort(), ['WHATSNEW.md', 'package.json']);
   assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
   assert.deepEqual(candidatePractice(dir, ENV), { version: '0.0.0', changed: false }, 'rehearsal keeps the unchanged practice, not the newer CLI version');
@@ -209,7 +209,7 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   assert.deepEqual(await versions(dir), { cli: '0.2.0', practice: '0.2.0', config: '0.2.0', lock: '0.2.0' });
   assert.deepEqual(r.data.practice.files, ['migrations/0001-acme.mjs']);
 
-  // The next keel-only release compares against the release that last moved practices/VERSION.
+  // The next plates-only release compares against the release that last moved practices/VERSION.
   r = await release({ root: dir, version: '0.2.1', notes: 'Acme learn reads more.' }, { env: ENV, date: '2026-10-06' });
   assert.equal(r.data.practice.changed, false);
   assert.equal(r.data.practice.since, git(dir, 'rev-parse', '--short', 'v0.2.0^{commit}'));
@@ -223,7 +223,7 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   assert.deepEqual(await versions(dir), { cli: '0.3.0', practice: '0.2.1', config: '0.2.1', lock: '0.2.1' });
   assert.deepEqual(r.data.practice.files, ['practices/base/AGENTS.md']);
 
-  // The lessons catalogue counts: every project's docs/keel-lessons.md is rendered from it (phase 30).
+  // The lessons catalogue counts: every project's docs/plates-lessons.md is rendered from it (phase 30).
   await mkdir(join(dir, 'docs'), { recursive: true });
   await writeFile(join(dir, 'docs', 'lessons.md'), '# Lessons\n\n| # | The shape of it | What it cost | Guard | Where |\n| --- | --- | --- | --- | --- |\n| 1 | **Acme forgets.** | A day. | A test. | |\n');
   git(dir, 'add', '-A');
@@ -232,9 +232,9 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
   assert.equal(r.data.practice.changed, true, 'a lessons-only release moves the practice');
   assert.deepEqual(r.data.practice.files, ['docs/lessons.md']);
 
-  // update's PR carries practice entries between practice versions, never a keel-only one.
+  // update's PR carries practice entries between practice versions, never a plates-only one.
   const text = await readFile(join(dir, 'WHATSNEW.md'), 'utf8');
-  assert.deepEqual(entries(text).map(e => [e.version, e.practice, e.keelOnly]),
+  assert.deepEqual(entries(text).map(e => [e.version, e.practice, e.platesOnly]),
     [['0.4.0', r.data.practice.to, false], ['0.3.0', '0.2.1', false], ['0.2.1', '0.2.0', true], ['0.2.0', '0.2.0', false], ['0.1.0', '0.0.0', true]]);
   assert.deepEqual(between(text, '0.0.0', '0.2.1').map(e => e.body), ['Acme gets a sharper gate.', 'Acme renames a file.']);
   assert.deepEqual(between(text, '0.2.0', '0.2.0'), [], 'a project on the practice gets nothing');
@@ -245,9 +245,9 @@ test('a release with no change under practices/ or migrations/ bumps only the CL
 test('a failing gate: every file back byte for byte, exit 1 naming the check, no commit, no tag', async t => {
   // The gate fails only on the bumped tree, so it is the release it judged.
   const gate = 'node -e "process.exit(require(\'./package.json\').version === \'0.0.0\' ? 0 : 7)"';
-  const dir = await keelLike(t, { check: gate });
+  const dir = await platesLike(t, { check: gate });
   await changePractice(dir); // a practice release, so the files it restores include practices/VERSION and the lock
-  const raw = async () => Promise.all(['package.json', 'practices/VERSION', '.keel/keel.json', '.keel/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f))));
+  const raw = async () => Promise.all(['package.json', 'practices/VERSION', '.plates/plates.json', '.plates/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f))));
   const before = await raw(), head = git(dir, 'rev-parse', 'HEAD');
   const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, date: '2026-10-02' }));
   assert.equal(r.exitCode, 1, r.text);
@@ -267,7 +267,7 @@ test('a failing gate: every file back byte for byte, exit 1 naming the check, no
 
 test('a passing gate runs on the bumped tree, then commits and tags', async t => {
   const gate = 'node -e "process.exit(require(\'./package.json\').version === \'0.1.0\' ? 0 : 7)"';
-  const dir = await keelLike(t, { check: gate });
+  const dir = await platesLike(t, { check: gate });
   const r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: ENV, date: '2026-10-02' });
   assert.deepEqual(r.data.check, { command: gate, ok: true });
   assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
@@ -276,14 +276,14 @@ test('a passing gate runs on the bumped tree, then commits and tags', async t =>
 });
 
 test('the CLI: notes from stdin, --json, and bare release reports the version', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   const cli = (args, input) => run(process.execPath, [BIN, ...args], { cwd: dir, env: ENV, input });
   const bare = cli(['release', '--json']);
   assert.equal(bare.status, 0, bare.stderr);
   assert.deepEqual(JSON.parse(bare.stdout), { version: '0.0.0', practice: '0.0.0', tag: 'v0.0.0', tagged: false, newest: null });
   const dry = cli(['release', '0.1.0', '--notes', '-', '--dry-run'], NOTES);
   assert.equal(dry.status, 0, dry.stderr);
-  assert.match(dry.stdout, /keel only; practice unchanged at 0\.0\.0/);
+  assert.match(dry.stdout, /plates only; practice unchanged at 0\.0\.0/);
   const bad = cli(['release', '0.1.0', '--notes', '-', '--practice', '--json'], NOTES);
   assert.equal(bad.status, 2);
   assert.match(JSON.parse(bad.stdout).error, /--practice needs a version/);
@@ -296,22 +296,35 @@ test('the CLI: notes from stdin, --json, and bare release reports the version', 
   assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
 });
 
-test('keel itself: practices/VERSION is the practice, and a release now would leave it unchanged', () => {
-  // Cut after 0.5.2 with only keel-side changes: the practice must not move.
+test('plates itself: practices/VERSION is the practice, and a release now would leave it unchanged', () => {
+  // Cut after 0.5.2 with only plates-side changes: the practice must not move.
   // The expected numbers are read, never written down (lesson 17).
   const practice = practiceVersion();
-  const pkg = JSON.parse(readFileSync(join(KEEL, 'package.json'), 'utf8'));
-  const since = practiceChange(KEEL, practice, ENV);
+  const pkg = JSON.parse(readFileSync(join(PLATES, 'package.json'), 'utf8'));
+  const since = practiceChange(PLATES, practice, ENV);
   const next = (([a, b, c]) => `${a}.${b}.${c + 1}`)(pkg.version.split('.').map(Number));
-  const r = run(process.execPath, [BIN, 'release', next, '--notes', '-', '--dry-run', '--json'], { cwd: KEEL, env: ENV, input: NOTES });
+  const r = run(process.execPath, [BIN, 'release', next, '--notes', '-', '--dry-run', '--json'], { cwd: PLATES, env: ENV, input: NOTES });
   assert.equal(r.status, 0, r.stderr);
   const plan = JSON.parse(r.stdout);
   assert.equal(plan.practice.from, practice);
   assert.equal(plan.practice.changed, since.changed);
   if (!since.changed) {
     assert.equal(plan.practice.to, practice);
-    assert.match(plan.entry.heading, new RegExp(`keel only; practice unchanged at ${practice.replace(/\./g, '\\.')}`));
+    assert.match(plan.entry.heading, new RegExp(`plates only; practice unchanged at ${practice.replace(/\./g, '\\.')}`));
   }
+});
+
+test('release history reads legacy CLI-only headings without rewriting provenance or offering them as practice updates', () => {
+  const legacy = '# Acme release history\n\n## v0.2.1 — keel only; practice unchanged at 0.2.0 (2026-10-02)\n\nAcme CLI fix.\n\n## v0.2.0 — practice 0.2.0 (2026-10-01)\n\nAcme practice fix.\n';
+  const original = entries(legacy);
+  assert.deepEqual(original.map(e => [e.version, e.practice, e.platesOnly]), [['0.2.1', '0.2.0', true], ['0.2.0', '0.2.0', false]]);
+  assert.equal(original[0].heading, '## v0.2.1 — keel only; practice unchanged at 0.2.0 (2026-10-02)');
+  assert.deepEqual(between(legacy, '0.1.0', '0.2.1').map(e => e.body), ['Acme practice fix.']);
+  const next = prepend(legacy, '0.2.2', 'Acme next CLI fix.', '2026-10-03', { practice: '0.2.0', changed: false });
+  assert.equal(entries(next)[0].heading, '## v0.2.2 — plates only; practice unchanged at 0.2.0 (2026-10-03)');
+  assert.deepEqual(entries(next).slice(1), original, 'old headings and bodies retain their original bytes');
+  assert.ok(next.endsWith(legacy.slice(legacy.indexOf('## v'))), 'historical text remains untouched');
+  assert.deepEqual(between(next, '0.2.0', '0.2.2'), []);
 });
 
 test('prepend puts a new entry above the newest and keeps the header', () => {
@@ -325,14 +338,14 @@ test('prepend puts a new entry above the newest and keeps the header', () => {
 
 /** Everything a refused release must leave alone: the files it would write, HEAD, the tags, the status. */
 const snapshot = async dir => ({
-  files: await Promise.all(['package.json', 'practices/VERSION', '.keel/keel.json', '.keel/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f)))),
+  files: await Promise.all(['package.json', 'practices/VERSION', '.plates/plates.json', '.plates/lock.json', 'WHATSNEW.md'].map(f => readFile(join(dir, f)))),
   head: git(dir, 'rev-parse', 'HEAD'), tags: git(dir, 'tag', '--list'), status: git(dir, 'status', '--porcelain'),
 });
 const lookups = calls => calls.filter(c => /\/commits\/[0-9a-f]{40}\/pulls$/.test(c[1] ?? ''));
 
 test('the review gate: a practice commit pushed straight to main refuses (exit 1, naming it) and writes nothing', async t => {
   const gh = await stubGh({ defaultPull: null });
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const sha = git(dir, 'rev-parse', 'HEAD');
   const before = await snapshot(dir);
@@ -342,7 +355,7 @@ test('the review gate: a practice commit pushed straight to main refuses (exit 1
   assert.ok(r.text.includes(`${sha.slice(0, 7)} practice: base — pushed straight to main: no merged pull request brought it`), r.text);
   assert.match(r.text, /--unreviewed "<why>"/);
   assert.deepEqual(await snapshot(dir), before, 'nothing written: no file, commit or tag');
-  assert.deepEqual((await gh.calls()).map(c => c[1]), [`repos/acme/keel/commits/${sha}/pulls`], 'one call for the one commit, and no PR read');
+  assert.deepEqual((await gh.calls()).map(c => c[1]), [`repos/acme/plates/commits/${sha}/pulls`], 'one call for the one commit, and no PR read');
   // In a PR that never merged: it still reached main outside one.
   await gh.set(s => { s.pulls[sha] = [{ number: 9, merged_at: null }]; });
   r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
@@ -351,10 +364,10 @@ test('the review gate: a practice commit pushed straight to main refuses (exit 1
   assert.deepEqual(await snapshot(dir), before);
 });
 
-test('the review gate: a merged PR whose keel review --gate fails refuses, naming the PR and why; answered, it passes', async t => {
+test('the review gate: a merged PR whose plates review --gate fails refuses, naming the PR and why; answered, it passes', async t => {
   const OLD = '6666666666666666666666666666666666666666';
   const open = { id: 'PRRT_open', comments: [{ databaseId: 1, author: 'github-actions', body: '**P1** The hatch is open.' }] };
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
   const before = await snapshot(dir);
@@ -380,10 +393,10 @@ test('the review gate: a merged PR whose keel review --gate fails refuses, namin
 
 test('the review gate passes when each practice commit came through a reviewed PR: one call a commit, each PR read once, only commits since the last tag', async t => {
   const gh = await stubGh();
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir, 'Acme keeps a gate.');
   await changePractice(dir, 'Acme keeps two.');
-  await writeFile(join(dir, 'README.md'), '# Acme keel\n');
+  await writeFile(join(dir, 'README.md'), '# Acme plates\n');
   git(dir, 'add', '-A');
   git(dir, 'commit', '-qm', 'docs: readme');
   let r = await release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env });
@@ -408,7 +421,7 @@ test('the review gate passes when each practice commit came through a reviewed P
 
 test('--unreviewed "<why>" passes the gate unread and writes the reason into the release commit and WHATSNEW', async t => {
   const gh = await stubGh({ defaultPull: null });
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
   const before = await snapshot(dir);
@@ -425,7 +438,7 @@ test('--unreviewed "<why>" passes the gate unread and writes the reason into the
   assert.equal(git(dir, 'log', '-1', '--format=%s'), 'release v0.1.0');
   assert.equal(git(dir, 'log', '-1', '--format=%b').trim(), `Unreviewed: ${why}\n\n${short} practice: base`);
   assert.equal(git(dir, 'tag', '--list'), 'v0.1.0');
-  // A keel-only release has no review to skip.
+  // A plates-only release has no review to skip.
   r = await attempt(release({ root: dir, version: '0.1.1', notes: NOTES, unreviewed: why }, { env: gh.env }));
   assert.equal(r.exitCode, 2);
   assert.match(r.text, /no commit under practices\/, migrations\/ or docs\/lessons\.md since v0\.1\.0, so there is no review to skip/);
@@ -433,7 +446,7 @@ test('--unreviewed "<why>" passes the gate unread and writes the reason into the
 
 test('--yes does not skip the review gate: the CLI refuses it and writes nothing; only --unreviewed passes', async t => {
   const gh = await stubGh({ defaultPull: null });
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
   const before = await snapshot(dir);
@@ -456,7 +469,7 @@ test('--yes does not skip the review gate: the CLI refuses it and writes nothing
 
 test('the review gate never passes on an unread review: GitHub down is exit 2, nothing written', async t => {
   const gh = await stubGh({ down: true });
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const before = await snapshot(dir);
   const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
@@ -467,7 +480,7 @@ test('the review gate never passes on an unread review: GitHub down is exit 2, n
 
 test(`the review gate reads at most ${GATE_CAP} commits: past it, a clear refusal before any GitHub call`, async t => {
   const gh = await stubGh();
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   for (let i = 0; i <= GATE_CAP; i++) await changePractice(dir, `Acme rule ${i}.`);
   const before = await snapshot(dir);
   const r = await attempt(release({ root: dir, version: '0.1.0', notes: NOTES }, { env: gh.env }));
@@ -479,7 +492,7 @@ test(`the review gate reads at most ${GATE_CAP} commits: past it, a clear refusa
 
 test('a dry run lists the commits the review gate will check and reads no GitHub', async t => {
   const gh = await stubGh({ defaultPull: null });
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await changePractice(dir);
   const short = git(dir, 'rev-parse', '--short=7', 'HEAD');
   const r = await release({ root: dir, version: '0.1.0', notes: NOTES, dryRun: true }, { env: gh.env });
@@ -490,10 +503,10 @@ test('a dry run lists the commits the review gate will check and reads no GitHub
 
 // ---- the fleet rehearsal (phase 53) -------------------------------------------------
 
-/** fleet.json at the keel-shaped repo, committed: these repos are managed, and acme/upstream is a source. */
+/** plates.json at the plates-shaped repo, committed: these repos are managed, and acme/upstream is a source. */
 async function withFleet(dir, repos) {
-  await writeFile(join(dir, 'fleet.json'), JSON.stringify([...repos.map(repo => ({ repo, kind: 'node', role: 'managed' })), { repo: 'acme/upstream', kind: 'other', role: 'source' }]));
-  git(dir, 'add', 'fleet.json');
+  await writeFile(join(dir, 'plates.json'), JSON.stringify([...repos.map(repo => ({ repo, kind: 'node', role: 'managed' })), { repo: 'acme/upstream', kind: 'other', role: 'source' }]));
+  git(dir, 'add', 'plates.json');
   git(dir, 'commit', '-qm', 'acme fleet');
 }
 /** The rows lib/fleet.mjs rehearse returns; the stand-in records what it was asked. */
@@ -510,7 +523,7 @@ function rehearsal(rows) {
 }
 
 test('the rehearsal refuses a release while a project passes on main and fails with it: exit 1, naming it and its tail, nothing written', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await withFleet(dir, ['acme/picky', 'acme/red', 'acme/gone']);
   await changePractice(dir);
   const before = await snapshot(dir);
@@ -531,7 +544,7 @@ test('the rehearsal refuses a release while a project passes on main and fails w
 });
 
 test('the rehearsal passes a release when every project passes, or its main was already red, or it could not be cloned; no fleet skips it and says so', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await withFleet(dir, ['acme/ok', 'acme/red', 'acme/gone']);
   await changePractice(dir);
   const rehearse = rehearsal([ROWS.passed('acme/ok'), ROWS.red('acme/red'), ROWS.gone('acme/gone')]);
@@ -544,28 +557,28 @@ test('the rehearsal passes a release when every project passes, or its main was 
   assert.match(r.text, /Rehearsed practice 0\.1\.0 on 3 fleet projects \(at most 4 at once\) in 4\.3s/);
   assert.match(r.text, /acme\/ok: passed: `npm run check` exit 0 with the release/);
 
-  // No fleet.json: the rehearsal is skipped and said, never run.
-  const bare = await keelLike(t);
+  // No plates.json: the rehearsal is skipped and said, never run.
+  const bare = await platesLike(t);
   await changePractice(bare);
   const never = rehearsal([ROWS.fails('acme/picky')]);
   const s = await release({ root: bare, version: '0.1.0', notes: NOTES }, { env: ENV, rehearse: never });
   assert.equal(never.asked.length, 0);
-  assert.equal(s.data.rehearsal.skipped, 'no managed project in fleet.json');
-  assert.match(s.text, /Rehearsal skipped: no managed project in fleet\.json\./);
+  assert.equal(s.data.rehearsal.skipped, 'no managed project in plates.json');
+  assert.match(s.text, /Rehearsal skipped: no managed project in plates\.json\./);
   const dry = await release({ root: bare, version: '0.1.1', notes: NOTES, dryRun: true }, { env: ENV });
-  assert.match(dry.text, /skip the fleet rehearsal: no managed project in fleet\.json/);
+  assert.match(dry.text, /skip the fleet rehearsal: no managed project in plates\.json/);
 });
 
 test('--despite <repo> "<why>" releases past a project the rehearsal fails, writing the reason into the commit and WHATSNEW; a repo not in the fleet is refused', async t => {
-  const dir = await keelLike(t);
+  const dir = await platesLike(t);
   await withFleet(dir, ['acme/picky', 'acme/ok']);
   await changePractice(dir);
   const before = await snapshot(dir);
   const why = 'Acme picky flakes on a clock test, tracked in acme/picky#3';
   // Not in the fleet (a source is not managed), a reason of one word, or given twice: refused before anything runs.
   for (const [despite, error] of [
-    [[{ repo: 'acme/stranger', why }], /--despite acme\/stranger: not a managed project in fleet\.json/],
-    [[{ repo: 'acme/upstream', why }], /--despite acme\/upstream: not a managed project in fleet\.json/],
+    [[{ repo: 'acme/stranger', why }], /--despite acme\/stranger: not a managed project in plates\.json/],
+    [[{ repo: 'acme/upstream', why }], /--despite acme\/upstream: not a managed project in plates\.json/],
     [[{ repo: 'acme/picky', why: 'flaky' }], /--despite acme\/picky needs the reason, in a few words/],
     [[{ repo: 'acme/picky', why }, { repo: 'acme/picky', why }], /--despite acme\/picky is given twice/],
   ]) {
@@ -598,6 +611,6 @@ test('--despite <repo> "<why>" releases past a project the rehearsal fails, writ
   assert.match(cli.stderr, /--despite needs the project and the reason: --despite <owner\/name> "<why>"/);
   cli = run(process.execPath, [BIN, 'release', '0.2.0', '--notes', notes, '--despite', 'acme/stranger', why, '--json'], { cwd: dir, env: ENV });
   assert.equal(cli.status, 2, cli.stdout);
-  assert.match(JSON.parse(cli.stdout).error, /--despite acme\/stranger: not a managed project in fleet\.json/);
+  assert.match(JSON.parse(cli.stdout).error, /--despite acme\/stranger: not a managed project in plates\.json/);
   assert.deepEqual(await snapshot(dir), after);
 });

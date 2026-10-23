@@ -410,3 +410,27 @@ test("shared requested and waiting filters are valid empty receipt selections, n
     );
   }
 });
+
+
+test("CLI archives retain canonical and legacy path identities without rewriting provenance", async () => {
+  const h = runReceiptsHarness();
+  h.state.now = Date.parse("2026-10-21T12:00:00.000Z");
+  const paths = [".plates/test-runs/acme.json", ".keel/test-runs/acme.json"];
+  for (const path of paths) h.source.files[path] = JSON.stringify(stallsRecord());
+  const page = await list(h), observations = page.observations.filter(i => i.kind === "authored-cli");
+  assert.equal(observations.length, 2);
+  assert.equal(new Set(observations.map(i => i.id)).size, 2);
+  for (const path of paths) {
+    const item = observations.find(i => i.source.path === path);
+    assert.equal(item.source.revision, h.source.head);
+    assert.equal(item.source.blob, gitBlob(h.source.files[path]));
+    assert.equal(item.identity.path, path);
+    assert.ok(item.link.endsWith('/' + h.source.head + '/' + path));
+    assert.deepEqual(item.outcomes, { fail: 1 });
+  }
+  h.source.files[paths[0]] = '{malformed';
+  const invalid = await list(h);
+  assert.deepEqual(invalid.observations.map(i => i.source.path), [paths[1]]);
+  assert.ok(invalid.coverage.gaps.some(g => g.code === 'invalid'));
+  assert.deepEqual(h.source.writes, []);
+});

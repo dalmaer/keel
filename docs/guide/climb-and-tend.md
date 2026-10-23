@@ -24,11 +24,11 @@ person always merges it. The second reads the first: the health page says
 which number is worst.
 
 **Climb: an agent climbs one number, a script judges it.** On 6 October an
-agent took keel's own suite from 48 seconds to 23 in eight kept changes, by
+agent took plates's own suite from 48 seconds to 23 in eight kept changes, by
 hand, each measured against noise. Climb makes that
 hour repeatable, under one protocol (`.agents/climb/PROTOCOL.md`):
 
-- **Every number comes from the script**, `scripts/keel/climb.mjs`, never
+- **Every number comes from the script**, `scripts/plates/climb.mjs`, never
   from the agent. An agent's "it's faster now" with no number behind it is
   the failure this prevents.
 - **Measured against noise.** Base and candidate run alternately, in
@@ -52,7 +52,7 @@ hour repeatable, under one protocol (`.agents/climb/PROTOCOL.md`):
   item's minutes may lower the budget, never raise it. Anything its
   `willNotTouch` lists (a path: that file, or everything under it) is refused
   like `.github/`, on the head that is pushed as well as the agent's: listing
-  `.keel/climb.json` stops climb's own rotation commit, and the next night
+  `.plates/climb.json` stops climb's own rotation commit, and the next night
   reads the rotation from this night's record alone. The publish job ticks
   the item on the plan branch: running, then done with the PR or failed with
   why. A plan that is refused
@@ -72,7 +72,7 @@ it writes down as a proposal for you.
 
 ## The commands
 
-Switch a pass on in `.keel/keel.json` (and `--with climb` when adopting or
+Switch a pass on in `.plates/plates.json` (and `--with climb` when adopting or
 initialising). No `climb` key, no climb night; no `tend` key, no pass:
 
 ```json
@@ -98,9 +98,9 @@ Why you'd set each:
 Check what a project will actually run, with the defaults filled in:
 
 ```bash
-node scripts/keel/climb.mjs config
-node scripts/keel/climb.mjs pick       # which job tonight, and why
-node scripts/keel/climb.mjs tend-pick  # whether a tend pass would run
+node scripts/plates/climb.mjs config
+node scripts/plates/climb.mjs pick       # which job tonight, and why
+node scripts/plates/climb.mjs tend-pick  # whether a tend pass would run
 ```
 
 Then set the secret, a ⚑ step: `CLAUDE_CODE_OAUTH_TOKEN` (or
@@ -117,18 +117,18 @@ Set `"agent": "codex"` on `climb`, on `tend`, or both, list `codex` in
   Budget line still counts minutes, not dollars, so watch the API account
   for the first few nights.
 - **Where its commits live.** Codex runs in a sandbox that may write the
-  checkout but keeps `.git` read-only, so it cannot commit there, and keel
-  never gives it the sandbox that could (`danger-full-access`). So a keel
-  step gives it a second git dir, `.keel/agent-git`, holding the night's
+  checkout but keeps `.git` read-only, so it cannot commit there, and plates
+  never gives it the sandbox that could (`danger-full-access`). So a plates
+  step gives it a second git dir, `.plates/agent-git`, holding the night's
   branch, and its brief tells it to commit there. The protocol is
   unchanged: one change per commit, measured, kept or reset. Because Codex
-  can write that git dir (its config and hooks too), keel never runs git
-  on it afterwards: a keel step copies out only the objects and the one
-  branch, into a repo keel makes, and hands those on. From there the
+  can write that git dir (its config and hooks too), plates never runs git
+  on it afterwards: a plates step copies out only the objects and the one
+  branch, into a repo plates makes, and hands those on. From there the
   judge and the PR are exactly as for Claude, and a branch that carries
-  `.keel/agent-git` is refused like one that changes `scripts/keel/`.
-  Codex's sandbox may also write its temp folder, so keel pins that to
-  `/tmp/keel-codex`, never the runner's own temp, where the files that set
+  `.plates/agent-git` is refused like one that changes `scripts/plates/`.
+  Codex's sandbox may also write its temp folder, so plates pins that to
+  `/tmp/plates-codex`, never the runner's own temp, where the files that set
   later steps' environment live.
 
 One thing a Codex climb night cannot do: `compare` builds its worktrees in
@@ -138,7 +138,7 @@ base there; keep such a project's climb on Claude.
 
 The rest of `climb.mjs` (`measure`, `compare`, `guard`, `prove-steady`,
 `report`, the tend verbs) is what the workflows and the agent run; the
-reference is `keel --agent-help climb`. You don't need to run them yourself.
+reference is `plates --agent-help climb`. You don't need to run them yourself.
 
 ## What you'll see
 
@@ -166,7 +166,7 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
 
   Each number is the minutes the agent step itself took in one run, newest
   first, from GitHub's own record of the run (not the agent's report, and
-  not setup or the PR, which are keel's time). ⏱ means it ran out: cut off
+  not setup or the PR, which are plates's time). ⏱ means it ran out: cut off
   by its timeout, or within a minute of the budget. Over the last 4 to 8
   runs, *extend* means the agent is often cut off mid-work; *shorten to N*
   means no run used half its budget; *hold* means the budget fits. It never
@@ -186,8 +186,8 @@ reference is `keel --agent-help climb`. You don't need to run them yourself.
   into trying: it runs in a job whose token only reads (Codex with no
   GitHub token at all, sudo dropped), and its commits are
   judged in a second read-only job and pushed by a third that runs none of
-  the branch's code. A branch that changes `.github/`, `scripts/keel/`,
-  `.keel/keel.json`, a lockfile, `.npmrc` or a `package.json` beyond its
+  the branch's code. A branch that changes `.github/`, `scripts/plates/`,
+  `.plates/plates.json`, a lockfile, `.npmrc` or a `package.json` beyond its
   scripts is refused before anything runs. The judge installs (with your
   `setupToken`) on the run's own commit before it takes the agent's
   commits, so none of their code ever runs with that token, and it guards

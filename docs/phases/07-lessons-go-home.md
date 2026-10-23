@@ -3,15 +3,15 @@ status: built
 since: 2026-10-04
 goal: G3
 depends: [5]
-note: "keel lessons filed ledger's 33 lessons home exactly once (to the private inbox, phase 21), and keel learn carried them through to decisions."
+note: "plates lessons filed ledger's 33 lessons home exactly once (to the private inbox, phase 21), and plates learn carried them through to decisions."
 evidence: ["evidence/2026-10-02-lessons.md", "evidence/2026-10-04-lessons-home.md"]
 ---
 
-# A lesson learned in a project reaches keel without anyone copying it
+# A lesson learned in a project reaches plates without anyone copying it
 
 ## Done when
 
-`keel lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/keel` labelled `lesson`, and never files the same one twice.
+`plates lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/plates` labelled `lesson`, and never files the same one twice.
 
 ## Scope
 
@@ -26,8 +26,8 @@ issues, until the owner turns sending on.
 
 - [x] Dry run on a synthetic project lists exactly the new items.
 - [x] A second run files nothing.
-- [x] ⚑ Filing issues on keel asks first the first time, per project.
-- [x] A lesson's text is treated as data on the keel side (see learn's untrusted-content rule).
+- [x] ⚑ Filing issues on plates asks first the first time, per project.
+- [x] A lesson's text is treated as data on the plates side (see learn's untrusted-content rule).
 
 ## Proof
 
@@ -35,12 +35,12 @@ issues, until the owner turns sending on.
 
 ## Deliberately open
 
-- Issues versus PRs into `inbox/` on keel. **Settled 2026-10-02:** issues, labelled `lesson`, with a fixed data line and a `fingerprint:` line that learn parses.
-- Where "already sent" lives. **Settled 2026-10-02:** `.keel/sent.json`, committed by the project, so every machine sees it. An exact-fingerprint search of keel's issues backs it up.
+- Issues versus PRs into `inbox/` on plates. **Settled 2026-10-02:** issues, labelled `lesson`, with a fixed data line and a `fingerprint:` line that learn parses.
+- Where "already sent" lives. **Settled 2026-10-02:** `.plates/sent.json`, committed by the project, so every machine sees it. An exact-fingerprint search of plates's issues backs it up.
 
 ## Next action
 
-None. (Loop's finding about keel's bounds file is a Loop finding in ledger, not a lesson row; it is triaged with ledger's other Loop findings.)
+None. (Loop's finding about plates's bounds file is a Loop finding in ledger, not a lesson row; it is triaged with ledger's other Loop findings.)
 
 ## Trajectory
 

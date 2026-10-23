@@ -6,7 +6,7 @@ since: 2026-10-14
 goal: G4
 spec: 2
 depends: [45, 47]
-note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner approved Keel with 60 combined agent minutes/week on 2026-10-12; first enabled run failed at the runner isolation prerequisite before model work; three real reviewed/merged issues remain owed."
+note: "Implemented opt-in issue robot, trusted build/judge/publish, shared build/review budget, permission checks and recoverable issue/publication state. Automated proof, read-only APIs and the merged OFF workflow verified; owner approved Plates with 60 combined agent minutes/week on 2026-10-12; first enabled run failed at the runner isolation prerequisite before model work; three real reviewed/merged issues remain owed."
 evidence: ["evidence/2026-10-10-robot.md", "evidence/2026-10-12-robot-pilot.md"]
 issue: 41
 ---
@@ -19,19 +19,19 @@ An issue labelled `keel:agent` that meets the rubric is worked by an agent with 
 
 ## Scope
 
-The design is [The robot, and keel's sense of time](../research/2026-10-09-robot-and-time.md), phase 54.
+The design is [The robot, and plates's sense of time](../research/2026-10-09-robot-and-time.md), phase 54.
 
-- **The rubric**, in the agent guide and the issue template: what is wrong and how to see it (a command, a test, the steps); how to tell it is mended; nothing only the owner can give (no product choice, no secret, no exit-3 step); one change that fits a run; nothing waiting on unpushed work. `keel issue new --agent` writes one in that shape.
+- **The rubric**, in the agent guide and the issue template: what is wrong and how to see it (a command, a test, the steps); how to tell it is mended; nothing only the owner can give (no product choice, no secret, no exit-3 step); one change that fits a run; nothing waiting on unpushed work. `plates issue new --agent` writes one in that shape.
 - **The triage**: an issue the owner labels that misses part of the rubric gets one comment naming what is missing, and is not worked.
-- **The workflows** (practice `climb`): `keel-robot-route.yml` checks public label/reopen/comment events against fresh repository write/maintain/admin permission and issue identity, then dispatches `keel-robot.yml`. The worker revalidates the trigger and active label provenance; it runs weekly for missed work. Public router runs never share the worker queue or budget history. The worker handles one issue at a time: agent (read-only), judge, publish, then independent review. The provider comes from `"agents"`, as climb's does.
+- **The workflows** (practice `climb`): `plates-robot-route.yml` checks public label/reopen/comment events against fresh repository write/maintain/admin permission and issue identity, then dispatches `plates-robot.yml`. The worker revalidates the trigger and active label provenance; it runs weekly for missed work. Public router runs never share the worker queue or budget history. The worker handles one issue at a time: agent (read-only), judge, publish, then independent review. The provider comes from `"agents"`, as climb's does.
 - **The result is a PR**, never a push to main: branch `keel/robot-<issue>`, `closes #N`, reviewed by the other provider (phase 45), merged by a person.
-- **The issue is the conversation**: keel posts the agent's last message on the issue (what changed, how it knows, the PR; or one question with choices). The owner's comment starts the next run on that issue, with the comment in its brief.
-- **Opt-in, with a budget**: off until `.keel/keel.json` has `"robot": { "on": true, "budgetMinutes": <per week> }`. The weekly allowance includes robot-associated build and other-provider review agent-step time. Both are constrained by the remaining allowance. When it runs out or cannot be established, the pass waits, and the board says so.
-- **Issues it gets**: `keel review --close … --tracked` can file its issue in the rubric's shape (`--file-agent-issue`); an agent that finds a fault outside its work files one and goes on.
+- **The issue is the conversation**: plates posts the agent's last message on the issue (what changed, how it knows, the PR; or one question with choices). The owner's comment starts the next run on that issue, with the comment in its brief.
+- **Opt-in, with a budget**: off until `.plates/plates.json` has `"robot": { "on": true, "budgetMinutes": <per week> }`. The weekly allowance includes robot-associated build and other-provider review agent-step time. Both are constrained by the remaining allowance. When it runs out or cannot be established, the pass waits, and the board says so.
+- **Issues it gets**: `plates review --close … --tracked` can file its issue in the rubric's shape (`--file-agent-issue`); an agent that finds a fault outside its work files one and goes on.
 
 ## Acceptance
 
-- [x] `keel issue new --agent` writes an issue with every rubric field; the triage names each missing field on an issue that lacks it and refuses to work it. `tests/robot-rubric.test.mjs`, `tests/robot-issue.test.mjs`, `tests/robot-runtime.test.mjs`, `tests/robot-budget.test.mjs`
+- [x] `plates issue new --agent` writes an issue with every rubric field; the triage names each missing field on an issue that lacks it and refuses to work it. `tests/robot-rubric.test.mjs`, `tests/robot-issue.test.mjs`, `tests/robot-runtime.test.mjs`, `tests/robot-budget.test.mjs`
 - [x] The worker admits only verified labelled issues and authorized label/reopen/comment triggers; bots and strangers cannot start model work. Public intake is separate, and model work remains one issue at a time per project. `tests/workflows.test.mjs`
 - [x] The robot's jobs hold every climb sandbox rule for both providers (agent and judge read-only, publish runs nothing from the branch), and the result is a PR on `keel/robot-<issue>` with `closes #N`, never a push to main. `tests/workflows.test.mjs`
 - [x] The agent's last message is posted on the issue; the next run's brief carries the comments since the last run. `tests/robot-rubric.test.mjs`, `tests/robot-issue.test.mjs`, `tests/robot-runtime.test.mjs`, `tests/robot-budget.test.mjs`
@@ -50,7 +50,7 @@ The design is [The robot, and keel's sense of time](../research/2026-10-09-robot
 
 ## Real surfaces
 
-- Workflow shell: `keel-robot.yml` on GitHub Actions, triggered by labels and comments.
+- Workflow shell: `plates-robot.yml` on GitHub Actions, triggered by labels and comments.
 - GitHub API: issues, comments, the robot's PRs and their reviews.
 - Adopted project: the one the owner turns it on for.
 
@@ -69,7 +69,7 @@ By hand: three issues worked on a real project, read by the owner.
 - **Settled 2026-10-10: acceptance records stay with the owner.** Robot changes to phase, decision, evidence, research, design and project records are blocked by the trusted sandbox. Ordinary implementation and guide changes use the shared PR-body format with a checked no-record-impact declaration. A task needing record reconciliation is returned for owner handling; a robot PR never establishes acceptance.
 
 - **Settled 2026-10-10: extend the existing practice.** Robot files ship with `climb`; no second practice or tracking system is introduced. Configuration remains `robot: {on: true, budgetMinutes: N}` and the queue label remains `keel:agent`. The allowance covers build and review.
-- **Settled 2026-10-10: issue creation is reviewable and recoverable.** `keel issue new --agent --title <title> --rubric <file>` previews before `--yes`. Review creation uses `--close <one-id> --tracked --file-agent-issue --title <title> --rubric <file>`; bare `--tracked` is legal only in this creation mode, and a supplied tracking reference cannot be combined with it. Fresh review receipts are validated before creation. Robot-off issues are unlabelled; unknown target policy cannot enable work. A durable instance intent precedes creation, and ambiguous writes are recovered by exact identity rather than blindly retried.
+- **Settled 2026-10-10: issue creation is reviewable and recoverable.** `plates issue new --agent --title <title> --rubric <file>` previews before `--yes`. Review creation uses `--close <one-id> --tracked --file-agent-issue --title <title> --rubric <file>`; bare `--tracked` is legal only in this creation mode, and a supplied tracking reference cannot be combined with it. Fresh review receipts are validated before creation. Robot-off issues are unlabelled; unknown target policy cannot enable work. A durable instance intent precedes creation, and ambiguous writes are recovered by exact identity rather than blindly retried.
 
 - **Settled 2026-10-09: review is part of the robot.** Publication must explicitly invoke a trusted other-provider review path for the actual PR head, including continuations. A robot branch prefix or bot-created PR alone does not prove review ran. Missing other-provider credentials blocks the promised review rather than silently self-reviewing. Standalone cross-review refuses robot branches even when an owner configures a matching prefix, so it cannot bypass robot accounting or author provenance. The weekly budget includes both build and review agent-step time. [GitHub's token rules](https://docs.github.com/en/actions/concepts/security/github_token) place token-created PR runs behind approval; an explicit trusted invocation is needed for the unattended path.
 

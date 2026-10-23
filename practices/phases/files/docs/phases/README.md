@@ -13,7 +13,7 @@ is stale.
 | designed | The slice and its contracts are specified well enough to build. |
 | partial | Some of it exists; the note names the gap. With `owes: walk`, only a walk is left (below). |
 | built | Every acceptance box is checked, with an evidence file; real use is not yet claimed. |
-| lived-in | Repeated real use supports the outcome. The evidence says what made you sure. (When the project opts in: `"phases": {"livedIn": true}` in `.keel/keel.json`.) |
+| lived-in | Repeated real use supports the outcome. The evidence says what made you sure. (When the project opts in: `"phases": {"livedIn": true}` in `.plates/plates.json`.) |
 | superseded | Retired or replaced; the note says why and points at the replacement. |
 
 A status can move backward when evidence says so; update `since` and say why.
@@ -43,8 +43,8 @@ issue: 3
 
 Optional: `review: wait` (the only value; absent is the default) for a
 phase you are nervous about. It lands through a PR instead of a push to
-`main`, and merges when `keel review <repo>#<n> --gate` exits 0: every review
-comment answered, and each reviewer named in `.keel/keel.json` `"review"` has
+`main`, and merges when `plates review <repo>#<n> --gate` exits 0: every review
+comment answered, and each reviewer named in `.plates/plates.json` `"review"` has
 reviewed the head commit. The phase's issue labelled `keel:wait-for-review`
 does the same. Without it nothing waits: review comments are still validated
 and answered, but never block a merge.
@@ -62,7 +62,7 @@ command that runs on a real surface (`` `gh …` ``), and it cites no
 
 Optional, beside `owes: walk` only: `waits: owner | time | external`, whose
 walk it is (absent is `owner`: a ⚑ box is the owner's). Nothing but where the
-walk is listed changes (`keel board`; the roadmap shows *partial, walk owed
+walk is listed changes (`plates board`; the roadmap shows *partial, walk owed
 (time)*).
 
 Optional: `after: YYYY-MM-DD`, the first day the phase is buildable.
@@ -115,10 +115,10 @@ the phase (no "lever", "walk" or bare phase numbers):
 ```
 
 `**Ready when:** <what must happen first>` in place of `**Ready:** yes`
-means the owner cannot act yet: `keel board` lists it as waiting, with that
+means the owner cannot act yet: `plates board` lists it as waiting, with that
 reason, never as the owner's. A Markdown table of the data may follow the
 bullets. Two or more walk boxes: one `### ` sub-heading per box, in the
-boxes' order. A choice records the decision (`keel walk done <n> --choice
+boxes' order. A choice records the decision (`plates walk done <n> --choice
 "<choice>"`) and ticks the walk's box; what it changes is the conductor's
 next step, which Then says. A choice listed under **Keeps it open** (it must
 also be a Choice; "Not enough data yet", say) writes the same evidence row
@@ -138,7 +138,7 @@ reads it as a spec:
   template's placeholder text left in any section, or its title. The check
   and the template share one list (`PLACEHOLDERS` in `scripts/roadmap.mjs`).
   An empty Done when, Acceptance or Proof fails too.
-- **`spec: 2`** (the template writes it, so `keel phase new` does) holds a
+- **`spec: 2`** (the template writes it, so `plates phase new` does) holds a
   phase to two more rules:
   - Each Acceptance box names its check: a cited test,
     `tests/<file>: "<test name>"`; a command in backticks (a program and its
@@ -150,7 +150,7 @@ reads it as a spec:
     does a word off the list. A change that runs nowhere new (a doc, a
     test) says the single line `none`.
 - A phase without `spec` is held to neither rule. When it is built and a
-  box names no check, `keel doctor` notes it (`acceptance-unchecked`,
+  box names no check, `plates doctor` notes it (`acceptance-unchecked`,
   information); bring it up to date when it is next edited, never by
   rewriting a built phase for the lint.
 

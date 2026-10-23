@@ -6,25 +6,25 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from './helpers/run.mjs';
 import { createHash } from 'node:crypto';
-import * as hygieneReader from '../practices/night/files/scripts/keel/hygiene-measures.mjs';
-import { hygieneOptions, draftsWaiting, longFiles, largestSections, lineCount } from '../practices/night/files/scripts/keel/hygiene-measures.mjs';
-import { rememberQuota } from '../practices/night/files/scripts/keel/quota.mjs';
+import * as hygieneReader from '../practices/night/files/scripts/plates/hygiene-measures.mjs';
+import { hygieneOptions, draftsWaiting, longFiles, largestSections, lineCount } from '../practices/night/files/scripts/plates/hygiene-measures.mjs';
+import { rememberQuota } from '../practices/night/files/scripts/plates/quota.mjs';
 import { measure, MEASURES, propose, page, tighten, selftest, improve } from '../lib/improve.mjs';
-import { parseHygieneProposal } from '../practices/night/files/scripts/keel/hygiene-proposals.mjs';
+import { parseHygieneProposal } from '../practices/night/files/scripts/plates/hygiene-proposals.mjs';
 const now = Date.parse('2026-10-11T12:00:00Z');
 const repo = 'acme/storefront';
 const measures = MEASURES.filter(m => ['stale_worktrees','drafts_waiting','long_files'].includes(m.id));
 async function scratch(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-hygiene-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-hygiene-'));
   t.after(() => rm(root, {recursive:true,force:true}));
   return root;
 }
-async function cacheEnv(t) {return {...process.env,KEEL_CACHE:join(await scratch(t),'cache'),KEEL_GH:'/nonexistent/acme-gh'};}
+async function cacheEnv(t) {return {...process.env,PLATES_CACHE:join(await scratch(t),'cache'),PLATES_GH:'/nonexistent/acme-gh'};}
 const pr = (number, hours, isDraft = true) => ({number,title:`Acme ${number}`,url:`https://github.com/${repo}/pull/${number}`,state:'OPEN',isDraft,createdAt:new Date(now-hours*3600000).toISOString(),updatedAt:new Date(now-3600000).toISOString()});
 const response = (nodes=[],hasNextPage=false) => ({data:{rateLimit:{cost:2,remaining:4000,resetAt:new Date(now+3600000).toISOString()},repository:{pullRequests:{nodes,pageInfo:{hasNextPage}}}}});
 async function gitProject(t) {
   const root = await scratch(t);
-  const env = {...process.env,CI:'',KEEL_GIT:'git'};
+  const env = {...process.env,CI:'',PLATES_GIT:'git'};
   const git = args => {
     const r = run('git',args,{cwd:root,env,timeout:5000});
     assert.equal(r.status,0,r.stderr);return r.stdout.trim();
@@ -88,11 +88,11 @@ test('long files use tracked original source, retain actual history and freeze w
   const p=await gitProject(t);
   await p.put('src/anvils.mjs',source(3));p.commit();const older=p.git(['rev-parse','HEAD']);
   await p.put('src/anvils.mjs',source(14));
-  await p.put('practices/acme/files/source.mjs',"// managed: keel render rewrites it.\nconst marker = '@generated';\n"+source(12));
+  await p.put('practices/acme/files/source.mjs',"// managed: plates render rewrites it.\nconst marker = '@generated';\n"+source(12));
   for(const path of ['vendor/large.js','tests/fixtures/large.js','node_modules/acme/index.js','dist/large.js','docs/manual.md','src/types.d.ts','src/auto.generated.ts'])await p.put(path,source(30));
   await p.put('src/autogen.js','// @generated\n'+source(30));
-  await p.put('scripts/keel/rendered.mjs',source(30));
-  await p.put('.keel/lock.json',JSON.stringify({files:{'scripts/keel/rendered.mjs':{practice:'night'}}}));
+  await p.put('scripts/plates/rendered.mjs',source(30));
+  await p.put('.plates/lock.json',JSON.stringify({files:{'scripts/plates/rendered.mjs':{practice:'night'}}}));
   await symlink('/does/not/exist/acme',join(p.root,'src/link.js'));
   p.commit();
   const committed=p.git(['rev-parse','HEAD:src/anvils.mjs']);
@@ -139,10 +139,10 @@ test('section hints are top-level physical line ranges, including newline and em
   assert.deepEqual(hints.map(s=>s.name),['a','b']);assert.equal(hints[0].lines,3);
 });
 
-test('registry: stale worktrees are keel-side and CI-inapplicable, invalid filters are broken',async t=>{
+test('registry: stale worktrees are plates-side and CI-inapplicable, invalid filters are broken',async t=>{
   const root=await scratch(t);
-  const [na]=await measure({root,config:{},env:{CI:''},measures:[measures[0]],keel:{}});assert.equal(na.state,'n/a');
-  const [ci]=await measure({root,config:{},env:{CI:'true'},measures:[measures[0]],keel:{staleWorktrees:()=>assert.fail('CI touched worktrees')}});assert.equal(ci.state,'n/a');
+  const [na]=await measure({root,config:{},env:{CI:''},measures:[measures[0]],plates:{}});assert.equal(na.state,'n/a');
+  const [ci]=await measure({root,config:{},env:{CI:'true'},measures:[measures[0]],plates:{staleWorktrees:()=>assert.fail('CI touched worktrees')}});assert.equal(ci.state,'n/a');
   const results=await measure({root,config:{hygiene:{draftHours:0}},env:{CI:''},measures});
   assert.ok(results.every(r=>r.state==='broken'));assert.ok(results.every(r=>r.value===null));
 });
@@ -159,7 +159,7 @@ test('selection respects same-blob decisions, history gaps, and robot-protected 
 });
 
 test('synthetic selftest exercises all three hygiene measures without developer Git or GitHub',async()=>{
-  const result=await selftest({measures,env:{...process.env,CI:'true',KEEL_GIT:'/nonexistent/developer-git',KEEL_GH:'/nonexistent/developer-gh'}});
+  const result=await selftest({measures,env:{...process.env,CI:'true',PLATES_GIT:'/nonexistent/developer-git',PLATES_GH:'/nonexistent/developer-gh'}});
   assert.equal(result.exitCode,0,JSON.stringify(result.data));assert.deepEqual(result.data.measures.map(m=>m.state),['outside','outside','outside']);
 });
 
@@ -176,8 +176,8 @@ test('draft URL identity accepts GitHub canonical casing but dates and cached pa
     const r=await draftsWaiting({...options,env:await cacheEnv(t),graphql:async()=>response([{...pr(1,48),url}])});assert.ok(r.na,url);
   }
   const {readdir}=await import('node:fs/promises');
-  const file=(await readdir(join(env.KEEL_CACHE,'github'))).find(n=>n.startsWith('hygiene-drafts-'));
-  const path=join(env.KEEL_CACHE,'github',file);const data=JSON.parse(await readFile(path,'utf8'));
+  const file=(await readdir(join(env.PLATES_CACHE,'github'))).find(n=>n.startsWith('hygiene-drafts-'));
+  const path=join(env.PLATES_CACHE,'github',file);const data=JSON.parse(await readFile(path,'utf8'));
   data.value.padding='x'.repeat(1024*1024);await writeFile(path,JSON.stringify(data));
   const oversized=await draftsWaiting(options);assert.match(oversized.na,/byte bound/);assert.equal(oversized.value,undefined);
 });
@@ -188,7 +188,7 @@ test('local improve report keeps manual split advice without repo and skips long
   await p.put('practices/acme/files/original.mjs',source(40));
   await p.put('src/anvils.mjs',source(12));
   const config={name:'Acme',hygiene:{longFileLines:10}};
-  await p.put('.keel/keel.json',JSON.stringify(config));p.commit();
+  await p.put('.plates/plates.json',JSON.stringify(config));p.commit();
   const options={env:p.env,measures:MEASURES.filter(m=>m.id==='long_files')};
   const local=await improve({root:p.root,report:true,date:'2026-10-11'},options);
   assert.equal(local.exitCode,1);assert.equal(local.data.measures[0].value,2);
@@ -196,7 +196,7 @@ test('local improve report keeps manual split advice without repo and skips long
   assert.match(local.data.proposal.text,/Split practices\/acme\/files\/original.mjs/);
   assert.match(local.data.proposal.text,/owner-led/);
   assert.match(await readFile(join(p.root,local.data.report),'utf8'),/largest sections/);
-  await p.put('.keel/keel.json',JSON.stringify({...config,repo}));
+  await p.put('.plates/plates.json',JSON.stringify({...config,repo}));
   const connected=await improve({root:p.root,report:true,date:'2026-10-12'},options);
   assert.equal(connected.data.proposal.hygieneMetadata.file,'src/anvils.mjs');
   const parsed=parseHygieneProposal(await readFile(join(p.root,connected.data.report),'utf8'));

@@ -1,4 +1,4 @@
-// keel doctor: drift is signal, the practice's own rules are linted, and
+// plates doctor: drift is signal, the practice's own rules are linted, and
 // nothing changes unless a fix is chosen and answered with --yes.
 // Git the same on every machine, also when this file is run alone without npm test's --import (the phase's Proof).
 import './helpers/hermetic.mjs';
@@ -12,35 +12,35 @@ import { tmpdir } from 'node:os';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lineDiff, blockBody, lessonsTableShapes, runsTest, globRegex } from '../lib/doctor.mjs';
-import { lessonsTableSplit, setupEnvProblems, platformCalls, platformLints } from '../practices/night/files/scripts/keel/lib.mjs';
+import { lessonsTableSplit, setupEnvProblems, platformCalls, platformLints } from '../practices/night/files/scripts/plates/lib.mjs';
 import { sha256 } from '../lib/lock.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const ENV = {
   ...process.env,
   GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test',
   GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test',
   GIT_CONFIG_NOSYSTEM: '1',
 };
-const keel = (args, cwd) => {
+const plates = (args, cwd) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env: ENV });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 const doctor = (dir, ...args) => {
-  const r = keel(['doctor', '--json', ...args], dir);
+  const r = plates(['doctor', '--json', ...args], dir);
   return { code: r.code, data: JSON.parse(r.out), err: r.err };
 };
 
-/** One keel init'd project, made once and copied per test. */
+/** One plates init'd project, made once and copied per test. */
 let template;
 async function project(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-doctor-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-doctor-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   if (!template) {
-    template = await realpath(await mkdtemp(join(tmpdir(), 'keel-doctor-template-')));
+    template = await realpath(await mkdtemp(join(tmpdir(), 'plates-doctor-template-')));
     process.on('exit', () => rmSync(template, { recursive: true, force: true }));
-    const r = keel(['init', join(template, 'acme-notes'), '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node'], template);
+    const r = plates(['init', join(template, 'acme-notes'), '--description', 'Acme Notes keeps meeting notes as plain files.', '--kind', 'node'], template);
     assert.equal(r.code, 0, r.err);
   }
   await cp(join(template, 'acme-notes'), join(dir, 'acme-notes'), { recursive: true, verbatimSymlinks: true });
@@ -63,7 +63,7 @@ const rules = data => data.lint.map(l => `${l.rule} ${l.path}`).sort();
 
 test('a fresh project is clean, has a lock, and doctor writes nothing', async t => {
   const dir = await project(t);
-  const lock = JSON.parse(await readFile(join(dir, '.keel', 'lock.json'), 'utf8'));
+  const lock = JSON.parse(await readFile(join(dir, '.plates', 'lock.json'), 'utf8'));
   assert.ok(lock.files['CLAUDE.md'] && lock.files['AGENTS.md#conduct'] && lock.files['.claude/skills/conduct']);
   assert.equal(lock.files['AGENTS.md'], undefined, 'a seeded file is the project\'s, never locked');
   assert.equal(lock.files['CLAUDE.md'].sha256, sha256(await readFile(join(dir, 'CLAUDE.md'), 'utf8')));
@@ -71,7 +71,7 @@ test('a fresh project is clean, has a lock, and doctor writes nothing', async t 
   const { code, data } = doctor(dir);
   assert.equal(code, 0, JSON.stringify(data));
   assert.deepEqual(data, { drift: [], lint: [], notes: [], local: {}, qualifies: [], owing: [], ejected: [] });
-  const text = keel(['doctor'], dir);
+  const text = plates(['doctor'], dir);
   assert.equal(text.code, 0);
   assert.match(text.out, /^Clean/m);
   assert.deepEqual(await tree(dir), before);
@@ -79,13 +79,13 @@ test('a fresh project is clean, has a lock, and doctor writes nothing', async t 
 
 test('render writes the lock; render --check never does', async t => {
   const dir = await project(t);
-  await rm(join(dir, '.keel', 'lock.json'));
-  assert.equal(keel(['render', '--check'], dir).code, 0);
-  await assert.rejects(lstat(join(dir, '.keel', 'lock.json')));
-  assert.equal(keel(['render'], dir).code, 0);
-  const once = await readFile(join(dir, '.keel', 'lock.json'), 'utf8');
-  assert.equal(keel(['render'], dir).code, 0);
-  assert.equal(await readFile(join(dir, '.keel', 'lock.json'), 'utf8'), once, 'a render that changes nothing leaves the lock as it was');
+  await rm(join(dir, '.plates', 'lock.json'));
+  assert.equal(plates(['render', '--check'], dir).code, 0);
+  await assert.rejects(lstat(join(dir, '.plates', 'lock.json')));
+  assert.equal(plates(['render'], dir).code, 0);
+  const once = await readFile(join(dir, '.plates', 'lock.json'), 'utf8');
+  assert.equal(plates(['render'], dir).code, 0);
+  assert.equal(await readFile(join(dir, '.plates', 'lock.json'), 'utf8'), once, 'a render that changes nothing leaves the lock as it was');
 });
 
 test('an edited managed file is drift with a diff, and doctor changes no byte', async t => {
@@ -99,10 +99,10 @@ test('an edited managed file is drift with a diff, and doctor changes no byte', 
   const [d] = data.drift;
   assert.deepEqual([d.path, d.practice, d.state], ['docs/templates/evidence.md', 'evidence', 'edited']);
   assert.match(d.diff, /^\+Acme also records who ran the check\.$/m);
-  assert.match(d.diff, /^--- keel /m);
-  const text = keel(['doctor'], dir);
+  assert.match(d.diff, /^--- plates /m);
+  const text = plates(['doctor'], dir);
   assert.equal(text.code, 1);
-  assert.match(text.out, /send it home with keel lessons \(phase 7\)/);
+  assert.match(text.out, /send it home with plates lessons \(phase 7\)/);
   assert.deepEqual(await tree(dir), before);
 });
 
@@ -110,21 +110,21 @@ test('an edited block is drift for that block alone; the project\'s own lines ar
   const dir = await project(t);
   const path = join(dir, 'AGENTS.md');
   const text = await readFile(path, 'utf8');
-  await writeFile(path, `${text.replace('<!-- keel:end lessons -->', 'Acme reads the table first.\n<!-- keel:end lessons -->')}\nAcme's own closing note.\n`);
+  await writeFile(path, `${text.replace('<!-- plates:end lessons -->', 'Acme reads the table first.\n<!-- plates:end lessons -->')}\nAcme's own closing note.\n`);
   const { code, data } = doctor(dir);
   assert.equal(code, 1);
   assert.deepEqual(data.drift.map(d => [d.path, d.state]), [['AGENTS.md#lessons', 'edited']]);
 });
 
-test('behind (keel moved on) is reported but is not a finding; both is', async t => {
+test('behind (plates moved on) is reported but is not a finding; both is', async t => {
   const dir = await project(t);
-  const lockPath = join(dir, '.keel', 'lock.json');
+  const lockPath = join(dir, '.plates', 'lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  // Keel wrote older bytes, the project kept them: now = lock ≠ template.
+  // Plates wrote older bytes, the project kept them: now = lock ≠ template.
   const old = 'Acme\'s copy of an older evidence template.\n';
   await writeFile(join(dir, 'docs', 'templates', 'evidence.md'), old);
   lock.files['docs/templates/evidence.md'].sha256 = sha256(old);
-  // Keel wrote older bytes and the project changed them too: now ≠ lock ≠ template.
+  // Plates wrote older bytes and the project changed them too: now ≠ lock ≠ template.
   await writeFile(join(dir, 'docs', 'templates', 'phase.md'), 'Acme rewrote this.\n');
   lock.files['docs/templates/phase.md'].sha256 = sha256('an older phase template\n');
   await writeFile(lockPath, JSON.stringify(lock));
@@ -132,41 +132,41 @@ test('behind (keel moved on) is reported but is not a finding; both is', async t
   assert.equal(code, 1);
   assert.deepEqual(data.drift.map(d => [d.path, d.state]).sort(), [['docs/templates/evidence.md', 'behind'], ['docs/templates/phase.md', 'both']]);
   // Only behind: exit 0.
-  await writeFile(join(dir, 'docs', 'templates', 'phase.md'), await readFile(join(KEEL, 'practices', 'phases', 'files', 'docs', 'templates', 'phase.md'), 'utf8'));
+  await writeFile(join(dir, 'docs', 'templates', 'phase.md'), await readFile(join(PLATES, 'practices', 'phases', 'files', 'docs', 'templates', 'phase.md'), 'utf8'));
   assert.equal(doctor(dir).code, 0);
 });
 
-test('a change keel has since made too is behind, not both: render takes keel\'s; anything more stays both', async t => {
-  // Renovate bumped an action in the project's keel-night.yml before keel shipped the same bump.
+test('a change plates has since made too is behind, not both: render takes plates\'s; anything more stays both', async t => {
+  // Renovate bumped an action in the project's plates-night.yml before plates shipped the same bump.
   const dir = await project(t);
-  const path = '.github/workflows/keel-night.yml';
-  const now = await readFile(join(dir, path), 'utf8'); // keel's template today
+  const path = '.github/workflows/plates-night.yml';
+  const now = await readFile(join(dir, path), 'utf8'); // plates's template today
   assert.match(now, /@v7/);
-  const old = now.replaceAll('@v7', '@v5').replace('\n', '\n# a line keel has since dropped\n'); // what keel wrote
-  const edited = old.replaceAll('@v5', '@v7'); // the project's Renovate, on keel's old file
+  const old = now.replaceAll('@v7', '@v5').replace('\n', '\n# a line plates has since dropped\n'); // what plates wrote
+  const edited = old.replaceAll('@v5', '@v7'); // the project's Renovate, on plates's old file
   assert.notEqual(edited, now);
   const previous = join(dir, '..', 'previous');
   await mkdir(join(previous, 'practices/night/files/.github/workflows'), { recursive: true });
   await writeFile(join(previous, 'practices/night/files', path), old);
-  const lockPath = join(dir, '.keel', 'lock.json');
+  const lockPath = join(dir, '.plates', 'lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
   lock.files[path].sha256 = sha256(old);
   await writeFile(lockPath, JSON.stringify(lock));
   await writeFile(join(dir, path), edited);
-  const env = { ...ENV, KEEL_PREVIOUS_PRACTICES: previous };
+  const env = { ...ENV, PLATES_PREVIOUS_PRACTICES: previous };
   const run1 = args => run(process.execPath, [BIN, ...args], { cwd: dir, env });
   const d = run1(['doctor', '--json']);
   assert.equal(d.status, 0, d.stdout + d.stderr);
   assert.deepEqual(JSON.parse(d.stdout).drift.map(x => [x.path, x.state]), [[path, 'behind']]);
-  // Without the template keel wrote, keel cannot tell: both, never guessed.
+  // Without the template plates wrote, plates cannot tell: both, never guessed.
   assert.deepEqual(doctor(dir).data.drift.map(x => [x.path, x.state]), [[path, 'both']]);
-  // A stand-in that is not what the lock says keel wrote is not used.
+  // A stand-in that is not what the lock says plates wrote is not used.
   const wrong = join(dir, '..', 'wrong');
   await mkdir(join(wrong, 'practices/night/files/.github/workflows'), { recursive: true });
-  await writeFile(join(wrong, 'practices/night/files', path), old + '# a line no keel ever shipped\n'); // would merge cleanly to keel's today
-  const w = run(process.execPath, [BIN, 'doctor', '--json'], { cwd: dir, env: { ...ENV, KEEL_PREVIOUS_PRACTICES: wrong } });
+  await writeFile(join(wrong, 'practices/night/files', path), old + '# a line no plates ever shipped\n'); // would merge cleanly to plates's today
+  const w = run(process.execPath, [BIN, 'doctor', '--json'], { cwd: dir, env: { ...ENV, PLATES_PREVIOUS_PRACTICES: wrong } });
   assert.deepEqual(JSON.parse(w.stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);
-  // The file exactly as keel shipped it at the lock's version is keel's, whatever hash the lock holds.
+  // The file exactly as plates shipped it at the lock's version is plates's, whatever hash the lock holds.
   await writeFile(join(dir, path), old);
   lock.files[path].sha256 = sha256('a hash from some other day\n');
   await writeFile(lockPath, JSON.stringify(lock));
@@ -178,7 +178,7 @@ test('a change keel has since made too is behind, not both: render takes keel\'s
   await writeFile(join(dir, path), edited + '# acme runs this by hand on Fridays\n');
   assert.deepEqual(JSON.parse(run1(['doctor', '--json']).stdout).drift.map(x => [x.path, x.state]), [[path, 'both']]);
   assert.equal(run1(['render']).status, 1, 'render refuses the project\'s own edit');
-  // Back to the bump alone: render takes keel's.
+  // Back to the bump alone: render takes plates's.
   await writeFile(join(dir, path), edited);
   const r = run1(['render']);
   assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -187,11 +187,11 @@ test('a change keel has since made too is behind, not both: render takes keel\'s
 
 test('a managed file new in this practice version (absent, never locked) is behind, for update to create; a locked one removed is still the project\'s change', async t => {
   const dir = await project(t);
-  const lockPath = join(dir, '.keel', 'lock.json');
+  const lockPath = join(dir, '.plates', 'lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
-  const path = 'scripts/keel/drain.mjs';
+  const path = 'scripts/plates/drain.mjs';
   assert.ok(lock.files[path], 'the fixture locks it');
-  // As if keel's next release added it: not on disk, not in the lock.
+  // As if plates's next release added it: not on disk, not in the lock.
   await rm(join(dir, path));
   delete lock.files[path];
   await writeFile(lockPath, JSON.stringify(lock));
@@ -279,8 +279,8 @@ test('lessons-table-split: a blank line inside the lessons table is linted, nami
   await mkdir(join(dir, 'notes'), { recursive: true });
   await writeFile(join(dir, 'notes', 'lessons.md'), SPLIT_LESSONS);
   await writeFile(join(dir, 'docs', 'lessons.md'), '# Lessons\n');
-  const cfg = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ ...cfg, lessons: 'notes/lessons.md' }, null, 2));
+  const cfg = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ ...cfg, lessons: 'notes/lessons.md' }, null, 2));
   assert.deepEqual(rules(doctor(dir).data), ['lessons-table-split notes/lessons.md', 'lessons-table-split notes/lessons.md']);
 });
 
@@ -331,7 +331,7 @@ test('lessons-table-split: prose between rows, a stranded row and a second heade
 
 test('health-ignored: a health dir the project git-ignores is a finding, naming the fix; a configured one that is not, is clean', async t => {
   const dir = await project(t);
-  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfgPath = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
   assert.ok(cfg.practices.includes('night'), 'the night is on in a fresh project');
   const setCfg = over => writeFile(cfgPath, `${JSON.stringify({ ...cfg, ...over }, null, 2)}\n`);
@@ -341,12 +341,12 @@ test('health-ignored: a health dir the project git-ignores is a finding, naming 
   assert.equal(r.code, 1, 'a finding, not information: the night silently loses its page');
   const lint = r.data.lint.filter(l => l.rule === 'health-ignored');
   assert.deepEqual(lint.map(l => l.path), ['docs/health']);
-  assert.match(lint[0].message, /git-ignored.*set "health" in \.keel\/keel\.json to a directory that is not ignored/);
-  const text = keel(['doctor'], dir);
+  assert.match(lint[0].message, /git-ignored.*set "health" in \.plates\/plates\.json to a directory that is not ignored/);
+  const text = plates(['doctor'], dir);
   assert.match(text.out + text.err, /health-ignored/);
-  await setCfg({ health: '.keel/health' });
+  await setCfg({ health: '.plates/health' });
   assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')), 'a configured dir that is not ignored is clean');
-  await setCfg({ health: '.keel/health/' });
+  await setCfg({ health: '.plates/health/' });
   assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')), 'a trailing slash is the same dir');
   for (const bad of ['../acme', '/acme/health', 'docs/./health', '.git/health', 7]) {
     await setCfg({ health: bad });
@@ -354,30 +354,30 @@ test('health-ignored: a health dir the project git-ignores is a finding, naming 
     assert.equal(b.code, 1, String(bad));
     assert.deepEqual(b.data.lint.filter(l => l.rule.startsWith('health')).map(l => l.rule), ['health-config'], String(bad));
   }
-  // Without the night and without a setting, an ignored docs/health is none of keel's business.
+  // Without the night and without a setting, an ignored docs/health is none of plates's business.
   await setCfg({ practices: cfg.practices.filter(p => p !== 'night') });
   assert.ok(!doctor(dir).data.lint.some(l => l.rule.startsWith('health')));
 });
 
-test('shipped-test-unrun: a test keel ships that the gate\'s node --test never matches is a finding; a glob or a directory that matches it is not', async t => {
+test('shipped-test-unrun: a test plates ships that the gate\'s node --test never matches is a finding; a glob or a directory that matches it is not', async t => {
   const dir = await project(t);
-  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'keel init\'s own script runs them');
+  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'plates init\'s own script runs them');
   const pkgPath = join(dir, 'package.json');
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'));
   const setTest = async script => writeFile(pkgPath, `${JSON.stringify({ ...pkg, scripts: { ...pkg.scripts, test: script } }, null, 2)}\n`);
   // Acme's own glob names .js files and the roadmap test alone (the shape a review found on a real project).
   await setTest('node --test --test-reporter=spec --test-reporter-destination=stdout tests/*.test.js tests/roadmap.test.mjs');
   const found = doctor(dir).data.lint.filter(l => l.rule === 'shipped-test-unrun');
-  assert.deepEqual(found.map(l => l.path), ['tests/keel-generated.test.mjs', 'tests/keel-workflows.test.mjs'], 'phases\' test and ci\'s, not the roadmap test it names');
-  assert.match(found[0].message, /keel ships tests\/keel-generated\.test\.mjs, and the gate .* never runs it.*migration 0005/);
+  assert.deepEqual(found.map(l => l.path), ['tests/plates-generated.test.mjs', 'tests/plates-workflows.test.mjs'], 'phases\' test and ci\'s, not the roadmap test it names');
+  assert.match(found[0].message, /plates ships tests\/plates-generated\.test\.mjs, and the gate .* never runs it.*migration 0005/);
   for (const ok of ['node --test', 'node --test tests/', 'node --test "tests/**/*.test.{js,mjs}"', 'node --import ./tests/helpers/acme.mjs --test tests/*.test.mjs']) {
     await setTest(ok);
     assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), ok);
   }
   await setTest('vitest run');
-  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'another runner: keel cannot tell, so it does not say');
-  assert.equal(runsTest('node --test tests/*.test.js tests/roadmap.test.mjs', 'tests/keel-generated.test.mjs'), false);
-  assert.equal(runsTest('node --import ./tests/helpers/acme.mjs --test', 'tests/keel-generated.test.mjs'), true, 'a flag\'s value is not a path: this names none, so node\'s default runs it');
+  assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('shipped-test-unrun')), 'another runner: plates cannot tell, so it does not say');
+  assert.equal(runsTest('node --test tests/*.test.js tests/roadmap.test.mjs', 'tests/plates-generated.test.mjs'), false);
+  assert.equal(runsTest('node --import ./tests/helpers/acme.mjs --test', 'tests/plates-generated.test.mjs'), true, 'a flag\'s value is not a path: this names none, so node\'s default runs it');
   assert.equal(runsTest('npm run unit', 'tests/a.test.mjs'), null);
   assert.ok(globRegex('tests/**/*.test.mjs').test('tests/a.test.mjs') && globRegex('tests/**/*.test.mjs').test('tests/x/a.test.mjs'));
   assert.ok(!globRegex('tests/*.test.js').test('tests/a.test.mjs'));
@@ -418,7 +418,7 @@ test('a README older than the newest built phase is a readme-behind note, never 
   const behind = d => d.notes.filter(n => n.rule === 'readme-behind');
   assert.deepEqual(behind(data).map(n => `${n.rule} ${n.path}`), ['readme-behind README.md']);
   assert.match(behind(data)[0].message, /2020-01-02.*01-acme-search\.md.*2020-01-05/);
-  const text = keel(['doctor'], dir);
+  const text = plates(['doctor'], dir);
   assert.equal(text.code, 0);
   assert.match(text.out, /Notes \(information; never changes the exit code\):\n {2}readme-behind/);
 
@@ -452,7 +452,7 @@ test('acceptance-unchecked: an old built phase whose boxes name no check is a no
   const unchecked = data.notes.filter(n => n.rule === 'acceptance-unchecked');
   assert.deepEqual(unchecked.map(n => n.path), ['docs/phases/01-acme-search.md']);
   assert.match(unchecked[0].message, /^1 of 2 acceptance boxes name no check/);
-  assert.match(keel(['doctor'], dir).out, /Notes \(information; never changes the exit code\):[\s\S]*acceptance-unchecked +docs\/phases\/01-acme-search\.md/);
+  assert.match(plates(['doctor'], dir).out, /Notes \(information; never changes the exit code\):[\s\S]*acceptance-unchecked +docs\/phases\/01-acme-search\.md/);
   assert.deepEqual(await tree(dir), before, 'doctor rewrote nothing');
 
   // Unfinished, it is not yet owed; with spec: 2, the same box is the check's failure, so a finding.
@@ -478,24 +478,24 @@ test('--fix eject asks first, then hands the file to the project for good', asyn
 
   const yes = doctor(dir, '--fix', 'docs/templates/evidence.md', 'eject', '--yes');
   assert.equal(yes.code, 0, yes.err);
-  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   assert.deepEqual(config.ejected, ['docs/templates/evidence.md']);
-  const lock = JSON.parse(await readFile(join(dir, '.keel', 'lock.json'), 'utf8'));
+  const lock = JSON.parse(await readFile(join(dir, '.plates', 'lock.json'), 'utf8'));
   assert.equal(lock.files['docs/templates/evidence.md'], undefined);
-  assert.equal(keel(['render'], dir).code, 0);
-  assert.equal(keel(['render', '--check'], dir).code, 0);
+  assert.equal(plates(['render'], dir).code, 0);
+  assert.equal(plates(['render', '--check'], dir).code, 0);
   assert.equal(await readFile(path, 'utf8'), ours, 'render left the ejected file alone');
   const after = doctor(dir);
   assert.equal(after.code, 0);
   assert.deepEqual(after.data.ejected, ['docs/templates/evidence.md']);
 });
 
-test('--fix restore --yes puts keel\'s bytes back, for a file and for a block', async t => {
+test('--fix restore --yes puts plates\'s bytes back, for a file and for a block', async t => {
   const dir = await project(t);
   const clean = await tree(dir);
   await writeFile(join(dir, '.agents', 'skills', 'conduct', 'SKILL.md'), 'Acme trimmed the conductor.\n');
   const agents = join(dir, 'AGENTS.md');
-  await writeFile(agents, (await readFile(agents, 'utf8')).replace('<!-- keel:end phases -->', 'Acme extra.\n<!-- keel:end phases -->'));
+  await writeFile(agents, (await readFile(agents, 'utf8')).replace('<!-- plates:end phases -->', 'Acme extra.\n<!-- plates:end phases -->'));
   assert.equal(doctor(dir, '--fix', '.agents/skills/conduct/SKILL.md', 'restore').code, 3);
   assert.equal(doctor(dir, '--fix', '.agents/skills/conduct/SKILL.md', 'restore', '--yes').code, 0);
   const r = doctor(dir, '--fix', 'AGENTS.md#phases', 'restore', '--yes');
@@ -507,15 +507,15 @@ test('--fix restore --yes puts keel\'s bytes back, for a file and for a block', 
 
 test('a bad --fix is a usage error, and a seeded file cannot be fixed', async t => {
   const dir = await project(t);
-  assert.equal(keel(['doctor', '--fix', 'CLAUDE.md'], dir).code, 2);
-  assert.equal(keel(['doctor', '--fix', 'CLAUDE.md', 'revert'], dir).code, 2);
-  assert.equal(keel(['doctor', '--yes'], dir).code, 2);
+  assert.equal(plates(['doctor', '--fix', 'CLAUDE.md'], dir).code, 2);
+  assert.equal(plates(['doctor', '--fix', 'CLAUDE.md', 'revert'], dir).code, 2);
+  assert.equal(plates(['doctor', '--yes'], dir).code, 2);
   assert.equal(doctor(dir, '--fix', 'AGENTS.md', 'restore', '--yes').code, 2);
 });
 
 test('local variants are information; one adopt would now switch on is named', async t => {
   const dir = await project(t);
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const config = JSON.parse(await readFile(path, 'utf8'));
   config.practices = config.practices.filter(p => p !== 'ci');
   config.local = { ci: 'Acme had its own workflow when adopted' };
@@ -524,21 +524,21 @@ test('local variants are information; one adopt would now switch on is named', a
   assert.equal(code, 0, JSON.stringify(data));
   assert.deepEqual(data.local, config.local);
   assert.deepEqual(data.qualifies, ['ci']);
-  assert.match(keel(['doctor'], dir).out, /Would now be on if adopted again: ci/);
+  assert.match(plates(['doctor'], dir).out, /Would now be on if adopted again: ci/);
 });
 
-test('keel itself is clean under its own doctor', () => {
-  const r = keel(['doctor', '--json'], KEEL);
+test('plates itself is clean under its own doctor', () => {
+  const r = plates(['doctor', '--json'], PLATES);
   assert.equal(r.code, 0, r.out);
 });
 
-test('lineDiff shows keel\'s lines as - and the project\'s as +, with context', () => {
+test('lineDiff shows plates\'s lines as - and the project\'s as +, with context', () => {
   const a = 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\n';
   const b = 'one\ntwo\nthree\nFOUR\nfive\nsix\nseven\neight\n';
-  assert.equal(lineDiff(a, b), '--- keel\n+++ project\n@@ -1,7 +1,7 @@\n one\n two\n three\n-four\n+FOUR\n five\n six\n seven\n');
+  assert.equal(lineDiff(a, b), '--- plates\n+++ project\n@@ -1,7 +1,7 @@\n one\n two\n three\n-four\n+FOUR\n five\n six\n seven\n');
   assert.equal(lineDiff(a, a), '');
   assert.match(lineDiff('x\n', ''), /^-x$/m);
-  assert.equal(blockBody('a\n<!-- keel:begin z -->\nin\n<!-- keel:end z -->\n', 'z'), 'in\n');
+  assert.equal(blockBody('a\n<!-- plates:begin z -->\nin\n<!-- plates:end z -->\n', 'z'), 'in\n');
   assert.equal(blockBody('no markers', 'z'), null);
 });
 
@@ -547,32 +547,32 @@ test('render refuses to overwrite an edited managed file or block, and writes no
   const roadmap = join(dir, 'scripts', 'roadmap.mjs');
   await writeFile(roadmap, `${await readFile(roadmap, 'utf8')}// Acme's own line\n`);
   const agents = join(dir, 'AGENTS.md');
-  await writeFile(agents, (await readFile(agents, 'utf8')).replace('<!-- keel:end evidence -->', 'Acme extra.\n<!-- keel:end evidence -->'));
+  await writeFile(agents, (await readFile(agents, 'utf8')).replace('<!-- plates:end evidence -->', 'Acme extra.\n<!-- plates:end evidence -->'));
   const before = await tree(dir);
-  const r = keel(['render'], dir);
+  const r = plates(['render'], dir);
   assert.equal(r.code, 1);
-  assert.match(r.err, /refusing to overwrite.*scripts\/roadmap\.mjs edited.*AGENTS\.md#evidence edited.*keel doctor --fix <path> restore\|eject/);
+  assert.match(r.err, /refusing to overwrite.*scripts\/roadmap\.mjs edited.*AGENTS\.md#evidence edited.*plates doctor --fix <path> restore\|eject/);
   assert.deepEqual(await tree(dir), before, 'render wrote nothing');
-  const check = keel(['render', '--check', '--json'], dir);
+  const check = plates(['render', '--check', '--json'], dir);
   assert.equal(check.code, 1);
   assert.deepEqual(JSON.parse(check.out).changed.sort(), ['AGENTS.md#evidence', 'scripts/roadmap.mjs']);
   // Once restored, render runs again.
   assert.equal(doctor(dir, '--fix', 'scripts/roadmap.mjs', 'restore', '--yes').code, 0);
   assert.equal(doctor(dir, '--fix', 'AGENTS.md#evidence', 'restore', '--yes').code, 0);
-  assert.equal(keel(['render'], dir).code, 0);
+  assert.equal(plates(['render'], dir).code, 0);
 });
 
-test('a behind file (keel moved on, the project did not touch it) still renders', async t => {
+test('a behind file (plates moved on, the project did not touch it) still renders', async t => {
   const dir = await project(t);
   const path = join(dir, 'docs', 'templates', 'evidence.md');
   const old = 'Acme\'s copy of an older evidence template.\n';
   await writeFile(path, old);
-  const lockPath = join(dir, '.keel', 'lock.json');
+  const lockPath = join(dir, '.plates', 'lock.json');
   const lock = JSON.parse(await readFile(lockPath, 'utf8'));
   lock.files['docs/templates/evidence.md'].sha256 = sha256(old);
   await writeFile(lockPath, JSON.stringify(lock));
-  assert.equal(keel(['render'], dir).code, 0);
-  assert.equal(await readFile(path, 'utf8'), await readFile(join(KEEL, 'practices', 'evidence', 'files', 'docs', 'templates', 'evidence.md'), 'utf8'));
+  assert.equal(plates(['render'], dir).code, 0);
+  assert.equal(await readFile(path, 'utf8'), await readFile(join(PLATES, 'practices', 'evidence', 'files', 'docs', 'templates', 'evidence.md'), 'utf8'));
   assert.equal(doctor(dir).code, 0);
 });
 
@@ -580,7 +580,7 @@ test('adopt run again on a project with an ejected file keeps its practice on', 
   const dir = await project(t);
   await writeFile(join(dir, 'docs', 'templates', 'evidence.md'), 'Acme\'s own evidence template.\n');
   assert.equal(doctor(dir, '--fix', 'docs/templates/evidence.md', 'eject', '--yes').code, 0);
-  const r = keel(['adopt', dir, '--json'], dir);
+  const r = plates(['adopt', dir, '--json'], dir);
   assert.equal(r.code, 0, r.out);
   const data = JSON.parse(r.out);
   assert.equal(data.practices.find(p => p.name === 'evidence').state, 'on');
@@ -592,16 +592,16 @@ test('adopt run again on a project with an ejected file keeps its practice on', 
 
 test('doctor shows setup and env as information, and lints a bad one', async t => {
   const dir = await project(t);
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   let d = doctor(dir);
   assert.equal(d.data.gate, undefined);
-  assert.doesNotMatch(keel(['doctor'], dir).out, /The gate \(information\)/);
+  assert.doesNotMatch(plates(['doctor'], dir).out, /The gate \(information\)/);
   await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci --prefix web', env: { ACME_SYNC: '0' } }, null, 2)}\n`);
   d = doctor(dir);
   assert.equal(d.code, 0, JSON.stringify(d.data.lint));
   assert.deepEqual(d.data.gate, { check: cfg.check ?? 'npm run check', setup: 'npm ci --prefix web', env: { ACME_SYNC: '0' } });
-  const text = keel(['doctor'], dir).out;
+  const text = plates(['doctor'], dir).out;
   assert.match(text, /setup: npm ci --prefix web/);
   assert.match(text, /env: {3}ACME_SYNC=0/);
   await writeFile(path, `${JSON.stringify({ ...cfg, setup: '', env: { 'acme-sync': 0 } }, null, 2)}\n`);
@@ -625,13 +625,13 @@ test('setupToken names a repo secret: checked, and doctor shows the name', async
   ]) assert.equal(setupEnvProblems({ setup, setupToken }).length, 1, why);
 
   const dir = await project(t);
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci', setupToken: 'ACME_DATA_TOKEN' }, null, 2)}\n`);
   let d = doctor(dir);
   assert.equal(d.code, 0, JSON.stringify(d.data.lint));
   assert.equal(d.data.gate.setupToken, 'ACME_DATA_TOKEN');
-  assert.match(keel(['doctor'], dir).out, /setupToken: secrets\.ACME_DATA_TOKEN/);
+  assert.match(plates(['doctor'], dir).out, /setupToken: secrets\.ACME_DATA_TOKEN/);
   await writeFile(path, `${JSON.stringify({ ...cfg, setup: 'npm ci', setupToken: 'ghp_notaname' }, null, 2)}\n`);
   d = doctor(dir);
   assert.equal(d.code, 1);
@@ -640,7 +640,7 @@ test('setupToken names a repo secret: checked, and doctor shows the name', async
 
 test('stack: a declaration the evidence disagrees with is a finding either way; none declared is a note; an unknown tag is a finding', async t => {
   const dir = await project(t);
-  const path = join(dir, '.keel', 'keel.json');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   assert.deepEqual(cfg.stack, ['node', 'github-actions'], 'init records the stack its files show');
   const withStack = stack => writeFile(path, `${JSON.stringify({ ...cfg, stack }, null, 2)}\n`);
@@ -671,7 +671,7 @@ test('stack: a declaration the evidence disagrees with is a finding either way; 
   r = doctor(dir);
   assert.equal(r.code, 1, JSON.stringify(r.data));
   assert.deepEqual(stackRules(r.data), ['stack-unknown finding']);
-  assert.match(r.data.lint[0].message, /names netlify, which is not in keel's vocabulary/);
+  assert.match(r.data.lint[0].message, /names netlify, which is not in plates's vocabulary/);
 
   // None declared: a note naming what the files show; the exit code is not moved by it.
   const { stack, ...bare } = cfg;
@@ -781,7 +781,7 @@ test('platform guard: doctor fails a tracked test calling hdiutil without a darw
   const git = (...args) => assert.equal(run('git', ['-C', dir, ...args], { env: ENV }).status, 0, `git ${args.join(' ')}`);
   const guard = data => data.lint.filter(l => l.rule === 'platform-guard').map(l => l.path);
   // After the CLI's report is checked once, the rule runs in-process: each doctor run takes about a second.
-  const guarded = async () => (await platformLints(dir, JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8')))).map(l => l.path);
+  const guarded = async () => (await platformLints(dir, JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8')))).map(l => l.path);
   await mkdir(join(dir, 'tests'), { recursive: true });
   const bare = "import { test } from 'node:test';\nimport { execFileSync } from 'node:child_process';\ntest('mounts the image', () => { execFileSync('hdiutil', ['attach', 'acme.dmg']); });\n";
   await writeFile(join(dir, 'tests', 'mount.test.mjs'), bare);
@@ -790,7 +790,7 @@ test('platform guard: doctor fails a tracked test calling hdiutil without a darw
   assert.equal(r.code, 1, JSON.stringify(r.data.lint));
   assert.deepEqual(guard(r.data), ['tests/mount.test.mjs']);
   assert.match(r.data.lint.find(l => l.rule === 'platform-guard').message, /runs hdiutil \(macOS only\) with no darwin skip/);
-  assert.match(keel(['doctor'], dir).out, /platform-guard\s+tests\/mount\.test\.mjs/, 'the text report names it');
+  assert.match(plates(['doctor'], dir).out, /platform-guard\s+tests\/mount\.test\.mjs/, 'the text report names it');
 
   // An untracked test is not the gate's: only tracked files are read.
   await writeFile(join(dir, 'tests', 'scratch.test.mjs'), bare);
@@ -807,38 +807,38 @@ test('platform guard: doctor fails a tracked test calling hdiutil without a darw
   // A tool the project adds ("platformTools"): checked too; a bad list is a finding on the config.
   await writeFile(join(dir, 'tests', 'sim.test.mjs'), "import { execFileSync } from 'node:child_process';\nexecFileSync('xcrun', ['simctl', 'list']);\n");
   git('add', '-A'); git('commit', '-q', '-m', 'acme: simulator test');
-  assert.deepEqual(await guarded(), [], 'xcrun is not on keel\'s list');
-  const path = join(dir, '.keel', 'keel.json');
+  assert.deepEqual(await guarded(), [], 'xcrun is not on plates\'s list');
+  const path = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: ['xcrun'] }, null, 2)}\n`);
   assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
   await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun', platform: 'darwin' }] }, null, 2)}\n`);
   assert.deepEqual(await guarded(), ['tests/sim.test.mjs']);
   await writeFile(path, `${JSON.stringify({ ...cfg, platformTools: [{ tool: 'xcrun' }] }, null, 2)}\n`);
-  assert.deepEqual(await guarded(), ['.keel/keel.json']);
+  assert.deepEqual(await guarded(), ['.plates/plates.json']);
 });
 
-test('platform guard: keel\'s own tests are clean of it', async () => {
-  assert.deepEqual(await platformLints(KEEL, JSON.parse(await readFile(join(KEEL, '.keel', 'keel.json'), 'utf8'))), []);
+test('platform guard: plates\'s own tests are clean of it', async () => {
+  assert.deepEqual(await platformLints(PLATES, JSON.parse(await readFile(join(PLATES, '.plates', 'plates.json'), 'utf8'))), []);
 });
 
 test('phase 80: with delivery on, doctor holds every workflow to the concurrency rule and names a bad "delivery" key; without it, neither', async t => {
   const dir = await project(t);
-  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfgPath = join(dir, '.plates', 'plates.json');
   const deploy = 'name: deploy\non:\n  push:\n    branches: [green]\nconcurrency:\n  group: deploy-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  d:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo Acme\n';
   await writeFile(join(dir, '.github/workflows/deploy.yml'), deploy);
   const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
   await writeFile(cfgPath, JSON.stringify(cfg, null, 2));
   assert.ok(!rules(doctor(dir).data).some(r => r.startsWith('workflow-concurrency')), 'off: the rule is the delivery practice\'s');
   await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'] }, null, 2));
-  assert.equal(keel(['render'], dir).code, 0);
-  for (const f of ['.github/workflows/keel-publish.yml', 'scripts/keel/publish.mjs', 'scripts/keel/delivery.mjs']) assert.ok((await lstat(join(dir, f))).isFile(), f);
+  assert.equal(plates(['render'], dir).code, 0);
+  for (const f of ['.github/workflows/plates-publish.yml', 'scripts/plates/publish.mjs', 'scripts/plates/delivery.mjs']) assert.ok((await lstat(join(dir, f))).isFile(), f);
   const on = doctor(dir).data;
   const found = on.lint.filter(l => l.rule === 'workflow-concurrency');
   assert.deepEqual(found.map(l => l.path).sort(), ['.github/workflows/deploy.yml', '.github/workflows/deploy.yml'], JSON.stringify(on.lint));
   assert.ok(found.some(l => /is not fixed/.test(l.message)) && found.some(l => /deploy can be cancelled midway/.test(l.message)));
-  // check.yml (a test workflow) and keel-publish.yml (a publisher) keep it.
-  assert.ok(!on.lint.some(l => /check\.yml|keel-publish\.yml/.test(l.path)), JSON.stringify(on.lint));
+  // check.yml (a test workflow) and plates-publish.yml (a publisher) keep it.
+  assert.ok(!on.lint.some(l => /check\.yml|plates-publish\.yml/.test(l.path)), JSON.stringify(on.lint));
   await writeFile(join(dir, '.github/workflows/deploy.yml'), deploy.replace('deploy-${{ github.ref }}', 'deploy').replace('cancel-in-progress: true', 'cancel-in-progress: false'));
   await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { tested: 'main' } }, null, 2));
   const bad = doctor(dir).data;
@@ -846,37 +846,37 @@ test('phase 80: with delivery on, doctor holds every workflow to the concurrency
   assert.match(bad.lint.find(l => l.rule === 'delivery-config')?.message ?? '', /"delivery".tested cannot be main/);
 });
 
-test('phase 81: doctor names a bad verifier key ("delivery".site, version, smoke) and says the verifier reads it; scripts/keel/verify.mjs is rendered', async t => {
+test('phase 81: doctor names a bad verifier key ("delivery".site, version, smoke) and says the verifier reads it; scripts/plates/verify.mjs is rendered', async t => {
   const dir = await project(t);
-  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfgPath = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
   const configs = d => doctor(dir).data.lint.filter(l => l.rule === 'delivery-config').map(l => l.message);
   // Even without the practice on, a verifier key set is checked.
   await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { version: 'api/version', smoke: [{ path: '/', status: 999 }] } }, null, 2));
   const found = configs();
-  assert.ok(found.some(m => /"delivery"\.version must be a path starting with "\/".*; the verifier \(scripts\/keel\/verify\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  assert.ok(found.some(m => /"delivery"\.version must be a path starting with "\/".*; the verifier \(scripts\/plates\/verify\.mjs\) reads it$/.test(m)), JSON.stringify(found));
   assert.ok(found.some(m => /"delivery"\.smoke\[0\] status must be an HTTP status code/.test(m)), JSON.stringify(found));
   assert.ok(found.some(m => /"delivery"\.site is required/.test(m)), JSON.stringify(found));
   await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { site: 'https://anvils.acme.example', version: '/api/version', smoke: ['/'] } }, null, 2));
-  assert.equal(keel(['render'], dir).code, 0);
-  assert.ok((await lstat(join(dir, 'scripts/keel/verify.mjs'))).isFile());
+  assert.equal(plates(['render'], dir).code, 0);
+  assert.ok((await lstat(join(dir, 'scripts/plates/verify.mjs'))).isFile());
   assert.deepEqual(configs(), []);
 });
 
-test('phase 82: doctor names a bad "delivery".promote and says keel promote reads it; scripts/keel/promote.mjs is rendered', async t => {
+test('phase 82: doctor names a bad "delivery".promote and says plates promote reads it; scripts/plates/promote.mjs is rendered', async t => {
   const dir = await project(t);
-  const cfgPath = join(dir, '.keel', 'keel.json');
+  const cfgPath = join(dir, '.plates', 'plates.json');
   const cfg = JSON.parse(await readFile(cfgPath, 'utf8'));
   const configs = () => doctor(dir).data.lint.filter(l => l.rule === 'delivery-config').map(l => l.message);
   // Even without the practice on, the key set is checked.
   await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { promote: 'prod' } }, null, 2));
   let found = configs();
-  assert.ok(found.some(m => /"delivery"\.promote must be "tag:<name>" or "branch:<name>".*; keel promote \(scripts\/keel\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  assert.ok(found.some(m => /"delivery"\.promote must be "tag:<name>" or "branch:<name>".*; plates promote \(scripts\/plates\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
   await writeFile(cfgPath, JSON.stringify({ ...cfg, delivery: { promote: 'tag:prod' } }, null, 2));
   found = configs();
-  assert.ok(found.some(m => /"delivery"\.promote needs "delivery"\.site and "delivery"\.version.*; keel promote \(scripts\/keel\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
+  assert.ok(found.some(m => /"delivery"\.promote needs "delivery"\.site and "delivery"\.version.*; plates promote \(scripts\/plates\/promote\.mjs\) reads it$/.test(m)), JSON.stringify(found));
   await writeFile(cfgPath, JSON.stringify({ ...cfg, practices: [...cfg.practices, 'delivery'], delivery: { promote: 'tag:prod', site: 'https://anvils.acme.example', version: '/api/version' } }, null, 2));
-  assert.equal(keel(['render'], dir).code, 0);
-  assert.ok((await lstat(join(dir, 'scripts/keel/promote.mjs'))).isFile());
+  assert.equal(plates(['render'], dir).code, 0);
+  assert.ok((await lstat(join(dir, 'scripts/plates/promote.mjs'))).isFile());
   assert.deepEqual(configs(), []);
 });

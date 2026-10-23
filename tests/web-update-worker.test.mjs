@@ -9,6 +9,31 @@ import { validateUpdateOutput, patchDigest } from '../lib/update-artifact.mjs';
 import { canonicalUpdateWorkflow } from '../lib/web/update-workflow.mjs';
 import { updateFixture, fakeContainers, dockerProtocol } from './helpers/web-update-worker.mjs';
 
+test('container environment refuses both canonical and legacy control bindings', () => {
+  const policy = { image: 'node@sha256:' + 'a'.repeat(64), network: 'none', platform: 'linux/amd64' };
+  for (const key of ['PLATES_WEB_ORIGIN', 'PLATES_WEB_OPERATION', 'KEEL_WEB_ORIGIN', 'KEEL_WEB_OPERATION']) {
+    assert.throws(() => validateContainerPolicy(policy, { [key]: 'owner value' }), /unsupported_container_environment/, key);
+  }
+  assert.doesNotThrow(() => validateContainerPolicy(policy, { ACME_MODE: 'test' }));
+});
+
+test('update bridge uses canonical environment only when present and preserves pinned checkout protocol', async () => {
+  const source = (await readFile(new URL('../scripts/web-update-worker.mjs', import.meta.url), 'utf8'))
+    .replace(/^#!.*\n/, '').replace(/^import .*;\n/gm, '');
+  const execute = new (Object.getPrototypeOf(async function(){}).constructor)('process', 'join', 'runUpdateWorker', source);
+  for (const canonical of [undefined, 'canonical', '']) {
+    const env = { GITHUB_WORKSPACE: '/acme/runner', KEEL_WEB_ORIGIN: 'legacy-origin', KEEL_WEB_OPERATION: 'legacy-operation' };
+    if (canonical !== undefined) Object.assign(env, { PLATES_WEB_ORIGIN: canonical, PLATES_WEB_OPERATION: canonical });
+    let called;
+    const process = { env, argv: ['node','bridge'], on(){}, removeListener(){}, stdout:{write(){}}, stderr:{write(){}}, exitCode: null };
+    await execute(process, join, async options => { called = options;return {state:'succeeded'}; });
+    assert.equal(process.exitCode, 0);
+    assert.equal(called.origin, canonical ?? 'legacy-origin');
+    assert.equal(called.operationId, canonical ?? 'legacy-operation');
+    assert.equal(called.targetRoot, '/acme/runner/trusted-keel');
+  }
+});
+
 test('preparation runs setup before shared transformation, freezes exact patch and excludes generated dependency output', async t => {
   const f = await updateFixture(t), containers = fakeContainers();
   const output = await prepareIsolatedUpdate({ ...f, signal: new AbortController().signal }, { containerRun: containers.run, prepare: f.prepare });

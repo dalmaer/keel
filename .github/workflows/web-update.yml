@@ -1,11 +1,11 @@
 # Contributor-only example; install only after exact worker/source policy review.
-name: keel web update preparation
+name: plates web update preparation
 run-name: ${{ format('keel-web-{0}', inputs.keel_operation) }}
 on:
   workflow_dispatch:
     inputs:
       keel_operation:
-        description: Reviewed Keel preparation operation identity
+        description: Reviewed Plates preparation operation identity
         required: true
         type: string
 permissions:

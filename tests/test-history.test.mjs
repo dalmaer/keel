@@ -4,21 +4,21 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, link, readdir, chmod 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { deflateRawSync, crc32 } from 'node:zlib';
-import { recoverTestHistory, readTestHistory } from '../practices/night/files/scripts/keel/test-history.mjs';
-import { stallsEvidence } from '../practices/night/files/scripts/keel/time-receipts.mjs';
-import { readRuns, readStalls } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { recoverTestHistory, readTestHistory } from '../practices/night/files/scripts/plates/test-history.mjs';
+import { stallsEvidence } from '../practices/night/files/scripts/plates/time-receipts.mjs';
+import { readRuns, readStalls } from '../practices/night/files/scripts/plates/test-ledger.mjs';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
-import { improve, MEASURES } from '../practices/night/files/scripts/keel/improve.mjs';
-import { parseTimeProposal, withTimeProposal } from '../practices/night/files/scripts/keel/time-proposals.mjs';
+import { improve, MEASURES } from '../practices/night/files/scripts/plates/improve.mjs';
+import { parseTimeProposal, withTimeProposal } from '../practices/night/files/scripts/plates/time-proposals.mjs';
 import { timeEvidence } from './fixtures/improve/time-evidence.mjs';
-const source = resolve('practices/night/files/scripts/keel/test-history.mjs');
-const workflow = resolve('practices/night/files/.github/workflows/keel-night.yml');
+const source = resolve('practices/night/files/scripts/plates/test-history.mjs');
+const workflow = resolve('practices/night/files/.github/workflows/plates-night.yml');
 const at = '2026-10-10T12:00:00Z', repo = 'acme/app', branch = 'main', head = 'a'.repeat(40);
 async function project(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-history-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-history-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel')); await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ ci: { gateWorkflow: 'check.yml' } }));
+  await mkdir(join(root, '.plates')); await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ ci: { gateWorkflow: 'check.yml' } }));
   return root;
 }
 // Real ZIP records (stored/deflated), allowing deliberate hostile metadata.
@@ -35,20 +35,25 @@ function zip(files) {
 }
 function fixture(items = [{ id: 1, kind: 'night' }, { id: 2, kind: 'ci' }]) {
   const routes = { 'repos/acme/app': { id: 7, full_name: repo, default_branch: branch },
-    'repos/acme/app/actions/workflows/keel-night.yml': { id: 10, path: '.github/workflows/keel-night.yml' },
+    'repos/acme/app/actions/workflows/plates-night.yml': { id: 10, path: '.github/workflows/plates-night.yml' },
     'repos/acme/app/actions/workflows/check.yml': { id: 11, path: '.github/workflows/check.yml' } };
   const archives = {}, artifacts = [], calls = [], downloads = [];
   for (const item of items) {
+    const legacy = item.legacy === true;
     const date = item.date ?? '2026-10-09T01:00:00Z', runId = item.runId ?? item.id + 100;
-    const artifact = { id: item.id, name: 'keel-test-runs', expired: false, created_at: date, size_in_bytes: 100,
+    const artifact = { id: item.id, name: legacy ? 'keel-test-runs' : 'plates-test-runs', expired: false, created_at: date, size_in_bytes: 100,
       workflow_run: { id: runId, repository_id: 7, head_repository_id: 7, head_branch: branch, head_sha: head } };
-    const run = { id: runId, workflow_id: item.kind === 'night' ? 10 : 11, path: `.github/workflows/${item.kind === 'night' ? 'keel-night' : 'check'}.yml`, repository: { id: 7, full_name: repo }, head_repository: { id: 7, full_name: repo }, head_branch: branch, head_sha: head, status: 'completed', updated_at: date, event: item.kind === 'night' ? 'schedule' : 'push', pull_requests: [] };
+    const run = { id: runId, workflow_id: item.kind === 'night' ? (legacy ? 12 : 10) : 11, path: `.github/workflows/${item.kind === 'night' ? (legacy ? 'keel-night' : 'plates-night') : 'check'}.yml`, repository: { id: 7, full_name: repo }, head_repository: { id: 7, full_name: repo }, head_branch: branch, head_sha: head, status: 'completed', updated_at: date, event: item.kind === 'night' ? 'schedule' : 'push', pull_requests: [] };
     artifacts.push(artifact); routes[`repos/acme/app/actions/artifacts/${item.id}`] = artifact; routes[`repos/acme/app/actions/runs/${runId}`] = run;
     archives[item.id] = zip([{ name: `acme-${item.id}.json`, body: JSON.stringify({ date, tests: [], acme: item.id }) }]);
   }
-  for (let i = 0; i < Math.ceil(artifacts.length / 100) || i === 0; i++) routes[`repos/acme/app/actions/artifacts?name=keel-test-runs&per_page=100&page=${i + 1}`] = { total_count: artifacts.length, artifacts: artifacts.slice(i * 100, i * 100 + 100) };
+  if (items.some(item => item.legacy)) routes['repos/acme/app/actions/workflows/keel-night.yml'] = { id: 12, path: '.github/workflows/keel-night.yml' };
+  for (const name of ['plates-test-runs','keel-test-runs']) {
+    const named = artifacts.filter(a => a.name === name);
+    for (let i = 0; i < Math.ceil(named.length / 100) || i === 0; i++) routes[`repos/acme/app/actions/artifacts?name=${name}&per_page=100&page=${i + 1}`] = { total_count: named.length, artifacts: named.slice(i * 100, i * 100 + 100) };
+  }
   return { routes, archives, artifacts, calls, downloads,
-    github: async path => { calls.push(path); if (!(path in routes)) throw new Error(`unexpected API ${path}`); return structuredClone(routes[path]); },
+    github: async path => { calls.push(path); if (!(path in routes)) { if(path.endsWith('/workflows/keel-night.yml')) throw Object.assign(new Error('not found'),{status:404}); throw new Error(`unexpected API ${path}`); } return structuredClone(routes[path]); },
     download: async id => { downloads.push(id); return archives[id]; } };
 }
 const recover = (root, f, extra = {}) => recoverTestHistory({ root, repo, branch, at, github: f.github, download: f.download, ...extra });
@@ -67,7 +72,7 @@ test('history never overwrites existing ledger records and identical recovery is
   const again = await recover(root, f); assert.equal(again.imported, 0);
   f.archives[2] = zip([{ name: 'acme-1.json', body: '{"different":true}' }]);
   const conflict = await recover(root, f); assert.ok(conflict.gaps.some(g => g.code === 'record-conflict'));
-  assert.equal(JSON.parse(await readFile(join(root, '.keel/test-runs/acme-1.json'))).acme, 1);
+  assert.equal(JSON.parse(await readFile(join(root, '.plates/test-runs/acme-1.json'))).acme, 1);
 });
 test('history rejects traversal, links, duplicate/local paths, corrupt archives and byte bombs before any record write', async t => {
   const hostile = [
@@ -77,7 +82,7 @@ test('history rejects traversal, links, duplicate/local paths, corrupt archives 
   for (const files of hostile) await t.test(files.map(f => f.name).join(','), async t => {
     const root = await project(t), f = fixture([{ id: 1, kind: 'night' }]); f.archives[1] = zip([{ name: 'first.json' }, ...files]);
     const result = await recover(root, f); assert.equal(result.imported, 0); assert.ok(result.gaps.some(g => g.code === 'archive-rejected'));
-    assert.deepEqual((await readdir(join(root, '.keel/test-runs'))).filter(n => n.endsWith('.json')), []);
+    assert.deepEqual((await readdir(join(root, '.plates/test-runs'))).filter(n => n.endsWith('.json')), []);
   });
   for (const mutation of ['local', 'crc', 'truncated']) await t.test(mutation, async t => {
     const root = await project(t), f = fixture([{ id: 1, kind: 'night' }]);
@@ -90,7 +95,7 @@ test('history rejects traversal, links, duplicate/local paths, corrupt archives 
 test('history validates repository, default branch, workflow, run and artifact bindings before download', async t => {
   const changes = [
     f => { f.routes['repos/acme/app'].default_branch = 'other'; },
-    f => { f.routes['repos/acme/app/actions/workflows/keel-night.yml'].path = '.github/workflows/other.yml'; },
+    f => { f.routes['repos/acme/app/actions/workflows/plates-night.yml'].path = '.github/workflows/other.yml'; },
     f => { f.routes['repos/acme/app/actions/runs/101'].head_repository.id = 8; },
     f => { f.routes['repos/acme/app/actions/runs/101'].event = 'pull_request_target'; },
     f => { f.routes['repos/acme/app/actions/runs/101'].head_sha = 'b'.repeat(40); },
@@ -119,9 +124,9 @@ test('history enforces aggregate uncompressed bytes and record bounds, and inher
 });
 test('history refuses symlinked ledger destinations and preserves outside content', async t => {
   const root = await project(t), outside = await project(t), f = fixture();
-  await symlink(outside, join(root, '.keel/test-runs'));
+  await symlink(outside, join(root, '.plates/test-runs'));
   await assert.rejects(recover(root, f), /unsafe ledger/);
-  assert.deepEqual(await readdir(outside), ['.keel']);
+  assert.deepEqual(await readdir(outside), ['.plates']);
 });
 test('history inherits only relevant gaps without renewing their original observation or week', async t => {
   const root = await project(t), f = fixture([{ id: 1, kind: 'night' }]);
@@ -148,12 +153,12 @@ test('history inherits only relevant gaps without renewing their original observ
   assert.equal(later.gaps.filter(g => g.code.startsWith('inherited')).length, 0);
 });
 test('history refuses existing symlinked records and status destinations', async t => {
-  const root = await project(t), f = fixture(); await mkdir(join(root, '.keel/test-runs/recovery'), { recursive: true });
+  const root = await project(t), f = fixture(); await mkdir(join(root, '.plates/test-runs/recovery'), { recursive: true });
   const sentinel = join(root, 'sentinel'); await writeFile(sentinel, 'Acme safe');
-  await symlink(sentinel, join(root, '.keel/test-runs/acme-1.json'));
+  await symlink(sentinel, join(root, '.plates/test-runs/acme-1.json'));
   assert.ok((await recover(root, f)).gaps.some(g => g.code === 'archive-rejected'));
-  await rm(join(root, '.keel/test-runs/recovery/status.json'));
-  await symlink(sentinel, join(root, '.keel/test-runs/recovery/status.json'));
+  await rm(join(root, '.plates/test-runs/recovery/status.json'));
+  await symlink(sentinel, join(root, '.plates/test-runs/recovery/status.json'));
   await assert.rejects(recover(root, f)); assert.equal(await readFile(sentinel, 'utf8'), 'Acme safe');
 });
 test('history absent diagnostics are explicitly unavailable', async t => {
@@ -168,7 +173,7 @@ test('issue #91: history recovers from the project\'s own gate workflow (pages.y
     return f;
   };
   const root = await project(t);
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ repo, check: 'npm run check:all' }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ repo, check: 'npm run check:all' }));
   await mkdir(join(root, '.github/workflows'), { recursive: true });
   await writeFile(join(root, '.github/workflows/pages.yml'), 'name: Acme pages\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run check:all\n');
   await writeFile(join(root, '.github/workflows/deploy.yml'), 'name: Acme deploy\non: push\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo Acme\n');
@@ -180,13 +185,13 @@ test('issue #91: history recovers from the project\'s own gate workflow (pages.y
   assert.equal(result.imported, 2, 'pages.yml\'s artifact is accepted as the gate\'s');
   // The gate named as GitHub shows it (not a file) is found by that name, among the repository's workflows.
   const named = await project(t), g = pages(fixture());
-  await writeFile(join(named, '.keel/keel.json'), JSON.stringify({ repo, gateWorkflow: 'Acme pages' }));
-  g.routes['repos/acme/app/actions/workflows?per_page=100'] = { total_count: 3, workflows: [{ id: 10, name: 'keel night', path: '.github/workflows/keel-night.yml' }, { id: 11, name: 'Acme pages', path: '.github/workflows/pages.yml' }, { id: 12, name: 'Acme deploy', path: '.github/workflows/deploy.yml' }] };
+  await writeFile(join(named, '.plates/plates.json'), JSON.stringify({ repo, gateWorkflow: 'Acme pages' }));
+  g.routes['repos/acme/app/actions/workflows?per_page=100'] = { total_count: 3, workflows: [{ id: 10, name: 'plates night', path: '.github/workflows/plates-night.yml' }, { id: 11, name: 'Acme pages', path: '.github/workflows/pages.yml' }, { id: 12, name: 'Acme deploy', path: '.github/workflows/deploy.yml' }] };
   const byName = await recover(named, g);
   assert.equal(byName.imported, 2, JSON.stringify(byName.gaps));
   // Nothing runs the gate: said as a gap, never a guess at check.yml.
   const none = await project(t), n = pages(fixture());
-  await writeFile(join(none, '.keel/keel.json'), JSON.stringify({ repo }));
+  await writeFile(join(none, '.plates/plates.json'), JSON.stringify({ repo }));
   const missing = await recover(none, n);
   assert.ok(missing.gaps.some(gap => gap.code === 'workflow-unavailable' && /no workflow .* runs the gate/.test(gap.detail)), JSON.stringify(missing.gaps));
   assert.ok(!n.calls.includes('repos/acme/app/actions/workflows/check.yml'));
@@ -202,7 +207,7 @@ test('history round-trips producer stalls wrappers and inconclusive records thro
   assert.equal(result.imported, 2); assert.ok(result.gaps.some(g => g.code === 'retention-loss'));
   assert.deepEqual((await readStalls(root)).receipts, [r]);
   const runs = await readRuns(root); assert.equal(runs.runs.length, 1); assert.equal(runs.runs[0].tests[0].outcome, 'inconclusive');
-  assert.deepEqual(JSON.parse(await readFile(join(root, '.keel/test-runs/retention'))), retention);
+  assert.deepEqual(JSON.parse(await readFile(join(root, '.plates/test-runs/retention'))), retention);
 });
 test('history omits malformed or oversized stalls wrappers with gaps while retaining valid ledger data', async t => {
   const changes = [v => { v.version = 2; }, v => { v.stallsReceipts[0].seed = -1; }, v => { v.stallsReceipts = Array(2001).fill(receipt()); }, v => { v.stallsReceipts = Array(1900).fill({ ...receipt(), identity: { ...receipt().identity, target: { file: 'tests/acme.test.mjs', name: 'x'.repeat(1000) } } }); }, v => { v.stallsReceipts[0].transcript = 'Acme private'; }, v => { v.transcript = 'Acme private'; }];
@@ -218,16 +223,16 @@ test('history excludes local workaround evidence and upload selects only final l
   f.archives[1] = zip([{ name: 'local.json', body: JSON.stringify({ kind: 'local-workaround', transcript: 'Acme private' }) }]);
   const result = await recover(root, f); assert.equal(result.imported, 0); assert.ok(result.gaps.some(g => g.code === 'local-evidence-rejected'));
   const keep = (await readFile(workflow, 'utf8')).split('- name: Keep the test ledger')[1].split('\n      # Porcelain')[0];
-  assert.match(keep, /\.keel\/test-runs\/\*\.json/); assert.match(keep, /\.keel\/test-runs\/retention/);
-  assert.doesNotMatch(keep, /stalls\/|transcripts\/|path: \.keel\/test-runs\//);
+  assert.match(keep, /\.plates\/test-runs\/\*\.json/); assert.match(keep, /\.plates\/test-runs\/retention/);
+  assert.doesNotMatch(keep, /stalls\/|transcripts\/|path: \.plates\/test-runs\//);
 });
 test('history status never truncates a hardlinked outside file and repo aliases are supported', async t => {
   const root = await project(t), f = fixture(), aliasRoot = await project(t);
   await symlink(root, join(aliasRoot, 'alias'));
   assert.equal((await recover(join(aliasRoot, 'alias'), f)).imported, 2);
   const sentinel = join(root, 'sentinel'); await writeFile(sentinel, 'Acme safe');
-  await rm(join(root, '.keel/test-runs/recovery/status.json'));
-  await link(sentinel, join(root, '.keel/test-runs/recovery/status.json'));
+  await rm(join(root, '.plates/test-runs/recovery/status.json'));
+  await link(sentinel, join(root, '.plates/test-runs/recovery/status.json'));
   await assert.rejects(recover(root, f), /unsafe recovery status/);
   assert.equal(await readFile(sentinel, 'utf8'), 'Acme safe');
 });
@@ -243,16 +248,16 @@ test('night extracted Gather shell recovers real system ZIP via synthetic gh end
   const root = await project(t), f = fixture([{ id: 1, kind: 'night', date: new Date(Date.now() - 3600000).toISOString() }]);
   const inputs = join(root, 'inputs'); await mkdir(inputs); await writeFile(join(inputs, 'acme.json'), '{"acme":"real zip"}');
   const zipped = join(root, 'history.zip'); const z = run('zip', ['-q', zipped, 'acme.json'], { cwd: inputs }); assert.equal(z.status, 0, z.stderr);
-  await mkdir(join(root, 'scripts/keel'), { recursive: true }); await writeFile(join(root, 'scripts/keel/test-history.mjs'), await readFile(source));
-  await writeFile(join(root, 'scripts/keel/time-receipts.mjs'), await readFile(resolve('practices/night/files/scripts/keel/time-receipts.mjs')));
-  await writeFile(join(root, 'scripts/keel/lib.mjs'), await readFile(resolve('practices/night/files/scripts/keel/lib.mjs')));
+  await mkdir(join(root, 'scripts/plates'), { recursive: true }); await writeFile(join(root, 'scripts/plates/test-history.mjs'), await readFile(source));
+  await writeFile(join(root, 'scripts/plates/time-receipts.mjs'), await readFile(resolve('practices/night/files/scripts/plates/time-receipts.mjs')));
+  await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
   const gh = join(root, 'gh'); await writeFile(gh, `#!${process.execPath}\nconst fs=require('node:fs');const routes=${JSON.stringify(f.routes)};const p=process.argv[3];if(p==='repos/acme/app/actions/artifacts/1/zip')process.stdout.write(fs.readFileSync(${JSON.stringify(zipped)}));else if(routes[p])console.log(JSON.stringify(routes[p]));else process.exit(1);\n`); await chmod(gh, 0o755);
   const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === 'Gather the test ledger').script;
   assert.doesNotMatch(script, /unzip|gh api/);
-  const result = run('bash', ['-e', '-o', 'pipefail', '-c', script], { cwd: root, env: { ...process.env, KEEL_GH: gh, REPO: repo, BASE: branch } });
+  const result = run('bash', ['-e', '-o', 'pipefail', '-c', script], { cwd: root, env: { ...process.env, PLATES_GH: gh, REPO: repo, BASE: branch } });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).imported, 1);
-  assert.equal(JSON.parse(await readFile(join(root, '.keel/test-runs/acme.json'))).acme, 'real zip');
+  assert.equal(JSON.parse(await readFile(join(root, '.plates/test-runs/acme.json'))).acme, 'real zip');
 });
 
 async function stagingFixture(t, production = false) {
@@ -260,18 +265,18 @@ async function stagingFixture(t, production = false) {
   const git = (...args) => { const r = run('git', args, { cwd: root }); assert.equal(r.status, 0, r.stdout + r.stderr); return r.stdout.trim(); };
   assert.equal(run('git', ['init', '--bare', '-q', remote]).status, 0);
   git('init', '-q', '-b', 'main'); git('remote', 'add', 'origin', remote);
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ health, name: 'Acme', repo: 'acme/app' }));
-  await mkdir(join(root, health), { recursive: true }); await mkdir(join(root, 'scripts/keel'), { recursive: true });
-  await writeFile(join(root, 'scripts/keel/lib.mjs'), await readFile(resolve('practices/night/files/scripts/keel/lib.mjs')));
-  await writeFile(join(root, 'scripts/keel/pr-body.mjs'), 'console.log("Acme synthetic PR body");\n');
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ health, name: 'Acme', repo: 'acme/app' }));
+  await mkdir(join(root, health), { recursive: true }); await mkdir(join(root, 'scripts/plates'), { recursive: true });
+  await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
+  await writeFile(join(root, 'scripts/plates/pr-body.mjs'), 'console.log("Acme synthetic PR body");\n');
   const earlier = `${health}/2026-10-08.md`, unrelated = `${health}/2026-10-07.md`, today = `${health}/${day}.md`;
   await writeFile(join(root, earlier), 'Acme accepted proposal; awaiting remeasurement.\n');
   await writeFile(join(root, unrelated), 'Acme owner notes.\n');
   const measures = MEASURES.filter(m => m.id === 'time_creep');
   if (production) {
-    await mkdir(join(root, '.keel/test-runs'), { recursive: true });
-    await writeFile(join(root, '.gitignore'), '.keel/test-runs/\n');
-    for (const r of timeEvidence(Date.now()).runs) await writeFile(join(root, '.keel/test-runs', r.id + '.json'), JSON.stringify(r));
+    await mkdir(join(root, '.plates/test-runs'), { recursive: true });
+    await writeFile(join(root, '.gitignore'), '.plates/test-runs/\n');
+    for (const r of timeEvidence(Date.now()).runs) await writeFile(join(root, '.plates/test-runs', r.id + '.json'), JSON.stringify(r));
     await improve({ root, report: true, date: '2026-10-08' }, { env: { CI: 'true' }, measures });
     const initial = parseTimeProposal(await readFile(join(root, earlier), 'utf8')).proposal;
     assert.ok(initial);
@@ -297,7 +302,7 @@ async function stagingFixture(t, production = false) {
   return { root, temp, report, git, before, earlier, unrelated, today, execute };
 }
 test('night historical health staging commits the earlier remeasurement and today only, preserving unrelated staged and untracked files', async t => {
-  assert.equal(await readFile(resolve('.github/workflows/keel-night.yml'), 'utf8'), await readFile(workflow, 'utf8'), 'managed night matches source');
+  assert.equal(await readFile(resolve('.github/workflows/plates-night.yml'), 'utf8'), await readFile(workflow, 'utf8'), 'managed night matches source');
   const f = await stagingFixture(t, true);
   assert.deepEqual(f.report.changedHistoricalHealthPaths, [f.earlier]);
   assert.equal(f.report.report, f.today);
@@ -339,11 +344,11 @@ test('night historical health staging rejects unvalidated metadata and paths bef
 // #92: the gate workflow is the one running the check command as a whole word, never a longer command it begins
 // (deploy.yml's `npm run check:deploy` sorts first and is not `npm run check`), and never a comment naming it.
 test('issue #91 review: gateWorkflowIn finds the workflow running the check itself, not one running check:deploy or naming it in a comment', async t => {
-  const { gateWorkflowIn } = await import(new URL('../practices/night/files/scripts/keel/lib.mjs', import.meta.url).href);
+  const { gateWorkflowIn } = await import(new URL('../practices/night/files/scripts/plates/lib.mjs', import.meta.url).href);
   const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  const root = await mkdtemp(join(tmpdir(), 'keel-gate-wf-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-gate-wf-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, '.github/workflows'), { recursive: true });
   await writeFile(join(root, '.github/workflows/a-notes.yml'), 'jobs:\n  x:\n    steps:\n      # runs npm run check elsewhere\n      - run: echo hi\n');
@@ -351,4 +356,34 @@ test('issue #91 review: gateWorkflowIn finds the workflow running the check itse
   await writeFile(join(root, '.github/workflows/pages.yml'), 'jobs:\n  x:\n    steps:\n      - run: npm ci && npm run check\n');
   assert.deepEqual(await gateWorkflowIn(root, { check: 'npm run check' }), { name: 'pages.yml' });
   assert.equal(await gateWorkflowIn(root, { check: 'npm run check:all' }), null, 'no workflow runs check:all');
+});
+
+test('history merges legacy and renamed artifact inventories without rewriting old ledger bytes', async t => {
+  const root=await project(t),f=fixture([{id:1,kind:'night',legacy:true},{id:2,kind:'ci',legacy:true},{id:3,kind:'ci'},{id:4,kind:'night',date:'2026-10-08T01:00:00Z'}]);
+  const old=JSON.stringify({date:'2026-10-09T01:00:00Z',workflow:'keel-night',tests:[],acme:'unchanged legacy receipt'});
+  f.archives[1]=zip([{name:'acme-old.json',body:old}]);
+  const result=await recover(root,f);
+  assert.deepEqual(result.selected.map(row=>row.artifactId),[1,3,2]);
+  assert.equal(await readFile(join(root,'.plates/test-runs/acme-old.json'),'utf8'),old);
+  assert.ok(f.calls.some(path=>path.includes('?name=keel-test-runs')));
+  assert.equal(result.selected[0].workflowId,12);
+});
+test('legacy workflow authorization failure remains a coverage gap; cross-bound history is rejected', async t => {
+  const root=await project(t),f=fixture([{id:1,kind:'night',legacy:true}]);
+  const result=await recover(root,f,{github:async path=>{if(path.endsWith('/workflows/keel-night.yml'))throw Object.assign(new Error('forbidden'),{status:403});return f.github(path);}});
+  assert.ok(result.gaps.some(g=>g.code==='workflow-unavailable'&&g.detail.includes('forbidden')));assert.equal(result.imported,0);
+  f.routes['repos/acme/app/actions/runs/101'].path='.github/workflows/plates-night.yml';
+  const crossed=await recover(root,f);assert.equal(crossed.imported,0);assert.ok(crossed.gaps.some(g=>g.code==='artifact-rejected'));
+});
+
+test('history verifies old repository names by numeric ID and preserves original coverage bytes', async t => {
+  const root=await project(t),f=fixture([{id:1,kind:'night',legacy:true}]),old='acme/previous';
+  f.routes[`repos/${old}`]={id:7,full_name:repo};
+  const oldRun=f.routes['repos/acme/app/actions/runs/101'];oldRun.repository.full_name=old;oldRun.head_repository.full_name=old;
+  const prior={version:1,repo:old,branch,at:'2026-10-08T00:00:00Z',complete:false,gaps:[{code:'old-loss',detail:'Preserve Acme observation',observedAt:'2026-10-07T00:00:00Z'}]};
+  const receipt=JSON.stringify({date:'2026-10-09T00:00:00Z',tests:[],repository:old});
+  f.archives[1]=zip([{name:'acme-old.json',body:receipt},{name:'recovery/status.json',body:JSON.stringify(prior)}]);
+  const result=await recover(root,f);assert.equal(result.imported,1);assert.ok(result.gaps.some(g=>g.code==='inherited-gap'&&g.observedAt==='2026-10-07T00:00:00Z'));assert.equal(await readFile(join(root,'.plates/test-runs/acme-old.json'),'utf8'),receipt);
+  f.routes[`repos/${old}`]={id:8,full_name:old};
+  const wrong=await recover(root,f);assert.equal(wrong.selected.length,0);assert.ok(wrong.gaps.some(g=>g.code==='artifact-rejected'));
 });

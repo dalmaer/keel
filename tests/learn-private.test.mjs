@@ -1,6 +1,6 @@
-// keel learn with an inbox (phase 21): lesson issues arrive on the repo keel's
+// plates learn with an inbox (phase 21): lesson issues arrive on the repo plates's
 // config names as `inbox`. A private inbox keeps proposals and decisions on its
-// issues, and nothing quoting a claim is written in keel's tree. gh is stubbed
+// issues, and nothing quoting a claim is written in plates's tree. gh is stubbed
 // at the boundary the way real gh behaves (lesson 8): `api repos/<r> -q .private`
 // prints true/false and an unknown repo fails like a 404; `issue list/view
 // --json` print the asked fields, labels as {name, …} objects and state
@@ -20,14 +20,14 @@ import { issueBody, parseLessons } from '../lib/lessons.mjs';
 import { gather, propose, decide, render, proposals, inboxText, INBOX_MD } from '../lib/learn.mjs';
 import { load as loadMigrations, view } from '../lib/migrations.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const FIXTURES = join(KEEL, 'tests', 'fixtures', 'learn');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const FIXTURES = join(PLATES, 'tests', 'fixtures', 'learn');
 const NOW = '2026-10-04T00:00:00.000Z';
 const PIN_FULL = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const UPSTREAM = 'acme/upstream', UPATH = 'skills/conduct/SKILL.md';
-const INBOX = 'acme/keel-inbox';
-// The thing that must never land in keel's public tree.
+const INBOX = 'acme/plates-inbox';
+// The thing that must never land in plates's public tree.
 const MARKER = 'ACME-PRIVATE-7f3a9c-Dr-Quill-at-Larkspur-Clinic';
 
 async function scratch(t, prefix) {
@@ -36,17 +36,17 @@ async function scratch(t, prefix) {
   return dir;
 }
 
-/** A synthetic keel home (repo acme/keel) whose config names an inbox. */
+/** A synthetic plates home (repo acme/plates) whose config names an inbox. */
 async function home(t, inbox = INBOX) {
-  const dir = join(await scratch(t, 'keel-inbox-'), 'home');
+  const dir = join(await scratch(t, 'plates-inbox-'), 'home');
   await copyProject(join(FIXTURES, 'home'), dir);
-  const path = join(dir, '.keel/keel.json');
+  const path = join(dir, '.plates/plates.json');
   const cfg = JSON.parse(await readFile(path, 'utf8'));
   await writeFile(path, JSON.stringify({ ...cfg, ...(inbox ? { inbox } : {}) }, null, 2));
   return dir;
 }
 
-/** A lesson issue the way keel lessons files one, from a private project. */
+/** A lesson issue the way plates lessons files one, from a private project. */
 const lessonIssue = (number, n, shape, extra = {}) => {
   const fingerprint = `acme/ledger/lesson/${n}/0badc0de`;
   const payload = [`**The shape of it**\n\n${shape}`, `**What it cost**\n\nAn afternoon with ${MARKER}.`, '**Guard**\n\nA test names it.', `Source: acme/ledger docs/lessons.md, row ${n}`].join('\n\n');
@@ -56,7 +56,7 @@ const lessonIssue = (number, n, shape, extra = {}) => {
 
 /** A gh that behaves like gh over a JSON state file. */
 async function stubGh(t, seed) {
-  const dir = await scratch(t, 'keel-gh-');
+  const dir = await scratch(t, 'plates-gh-');
   const log = join(dir, 'gh.log'), state = join(dir, 'state.json'), gh = join(dir, 'gh');
   await writeFile(state, JSON.stringify(seed));
   await writeFile(gh, `#!${process.execPath}
@@ -117,7 +117,7 @@ if (a === 'api') {
 `);
   await chmod(gh, 0o755);
   return {
-    env: { ...cleanEnv(), KEEL_GH: gh },
+    env: { ...cleanEnv(), PLATES_GH: gh },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     state: async () => JSON.parse(await readFile(state, 'utf8')),
   };
@@ -128,7 +128,7 @@ const seed = ({ priv = true, issues = [], labels = ['lesson'] } = {}) => ({
   commits: { [`${UPSTREAM}:${UPATH}`]: [PIN_FULL] },
 });
 
-const keel = (args, cwd, env) => {
+const plates = (args, cwd, env) => {
   const r = runCmd(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
@@ -167,11 +167,11 @@ test('a public inbox: gather reads it, proposals are files as before, decide clo
   assert.equal((await gh.state()).repos[INBOX].issues[0].state, 'CLOSED');
 });
 
-test('no inbox: learn reads keel\'s own repo and asks nothing about privacy', async t => {
+test('no inbox: learn reads plates\'s own repo and asks nothing about privacy', async t => {
   const dir = await home(t, null);
-  const gh = await stubGh(t, { ...seed(), repos: { 'acme/keel': { private: false, labels: [{ name: 'lesson' }], issues: [lessonIssue(2, 1, '**One.**')] } } });
+  const gh = await stubGh(t, { ...seed(), repos: { 'acme/plates': { private: false, labels: [{ name: 'lesson' }], issues: [lessonIssue(2, 1, '**One.**')] } } });
   const r = await gather({ dir }, { env: gh.env, now: NOW });
-  assert.match(r.text, /^issues: 1 open lesson issue on acme\/keel$/m);
+  assert.match(r.text, /^issues: 1 open lesson issue on acme\/plates$/m);
   assert.ok(!(await gh.calls()).some(c => c[0] === 'api' && /^repos\/[^/]+\/[^/]+$/.test(c[1])));
   assert.equal((await proposals(dir)).length, 1);
 });
@@ -183,14 +183,14 @@ test('a private inbox: gather lists and counts its issues, writes no proposal, a
     lessonIssue(2, 2, '**Shape two.**', { labels: ['lesson', 'proposed:lesson'] }),
     lessonIssue(3, 3, '**Shape three.**', { labels: ['lesson', 'decided:decline'], state: 'CLOSED' }),
   ] }));
-  const r = keel(['learn', '--json'], dir, gh.env);
+  const r = plates(['learn', '--json'], dir, gh.env);
   assert.equal(r.code, 0, r.err);
   const out = JSON.parse(r.out);
   assert.equal(out.private, true);
   assert.equal(out.repo, INBOX);
   assert.deepEqual(out.counts, { untriaged: 1, proposed: 1, decided: 1 });
   assert.deepEqual(out.open.map(o => [o.issue, o.status]), [[1, 'untriaged'], [2, 'proposed']]);
-  const text = keel(['learn'], dir, gh.env).out;
+  const text = plates(['learn'], dir, gh.env).out;
   assert.match(text, /^  #1 untriaged$/m);
   assert.ok(!text.includes(MARKER) && !/Shape/.test(text) && !r.out.includes(MARKER), 'the night shift prints this in public CI logs: no titles');
   assert.deepEqual(out.written, []);
@@ -202,7 +202,7 @@ test('a private inbox: gather lists and counts its issues, writes no proposal, a
   assert.ok(!/Shape (one|two|three)|acme\/ledger|#[123]\b/.test(inbox), 'no titles, no projects, no issue numbers');
   // The private proposals wait for a decision too, counted from the same counts, no titles.
   const waiting = inbox.split('## Waiting for a decision\n\n')[1].split('\n## ')[0];
-  assert.equal(waiting.trim(), '1 proposal on the private inbox waits for a decision — `keel learn` lists them by number.');
+  assert.equal(waiting.trim(), '1 proposal on the private inbox waits for a decision — `plates learn` lists them by number.');
   assert.deepEqual(await leaks(dir), []);
   // Privacy is asked once per run; the run only read.
   const calls = await gh.calls();
@@ -210,11 +210,11 @@ test('a private inbox: gather lists and counts its issues, writes no proposal, a
   assert.deepEqual(writes(calls), []);
   // render --check needs no access to the inbox's issues: the recorded counts are compared.
   const before = (await gh.calls()).length;
-  assert.equal(keel(['learn', 'render', '--check'], dir, gh.env).code, 0);
+  assert.equal(plates(['learn', 'render', '--check'], dir, gh.env).code, 0);
   assert.ok(!(await gh.calls()).slice(before).some(c => c[0] === 'issue'));
   await writeFile(join(dir, INBOX_MD), inbox.replace('| proposed | 1 |', '| proposed | 7 |'));
   assert.equal((await render({ dir, check: true }, { env: gh.env })).data.private.counts.proposed, 7, 'check reads the recorded counts');
-  assert.match(inboxText([], { repo: INBOX, counts: { untriaged: 0, proposed: 7, decided: 0 } }).text, /^7 proposals on the private inbox wait for a decision — `keel learn` lists them by number\.$/m, 'the waiting line follows the recorded counts');
+  assert.match(inboxText([], { repo: INBOX, counts: { untriaged: 0, proposed: 7, decided: 0 } }).text, /^7 proposals on the private inbox wait for a decision — `plates learn` lists them by number\.$/m, 'the waiting line follows the recorded counts');
 });
 
 test('privacy unknown is private: an inbox gh cannot see is treated as private, noted, and nothing is published', async t => {
@@ -236,23 +236,23 @@ test('propose on a private inbox: by issue number, a plan and exit 3 without --y
   const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**')] }));
   await gather({ dir }, { env: gh.env, now: NOW });
   const before = await walk(dir);
-  const asked = keel(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'a real shape', '--read', READ, '--json'], dir, gh.env);
+  const asked = plates(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'a real shape', '--read', READ, '--json'], dir, gh.env);
   assert.equal(asked.code, 3, asked.err);
   const plan = JSON.parse(asked.out);
   assert.equal(plan.needs, 'yes');
-  assert.match(plan.plan.map(p => p.what).join('\n'), /gh issue edit 12 -R acme\/keel-inbox --add-label proposed:lesson/);
+  assert.match(plan.plan.map(p => p.what).join('\n'), /gh issue edit 12 -R acme\/plates-inbox --add-label proposed:lesson/);
   assert.deepEqual(writes(await gh.calls()), [], 'nothing outward without a yes');
   assert.deepEqual(await walk(dir), before, 'nothing written');
 
   // The read must still cite something checked.
-  assert.equal(keel(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'n', '--read', 'fine', '--yes'], dir, gh.env).code, 2);
+  assert.equal(plates(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'n', '--read', 'fine', '--yes'], dir, gh.env).code, 2);
 
-  const yes = keel(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'a real shape', '--read', READ, '--yes', '--json'], dir, gh.env);
+  const yes = plates(['learn', 'propose', '12', '--outcome', 'lesson', '--note', 'a real shape', '--read', READ, '--yes', '--json'], dir, gh.env);
   assert.equal(yes.code, 0, yes.out + yes.err);
   let issue = (await gh.state()).repos[INBOX].issues[0];
   assert.deepEqual(issue.labels, ['lesson', 'proposed:lesson']);
   assert.equal(issue.comments.length, 1);
-  assert.match(issue.comments[0], /^keel learn: proposed lesson\nnote: a real shape\n\nNot in docs\/lessons\.md/);
+  assert.match(issue.comments[0], /^plates learn: proposed lesson\nnote: a real shape\n\nNot in docs\/lessons\.md/);
   assert.match(await readFile(join(dir, INBOX_MD), 'utf8'), /^\| proposed \| 1 \|$/m);
 
   // Re-proposing replaces the old proposed: label.
@@ -268,7 +268,7 @@ test('decide accepted on a private inbox refuses without --shape, --cost and --g
   const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:lesson'] })] }));
   const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
   for (const extra of [[], ['--shape', 'only a shape']]) {
-    const r = keel(['learn', 'decide', '12', 'accepted', '--yes', ...extra, '--json'], dir, gh.env);
+    const r = plates(['learn', 'decide', '12', 'accepted', '--yes', ...extra, '--json'], dir, gh.env);
     assert.equal(r.code, 2, r.out + r.err);
     assert.match(JSON.parse(r.out).error, extra.length ? /go together/ : /private.*never copied.*--shape "…" --cost "…" --guard "…"/);
   }
@@ -279,7 +279,7 @@ test('decide accepted on a private inbox refuses without --shape, --cost and --g
 
 test('decide accepted with --shape/--cost/--guard: exactly those words become the row, provenance the project; the issue is labelled and closed', async t => {
   const dir = await home(t);
-  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:lesson'], comments: ['keel learn: proposed lesson\nnote: a real shape\n\nread'] })] }));
+  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:lesson'], comments: ['plates learn: proposed lesson\nnote: a real shape\n\nread'] })] }));
   const before = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
   const asked = await decide({ dir, slug: '12', decision: 'accepted', ...ROW }, { env: gh.env, now: NOW });
   assert.equal(asked.exitCode, 3);
@@ -296,9 +296,65 @@ test('decide accepted with --shape/--cost/--guard: exactly those words become th
   const issue = (await gh.state()).repos[INBOX].issues[0];
   assert.equal(issue.state, 'CLOSED');
   assert.ok(issue.labels.includes('decided:lesson'));
-  assert.match(issue.comments.at(-1), /^keel learn: accepted \(lesson\): keel lesson 3\. a real shape$/);
+  assert.match(issue.comments.at(-1), /^plates learn: accepted \(lesson\): plates lesson 3\. a real shape$/);
   assert.match(await readFile(join(dir, INBOX_MD), 'utf8'), /^\| decided \| 1 \|$/m);
   await assert.rejects(decide({ dir, slug: '12', decision: 'accepted', yes: true, ...ROW }, { env: gh.env }), /already decided/);
+});
+
+test('legacy private proposal: accepting a Keel link retains its lesson and note without rewriting history', async t => {
+  const dir = await home(t);
+  const proposal = 'keel learn: proposed link\nnote: already covered by the existing guard\nlink: 2\n\nread docs/lessons.md';
+  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:link'], comments: [proposal] })] }));
+  const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
+  const preview = await decide({ dir, slug: '12', decision: 'accepted' }, { env: gh.env, now: NOW });
+  assert.equal(preview.exitCode, 3);
+  assert.equal(preview.data.link, 2);
+  assert.match(preview.text, /already plates lesson 2.*already covered by the existing guard/);
+  assert.deepEqual(writes(await gh.calls()), []);
+  const result = await decide({ dir, slug: '12', decision: 'accepted', yes: true }, { env: gh.env, now: NOW });
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.data.link, 2);
+  assert.equal(result.data.status, 'linked');
+  assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), lessons);
+  const issue = (await gh.state()).repos[INBOX].issues[0];
+  assert.equal(issue.number, 12);
+  assert.equal(issue.state, 'CLOSED');
+  assert.deepEqual(issue.labels, ['lesson', 'proposed:link', 'decided:link']);
+  assert.deepEqual(issue.comments, [proposal, 'plates learn: accepted (link): already plates lesson 2. already covered by the existing guard']);
+});
+
+test('legacy private proposal: declining reuses the Keel note without a replacement note', async t => {
+  const dir = await home(t);
+  const proposal = 'keel learn: proposed decline\nnote: project-specific, no general lesson\n\nread docs/lessons.md';
+  const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:decline'], comments: [proposal] })] }));
+  const preview = await decide({ dir, slug: '12', decision: 'declined' }, { env: gh.env, now: NOW });
+  assert.equal(preview.exitCode, 3);
+  assert.match(preview.text, /project-specific, no general lesson/);
+  assert.deepEqual(writes(await gh.calls()), []);
+  const result = await decide({ dir, slug: '12', decision: 'declined', yes: true }, { env: gh.env, now: NOW });
+  assert.equal(result.exitCode, 0);
+  const issue = (await gh.state()).repos[INBOX].issues[0];
+  assert.equal(issue.state, 'CLOSED');
+  assert.deepEqual(issue.labels, ['lesson', 'proposed:decline', 'decided:decline']);
+  assert.deepEqual(issue.comments, [proposal, 'plates learn: declined. project-specific, no general lesson']);
+});
+
+test('legacy private proposal: the newest matching comment wins across both names, ignoring quoted proposals', async t => {
+  for (const latest of ['keel', 'plates']) {
+    const dir = await home(t);
+    const previous = latest === 'keel' ? 'plates' : 'keel';
+    const comments = [
+      `${previous} learn: proposed link\nnote: older proposal\nlink: 1\n\nread docs/lessons.md`,
+      `${latest} learn: proposed link\nnote: newest proposal\nlink: 2\n\nread docs/lessons.md`,
+      'A quoted proposal is data:\nplates learn: proposed link\nnote: quoted\nlink: 1',
+    ];
+    const gh = await stubGh(t, seed({ issues: [lessonIssue(12, 4, '**Shape four.**', { labels: ['lesson', 'proposed:link'], comments })] }));
+    const result = await decide({ dir, slug: '12', decision: 'accepted', yes: true }, { env: gh.env, now: NOW });
+    assert.equal(result.exitCode, 0, latest);
+    assert.equal(result.data.link, 2, latest);
+    const issue = (await gh.state()).repos[INBOX].issues[0];
+    assert.deepEqual(issue.comments, [...comments, 'plates learn: accepted (link): already plates lesson 2. newest proposal'], latest);
+  }
 });
 
 test('decide practice on a private inbox: the row and an inert stub written from the approved words', async t => {
@@ -313,7 +369,7 @@ test('decide practice on a private inbox: the row and an inert stub written from
   assert.ok((await gh.state()).repos[INBOX].issues[0].labels.includes('decided:practice'));
 });
 
-test('the leak test: a private claim reaches no file in keel\'s tree through gather, propose and decide', async t => {
+test('the leak test: a private claim reaches no file in plates\'s tree through gather, propose and decide', async t => {
   const dir = await home(t);
   const body = n => lessonIssue(n, n, `**${MARKER} shape ${n}.**`).body;
   const gh = await stubGh(t, seed({ labels: [], issues: [
@@ -321,7 +377,7 @@ test('the leak test: a private claim reaches no file in keel\'s tree through gat
   ] }));
   for (const i of (await gh.state()).repos[INBOX].issues) assert.ok(i.body.includes(MARKER) && body(1).includes(MARKER));
   const step = async (args, code = 0) => {
-    const r = keel(args, dir, gh.env);
+    const r = plates(args, dir, gh.env);
     assert.equal(r.code, code, `${args.join(' ')}\n${r.out}${r.err}`);
     return r;
   };
@@ -339,13 +395,13 @@ test('the leak test: a private claim reaches no file in keel\'s tree through gat
   assert.ok(state.issues.every(i => i.state === 'CLOSED'), 'every issue was decided on the inbox');
   assert.deepEqual(state.labels.map(l => l.name).sort(), ['decided:decline', 'decided:lesson', 'decided:practice', 'proposed:decline', 'proposed:lesson', 'proposed:practice']);
   assert.ok((await readFile(join(dir, 'docs/lessons.md'), 'utf8')).includes(ROW.shape), 'the approved row did land');
-  // A plain --shape is written bold, keel's table style, period inside; the parser still reads the row and its guard.
+  // A plain --shape is written bold, plates's table style, period inside; the parser still reads the row and its guard.
   const landed = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
   assert.match(landed, /^\| \d+ \| \*\*Another general shape\.\*\* \*\(acme\/ledger\)\* \| Some cost\. \| A guard\. \|$/m);
   const plain = parseLessons(landed).rows.at(-1);
   assert.deepEqual([plain.shape, plain.guard], ['**Another general shape.** *(acme/ledger)*', 'A guard.']);
   assert.match(await readFile(join(dir, INBOX_MD), 'utf8'), /^Nothing is waiting for a decision\.$/m, 'none proposed once all are decided');
-  assert.deepEqual(await leaks(dir), [], 'no file under keel\'s tree holds the private marker');
+  assert.deepEqual(await leaks(dir), [], 'no file under plates\'s tree holds the private marker');
   // The walk can see a leak: plant one and it is found.
   await writeFile(join(dir, 'docs', 'planted.md'), MARKER);
   assert.deepEqual(await leaks(dir), ['docs/planted.md']);

@@ -10,16 +10,16 @@ import { run as roadmap } from '../practices/phases/files/scripts/roadmap.mjs';
 import { acmeRepo, treeState, ENV } from './helpers/prove.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const BIN = join(ROOT, 'bin/keel.mjs');
+const BIN = join(ROOT, 'bin/plates.mjs');
 const LOOP = join(ROOT, 'practices/loop/files');
 async function temporary(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-consumers-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-consumers-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
 async function config(dir, value) {
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(value));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(value));
 }
 
 for (const phases of [{ source: 'milestones' }, { source: 'unsupported' }, { source: null }, { shape: 'projects' }]) {
@@ -60,8 +60,8 @@ async function installed(t, withNight) {
     await cp(join(LOOP, path), join(dir, path));
   }
   if (withNight) {
-    await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-    await cp(join(ROOT, 'practices/night/files/scripts/keel/planning-config.mjs'), join(dir, 'scripts/keel/planning-config.mjs'));
+    await mkdir(join(dir, 'scripts/plates'), { recursive: true });
+    await cp(join(ROOT, 'practices/night/files/scripts/plates/planning-config.mjs'), join(dir, 'scripts/plates/planning-config.mjs'));
   }
   await writeFile(join(dir, 'docs/LOOP.md'), 'Historical Loop page, preserved verbatim.\n');
   await config(dir, { phases: { source: 'milestones' }, loop: { prove: true, afterRender: 'touch after-render-ran' } });
@@ -74,7 +74,7 @@ async function installed(t, withNight) {
   const state = join(base, 'state.json'), calls = join(base, 'calls.jsonl');
   await writeFile(state, JSON.stringify({ insights: [{ id: 'acme-insight', title: 'Acme new insight', state: 'ACTIVE', priority: 'P2', description: 'Acme data' }] }));
   await writeFile(calls, '');
-  const env = { ...process.env, KEEL_STITCH: stub, STITCH_STUB_STATE: state, STITCH_STUB_LOG: calls, STITCH_WORKSPACE: 'acme', ANTHROPIC_API_KEY: 'fake-acme', CLAUDE_BIN: harness };
+  const env = { ...process.env, PLATES_STITCH: stub, STITCH_STUB_STATE: state, STITCH_STUB_LOG: calls, STITCH_WORKSPACE: 'acme', ANTHROPIC_API_KEY: 'fake-acme', CLAUDE_BIN: harness };
   const loop = (...args) => run(process.execPath, [join(dir, 'scripts/loop.mjs'), ...args], { cwd: dir, env });
   return { dir, env, loop, calls };
 }
@@ -149,7 +149,7 @@ for (const withNight of [false, true]) {
 
 
 test('standalone Loop planning validator matches the shared validator exactly', async () => {
-  const canonical = await readFile(join(ROOT, 'practices/night/files/scripts/keel/planning-config.mjs'), 'utf8');
+  const canonical = await readFile(join(ROOT, 'practices/night/files/scripts/plates/planning-config.mjs'), 'utf8');
   const loop = await readFile(join(LOOP, 'scripts/loop.mjs'), 'utf8');
   const body = canonical.slice(canonical.indexOf('export function planningConfig'), canonical.indexOf('export const milestoneSource'))
     .replace('export function planningConfig', 'function standalonePlanningConfig').trim();
@@ -164,7 +164,7 @@ test('normal seeded gate with optional Loop survives a milestone source switch',
   cfg.practices.push('loop');
   await config(dir, cfg);
   const guide = join(dir, 'AGENTS.md');
-  await writeFile(guide, await readFile(guide, 'utf8') + '\n<!-- keel:begin loop -->\n<!-- keel:end loop -->\n');
+  await writeFile(guide, await readFile(guide, 'utf8') + '\n<!-- plates:begin loop -->\n<!-- plates:end loop -->\n');
   await installPractices(dir);
   const template = await readFile(join(dir, 'docs/templates/phase.md'), 'utf8');
   await writeFile(join(dir, 'docs/phases/00-acme.md'), phaseZero(template, { name: 'Acme', kind: 'node', since: '2026-10-10' }));

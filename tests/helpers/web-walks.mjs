@@ -55,7 +55,7 @@ export const walkDefinition=()=>({version:1,id:'acme-search',title:'Try Acme sea
 export function walkHarness(){
  const h=decisionHarness(),rows=new Map();h.state.now=Date.parse('2026-10-21T12:00:00Z');
  const cfg={name:'Acme Studio',repo:'acme/studio',practices:['phases','shaping']},goals=[{id:'G0',title:'Useful search',outcome:'The owner finds Acme things.'}];
- Object.assign(h.source.files,{'.keel/keel.json':JSON.stringify(cfg),'docs/goals.json':JSON.stringify(goals),[phasePath]:walkPhase(),[resultPath]:resultBytes,'docs/walks/acme-search.json':JSON.stringify(walkDefinition()),'docs/ROADMAP.md':render({config:cfg,phases:[parsePhase(phasePath.split('/').at(-1),walkPhase())],goals})});
+ Object.assign(h.source.files,{'.plates/plates.json':JSON.stringify(cfg),'docs/goals.json':JSON.stringify(goals),[phasePath]:walkPhase(),[resultPath]:resultBytes,'docs/walks/acme-search.json':JSON.stringify(walkDefinition()),'docs/ROADMAP.md':render({config:cfg,phases:[parsePhase(phasePath.split('/').at(-1),walkPhase())],goals})});
  const fetcher=async(url,options)=>{
   if(new URL(url).pathname.endsWith('/rpc/keel_walk_rpc')){
    if(h.state.unavailable)throw Error('Synthetic private storage unavailable');

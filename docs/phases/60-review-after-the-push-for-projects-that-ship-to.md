@@ -5,7 +5,7 @@ since: 2026-10-09
 goal: G2
 spec: 2
 depends: [45, 46]
-note: "Built: \"crossReview\": { \"after\": \"push\" } renders a push-to-main trigger and a daily run into keel-cross-review.yml (none without it); each run reviews main's commits since the last review as one diff, by a provider other than the one its commits' authors and Co-authored-by trailers name; findings are commit comments on the head and one keel:review-after issue per push, read and answered with keel review <repo>@<sha>; at most budget.pushes a day, the rest reviewed together by the next run. Owes the walk: a month of one project's pushes. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
+note: "Built: \"crossReview\": { \"after\": \"push\" } renders a push-to-main trigger and a daily run into plates-cross-review.yml (none without it); each run reviews main's commits since the last review as one diff, by a provider other than the one its commits' authors and Co-authored-by trailers name; findings are commit comments on the head and one keel:review-after issue per push, read and answered with plates review <repo>@<sha>; at most budget.pushes a day, the rest reviewed together by the next run. Owes the walk: a month of one project's pushes. Design: research/2026-10-09-adopting-projects-that-ship-to-main.md."
 evidence: []
 issue: 47
 ---
@@ -20,9 +20,9 @@ On a project with `"crossReview": { "after": "push" }`, every push to main is re
 
 The design is [Adopting projects that already have a practice](../research/2026-10-09-adopting-projects-that-ship-to-main.md), change 3.
 
-- **The trigger**: `keel-cross-review.yml` gains `push: [main]`, on only when `.keel/keel.json` says `"crossReview": { "after": "push" }`. A push of many commits is one review of their combined diff. The workflow's concurrency group coalesces pushes that arrive while one is being reviewed.
+- **The trigger**: `plates-cross-review.yml` gains `push: [main]`, on only when `.plates/plates.json` says `"crossReview": { "after": "push" }`. A push of many commits is one review of their combined diff. The workflow's concurrency group coalesces pushes that arrive while one is being reviewed.
 - **The author**: from the commits' trailers and authors (phase 45's `authorOf`), so Claude's pushes are reviewed by Codex and the reverse; a push from a person is reviewed by the first listed provider.
-- **Where findings go**: a commit comment on the push's head, with each finding inline where the diff allows, and a single tracking issue per push (`keel review after <sha>`) listing them. `keel review <repo>@<sha>` reads and closes them as it does a PR's.
+- **Where findings go**: a commit comment on the push's head, with each finding inline where the diff allows, and a single tracking issue per push (`plates review after <sha>`) listing them. `plates review <repo>@<sha>` reads and closes them as it does a PR's.
 - **Tracked becomes work**: a finding answered tracked files a `keel:agent` issue (phase 54) in the rubric's shape.
 - **The sandbox**: the same two jobs as cross-review (a read-only review job; a publish job that runs nothing from the pushed code).
 - **Spend**: per push, within the owner's budget; a day's pushes past the budget are reviewed together the next day.
@@ -31,7 +31,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 - [x] A push to main on a project with `after: push` runs one review of the push's combined diff; a project without it runs none. `tests/workflows.test.mjs`, `tests/cross-review.test.mjs`
 - [x] The reviewer is a provider other than the commits' author, by phase 45's rules. `tests/agents.test.mjs`
-- [x] Findings are posted on the head commit and listed in one issue per push; `keel review <repo>@<sha>` reads them with receipts and closes them by ID. `tests/review.test.mjs`
+- [x] Findings are posted on the head commit and listed in one issue per push; `plates review <repo>@<sha>` reads them with receipts and closes them by ID. `tests/review.test.mjs`
 - [x] The review job is read-only and the publish job runs nothing from the pushed code. `tests/workflows.test.mjs`
 - [x] Past the budget, pushes wait and are reviewed together. `tests/cross-review.test.mjs`
 - [ ] ⚑ by hand: a month of one project's pushes reviewed; the owner compares real findings with noise.
@@ -48,7 +48,7 @@ The design is [Adopting projects that already have a practice](../research/2026-
 
 ## Real surfaces
 
-- Workflow shell: `keel-cross-review.yml` on a push to main.
+- Workflow shell: `plates-cross-review.yml` on a push to main.
 - GitHub API: commit comments, the per-push issue.
 - Adopted project: one that ships to main.
 

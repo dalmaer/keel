@@ -9,7 +9,7 @@ export function harness() {
   const state = { now: Date.now(), records: new Map(), requests: [], unavailable: false, userId: 1, members: [1],
     private: true, appId: 11, installationId: 21, suspended: null, selection: 'selected', repoId: 102,
     repoName: 'acme/studio', repoAccess: true, partial: false, failGitHub: false, challenges: new Set() };
-  const input = { version: 1, origin: 'https://keel.acme.test', ownerIds: [1], appId: 11, clientId: 'fake-client', installationId: 21,
+  const input = { version: 1, origin: 'https://plates.acme.test', ownerIds: [1], appId: 11, clientId: 'fake-client', installationId: 21,
     workspace: { id: 'acme', repoId: 101, manifestPath: 'workspace.json', membersPath: 'members.json' }, projectRepoIds: { studio: 102 } };
   const secrets = { clientSecret: 'fake-client-secret-only-for-tests', storageUrl: 'https://acme.supabase.co',
     storageKey: 'fake-service-key-only-for-tests', encryptionKey: Buffer.alloc(32, 7).toString('base64') };
@@ -58,14 +58,14 @@ export function harness() {
     if (path === '/user/installations') return json({ total_count: 1, installations: [{ id: state.installationId, app_id: state.appId,
       suspended_at: state.suspended, repository_selection: state.selection, permissions: { contents: state.contentsPermission ?? 'read', metadata: 'read' } }] });
     if (path === '/user/installations/21/repositories') {
-      const repositories = [{ id: 101, full_name: 'acme/keel-private' }, ...(state.repoAccess ? [{ id: state.repoId, full_name: state.repoName }] : [])];
+      const repositories = [{ id: 101, full_name: 'acme/plates-private' }, ...(state.repoAccess ? [{ id: state.repoId, full_name: state.repoName }] : [])];
       return json({ total_count: repositories.length + (state.partial ? 1 : 0), repositories });
     }
-    if (path === '/repositories/101') return json({ id: 101, full_name: 'acme/keel-private', private: state.private, default_branch: 'main' });
-    if (path === '/repos/acme/keel-private/commits/main') return json({ sha: 'a'.repeat(40) });
-    if (path.startsWith('/repos/acme/keel-private/contents/')) {
+    if (path === '/repositories/101') return json({ id: 101, full_name: 'acme/plates-private', private: state.private, default_branch: 'main' });
+    if (path === '/repos/acme/plates-private/commits/main') return json({ sha: 'a'.repeat(40) });
+    if (path.startsWith('/repos/acme/plates-private/contents/')) {
       assert.equal(parsed.searchParams.get('ref'), 'a'.repeat(40));
-      const manifest = { version: 1, id: 'acme', name: 'Acme workspace', repo: 'acme/keel-private', projects: [{ id: 'studio', repo: 'acme/studio' }] };
+      const manifest = { version: 1, id: 'acme', name: 'Acme workspace', repo: 'acme/plates-private', projects: [{ id: 'studio', repo: 'acme/studio' }] };
       const content = JSON.stringify(path.endsWith('/workspace.json') ? manifest : { version: 1, workspaceId: 'acme', memberIds: state.members });
       return json({ type: 'file', encoding: 'base64', size: Buffer.byteLength(content), content: Buffer.from(content).toString('base64') });
     }

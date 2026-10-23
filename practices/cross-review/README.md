@@ -2,17 +2,17 @@
 
 **The failure it prevents.** Review that runs one way only. Codex reviews
 every pull request in ledger, duo and cajones, Claude Code's included, and
-on 6 October its reviews of keel's v0.8.0–v0.8.2 update PRs found 27
+on 6 October its reviews of plates's v0.8.0–v0.8.2 update PRs found 27
 comments, all valid (a P1 sandbox escape, a P1 secret persisted in
 artifacts). Codex's own PRs got no second reader. A second model catches
 what the author's model is blind to; the same model reviewing itself does
 not.
 
-**The rule.** `.github/workflows/keel-cross-review.yml` runs an agent on a
+**The rule.** `.github/workflows/plates-cross-review.yml` runs an agent on a
 pull request whose head branch starts with a configured prefix, under the
 brief `.agents/cross-review/REVIEW.md`. **A PR is reviewed by a
 different provider than the one that wrote it, whenever one is available**
-(the owner's rule, keel phase 45): Claude (`anthropics/claude-code-action`) reviews Codex's
+(the owner's rule, plates phase 45): Claude (`anthropics/claude-code-action`) reviews Codex's
 `codex/` PRs, Codex (`openai/codex-action`) reviews Claude's `claude/` PRs.
 The author is the provider whose branch the head starts with (`claude/` is
 claude-code-action's default branch prefix; Codex's cloud always names its
@@ -38,14 +38,14 @@ OPENAI_API_KEY is not set"):
   (wrong or unsafe), P2 (a bug in some case) or P3 (worth a look), on the
   line it is about. No style nits, no restating the diff. The
   agent reads the selected working guide, the project's lessons table,
-  `docs/keel-lessons.md` and the phase the PR names.
+  `docs/plates-lessons.md` and the phase the PR names.
 - **What it can do.** Read, and nothing else. Claude's tools are Read,
   Grep, Glob, `gh pr diff` and `gh pr view`; Codex runs in its `read-only`
   sandbox (no write, no network) with `safety-strategy: drop-sudo` (its key
   stays out of its reach) and no GitHub token, reading the diff the
   workflow wrote before it ran. Neither holds a tool that comments: it never
   pushes, approves, requests changes or merges.
-- **Two jobs** (keel phase 46, as climb and tend since ledger#92). The
+- **Two jobs** (plates phase 46, as climb and tend since ledger#92). The
   agent runs in the `review` job, whose token only reads (`contents: read`,
   `pull-requests: read`; no `id-token`, no credential persisted by a
   checkout), and Claude's action is handed that token as `github_token`, so
@@ -57,7 +57,7 @@ OPENAI_API_KEY is not set"):
   only when the agent ran: a red "Did the agent run?" ends the run there.
 - **Findings are data.** The agent's final message is a short summary and
   a fenced `json` block, `[{ "path", "line", "severity": "P1"|"P2"|"P3",
-  "body" }]`. `scripts/keel/cross-review.mjs summary` checks each against
+  "body" }]`. `scripts/plates/cross-review.mjs summary` checks each against
   the PR's diff (the path is in it, the line in one of its hunks, a known
   severity, a body) and the publish job posts one `COMMENT` review: the
   summary, opened by a hidden marker so it is a status board that owes no
@@ -76,7 +76,7 @@ OPENAI_API_KEY is not set"):
   (lesson 29, the climb practice's check, copied into `cross-review.mjs`).
 
 **Answering.** Phase 41's rule applies to the author: every comment is
-validated and answered fixed, tracked or not valid (`keel review --close`).
+validated and answered fixed, tracked or not valid (`plates review --close`).
 The night counts the ones left (`reviews_unanswered`) whoever reviewed, and
 `cross_review_valid` records the share of the cross-review's comments
 (`claude[bot]`'s before phase 45, the workflow's own marked findings since)
@@ -85,7 +85,7 @@ answered valid
 whose comments are mostly "not valid" is noise, and the health page says
 so. It is recorded with no bound.
 
-**Config.** `.keel/keel.json`:
+**Config.** `.plates/plates.json`:
 
 ```json
 "agents": { "claude": {}, "codex": {} },
@@ -126,12 +126,12 @@ the run ends green with a notice. The review and its inline comments are
 posted by the workflow's publish job (`github-actions[bot]`), whichever
 agent wrote them.
 
-**After the push** (keel phase 60). A project that ships to main opens no
+**After the push** (plates phase 60). A project that ships to main opens no
 PR, so its agents' code never meets a second provider. With
 `"crossReview": { "after": "push" }` each push to main is reviewed after
 it lands, and nothing waits on it:
 
-- **The trigger.** `keel render` adds `push: branches: [main]` and a daily
+- **The trigger.** `plates render` adds `push: branches: [main]` and a daily
   run to the workflow only for such a project; without `"after"` the
   workflow has no push trigger at all. `"for"` becomes optional (a project
   may review its PRs too). All pushes and the daily run share one
@@ -158,12 +158,12 @@ it lands, and nothing waits on it:
 - **Where findings go.** Checked against the push's diff exactly as a PR's
   are. Each one whose line the head commit's own diff holds becomes a
   commit comment on the head; all of them go into one tracking issue per
-  push, `keel review after <sha>` (label `keel:review-after`), each with an
+  push, `plates review after <sha>` (label `keel:review-after`), each with an
   id (F1, F2, …). The issue opens pending; the one edit that finishes it
   writes its hidden record (the next run's starting point, each finding's
   whole text as far as the issue holds it) and, with no findings, closes
   it. Until that edit lands nothing is recorded, so a failed post is
-  reviewed again. Answer each with `keel review <repo>@<sha> --close <id>
+  reviewed again. Answer each with `plates review <repo>@<sha> --close <id>
   --fixed …`; the issue closes when every finding is answered (a tracked
   one too: its work goes on where it is tracked). A read shows every other
   comment on the issue, whole, before it counts it read. A finding
@@ -174,9 +174,9 @@ it lands, and nothing waits on it:
   After a push the publish job (`issues: write` too) checks out nothing.
   Every commit on main was pushed code once, a reviewed one too, so no
   commit is run for what it is. It fetches the publisher alone
-  (`scripts/keel/cross-review.mjs` and `lib.mjs`, at the run's commit)
-  and runs it only when their sha256 is the one `keel render` wrote into
-  the workflow (`KEEL_PUBLISHER`); otherwise it is red and runs nothing.
+  (`scripts/plates/cross-review.mjs` and `lib.mjs`, at the run's commit)
+  and runs it only when their sha256 is the one `plates render` wrote into
+  the workflow (`PLATES_PUBLISHER`); otherwise it is red and runs nothing.
   A push that changes the publisher is refused; one that also changes the
   workflow file changes what runs anyway (GitHub runs the pushed workflow),
   and shows in its diff. A start is at the push's `before` only when
@@ -190,14 +190,14 @@ it lands, and nothing waits on it:
   with a notice, and the next run (the daily one, if no push comes)
   reviews the waiting pushes together.
 
-**Optional: opt in.** `keel init` and `keel adopt` leave it off unless asked
-(`--with cross-review`), or unless `.keel/keel.json` already lists it.
+**Optional: opt in.** `plates init` and `plates adopt` leave it off unless asked
+(`--with cross-review`), or unless `.plates/plates.json` already lists it.
 
-**Its files.** `.github/workflows/keel-cross-review.yml`,
-`scripts/keel/cross-review.mjs` and `.agents/cross-review/REVIEW.md`, all
+**Its files.** `.github/workflows/plates-cross-review.yml`,
+`scripts/plates/cross-review.mjs` and `.agents/cross-review/REVIEW.md`, all
 managed.
 
-**Lineage.** Keel phase 42, from the owner's request on 6 October 2026
+**Lineage.** Plates phase 42, from the owner's request on 6 October 2026
 ("I want Claude Code to review Codex PRs"); design
 `docs/research/2026-10-06-cross-review.md`. The trigger and agent-ran
 patterns are the climb and claude practices'.

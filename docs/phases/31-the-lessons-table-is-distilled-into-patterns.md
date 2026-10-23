@@ -12,22 +12,22 @@ issue: 9
 
 ## Done when
 
-One distilling pass over keel's catalogue has been proposed by an agent and decided by the owner: `docs/patterns.md` holds its families, every row is tagged or deliberately universal, and at least one family's guard has been proposed as a practice check that every project runs.
+One distilling pass over plates's catalogue has been proposed by an agent and decided by the owner: `docs/patterns.md` holds its families, every row is tagged or deliberately universal, and at least one family's guard has been proposed as a practice check that every project runs.
 
 ## Scope
 
 The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-by-stack-and-pattern.md), part 2.
 
-- **Families.** `docs/patterns.md` (keel's only): each family has a rule, a
+- **Families.** `docs/patterns.md` (plates's only): each family has a rule, a
   guard recipe and its member rows by number. The table stays the
   append-only record; a row can belong to one family.
-- **`keel learn distill`.** Deterministic, no model: writes a worksheet
+- **`plates learn distill`.** Deterministic, no model: writes a worksheet
   (the catalogue, the current families, rows since the last pass) and
   records proposals made by an agent, as `learn propose` does. Kinds:
   `family`, `reword`, `tag` (with the evidence, where each incident
   happened), `standardise` (a family's guard becomes a practice-change proposal).
   Each proposal must cite rows by number; one that cites none is refused.
-- **Decisions.** `keel learn decide` takes them; accepting a `reword` keeps
+- **Decisions.** `plates learn decide` takes them; accepting a `reword` keeps
   the old wording in the row's history line, never silently replaced;
   accepting `tag` fills the `Where` cell (phase 30); accepting `standardise`
   opens the practice checklist.
@@ -39,7 +39,7 @@ The design is [Lessons by stack and by pattern](../research/2026-10-06-lessons-b
 - [x] `distill` writes the worksheet and records each proposal kind; a proposal citing no row, or an unknown row, or an unknown tag, is refused (exit 2). `tests/distill.test.mjs`
 - [x] Accepting a family writes `docs/patterns.md` with members and keeps every member's number and provenance; accepting a reword keeps the old text in the row's history; both are tested on a synthetic catalogue, with a mutation that drops provenance failing. `tests/distill.test.mjs`
 - [x] Nothing in the pass reads the private inbox: a test runs distill with no gh at all. `tests/distill.test.mjs`
-- [x] The real pass on keel's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
+- [x] The real pass on plates's ~55 rows: proposals made, the owner's decisions recorded, the catalogue and `docs/patterns.md` released.
 - [x] One accepted `standardise` becomes a practice change (its check shipped and released), or the owner declines every standardise with a reason.
 
 ## Proof

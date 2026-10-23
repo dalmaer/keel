@@ -103,11 +103,11 @@ test('a phase still holding the template text fails --check at any status, namin
   // Retired with its goal, a draft owes nothing.
   assert.deepEqual(specProblems('04-acme.md', t.replace('status: planned', 'status: superseded')), []);
 
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     await mkdir(join(root, 'docs/phases'), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase());
     await writeFile(join(root, 'docs/phases/01-drafted.md'), t.replace(/^# .+$/m, '# Drafted'));
@@ -268,7 +268,7 @@ test('a goal with no phase yet is allowed, and says how to start one', () => {
   const goals = [{ id: 'G0', title: 't', outcome: 'o' }, { id: 'G1', title: 'Later', outcome: 'It will.' }];
   const phases = [{ id: 0, file: '00-x.md', title: 'X', status: 'planned', since: '2026-10-02', goal: 'G0', depends: [], note: 'n', done: 'd', next: 'n' }];
   validateGraph(phases, goals);
-  assert.match(render({ config: { name: 'Acme' }, phases, goals }), /## G1 — Later\n\nIt will\.\n\nNo phases yet — `keel phase new --goal G1`\./);
+  assert.match(render({ config: { name: 'Acme' }, phases, goals }), /## G1 — Later\n\nIt will\.\n\nNo phases yet — `plates phase new --goal G1`\./);
 });
 
 test('a retired goal renders last, still counted, never next focus', () => {
@@ -298,11 +298,11 @@ test('next focus skips a phase whose dependencies are not built', () => {
 });
 
 test('check fails on a stale roadmap and passes once regenerated', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     await mkdir(join(root, 'docs/phases'), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase());
     await assert.rejects(run({ root, mode: 'check' }), /stale/);
@@ -379,21 +379,21 @@ test('with livedIn off the headline counts built only and names no lived-in coun
   assert.match(roadmapOf({ name: 'Acme', phases: { livedIn: true } }, [['built']]), /every phase is built; go and live in them\./);
 });
 
-test('.keel/keel.json phases.livedIn: an object with a boolean, off when absent', async () => {
+test('.plates/plates.json phases.livedIn: an object with a boolean, off when absent', async () => {
   assert.equal(livedInOf({}), false);
   assert.equal(livedInOf({ phases: {} }), false);
   assert.equal(livedInOf({ phases: { livedIn: true } }), true);
   assert.throws(() => livedInOf({ phases: true }), /"phases" must be an object/);
   assert.throws(() => livedInOf({ phases: { livedIn: 'yes' } }), /"phases.livedIn" must be true or false/);
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     await mkdir(join(root, 'docs/phases'), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', phases: { livedIn: 1 } }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', phases: { livedIn: 1 } }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase());
     await assert.rejects(run({ root, mode: 'check' }), /"phases.livedIn" must be true or false/);
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase({ status: 'partial', acceptance: walkBoxes, extra: 'owes: walk\n' }));
     assert.equal(await run({ root, mode: 'next' }), 'Nothing left to build; phase 0 owes a walk.');
   } finally {
@@ -440,7 +440,7 @@ test('a label of several words is a walk\'s text, not a command; a retired goal\
   assert.equal(isWalk('⚑ by hand: verify the `Start practice` button on a phone.'), true);
   assert.equal(isWalk('⚑ by hand after `make release`.'), false);
   // duo#84: an unlisted command is a command: two lowercase words or more. A capitalised label and a single name stay names.
-  for (const box of ['⚑ by hand after `keel doctor`.', '⚑ by hand: run `acme-cli sync now`, then read it.', '⚑ by hand once `keel update --yes` ran.']) assert.equal(isWalk(box), false, box);
+  for (const box of ['⚑ by hand after `plates doctor`.', '⚑ by hand: run `acme-cli sync now`, then read it.', '⚑ by hand once `plates update --yes` ran.']) assert.equal(isWalk(box), false, box);
   for (const box of ['⚑ by hand: verify the `Start practice` button on a phone.', '⚑ by hand: `machine_prs` stays at 1.', '⚑ by hand: the next `codex/` PR is read.', '⚑ by hand: the owner sets `"tend": {"schedule": "weekly"}`.', '⚑ by hand: the `Run checks` page reads green.']) assert.equal(isWalk(box), true, box);
   const walkBoxes = '- [x] Built.\n- [ ] ⚑ by hand: the owner reads it.';
   const gone = parsePhase('05-y.md', phase({ status: 'partial', goal: 'G1', acceptance: walkBoxes, extra: 'owes: walk\n' }));
@@ -486,11 +486,11 @@ test('the generated roadmap never reads the clock: a dated phase is named "on or
   assert.match(md, /^\*\*Next focus:\*\* \[1\. P1\]\(phases\/01-x\.md\)\. Do 1\. \(Dated: phase 0 is on or after 2026-11-01\.\)$/m);
   assert.match(md, /\| planned, on or after 2026-11-01 \|/);
   assert.match(md, /\| partial, walk owed \(time\) \|/);
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     await mkdir(join(root, 'docs/phases'), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase({ extra: 'after: 2026-11-01\n' }));
     await run({ root, today: '2026-10-31' });
@@ -565,11 +565,11 @@ test('a walk with no Your part is a note from --check, never a failure; a filled
   // The template's own Your part, left as it is, is template text.
   const t = (await template()).replace('since: YYYY-MM-DD', 'since: 2026-10-03').replace(/^# .+$/m, '# Acme ships');
   assert.ok(specProblems('04-acme.md', t).some(p => p.startsWith("docs/phases/04-acme.md: ## Your part still holds the template's text") && /delete the section when the phase has no ⚑ walk/.test(p)));
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     await mkdir(join(root, 'docs/phases'), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/05-acme.md'), bare);
     await run({ root });
@@ -615,11 +615,11 @@ test('measurement advice ignores nonmeasurements and documents its small heurist
 });
 
 test('roadmap measurement advice scans evidence/research and phase proof, stays JSON and never fails the check', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
-    await mkdir(join(root, '.keel'));
+    await mkdir(join(root, '.plates'));
     for (const dir of ['phases', 'evidence', 'research']) await mkdir(join(root, 'docs', dir), { recursive: true });
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme' }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme' }));
     await writeFile(join(root, 'docs/goals.json'), JSON.stringify([{ id: 'G0', title: 'Start', outcome: 'It starts.' }]));
     await writeFile(join(root, 'docs/phases/00-start.md'), phase().replace('A command.', 'Observed 12 ms.'));
     await writeFile(join(root, 'docs/evidence/acme.md'), 'Observed 20%.');
@@ -629,7 +629,7 @@ test('roadmap measurement advice scans evidence/research and phase proof, stays 
     const data = JSON.parse(await run({ root, mode: 'json' }));
     assert.deepEqual(data.measurementNotes.map(n => n.path), ['docs/phases/00-start.md', 'docs/evidence/acme.md']);
     assert.deepEqual(data.problems, []);
-    await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', phases: { source: 'milestones' } }));
+    await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', phases: { source: 'milestones' } }));
     await writeFile(join(root, 'docs/phases/00-start.md'), 'malformed archived phase');
     assert.match(await run({ root, mode: 'check' }), /inactive/);
   } finally { await rm(root, { recursive: true, force: true }); }
@@ -638,7 +638,7 @@ test('roadmap measurement advice scans evidence/research and phase proof, stays 
 test('measurement advice does not walk symlinks, unrelated docs or nested trees', async () => {
   const { measurementAdvice } = await import('../scripts/roadmap.mjs');
   const { symlink } = await import('node:fs/promises');
-  const root = await mkdtemp(join(tmpdir(), 'keel-roadmap-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-roadmap-'));
   try {
     await mkdir(join(root, 'docs/evidence/nested'), { recursive: true });
     await writeFile(join(root, 'docs/evidence/real.md'), 'Observed 12 ms.');

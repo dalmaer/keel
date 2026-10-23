@@ -5,8 +5,8 @@ journal and delivery verification. Logs never own acceptance or architecture.
 
 ## Contract
 
-`keel production status|collect|spec|verify` accepts `--json`. Source configuration
-is `production` in the selected project's `.keel/keel.json`; off by default.
+`plates production status|collect|spec|verify` accepts `--json`. Source configuration
+is `production` in the selected project's `.plates/plates.json`; off by default.
 No runtime dependencies, Node 24, no build. Configuration pins provider, service,
 environment, bounded window, event/byte/time limits and recurrence threshold.
 A source explicitly marked not-applicable (static site or CLI without deployed
@@ -22,7 +22,7 @@ expired, missing timestamps, pagination-limited or timed-out reads remain gaps;
 never infer a healthy window from incomplete evidence. Collector limits bound
 both bytes and events. Do not install cloud resources or export secret values.
 
-Store durable sanitized observations under `.keel/production/`, with versioned
+Store durable sanitized observations under `.plates/production/`, with versioned
 schemas, bounded atomic writes, symlink refusal, writer serialization and explicit
 recovery. Collect previews unless `--yes`. Repeated collection of the same window
 is idempotent; overlapping windows deduplicate stable provider event IDs, scoped
@@ -54,7 +54,7 @@ bounded intended change and acceptance including post-deploy verification.
 Insufficient reproduction stays an owner blocker; logs alone cannot invent a fix.
 
 A named incident can be attached to a reviewed rubric and submitted via the
-existing `keel issue new --agent` machinery and its durable stable subject key.
+existing `plates issue new --agent` machinery and its durable stable subject key.
 Do not create another issue tracker or auto-create duplicates after ambiguous
 POSTs. Preview before `--yes`. Existing robot policy/budget/authorization applies;
 this feature never increases spend, self-merges PRs or deploys automatically.
@@ -82,7 +82,7 @@ without losing the rest of the health report. Include a first-run/bootstrap poli
 and immutable per-run observations; concurrent runners must not overwrite history.
 
 Fleet rollout starts with observed sources: isocan Cloud Run and Ledger Vercel.
-Inspect Duo before selecting a source. Keel and static projects may legitimately
+Inspect Duo before selecting a source. Plates and static projects may legitimately
 be not applicable. Configure only verified service identities and available access;
 leave specific credential/setup gaps explicit. Existing night schedules are reused.
 Log-read enablement and issue preparation are authorized by the owner's request;

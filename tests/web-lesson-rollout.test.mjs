@@ -4,6 +4,18 @@ import {lessonRolloutHarness,token} from './helpers/web-lesson-rollout.mjs';
 import {validateLessonTrace} from '../lib/web/lesson-rollout.mjs';
 import {hash} from '../lib/web/common.mjs';
 const inspect=h=>h.rollout.inspect(h.access,token,h.id);
+test('lesson adoption reads legacy config only when canonical config is absent',async()=>{
+  for(const legacy of [false,true]){
+    const h=lessonRolloutHarness();
+    for(const [canonical,old] of [['.plates/plates.json','.keel/keel.json'],['.plates/lock.json','.keel/lock.json']]){
+      h.source.files[old]=legacy?h.source.files[canonical]:'{bad legacy';
+      if(legacy)delete h.source.files[canonical];
+    }
+    assert.equal((await inspect(h)).adoptions[0].state,'evidenced');
+  }
+  const h=lessonRolloutHarness();h.source.files['.keel/keel.json']=h.source.files['.plates/plates.json'];h.source.files['.plates/plates.json']='{bad canonical';
+  assert.notEqual((await inspect(h)).adoptions[0].state,'evidenced');
+});
 test('source-backed trace keeps decision, released bytes, observed adoption and protection distinct',async()=>{
   const h=lessonRolloutHarness(),m=await inspect(h);
   assert.equal(m.source.state,'evidenced');assert.equal(m.decision.status,'accepted');assert.equal(m.catalogue.state,'evidenced');assert.equal(m.release.state,'evidenced');
@@ -35,8 +47,8 @@ test('references outside currently authorized repositories never trigger a provi
 test('fresh adoption keeps ejections and drift distinct from unavailable rendered-target proof',async()=>{
   for(const mode of ['ejected','drift','rendered']){
     const h=lessonRolloutHarness(),path='scripts/acme-bound.mjs';
-    if(mode==='ejected'){const cfg=JSON.parse(h.source.files['.keel/keel.json']);cfg.ejected=[path];h.source.files['.keel/keel.json']=JSON.stringify(cfg);}
-    else {h.source.files[path]='export const bound = 75;\n';if(mode==='rendered'){const lock=JSON.parse(h.source.files['.keel/lock.json']);lock.files[path].sha256=hash(h.source.files[path]);h.source.files['.keel/lock.json']=JSON.stringify(lock);}}
+    if(mode==='ejected'){const cfg=JSON.parse(h.source.files['.plates/plates.json']);cfg.ejected=[path];h.source.files['.plates/plates.json']=JSON.stringify(cfg);}
+    else {h.source.files[path]='export const bound = 75;\n';if(mode==='rendered'){const lock=JSON.parse(h.source.files['.plates/lock.json']);lock.files[path].sha256=hash(h.source.files[path]);h.source.files['.plates/lock.json']=JSON.stringify(lock);}}
     const m=await inspect(h),guard=m.adoptions[0].guards[0];assert.equal(guard.state,mode==='rendered'?'unavailable':'inconsistent');
     if(mode==='rendered')assert.match(guard.reason,/trusted rendering proof/);
   }

@@ -1,4 +1,4 @@
-# Keel contributor tooling only. Not a managed workflow shipped to adopters.
+# Plates contributor tooling only. Not a managed workflow shipped to adopters.
 name: typecheck
 run-name: ${{ inputs.keel_operation != '' && format('keel-web-{0}', inputs.keel_operation) || github.event.head_commit.message || github.event.pull_request.title || 'typecheck' }}
 
@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       keel_operation:
-        description: Keel durable operation identity (leave blank for ordinary CI)
+        description: Plates durable operation identity (leave blank for ordinary CI)
         required: false
         type: string
         default: ''
@@ -52,7 +52,7 @@ jobs:
           node-version-file: .nvmrc
       - name: Claim and run bounded typecheck
         env:
-          KEEL_WEB_ORIGIN: ${{ vars.KEEL_WEB_ORIGIN }}
-          KEEL_WEB_OPERATION: ${{ inputs.keel_operation }}
+          PLATES_WEB_ORIGIN: ${{ vars.PLATES_WEB_ORIGIN || vars.KEEL_WEB_ORIGIN }}
+          PLATES_WEB_OPERATION: ${{ inputs.keel_operation }}
           GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: node scripts/web-worker.mjs

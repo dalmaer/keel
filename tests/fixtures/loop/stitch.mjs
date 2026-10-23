@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A stand-in for the stitch CLI, at the process boundary (keel phase 14). It
+// A stand-in for the stitch CLI, at the process boundary (plates phase 14). It
 // answers in the envelope both ledger's and isocan's loop scripts parse from
 // `stitch … --format json -q`: {"success": true, "data": …}, or
 // {"success": false, "error": {"code", "message"}} with a non-zero exit.

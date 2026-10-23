@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readRobotBudget,robotAdmission,robotWeek } from '../practices/night/files/scripts/keel/robot-budget.mjs';
-import { robotPolicy } from '../practices/climb/files/scripts/keel/robot-policy.mjs';
+import { readRobotBudget,robotAdmission,robotWeek } from '../practices/night/files/scripts/plates/robot-budget.mjs';
+import { robotPolicy } from '../practices/climb/files/scripts/plates/robot-policy.mjs';
 const repo='acme/anvils',now='2026-10-10T12:00:00Z',sha='a'.repeat(40),policy=robotPolicy({robot:{on:true,budgetMinutes:10}});
 const step=(name,seconds=52)=>({name,status:'completed',conclusion:seconds?'success':'skipped',started_at:'2026-10-10T10:00:00Z',completed_at:new Date(Date.parse('2026-10-10T10:00:00Z')+seconds*1000).toISOString()});
 function api({attempts=1,jobs,run={},total=1}={}) {
  const calls=[];
  const github=async ({path})=>{
  calls.push(path);
- if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+ if(path.endsWith('/workflows/keel-robot.yml'))return {status:404,data:{}};
+ if(path.endsWith('/workflows/plates-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/plates-robot.yml'}};
  if(path.includes('/workflows/7/runs?'))return {status:200,data:{total_count:total,workflow_runs:[{id:11,workflow_id:7,repository:{full_name:repo},head_sha:sha,run_attempt:attempts,updated_at:now,status:'completed',...run}]}};
  const attempt=Number(/attempts\/(\d+)/.exec(path)?.[1]);
  return {status:200,data:{total_count:1,jobs:[{id:30+attempt,run_id:11,run_attempt:attempt,head_sha:sha,name:'agent',status:'completed',conclusion:'success',steps:[step('Robot build Claude',0),step('Robot build Codex')],...jobs}]}};
@@ -53,7 +54,7 @@ test('robot attempt endpoint accepts absent attempt only and preflight exempts o
 test('robot budget excludes router history but counts legacy worker events and old runs rerun this week', async () => {
  const worker = api({attempts:2,run:{event:'issue_comment',created_at:'2026-01-01T00:00:00Z'}});
  const github = async request => {
-  assert.doesNotMatch(request.path,/created=|event=|status=|keel-robot-route/);
+  assert.doesNotMatch(request.path,/created=|event=|status=|plates-robot-route/);
   // Public flood belongs to another workflow, never to the worker's ledger.
   if (request.path.includes('/workflows/8/runs?')) return {status:200,data:{total_count:600,workflow_runs:[]}};
   return worker.github(request);
@@ -69,7 +70,8 @@ test('robot budget never treats more than 500 actual worker runs as complete or 
  const calls=[];
  const github=async ({path})=>{
   calls.push(path);
-  if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+ if(path.endsWith('/workflows/keel-robot.yml'))return {status:404,data:{}};
+  if(path.endsWith('/workflows/plates-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/plates-robot.yml'}};
   assert.match(path,/\/workflows\/7\/runs\?/);
   const page=Number(new URL(`https://api.github.com${path}`).searchParams.get('page'));
   return {status:200,data:{total_count:501,workflow_runs:Array.from({length:100},(_,i)=>({id:(page-1)*100+i+1,workflow_id:7,repository:{full_name:repo},head_sha:sha,run_attempt:1,updated_at:now,status:'completed'}))}};
@@ -84,7 +86,8 @@ test('robot budget never treats more than 500 actual worker runs as complete or 
 test('robot review retry reuses prior attempt build while accounting every attempt and requiring current preflight', async () => {
  const preflight={runId:11,attempt:2,job:'review-agent'};
  const fixture=({build=true,latest=2,active=true,buildAttempt=1,future=false}={})=>async ({path})=>{
-  if(path.endsWith('/workflows/keel-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/keel-robot.yml'}};
+ if(path.endsWith('/workflows/keel-robot.yml'))return {status:404,data:{}};
+  if(path.endsWith('/workflows/plates-robot.yml'))return {status:200,data:{id:7,path:'.github/workflows/plates-robot.yml'}};
   if(path.includes('/runs?'))return {status:200,data:{total_count:1,workflow_runs:[{id:11,workflow_id:7,repository:{full_name:repo},head_sha:sha,run_attempt:latest,updated_at:now,status:'in_progress'}]}};
   const attempt=Number(/attempts\/(\d+)/.exec(path)[1]);
   const base={run_id:11,run_attempt:attempt,head_sha:sha};
@@ -101,4 +104,19 @@ test('robot review retry reuses prior attempt build while accounting every attem
   assert.equal(got.state,'unknown',JSON.stringify(options));assert.equal(got.usedSeconds,null);assert.equal(got.remainingSeconds,null);
  }
  for(const changed of [{...preflight,runId:12},{...preflight,attempt:3},{...preflight,attempt:1}])assert.equal((await readRobotBudget({repo,policy,now,preflight:changed,github:fixture()})).state,'unknown');
+});
+
+test('rename preserves prior worker usage and fails closed on unreadable legacy history', async () => {
+ const base = api().github;
+ const github = async request => {
+  const path = request.path;
+  if (path.endsWith('/workflows/keel-robot.yml')) return { status: 200, data: { id: 8, path: '.github/workflows/keel-robot.yml' } };
+  if (path.includes('/workflows/8/runs?')) return { status: 200, data: { total_count: 1, workflow_runs: [{id:12,workflow_id:8,repository:{full_name:repo},head_sha:sha,run_attempt:1,updated_at:now,status:'completed'}] } };
+  if (path.includes('/runs/12/')) { const response = await base({...request,path:path.replace('/runs/12/','/runs/11/')}); response.data.jobs.forEach(job => {job.run_id=12;job.id+=10;}); return response; }
+  return base(request);
+ };
+ const result = await readRobotBudget({repo,policy,now,github});
+ assert.equal(result.usedSeconds,104);assert.equal(result.remainingSeconds,496);
+ const unavailable = request => request.path.endsWith('/workflows/keel-robot.yml') ? Promise.resolve({status:503,data:{}}) : base(request);
+ assert.equal((await readRobotBudget({repo,policy,now,github:unavailable})).state,'unknown');
 });

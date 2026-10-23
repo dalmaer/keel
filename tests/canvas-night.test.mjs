@@ -8,7 +8,7 @@ import { run } from './helpers/run.mjs';
 
 const binding = { provider: 'isocan', projectKey: 'acme', home: 'https://acme.test', canvasId: 'canvas_acme', actorId: 'actor_acme', audience: 'owner-only', privacy: 'summary', mode: 'immutable', spaceId: null };
 const initialManifest = () => ({ schema: 1, projectKey: binding.projectKey, home: binding.home, canvasId: binding.canvasId, items: {}, groups: {}, receipts: [], pending: null });
-const template = resolve('practices/night/files/.github/workflows/keel-night.yml');
+const template = resolve('practices/night/files/.github/workflows/plates-night.yml');
 const report = { date: '2026-10-08', measures: [
   { id: 'gate', value: 0, state: 'ok', detail: 'fake-secret-private-command' },
   { id: 'ci', value: 0, state: 'n/a', detail: 'offline' },
@@ -16,8 +16,8 @@ const report = { date: '2026-10-08', measures: [
 async function fixture(t, canvas = { enabled: true, cadence: 'nightly' }) {
   const root = await mkdtemp(join(tmpdir(), 'acme-canvas-night-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', canvas }));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', canvas }));
   return root;
 }
 function pipeline({ dirty = false, failure = false } = {}) {
@@ -60,13 +60,13 @@ test('one existing report, offline gaps, no remote call without yes; raw details
 });
 test('publishes once, preserving report and using the supplied environment', async t => {
   const root = await fixture(t), deps = pipeline(), before = JSON.stringify(report);
-  const env = { KEEL_CANVAS_OUTPUT: join(root, 'artifacts') };
+  const env = { PLATES_CANVAS_OUTPUT: join(root, 'artifacts') };
   const out = await night({ root, report, env, yes: true, ...deps });
   assert.equal(out.exitCode, 0);
   assert.deepEqual(deps.calls.map(x => x[0]), ['snapshot', 'render', 'sync']);
   assert.equal(deps.calls[2][1].env, env);
   assert.equal(JSON.stringify(report), before);
-  assert.equal(JSON.parse(await readFile(join(env.KEEL_CANVAS_OUTPUT, 'receipt.json'))).state, 'published');
+  assert.equal(JSON.parse(await readFile(join(env.PLATES_CANVAS_OUTPUT, 'receipt.json'))).state, 'published');
 });
 test('dirty revision and failed transport retain local output without retry or leaked errors', async t => {
   for (const opts of [{ dirty: true }, { failure: true }]) {
@@ -89,15 +89,15 @@ function shell(yaml) {
   const block = yaml.split('      - name: Project the night onto its canvas\n')[1].split('\n      - name:')[0];
   return block.split('        run: |\n')[1].split('\n').map(l => l.startsWith('          ') ? l.slice(10) : l).join('\n');
 }
-async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {}, jobs = {} } = {}) {
+async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {}, jobs = {}, repositories = {} } = {}) {
   const root = await fixture(t, { ...binding, enabled, cadence: 'nightly' });
-  if (local) { await mkdir(join(root, '.keel/canvas')); await writeFile(join(root, '.keel/canvas/manifest.json'), JSON.stringify(initialManifest())); }
+  if (local) { await mkdir(join(root, '.plates/canvas')); await writeFile(join(root, '.plates/canvas/manifest.json'), JSON.stringify(initialManifest())); }
   const bin = join(root, 'bin'); await mkdir(bin);
   // The step's recovery is the night practice's managed script, as a project has it.
-  await mkdir(join(root, 'scripts/keel'), { recursive: true });
-  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/keel', f), await readFile(resolve('practices/night/files/scripts/keel', f), 'utf8'));
+  await mkdir(join(root, 'scripts/plates'), { recursive: true });
+  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/plates', f), await readFile(resolve('practices/night/files/scripts/plates', f), 'utf8'));
   const log = join(root, 'calls.jsonl');
-  for (const tool of ['keel', 'isocan']) {
+  for (const tool of ['plates', 'isocan']) {
     if (missing && tool === 'isocan') continue;
     const file = join(bin, tool);
     await writeFile(file, `#!${process.execPath}\nconst fs=require('node:fs'); const a=process.argv.slice(2); fs.appendFileSync(${JSON.stringify(log)},JSON.stringify([${JSON.stringify(tool)},...a])+'\\n'); if(a[0]==='--version') console.log('acme-pinned'); else {if(a[0]!=='canvas'||a[1]!=='night') process.exit(90); const r=JSON.parse(fs.readFileSync(a[a.indexOf('--report')+1])); if(r.date!=='2026-10-08') process.exit(91); process.exit(${fail ? 1 : 0});}`);
@@ -110,7 +110,8 @@ const fs=require('node:fs'), path=require('node:path'), a=process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghlog)}, JSON.stringify(a)+'\\n');
 if(a[0]==='api') {
  let out;
- if(a[1].includes('/workflows/')) out={workflow_runs:${JSON.stringify(runs)}};
+ if (Object.hasOwn(${JSON.stringify(repositories)}, a[1])) out=${JSON.stringify(repositories)}[a[1]];
+ else if(a[1].includes('/workflows/')) out={workflow_runs:${JSON.stringify(runs)}};
  else if(a[1].includes('/contents/')) { const enabled=!${JSON.stringify(disabledShas)}.includes(a[1].split('ref=')[1]); const c=JSON.stringify({canvas:{enabled,cadence:'nightly'}}); out={encoding:'base64',content:Buffer.from(c).toString('base64'),size:c.length}; }
  else if(a[1].includes('/jobs')) { const p=a[1].split('?')[0].split('/'); const listed=${JSON.stringify(jobs)}[p[p.indexOf('runs')+1]+'-'+p[p.indexOf('attempts')+1]]; if(!listed) process.exit(94); out={total_count:listed.length,jobs:listed}; }
  else if(a[1].includes('/attempts/')) out=${JSON.stringify(priorAttempt ?? null)};
@@ -130,7 +131,7 @@ if(a[0]==='api') {
   const home = join(root, 'identity'); await mkdir(home);
   const env = { ...process.env, PATH: bin, RUNNER_TEMP: root, GITHUB_OUTPUT: join(root, 'outputs'),
     REPO: 'Acme/app', BASE: 'main', GITHUB_REPOSITORY: 'Acme/app', GITHUB_REF_NAME: 'main', GITHUB_RUN_ID: '200', GITHUB_RUN_ATTEMPT: String(attempt), GITHUB_EVENT_NAME: event, GITHUB_SHA: 'b'.repeat(40),
-    KEEL_CANVAS_KEEL_VERSION: mismatch ? 'wrong-pin' : 'acme-pinned', KEEL_CANVAS_ISOCAN_VERSION: 'acme-pinned', KEEL_CANVAS_ISOCAN_HOME: creds ? home : '' };
+    PLATES_CANVAS_PLATES_VERSION: mismatch ? 'wrong-pin' : 'acme-pinned', PLATES_CANVAS_ISOCAN_VERSION: 'acme-pinned', PLATES_CANVAS_ISOCAN_HOME: creds ? home : '' };
   const yaml = await readFile(template, 'utf8');
   const out = run('/bin/bash', ['-e', '-o', 'pipefail', '-c', shell(yaml)], { cwd: root, env });
   let calls = []; try { calls = (await readFile(log, 'utf8')).trim().split('\n').map(JSON.parse); } catch {}
@@ -140,12 +141,12 @@ if(a[0]==='api') {
 test('actual workflow shell: off has no CLI calls; on consumes report exactly once', async t => {
   const off = await workflow(t, { enabled: false }); assert.equal(off.status, 0); assert.deepEqual(off.calls, []);
   const on = await workflow(t); assert.equal(on.status, 0, on.stderr);
-  assert.deepEqual(on.calls.map(a => a.slice(0, 3)), [['keel', '--version'], ['isocan', '--version'], ['keel', 'canvas', 'night']]);
+  assert.deepEqual(on.calls.map(a => a.slice(0, 3)), [['plates', '--version'], ['isocan', '--version'], ['plates', 'canvas', 'night']]);
   assert.ok(on.calls[2].includes('--yes'));
   assert.ok(on.yaml.indexOf("- name: Open the night's pull request") < on.yaml.indexOf('- name: Project the night'));
   assert.match(on.yaml, /CANVAS_OUTCOME.*steps.canvas.outcome/);
   assert.match(on.yaml, /retention-days: 90/);
-  assert.equal(on.yaml, await readFile(resolve('.github/workflows/keel-night.yml'), 'utf8'));
+  assert.equal(on.yaml, await readFile(resolve('.github/workflows/plates-night.yml'), 'utf8'));
 });
 test('actual workflow shell fails visibly for missing tools, pins, credentials and sync failure', async t => {
   for (const options of [{ missing: true }, { mismatch: true }, { creds: false }, { fail: true }]) {
@@ -159,10 +160,10 @@ test('real collector: original measured report publishes after data commit, arbi
   const root = await fixture(t), artifacts = await realpath(await mkdtemp(join(tmpdir(), 'acme-canvas-output-')));
   t.after(() => rm(artifacts, { recursive: true, force: true }));
   const git = (...args) => { const r = run('git', args, { cwd: root }); assert.equal(r.status, 0, r.stderr); return r.stdout; };
-  git('init', '-q'); git('add', '.keel/keel.json'); git('-c', 'user.name=Acme', '-c', 'user.email=acme@example.invalid', 'commit', '-qm', 'Acme baseline');
+  git('init', '-q'); git('add', '.plates/plates.json'); git('-c', 'user.name=Acme', '-c', 'user.email=acme@example.invalid', 'commit', '-qm', 'Acme baseline');
   await mkdir(join(root, 'docs/health'), { recursive: true });
   await writeFile(join(root, 'docs/health/2026-10-08.md'), '# Health — 2026-10-08\n');
-  await writeFile(join(root, '.keel/bounds.json'), '{}\n');
+  await writeFile(join(root, '.plates/bounds.json'), '{}\n');
   let writes = 0, failure;
   const deps = {
     snapshot: async options => { try { return await (await import('../lib/canvas-snapshot.mjs')).snapshot(options); } catch (e) { failure = e.stack; throw e; } },
@@ -170,7 +171,7 @@ test('real collector: original measured report publishes after data commit, arbi
     sync: async () => { writes++; return { data: { state: 'published' }, exitCode: 0 }; } };
   const dirty = await night({ root, report, output: join(artifacts, 'before'), yes: true, ...deps });
   assert.equal(dirty.exitCode, 1, JSON.stringify(dirty)); assert.equal(writes, 0);
-  git('add', 'docs/health/2026-10-08.md', '.keel/bounds.json');
+  git('add', 'docs/health/2026-10-08.md', '.plates/bounds.json');
   git('-c', 'user.name=Acme', '-c', 'user.email=acme@example.invalid', 'commit', '-qm', 'Acme measured data');
   const clean = await night({ root, report, output: join(artifacts, 'after'), yes: true, ...deps });
   assert.equal(clean.exitCode, 0, failure ?? JSON.stringify(clean)); assert.equal(writes, 1);
@@ -191,7 +192,7 @@ test('actual verdict shell makes a continued canvas failure visible after health
   assert.match(out.stdout, /::error::Canvas projection failed/);
 });
 
-const trustedRun = (extra = {}) => ({ id: 100, run_attempt: 1, head_sha: 'a'.repeat(40), head_repository: { full_name: 'Acme/app' }, repository: { full_name: 'Acme/app' }, head_branch: 'main', path: '.github/workflows/keel-night.yml', event: 'schedule', pull_requests: [], status: 'completed', conclusion: 'success', ...extra });
+const trustedRun = (extra = {}) => ({ id: 100, run_attempt: 1, head_sha: 'a'.repeat(40), head_repository: { full_name: 'Acme/app' }, repository: { full_name: 'Acme/app' }, head_branch: 'main', path: '.github/workflows/plates-night.yml', event: 'schedule', pull_requests: [], status: 'completed', conclusion: 'success', ...extra });
 const artifactFor = r => ({ name: `keel-canvas-night-${r.run_attempt}`, expired: false, size_in_bytes: 500, workflow_run: { id: r.id, head_sha: r.head_sha } });
 const provenanceFor = r => ({ repo: 'Acme/app', workflow: r.path, runId: String(r.id), attempt: r.run_attempt, headSha: r.head_sha });
 
@@ -242,7 +243,7 @@ test('a preflight failure leaves a never-ran receipt, and the next night recover
   const failed = await workflow(t, { creds: false });
   assert.notEqual(failed.status, 0);
   const receipt = JSON.parse(await readFile(join(failed.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
-  assert.deepEqual(receipt, { neverRan: true, provenance: { repo: 'Acme/app', workflow: '.github/workflows/keel-night.yml', runId: '200', attempt: 1, headSha: 'b'.repeat(40) } });
+  assert.deepEqual(receipt, { neverRan: true, provenance: { repo: 'Acme/app', workflow: '.github/workflows/plates-night.yml', runId: '200', attempt: 1, headSha: 'b'.repeat(40) } });
   const broken = trustedRun({ id: 150, conclusion: 'failure', head_sha: 'c'.repeat(40) }), previous = trustedRun();
   const out = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { '150-1': provenanceFor(broken) }, bundle: { provenance: provenanceFor(previous) } });
   assert.equal(out.status, 0, out.stderr);
@@ -296,23 +297,23 @@ test('a failed rerun of an old night falls back in time order: a night that ran 
   assert.equal(out.status, 0, out.stderr);
   assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['150', 'keel-canvas-night-2'], ['180', 'keel-canvas-night-1']]);
 });
-// Phase 78: keel-morning's plan card writes the same canvas, so the night and the card keep one journal.
-const cardRun = (extra = {}) => trustedRun({ path: '.github/workflows/keel-morning.yml', event: 'workflow_run', ...extra });
+// Phase 78: plates-morning's plan card writes the same canvas, so the night and the card keep one journal.
+const cardRun = (extra = {}) => trustedRun({ path: '.github/workflows/plates-morning.yml', event: 'workflow_run', ...extra });
 const cardArtifact = r => ({ ...artifactFor(r), name: `keel-canvas-card-${r.run_attempt}` });
-/** keel-morning's jobs as one attempt ran them: its card job, with its publish step's conclusion (null: the job itself was skipped). */
+/** plates-morning's jobs as one attempt ran them: its card job, with its publish step's conclusion (null: the job itself was skipped). */
 const cardJobs = (attempt, publish) => [
   { name: 'decide', status: 'completed', conclusion: 'success', run_attempt: attempt },
   { name: 'card', status: 'completed', conclusion: publish === null ? 'skipped' : publish === 'success' ? 'success' : 'failure', run_attempt: attempt,
     steps: publish === null ? [] : [{ name: 'Is the card set up?', status: 'completed', conclusion: 'success' }, { name: 'Publish the plan card', status: 'completed', conclusion: publish }, { name: 'Keep the canvas journal', status: 'completed', conclusion: publish === 'skipped' ? 'skipped' : 'failure' }] },
 ];
-test('the night restores the newest canvas writer, the plan card\'s attempt when it ran last; a keel-morning run that never reached its card is skipped', async t => {
+test('the night restores the newest canvas writer, the plan card\'s attempt when it ran last; a plates-morning run that never reached its card is skipped', async t => {
   const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
   const card = cardRun({ id: 160, run_started_at: '2026-10-08T10:40:00Z' });
   const out = await workflow(t, { runs: [card, night], artifacts: [cardArtifact(card), artifactFor(night)], bundle: { provenance: provenanceFor(card) } });
   assert.equal(out.status, 0, out.stderr);
-  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'the card\'s journal, newer than the night\'s (mutation: list only keel-night.yml and this restores 100)');
-  assert.ok(out.ghCalls.some(a => /actions\/workflows\/keel-morning\.yml\/runs/.test(a[1] ?? '')));
-  // A keel-morning run with no card artifact (its card job never ran: canvas not set for the card, or no plan) never touched the canvas.
+  assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => [a[2], a[a.indexOf('--name') + 1]]), [['160', 'keel-canvas-card-1']], 'the card\'s journal, newer than the night\'s (mutation: list only plates-night.yml and this restores 100)');
+  assert.ok(out.ghCalls.some(a => /actions\/workflows\/plates-morning\.yml\/runs/.test(a[1] ?? '')));
+  // A plates-morning run with no card artifact (its card job never ran: canvas not set for the card, or no plan) never touched the canvas.
   const skipped = await workflow(t, { runs: [card, night], artifacts: [artifactFor(night)], jobs: { '160-1': cardJobs(1, 'skipped') }, bundle: { provenance: provenanceFor(night) } });
   assert.equal(skipped.status, 0, skipped.stderr);
   assert.deepEqual(skipped.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['100']);
@@ -320,14 +321,14 @@ test('the night restores the newest canvas writer, the plan card\'s attempt when
   const forged = await workflow(t, { runs: [card, night], artifacts: [cardArtifact(card), artifactFor(night)], bundle: { provenance: provenanceFor(night) } });
   assert.notEqual(forged.status, 0);
   assert.ok(!forged.calls.some(a => a[1] === 'canvas'));
-  // A night whose canvas artifact is missing is still refused: only keel-morning may have skipped its card.
+  // A night whose canvas artifact is missing is still refused: only plates-morning may have skipped its card.
   const missing = await workflow(t, { runs: [card, night], artifacts: [], jobs: { '160-1': cardJobs(1, null) }, bundle: { provenance: provenanceFor(night) } });
   assert.notEqual(missing.status, 0);
 });
 
 // Review of #151: attempt 1 published the card, its send failed, the owner reran the failed jobs, and
 // attempt 2 (its card job not rerun) left no card artifact. Skipping the whole run lost attempt 1's journal.
-test('a keel-morning rerun with no card artifact falls back to its own earlier attempt, never to an older night (#151)', async t => {
+test('a plates-morning rerun with no card artifact falls back to its own earlier attempt, never to an older night (#151)', async t => {
   const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
   const first = cardRun({ id: 160, run_attempt: 1, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
   const rerun = cardRun({ id: 160, run_attempt: 2, run_started_at: '2026-10-08T11:05:00Z' });
@@ -339,7 +340,7 @@ test('a keel-morning rerun with no card artifact falls back to its own earlier a
 });
 
 // #152: the card published, then its journal's upload failed. No artifact is not proof the card never ran.
-test('a keel-morning attempt with no card journal is skipped only when its job results show the card step never ran; otherwise recovery refuses, the canvas untouched', async t => {
+test('a plates-morning attempt with no card journal is skipped only when its job results show the card step never ran; otherwise recovery refuses, the canvas untouched', async t => {
   const night = trustedRun({ run_started_at: '2026-10-08T07:23:00Z' });
   const card = cardRun({ id: 160, run_started_at: '2026-10-08T10:40:00Z', conclusion: 'failure' });
   for (const [why, jobs] of [
@@ -362,9 +363,9 @@ test('a keel-morning attempt with no card journal is skipped only when its job r
     assert.equal(out.status, 0, `${why}: ${out.stderr}`);
     assert.deepEqual(out.ghCalls.filter(a => a[0] === 'run').map(a => a[2]), ['100'], why);
   }
-  // The names it reads are the card job's and its publish step's, as keel-morning.yml has them.
-  const { CARD_JOB, CARD_STEP } = await import('../practices/night/files/scripts/keel/canvas-recovery.mjs');
-  const morning = await readFile(resolve('practices/night/files/.github/workflows/keel-morning.yml'), 'utf8');
+  // The names it reads are the card job's and its publish step's, as plates-morning.yml has them.
+  const { CARD_JOB, CARD_STEP } = await import('../practices/night/files/scripts/plates/canvas-recovery.mjs');
+  const morning = await readFile(resolve('practices/night/files/.github/workflows/plates-morning.yml'), 'utf8');
   assert.ok(morning.includes(`\n  ${CARD_JOB}:\n    needs: decide\n`));
   assert.ok(morning.includes(`      - name: ${CARD_STEP}\n        id: canvas\n`));
 });
@@ -373,13 +374,13 @@ test('the card waits (exit 3, the canvas untouched) while another canvas writer 
   const running = trustedRun({ id: 150, status: 'in_progress', conclusion: null });
   const setup = await workflow(t, { runs: [running] });
   assert.notEqual(setup.status, 0, 'the night refuses an unfinished canvas writer, as before');
-  const script = join(setup.root, 'scripts/keel/canvas-recovery.mjs');
+  const script = join(setup.root, 'scripts/plates/canvas-recovery.mjs');
   const env = { ...process.env, PATH: join(setup.root, 'bin'), RUNNER_TEMP: setup.root, REPO: 'Acme/app', BASE: 'main', GITHUB_REF_NAME: 'main', GITHUB_RUN_ID: '200', GITHUB_RUN_ATTEMPT: '1' };
-  const card = run(join(setup.root, 'bin/node'), [script, '--workflow', 'keel-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'workflow_run' } });
+  const card = run(join(setup.root, 'bin/node'), [script, '--workflow', 'plates-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'workflow_run' } });
   assert.equal(card.status, 3, card.stderr);
-  assert.match(card.stderr, /Another canvas writer \(keel-night\.yml run 150\) is still running; the plan card waits for the next pass/);
+  assert.match(card.stderr, /Another canvas writer \(plates-night\.yml run 150\) is still running; the plan card waits for the next pass/);
   // The card is a default-branch pass only, as the night is.
-  const pr = run(join(setup.root, 'bin/node'), [script, '--workflow', 'keel-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'pull_request' } });
+  const pr = run(join(setup.root, 'bin/node'), [script, '--workflow', 'plates-morning.yml'], { cwd: setup.root, env: { ...env, GITHUB_EVENT_NAME: 'pull_request' } });
   assert.equal(pr.status, 1);
   assert.match(pr.stderr, /requires a default-branch night/);
 });
@@ -389,11 +390,11 @@ async function recoveryFixture(t, { seed = true, manifest = initialManifest() } 
   const output = await realpath(await mkdtemp(join(tmpdir(), 'acme-night-state-')));
   t.after(() => rm(output, { recursive: true, force: true }));
   if (seed) {
-    await mkdir(join(root, '.keel/canvas'));
-    await writeFile(join(root, '.keel/canvas/manifest.json'), JSON.stringify(manifest));
-    await writeFile(join(root, '.keel/canvas/credentials.json'), '{"token":"fake-secret-not-for-artifacts"}');
+    await mkdir(join(root, '.plates/canvas'));
+    await writeFile(join(root, '.plates/canvas/manifest.json'), JSON.stringify(manifest));
+    await writeFile(join(root, '.plates/canvas/credentials.json'), '{"token":"fake-secret-not-for-artifacts"}');
   }
-  return { root, output, env: { KEEL_CANVAS_PERSISTENCE: 'artifact-v1' } };
+  return { root, output, env: { PLATES_CANVAS_PERSISTENCE: 'artifact-v1' } };
 }
 const syntheticSnapshot = at => ({ schema: 1, project: { key: 'acme', name: 'Acme', repo: null }, revision: { commit: 'a'.repeat(40), dirty: false }, generatedAt: at, coverage: [{ source: 'github', status: 'disabled', reason: 'offline', observedAt: at }], entities: [], relations: [], observations: [], metrics: [], warnings: [], complete: false });
 const localPipeline = { snapshot: async ({ now }) => syntheticSnapshot(new Date(now).toISOString()), render: async () => ({ cards: [] }), sync: async () => ({ data: { state: 'unchanged' }, exitCode: 0 }) };
@@ -412,7 +413,7 @@ test('failed write exports pending receipt; a fresh checkout restores it and rea
   }
   const first = await recoveryFixture(t, { manifest: base });
   const failed = await night({ ...first, report, yes: true, now: '2026-10-08T08:00:00Z', ...localPipeline, sync: async () => {
-    await writeFile(join(first.root, '.keel/canvas/manifest.json'), JSON.stringify({ ...base, pending }));
+    await writeFile(join(first.root, '.plates/canvas/manifest.json'), JSON.stringify({ ...base, pending }));
     throw new Error('ambiguous fake transport response');
   } });
   assert.equal(failed.exitCode, 1);
@@ -422,10 +423,10 @@ test('failed write exports pending receipt; a fresh checkout restores it and rea
   const remote = { id: 'item_acme', title: pending.title, currentVersionId: 'version_acme', properties: { 'keel.project': 'acme', 'keel.operation': pending.operationId, 'keel.hash': pending.hash }, versions: [{ id: 'version_acme', blobHash: sourceHash }] };
   let adds = 0;
   const transport = { capabilities: async () => ({ groups: true, metadataRecovery: true }), canvas: async () => ({ id: binding.canvasId }), list: async () => [remote], show: async (_binding, id) => groups.get(id) ?? remote, add: async () => { adds++; throw Error('must not retry'); } };
-  const recovered = await night({ ...fresh, env: { ...fresh.env, KEEL_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
+  const recovered = await night({ ...fresh, env: { ...fresh.env, PLATES_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
     sync: options => canvasSync({ root: options.root, yes: true, cards: [{ key: 'snapshot', title: pending.title, source, region: 'evidence' }] }, { transport }) });
   assert.equal(recovered.exitCode, 0, JSON.stringify(recovered)); assert.equal(adds, 0);
-  const saved = JSON.parse(await readFile(join(fresh.root, '.keel/canvas/manifest.json')));
+  const saved = JSON.parse(await readFile(join(fresh.root, '.plates/canvas/manifest.json')));
   assert.equal(saved.pending, null); assert.equal(saved.items.snapshot.itemId, remote.id);
   assert.equal(JSON.parse(await readFile(join(fresh.output, 'recovery.json'))).history.length, 2);
 });
@@ -442,17 +443,17 @@ test('cold-start refuses missing state, binding mismatch, credential fields, and
     const fresh = await recoveryFixture(t, { seed: false }), b = structuredClone(original);
     mutate(b); const path = join(fresh.output, 'input.json'); await writeFile(path, JSON.stringify(b));
     let calls = 0;
-    const out = await night({ ...fresh, env: { ...fresh.env, KEEL_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline, sync: async () => { calls++; } });
+    const out = await night({ ...fresh, env: { ...fresh.env, PLATES_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline, sync: async () => { calls++; } });
     assert.equal(out.exitCode, 1); assert.equal(calls, 0);
-    await assert.rejects(readFile(join(fresh.root, '.keel/canvas/manifest.json')), { code: 'ENOENT' });
+    await assert.rejects(readFile(join(fresh.root, '.plates/canvas/manifest.json')), { code: 'ENOENT' });
   }
   const missing = await recoveryFixture(t, { seed: false });
   assert.equal((await night({ ...missing, report, yes: true, ...localPipeline })).exitCode, 1);
   const local = await recoveryFixture(t, { manifest: { ...initialManifest(), run: { sourceDigest: 'a'.repeat(64), snapshotHash: 'b'.repeat(64), generatedAt: '2026-10-08T00:00:00Z' } } });
-  const before = await readFile(join(local.root, '.keel/canvas/manifest.json'), 'utf8');
-  const conflict = await night({ ...local, env: { ...local.env, KEEL_CANVAS_RECOVERY: join(first.output, 'recovery.json') }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline });
+  const before = await readFile(join(local.root, '.plates/canvas/manifest.json'), 'utf8');
+  const conflict = await night({ ...local, env: { ...local.env, PLATES_CANVAS_RECOVERY: join(first.output, 'recovery.json') }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline });
   assert.equal(conflict.exitCode, 1);
-  assert.equal(await readFile(join(local.root, '.keel/canvas/manifest.json'), 'utf8'), before);
+  assert.equal(await readFile(join(local.root, '.plates/canvas/manifest.json'), 'utf8'), before);
 });
 
 test('recovery preserves exact referenced sync history and bounds observation history to 90 days', async t => {
@@ -463,8 +464,8 @@ test('recovery preserves exact referenced sync history and bounds observation hi
   const entry = { path: name, sourceDigest: 'a'.repeat(64), snapshotDigest: 'b'.repeat(64), generatedAt: saved.generatedAt, fileHash };
   const manifest = { ...initialManifest(), history: [entry] };
   const first = await recoveryFixture(t, { manifest });
-  await mkdir(join(first.root, '.keel/canvas/history'));
-  await writeFile(join(first.root, '.keel/canvas/history', name), bytes);
+  await mkdir(join(first.root, '.plates/canvas/history'));
+  await writeFile(join(first.root, '.plates/canvas/history', name), bytes);
   const out = await night({ ...first, report, now: '2026-10-08T08:00:00Z', ...localPipeline });
   assert.equal(out.exitCode, 0, JSON.stringify(out));
   const bundle = JSON.parse(await readFile(join(first.output, 'recovery.json')));
@@ -473,16 +474,16 @@ test('recovery preserves exact referenced sync history and bounds observation hi
   const path = join(first.output, 'with-old-sample.json'); await writeFile(path, JSON.stringify(bundle));
   const fresh = await recoveryFixture(t, { seed: false });
   let observed;
-  const restored = await night({ ...fresh, env: { ...fresh.env, KEEL_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
+  const restored = await night({ ...fresh, env: { ...fresh.env, PLATES_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
     snapshot: async options => { observed = options.history; return localPipeline.snapshot(options); } });
   assert.equal(restored.exitCode, 0, JSON.stringify(restored));
-  assert.equal(await readFile(join(fresh.root, '.keel/canvas/history', name), 'utf8'), bytes);
+  assert.equal(await readFile(join(fresh.root, '.plates/canvas/history', name), 'utf8'), bytes);
   assert.deepEqual(observed.map(s => s.generatedAt), ['2026-10-08T08:00:00.000Z']);
   assert.equal(JSON.parse(await readFile(join(fresh.output, 'recovery.json'))).history.length, 2);
   const corrupt = await recoveryFixture(t, { seed: false });
   bundle.files[name] += ' ';
   const bad = join(corrupt.output, 'bad.json'); await writeFile(bad, JSON.stringify(bundle));
-  assert.equal((await night({ ...corrupt, env: { ...corrupt.env, KEEL_CANVAS_RECOVERY: bad }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline })).exitCode, 1);
+  assert.equal((await night({ ...corrupt, env: { ...corrupt.env, PLATES_CANVAS_RECOVERY: bad }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline })).exitCode, 1);
 });
 
 test('actual connect and full sync journal survives night export and fresh-root restore', async t => {
@@ -490,7 +491,7 @@ test('actual connect and full sync journal survives night export and fresh-root 
   const { createHash } = await import('node:crypto');
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   const root = await realpath(await fixture(t));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: [] }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: [] }));
   const remote = new Map(); let sequence = 0;
   const transport = {
     capabilities: async () => ({ groups: true, metadataRecovery: true, createInSpace: true }),
@@ -514,14 +515,14 @@ test('actual connect and full sync journal survives night export and fresh-root 
   };
   const connected = await canvasConnect({ root, canvasId: 'canvas_acme', home: 'https://acme.test', audience: 'owner-only', yes: true }, { transport });
   assert.equal(connected.exitCode, 0);
-  const config = JSON.parse(await readFile(join(root, '.keel/keel.json')));
-  config.canvas.cadence = 'nightly'; await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  const config = JSON.parse(await readFile(join(root, '.plates/plates.json')));
+  config.canvas.cadence = 'nightly'; await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   const git = (cwd, ...args) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, r.stderr); };
-  const commit = cwd => { git(cwd, 'init', '-q'); git(cwd, 'add', '.keel/keel.json'); git(cwd, '-c', 'user.name=Acme', '-c', 'user.email=acme@example.invalid', 'commit', '-qm', 'Acme approved binding'); };
+  const commit = cwd => { git(cwd, 'init', '-q'); git(cwd, 'add', '.plates/plates.json'); git(cwd, '-c', 'user.name=Acme', '-c', 'user.email=acme@example.invalid', 'commit', '-qm', 'Acme approved binding'); };
   commit(root);
   const directory = await realpath(await mkdtemp(join(tmpdir(), 'acme-real-night-')));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const env = { KEEL_CANVAS_PERSISTENCE: 'artifact-v1' };
+  const env = { PLATES_CANVAS_PERSISTENCE: 'artifact-v1' };
   let syncError;
   const actualSync = async options => { try { return await sync(options, { transport }); } catch (e) { syncError = e.stack; throw e; } };
   const first = await night({ root, report, env, output: join(directory, 'first'), now: '2026-10-08T08:00:00Z', yes: true, sync: actualSync });
@@ -533,11 +534,11 @@ test('actual connect and full sync journal survives night export and fresh-root 
   assert.equal(Object.keys(bundle.files).length, bundle.manifest.history.length);
   assert.ok(bundle.manifest.receipts.some(r => r.kind === 'attach'));
   const fresh = await realpath(await fixture(t, config.canvas)); commit(fresh);
-  const second = await night({ root: fresh, report, env: { ...env, KEEL_CANVAS_RECOVERY: join(directory, 'first/recovery.json') }, output: join(directory, 'second'), now: '2026-10-09T08:00:00Z', yes: true, sync: actualSync });
+  const second = await night({ root: fresh, report, env: { ...env, PLATES_CANVAS_RECOVERY: join(directory, 'first/recovery.json') }, output: join(directory, 'second'), now: '2026-10-09T08:00:00Z', yes: true, sync: actualSync });
   assert.equal(second.exitCode, 0, syncError ?? JSON.stringify(second));
   const after = JSON.parse(await readFile(join(directory, 'second/recovery.json')));
   assert.ok(after.manifest.history.length >= bundle.manifest.history.length);
-  for (const entry of bundle.manifest.history) assert.equal(await readFile(join(fresh, '.keel/canvas/history', entry.path), 'utf8'), bundle.files[entry.path]);
+  for (const entry of bundle.manifest.history) assert.equal(await readFile(join(fresh, '.plates/canvas/history', entry.path), 'utf8'), bundle.files[entry.path]);
 });
 
 test('a live journal with an unresolved conditional edit survives export and fresh restore; the retry reuses its op id and bytes', async t => {
@@ -557,10 +558,10 @@ test('a live journal with an unresolved conditional edit survives export and fre
   base.items.pulse = { kind: 'add', operationId: 'acme_add', key: 'pulse', title: 'Acme pulse', hash: cardHash(before), sourceHash: hash(before), visualHash: null, state: 'acknowledged', at, acknowledgedAt: at, itemId: 'item_pulse', versionId: 'version_1', live: true, meta };
   const pending = { kind: 'edit', operationId, key: 'pulse', itemId: 'item_pulse', title: 'Acme pulse', hash: cardHash(source), sourceHash: hash(source), visualHash: null, ifVersion: 'version_1', ifMeta: meta,
     properties: { 'keel.hash': cardHash(source), 'keel.operation': operationId }, content: { source, visual: null }, state: 'pending', at };
-  const goLive = async root => writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', canvas: { ...binding, mode: 'live', enabled: true, cadence: 'nightly' } }));
+  const goLive = async root => writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', canvas: { ...binding, mode: 'live', enabled: true, cadence: 'nightly' } }));
   const first = await recoveryFixture(t, { manifest: base }); await goLive(first.root);
   const failed = await night({ ...first, report, yes: true, now: '2026-10-08T08:00:00Z', ...localPipeline, sync: async () => {
-    await writeFile(join(first.root, '.keel/canvas/manifest.json'), JSON.stringify({ ...base, pending }));
+    await writeFile(join(first.root, '.plates/canvas/manifest.json'), JSON.stringify({ ...base, pending }));
     throw new Error('ambiguous fake transport response');
   } });
   assert.equal(failed.exitCode, 1);
@@ -568,11 +569,11 @@ test('a live journal with an unresolved conditional edit survives export and fre
   assert.equal(bundle.binding.mode, 'live');
   assert.deepEqual(bundle.manifest.pending, pending, 'the op id, base and exact bytes travel with the receipt');
 
-  // Bytes may only ride on the one pending edit: anywhere else is not a journal keel wrote.
+  // Bytes may only ride on the one pending edit: anywhere else is not a journal plates wrote.
   const tampered = join(first.output, 'tampered.json');
   await writeFile(tampered, JSON.stringify({ ...bundle, manifest: { ...bundle.manifest, items: { pulse: { ...base.items.pulse, content: pending.content } } } }));
   const refusing = await recoveryFixture(t, { seed: false }); await goLive(refusing.root);
-  assert.equal((await night({ ...refusing, env: { ...refusing.env, KEEL_CANVAS_RECOVERY: tampered }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline })).exitCode, 1);
+  assert.equal((await night({ ...refusing, env: { ...refusing.env, PLATES_CANVAS_RECOVERY: tampered }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline })).exitCode, 1);
 
   // The fresh checkout still says immutable (the owner moved to live after it
   // was committed): the same destination, and the pending act is still retried.
@@ -586,12 +587,24 @@ test('a live journal with an unresolved conditional edit survives export and fre
       edits.push({ ...edit, bytes: await readFile(edit.sourcePath, 'utf8') });
       return { status: 'replayed', itemId: 'item_pulse', versionId: 'version_2', opId: edit.operationId, seq: 4, title: landed.title, properties: landed.properties };
     } };
-  const recovered = await night({ ...fresh, env: { ...fresh.env, KEEL_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
+  const recovered = await night({ ...fresh, env: { ...fresh.env, PLATES_CANVAS_RECOVERY: path }, report, yes: true, now: '2026-10-09T08:00:00Z', ...localPipeline,
     sync: options => canvasSync({ root: options.root, yes: true, cards: [{ key: 'pulse', title: 'Acme pulse', source }] }, { transport }) });
   assert.equal(recovered.exitCode, 0, JSON.stringify(recovered));
   assert.deepEqual(edits.map(e => [e.operationId, e.ifVersion, e.ifMeta, e.bytes]), [[operationId, 'version_1', meta, source]]);
-  const saved = JSON.parse(await readFile(join(fresh.root, '.keel/canvas/manifest.json')));
+  const saved = JSON.parse(await readFile(join(fresh.root, '.plates/canvas/manifest.json')));
   assert.equal(saved.pending, null);
   assert.deepEqual([saved.items.pulse.itemId, saved.items.pulse.versionId, saved.items.pulse.status], ['item_pulse', 'version_2', 'replayed']);
   assert.ok(!(await readFile(join(fresh.output, 'recovery.json'), 'utf8')).includes('"content"'), 'resolved receipts carry no card bytes');
+});
+
+test('canvas recovery keeps old repository provenance only after matching numeric repository identity', async t => {
+  const old = 'Acme/old-app', sha = 'a'.repeat(40), runId = 100;
+  const prior = trustedRun({ repository:{full_name:old,id:77}, head_repository:{full_name:old,id:77} });
+  const provenance = {repo:old,workflow:prior.path,runId:String(runId),attempt:1,headSha:sha};
+  const artifact = {name:'keel-canvas-night-1',expired:false,workflow_run:{id:runId,head_sha:sha},size_in_bytes:100};
+  const repositories = {'repos/Acme/app':{id:77,full_name:'Acme/app'},'repos/Acme/old-app':{id:77,full_name:'Acme/app'}};
+  const accepted = await workflow(t,{runs:[prior],artifacts:[artifact],bundle:{provenance},repositories});
+  assert.equal(accepted.status,0,accepted.out);
+  const wrong = await workflow(t,{runs:[prior],artifacts:[artifact],bundle:{provenance},local:false,repositories:{...repositories,'repos/Acme/old-app':{id:78,full_name:old}}});
+  assert.notEqual(wrong.status,0,'an unrelated repository cannot supply recovery');
 });

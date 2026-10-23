@@ -9,9 +9,9 @@ export async function updateFixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'acme-isolated-update-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const projectRoot = join(root, 'project'), targetRoot = join(root, 'target');
-  await mkdir(join(projectRoot, '.keel'), { recursive: true });
-  await writeFile(join(projectRoot, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['acme'], practice: '1.0.0', check: 'acme-check' }));
-  await writeFile(join(projectRoot, '.keel/lock.json'), '{"practice":"1.0.0","files":{}}');
+  await mkdir(join(projectRoot, '.plates'), { recursive: true });
+  await writeFile(join(projectRoot, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['acme'], practice: '1.0.0', check: 'acme-check' }));
+  await writeFile(join(projectRoot, '.plates/lock.json'), '{"practice":"1.0.0","files":{}}');
   await writeFile(join(projectRoot, 'old.txt'), 'Acme old');
   await mkdir(join(targetRoot, 'practices'), { recursive: true });
   await mkdir(join(targetRoot, 'migrations'));
@@ -30,7 +30,7 @@ export const up=async p=>[{path:'new.txt',content:await p.read('generated.txt')}
     git(cwd, 'init', '-q'); git(cwd, 'add', '.'); git(cwd, 'commit', '-qm', 'Acme source');
   }
   const base = { repoId: 100, repositoryNodeId: 'AcmeProject', commit: git(projectRoot, 'rev-parse', 'HEAD') };
-  const target = { repoId: 200, repositoryNodeId: 'AcmeTarget', repo: 'Acme/keel', commit: git(targetRoot, 'rev-parse', 'HEAD'),
+  const target = { repoId: 200, repositoryNodeId: 'AcmeTarget', repo: 'Acme/plates', commit: git(targetRoot, 'rev-parse', 'HEAD'),
     cliVersion: '1.0.1', practiceVersion: '1.0.1', bundleDigest: createHash('sha256').update(git(targetRoot, 'rev-parse', 'HEAD^{tree}')).digest('hex') };
   const preparation = { base, target, setup: 'acme-setup', check: 'acme-check', env: { ACME_FLAG: 'yes' },
     container: { image: `node@sha256:${'a'.repeat(64)}`, platform: 'linux/amd64', network: 'none' } };

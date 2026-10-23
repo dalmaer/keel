@@ -29,7 +29,7 @@ Keep the existing authorities and authorization boundaries.
 
 ## Real surfaces
 
-- Published package: pack and extract the CLI, then exercise the slice in a disposable Acme repository without a keel checkout.
+- Published package: pack and extract the CLI, then exercise the slice in a disposable Acme repository without a plates checkout.
 - Adopted project: render the affected practice into Acme and check its agent guide, JSON interface and failure cases.
 - Owner's machine: repeat the local lifecycle in a fresh process, retaining state and checking refusal after a source change.
 - Workflow shell: run the trusted robot context command in the workflow environment with a synthetic issue transport; assert the uploaded plan and builder brief share the refreshed digest before any agent step.

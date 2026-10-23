@@ -8,9 +8,9 @@ import {webConfig} from '../lib/web/config.mjs';
 import {harness} from './helpers/web-http.mjs';
 import {fleetUIHarness} from './helpers/web-fleet-updates-ui.mjs';
 const id='a'.repeat(64),next='b'.repeat(64),digest='c'.repeat(64),project={id:'studio',repo:'acme/studio'},access={workspace:{name:'Acme'},csrf:'fake-csrf'};
-const target={repoId:103,repositoryNodeId:'R_acme_103',repo:'acme/keel',commit:'d'.repeat(40),cliVersion:'1.0.0',practiceVersion:'1.0.0',bundleDigest:digest};
+const target={repoId:103,repositoryNodeId:'R_acme_103',repo:'acme/plates',commit:'d'.repeat(40),cliVersion:'1.0.0',practiceVersion:'1.0.0',bundleDigest:digest};
 const prep={kind:'preparation',previewId:id,requestId:next,digest,project,target,canApply:true,rolloutId:id,container:{image:'node@sha256:'+digest,platform:'linux/amd64',network:'none'},setup:'npm ci --ignore-scripts',check:'npm run check',environmentKeys:['ACME_MODE'],budget:{reservedMinutes:60,projectWeeklyMinutes:120,workspaceWeeklyMinutes:180}};
-const pub={...prep,source:{head:'e'.repeat(40)},kind:'publication',audience:'public',title:'Update Acme',body:'Exact <script>PR</script> text',branch:'keel/web-'+next,draft:false,files:[{path:'docs/acme.md',before:{mode:'100644',blob:'e'.repeat(40)},after:{mode:'100644',content:Buffer.from('Acme <after>\n').toString('base64')}},{path:'old.md',before:{mode:'100644',blob:'e'.repeat(40)},after:null}],checks:{setup:null,updated:{command:'npm run check',exit:0,tail:'Acme passed'},baseSetup:{command:'npm ci',exit:1,tail:'Acme setup failed'},base:null}};
+const pub={...prep,source:{head:'e'.repeat(40)},kind:'publication',audience:'public',title:'Update Acme',body:'Exact <script>PR</script> text',branch:'plates/web-'+next,draft:false,files:[{path:'docs/acme.md',before:{mode:'100644',blob:'e'.repeat(40)},after:{mode:'100644',content:Buffer.from('Acme <after>\n').toString('base64')}},{path:'old.md',before:{mode:'100644',blob:'e'.repeat(40)},after:null}],checks:{setup:null,updated:{command:'npm run check',exit:0,tail:'Acme passed'},baseSetup:{command:'npm ci',exit:1,tail:'Acme setup failed'},base:null}};
 test('comparison keeps version facts distinct and requires explicit project/canary selection',()=>{
   const html=versionsView({target,projects:[{project,versions:{practice:'1.0.0',lock:'0.9.0',cliDeclaration:'^1.0.0',runtime:null},ownership:{state:'changed',files:[{path:'AGENTS.md#base',state:'changed'}]},migrations:{state:'applicability-unverified',pending:['0001-acme']},capabilities:{prepare:true}}]},access);
   assert.match(html,/Observed runtime/);assert.match(html,/Unavailable/);assert.match(html,/AGENTS.md#base/);assert.match(html,/0001-acme/);assert.doesNotMatch(html,/checked|selected=/);assert.match(html,/Choose a selected project/);assert.match(html,/\/setup/);
@@ -30,13 +30,14 @@ test('publication verification requires PR and commit, and rollout stop never cl
 function clientFixture(fetch,model,{checked=true,publicChecked=true}={}) {
   const output={innerHTML:''},host={innerHTML:'old receipt'},status={textContent:''},controls={disabled:false},listeners={};
   const root={innerHTML:'',querySelector(s){return {'[data-fleet-model]':{value:JSON.stringify(model)},'[data-fleet-csrf]':{value:'fake-csrf'},'[data-fleet-output]':output,'[data-fleet-current]':host,'[data-fleet-status]':status,'[data-approve-fleet]':{checked},'[data-public-fleet]':{checked:publicChecked},'[data-submit-fleet]':controls,'[data-canary]':{value:'studio'}}[s]||null;},querySelectorAll(s){return s==='[data-project-select]:checked'?[{value:'studio'}]:[controls];},addEventListener(k,f){listeners[k]=f;},removeEventListener(){}};
-  const history={path:null,replaceState(a,b,path){this.path=path;}};
-  const document={visibilityState:'visible',querySelector:()=>root};
-  return {root,host,output,status,history,document,client:startFleetClient({document,window:{history,crypto:webcrypto},fetch})};
+  const location={pathname:model.id?`/updates/${model.kind==='rollout'?'rollouts/':''}${model.id}`:'/versions',search:''};
+  const history={path:null,replaceState(a,b,path){this.path=path;location.pathname=path;}};
+  const document={visibilityState:'visible',querySelector:selector=>selector==='[data-fleet-root]'?root:null};
+  return {root,host,output,status,history,document,client:startFleetClient({document,window:{history,location,crypto:webcrypto},fetch})};
 }
 test('lost rollout creation keeps preissued durable URL and never sends a replacement selection',async()=>{
   let f;const calls=[];f=clientFixture(async(url,o)=>{calls.push(JSON.parse(o.body));assert.match(f.history.path,/^\/updates\/rollouts\/[a-f0-9]{64}$/);throw Error('Acme lost response');},{kind:'comparison'});
-  await f.client.createRollout();await f.client.createRollout();assert.equal(calls.length,1);assert.ok(f.history.path.endsWith(calls[0].requestId));assert.match(f.status.textContent,/do not create a replacement/);assert.equal(f.document.title,'Update rollout · Keel');assert.doesNotMatch(f.host.innerHTML,/old receipt|data-project-select/);
+  await f.client.createRollout();await f.client.createRollout();assert.equal(calls.length,1);assert.ok(f.history.path.endsWith(calls[0].requestId));assert.match(f.status.textContent,/do not create a replacement/);assert.equal(f.document.title,'Update rollout · Plates');assert.doesNotMatch(f.host.innerHTML,/old receipt|data-project-select/);
 });
 test('public publication cannot submit without separate audience acknowledgment',async()=>{
   const calls=[],f=clientFixture(async(url,o)=>{calls.push(url);return Response.json(pub);},{id,kind:'preparation',projectId:'studio',rolloutId:id,capabilities:{publish:true}},{publicChecked:false});
@@ -110,5 +111,5 @@ test('buffered reads suppress private models after Pull Requests permission disa
 });
 test('fresh authorization denial halts foreground publication after one request and clears its private model',async()=>{
   let count=0;const f=clientFixture(async()=>{count++;return Response.json({error:'access_denied'},{status:404});},{id,kind:'publication',state:'publishing',capabilities:{continue:true}});
-  await f.client.continueKnown();assert.equal(count,1);assert.match(f.root.innerHTML,/private view has been cleared/);assert.doesNotMatch(f.root.innerHTML,/Acme|data-continue/);
+  await f.client.continueKnown();assert.equal(count,1);assert.match(f.root.innerHTML,/Sign in and return/);assert.ok(f.root.innerHTML.includes('/signin?returnTo='+encodeURIComponent(`/updates/${id}`)));assert.doesNotMatch(f.root.innerHTML,/Acme|data-continue/);
 });

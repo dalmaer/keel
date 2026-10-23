@@ -5,20 +5,20 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run } from './helpers/run.mjs';
 import { milestoneConfig, milestone, response } from './helpers/milestones.mjs';
-import { readMilestones } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { readMilestones } from '../practices/night/files/scripts/plates/milestones.mjs';
 import { rememberQuota, lastQuota } from '../lib/quota.mjs';
-import { rateSpend } from '../practices/night/files/scripts/keel/lib.mjs';
-import { MEASURES, measure, propose, page } from '../practices/night/files/scripts/keel/improve.mjs';
+import { rateSpend } from '../practices/night/files/scripts/plates/lib.mjs';
+import { MEASURES, measure, propose, page } from '../practices/night/files/scripts/plates/improve.mjs';
 import { looseItems } from '../lib/board.mjs';
 
-const cli = resolve('bin/keel.mjs');
+const cli = resolve('bin/plates.mjs');
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'acme-consumer-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh', KEEL_CLAUDE_DIR: join(root, 'claude'), KEEL_QUOTA_FLOOR: '1000' };
-  delete env.KEEL_MILESTONES_OFFLINE;
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(milestoneConfig));
+  const env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh', PLATES_CLAUDE_DIR: join(root, 'claude'), PLATES_QUOTA_FLOOR: '1000' };
+  delete env.PLATES_MILESTONES_OFFLINE;
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(milestoneConfig));
   return { root, env };
 }
 const charged = (remaining = 994) => {
@@ -76,21 +76,21 @@ test('concurrent identical reads reuse cache; cached milestones bypass the quota
 test('loose-ends fleet CLI permits only one near-floor milestone query', async t => {
   const { root, env } = await fixture(t);
   const home = join(root, 'home');
-  await mkdir(join(home, '.keel'), { recursive: true });
-  await writeFile(join(home, '.keel/keel.json'), JSON.stringify({ name: 'Acme home', practices: [] }));
+  await mkdir(join(home, '.plates'), { recursive: true });
+  await writeFile(join(home, '.plates/plates.json'), JSON.stringify({ name: 'Acme home', practices: [] }));
   const names = ['anvils', 'rockets', 'skates'];
   for (const name of names) {
     const dir = join(root, name);
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...milestoneConfig, repo: `acme/${name}` }));
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...milestoneConfig, repo: `acme/${name}` }));
     for (const args of [['init'], ['remote', 'add', 'origin', `https://github.com/acme/${name}.git`]]) {
       const r = run('git', args, { cwd: dir, env }); assert.equal(r.status, 0, r.stderr);
     }
   }
-  await writeFile(join(home, 'fleet.json'), JSON.stringify(names.map(name => ({ repo: `acme/${name}`, role: 'managed' }))));
+  await writeFile(join(home, 'plates.json'), JSON.stringify(names.map(name => ({ repo: `acme/${name}`, role: 'managed' }))));
   const log = join(root, 'calls');
-  env.KEEL_GH = join(root, 'gh');
-  await writeFile(env.KEEL_GH, `#!${process.execPath}
+  env.PLATES_GH = join(root, 'gh');
+  await writeFile(env.PLATES_GH, `#!${process.execPath}
 import { appendFileSync } from 'node:fs';
 if (process.argv.some(a => a.includes('openMilestones:'))) {
   appendFileSync(${JSON.stringify(log)}, 'query\\n');
@@ -112,7 +112,7 @@ test('night proposal and health page assign issues to GitHub milestones', async 
   const { root, env } = await fixture(t);
   const config = { ...milestoneConfig, phases: { source: 'milestones', shape: 'projects' } };
   const results = await measure({ root, env, config, measures: MEASURES.filter(m => m.id === 'phases_without_issue'),
-    keel: { milestones: { guard: async () => null, graphql: async () => response([milestone(3), milestone(7), milestone(9, 'CLOSED')]) } } });
+    plates: { milestones: { guard: async () => null, graphql: async () => response([milestone(3), milestone(7), milestone(9, 'CLOSED')]) } } });
   assert.equal(results[0].state, 'outside');
   assert.deepEqual(results[0].facts.ids, [3, 7]);
   const proposal = propose(results, config);

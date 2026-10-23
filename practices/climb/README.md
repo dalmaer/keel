@@ -3,12 +3,12 @@
 **The failure it prevents.** An agent's "it's faster now" with no number
 behind it: a speed-up measured once, on a noisy machine, by the agent that
 made it, with a test quietly gone. And the opposite failure: the most
-productive hour of a project's week (6 October 2026: keel's suite from 48s
+productive hour of a project's week (6 October 2026: plates's suite from 48s
 to 23s in eight kept changes) happening once, by hand, and never again.
 
 **The rule.** On a scheduled night, an agent climbs one number under one
 shared protocol (`.agents/climb/PROTOCOL.md`), and a person merges what it
-finds. `scripts/keel/climb.mjs` makes every measurement and every
+finds. `scripts/plates/climb.mjs` makes every measurement and every
 keep-or-revert, deterministically and with no model, so the numbers in the
 PR are the script's:
 
@@ -19,8 +19,8 @@ PR are the script's:
   table's rows since the last distill pass → `lessons`; `loop_untriaged`:
   Loop's untriaged findings → `loop`), with `flaky_tests` → `hygiene` ahead
   of every other, else the next in rotation after the last night's job
-  (the newer of `.keel/climb.json`, carried by the climb PR, and the last
-  night's record, the `keel-climb` artifact the workflow reads and passes
+  (the newer of `.plates/climb.json`, carried by the climb PR, and the last
+  night's record, the `plates-climb` artifact the workflow reads and passes
   as `--last-night`, so a night that kept nothing still moves the rotation
   on without anything pushed to main; `hygiene`, `lessons` and `loop` never
   run by rotation). A job with an open `keel-climb/<job>/` PR waits
@@ -28,9 +28,9 @@ PR are the script's:
   were closed unmerged proposes its own retirement on the health page, and
   pick skips it until the owner removes it from `jobs` or reopens one.
 - `measure <job> [--baseline]` is the job's number: median and spread over k
-  runs. `--baseline` opens the night's record (`.keel/climb/night.json`).
+  runs. `--baseline` opens the night's record (`.plates/climb/night.json`).
 - `compare` runs base and candidate alternately, in worktrees outside the
-  repo but beside it (a hidden `.keel-climb-*` folder in the checkout's
+  repo but beside it (a hidden `.plates-climb-*` folder in the checkout's
   parent, removed after, so a sibling the setup cloned, as ledger's
   `../ledger-data`, resolves as it does from the checkout; the guard's,
   prove-steady's and the build's worktrees too) and each sharing the tree's
@@ -43,7 +43,7 @@ PR are the script's:
   worktree, through the test ledger; steady only with n passes and no fail.
   A name that matches no test is exit 2, never a pass.
 - `guard` runs the project's gate and, with the night's test ledger
-  (`scripts/keel/test-ledger.mjs`), checks that every test the base ran
+  (`scripts/plates/test-ledger.mjs`), checks that every test the base ran
   still ran: none dropped, none skipped. Each side is every record its own
   gate run wrote, not the newest, and nothing older: a gate that runs
   several suites (the root's, then `web/`'s) records one per suite, and a
@@ -57,13 +57,13 @@ PR are the script's:
   each changed path has a reason (`harmless --path p --why "…"`) that the
   PR's Merge danger prints; `perf` also runs `perf.check` when the config
   names one. A proposals night (`lessons`, `loop`) runs the gate and refuses,
-  naming each: any path but its proposals (`.keel/climb/lessons/`; the
+  naming each: any path but its proposals (`.plates/climb/lessons/`; the
   findings, `docs/LOOP.md` and loop's `afterRenderWrites`), any change to
   the lessons table (by row), a proposal edited, a finding decided tonight
   or a decided finding changed. Deciding is the owner's.
 - `sandbox --base r --head r` checks the agent's commits with git alone:
   `head` is on top of `base`, and no commit changes `.github/`,
-  `scripts/keel/`, `.keel/keel.json` or `.keel/agent-git/` (Codex's git
+  `scripts/plates/`, `.plates/plates.json` or `.plates/agent-git/` (Codex's git
   dir: carried as files, it is config and hooks), nor an install file at any depth (a
   lockfile, `npm-shrinkwrap.json`, `.npmrc`, yarn's or pnpm's, or a
   `package.json` beyond its `scripts`, and never its install scripts such
@@ -87,37 +87,37 @@ PR are the script's:
   is guarded. Without them, a person's own run keeps the record's (a pass's
   date is always held to YYYY-MM-DD, so its page stays in `docs/tend/`).
 - `distill [--json]` is a lessons night's worksheet: the project's own
-  table (`.keel/keel.json` `lessons`, default `docs/lessons.md`), each row
+  table (`.plates/plates.json` `lessons`, default `docs/lessons.md`), each row
   with its provenance and family, the families the owner accepted, the open
   proposals, the rows since the last pass. `distill propose --kind
   family|reword|standardise … --read "…"` writes one proposal under
-  `.keel/climb/lessons/` (phase 31's rules, from `scripts/keel/distill.mjs`)
+  `.plates/climb/lessons/` (phase 31's rules, from `scripts/plates/distill.mjs`)
   and, on a lessons night, commits it alone. It never writes the table.
-- `loop-pull` is a loop night's pull where `keel-loop.yml` is not
+- `loop-pull` is a loop night's pull where `plates-loop.yml` is not
   installed: the loop practice's `pull --no-prove`, committed by the
-  script. Where `keel-loop.yml` is, its daily pull stands and the night
+  script. Where `plates-loop.yml` is, its daily pull stands and the night
   pulls nothing, saying so in its line, so the two never both pull. Loop
   unreachable (no `STITCH_API_KEY`, no stitch, a failing pull) is a notice
   and the night's line, never red; the agent then proposes for the findings
   already here, with `node scripts/loop.mjs propose`.
 - `revert --why` and `settle` drop what no compare kept (a proposals night's
   `settle` keeps its commits and drops only what was never committed).
-- `report` writes the PR body through `scripts/keel/pr-body.mjs` (the
+- `report` writes the PR body through `scripts/plates/pr-body.mjs` (the
   before-and-after table, each kept change with its numbers, what was tried
   and reverted, the gate line, a two-way door) and the night's one line.
   `--issue f`: a hygiene night that proved nothing writes the issue instead
   (the test, its passes and fails on its tree, the command to run it alone,
   what was tried), and the workflow files it on this repo.
 
-`.github/workflows/keel-climb.yml` runs it at 10:17 UTC (after `keel-loop.yml`'s
+`.github/workflows/plates-climb.yml` runs it at 10:17 UTC (after `plates-loop.yml`'s
 09:43 pull and its 30-minute bound, so a loop night proposes on today's
-findings; `keel-tend.yml` a minute later on Mondays): pick, the baseline, then
+findings; `plates-tend.yml` a minute later on Mondays): pick, the baseline, then
 `anthropics/claude-code-action` with the protocol, the job's brief and the
 pick, time-boxed to the budget, its tools unable to push or merge; then
 `settle`, `guard`, a final `compare` of the night's base against its end,
 `report`, and one PR on `refs/heads/keel-climb/<job>/<date>`. Never `main`,
 never a merge. A night that keeps nothing opens nothing: its line is a
-notice, in the run's summary, and in the `keel-climb` artifact.
+notice, in the run's summary, and in the `plates-climb` artifact.
 
 The agent holds no credential that can write (both workflows). The run is
 three jobs: `agent` (contents and pull requests read, checkout keeps no
@@ -126,7 +126,7 @@ never trades OIDC for its app's token; no `id-token`), whose commits leave
 as a git bundle; `judge` (contents read, no agent), which installs on a
 fresh checkout of the run's commit first (the only step `setupToken`
 reaches), then runs `climb.mjs sandbox` before taking them (a branch that
-changes `.github/`, `scripts/keel/`, `.keel/keel.json` or an install file is
+changes `.github/`, `scripts/plates/`, `.plates/plates.json` or an install file is
 refused, so the scripts that judge, the config and what was installed are
 the default branch's, and nothing of the agent's runs where the setup token
 is), then the guard and the gate, with no setup token; and `publish` (contents and pull
@@ -137,24 +137,28 @@ bundles that commit alone, never the branch as the gate, `compare --final`
 or `report` left it; publish refuses, red, a bundle whose head is any other
 commit, and rechecks it with its own checkout's script (tend's with
 `sandbox --job tend`) before it pushes (#68). A climb's rotation state
-(`.keel/climb.json`) is one more commit publish makes on the judged commit,
+(`.plates/climb.json`) is one more commit publish makes on the judged commit,
 by git plumbing from the night's job, day and count. The guards refuse the same
-paths. Each job uploads its handoff (`keel-climb-agent`,
-`keel-climb-judged`, kept 7 days); `keel-climb` is the record, as before.
+paths. Each job uploads its handoff (`plates-climb-agent`,
+`plates-climb-judged`, kept 7 days); `plates-climb` is the record, as before.
 
 A run whose agent failed before its budget ran out (no secret, a bad
 model: an error after one turn) is red: `agent-ran`, the step after the
 agent's, reads the step's outcome and the action's execution file and
-prints only the result's error text (at most 300 characters, saying whether
-the secret or the model was refused), and nothing is judged or pushed. A
-budget timeout is not red; what was kept is judged (lesson 29).
+prints a sanitized diagnosis (never raw provider error text), and nothing is
+judged or pushed. A budget timeout can be judged only with a valid execution
+result and no permission denials. Missing, empty, invalid or oversized evidence
+stays blocked even at timeout: work may have run, but execution is unverified
+(lesson 29). Evidence is read through EOF within an 8 MiB limit; a short read
+does not end the file, and logs over the limit are explicitly reported as too
+large. Reading only the tail could discard denial evidence, so it is not used.
 
 **The tend pass** (phase 38). With `"tend": { "schedule": "weekly",
-"budget": { "minutes": 30 } }` in `.keel/keel.json` (no `tend`, no pass),
-`.github/workflows/keel-tend.yml` runs on Mondays, a minute after the
+"budget": { "minutes": 30 } }` in `.plates/plates.json` (no `tend`, no pass),
+`.github/workflows/plates-tend.yml` runs on Mondays, a minute after the
 climb's, with the same rights: an agent resolves the night's record
 findings under `.agents/climb/TEND.md`, and a person merges one PR on
-`refs/heads/keel-tend/<date>`. `scripts/keel/tend.mjs`, through
+`refs/heads/keel-tend/<date>`. `scripts/plates/tend.mjs`, through
 `climb.mjs`, makes every count and refusal:
 
 - `tend-pick` — whether a pass runs: an open `keel-tend/` PR waits; three
@@ -163,9 +167,9 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
   (`proofs_hold`, `roadmap_stale`, `phases_stuck`, `evidence_placeholders`,
   `drift`, `lint`) run on the tree beside the newest health page's row,
   reconciliation's findings and proposals (when that practice is on), and
-  `keel loose-ends` for this repo (when keel is installed; `KEEL_CLI` names
+  `plates loose-ends` for this repo (when plates is installed; `PLATES_CLI` names
   it). A source that cannot run is n/a with why, never a zero. `--record`
-  opens `.keel/tend/pass.json`.
+  opens `.plates/tend/pass.json`.
 - `tend-note --finding <id> --propose "…" | --tried "…"` — what only the
   owner can choose (a step back to partial, keep/restore/send home for a
   drifted file, closing a branch or a PR), or what was tried and left.
@@ -196,7 +200,7 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
 
 A pass that only proposed opens a PR carrying its page of proposals; a
 pass with neither commits nor proposals opens nothing. The workflow keeps
-the pass's record as the `keel-tend` artifact.
+the pass's record as the `plates-tend` artifact.
 
 **The Budget line.** With climb, tend or cross-review on, the night's
 health page carries one `Budget:` line: for each pass, its agent step's
@@ -207,11 +211,11 @@ a suggestion against today's budget: *extend* when half or more ran out,
 *shorten to N* when none used more than half (N the most used, rounded up
 to 5), *hold* otherwise, *too few to say* below 4 runs. n/a with why when
 gh cannot read the runs. Only runs since the budget became today's count
-(read from the commits touching `.keel/keel.json`; the entry says `since
+(read from the commits touching `.plates/plates.json`; the entry says `since
 <date>`), so a raised or lowered budget is judged by its own runs. A
 suggestion, never a change: `budget.minutes` is the owner's to set.
 
-**Config** (`.keel/keel.json`; no `climb`, no climb night):
+**Config** (`.plates/plates.json`; no `climb`, no climb night):
 
 ```json
 "climb": { "jobs": ["test-time"], "budget": { "minutes": 45 }, "schedule": "nightly", "margin": 0.05, "attempts": 10 }
@@ -231,7 +235,7 @@ value is a red run naming it.
 | Job | Climbs | Its number | Judged by |
 | --- | --- | --- | --- |
 | `test-time` | the suite's wall time, slowest files first | `testCommand`, timed | `compare` |
-| `hygiene` | the flaky tests the test ledger names: fix it, or file it | the flaky count (`.keel/test-runs`) | `prove-steady` |
+| `hygiene` | the flaky tests the test ledger names: fix it, or file it | the flaky count (`.plates/test-runs`) | `prove-steady` |
 | `build-time` | the build | `build`, timed | `compare`; output byte-identical or explained |
 | `perf` | the project's own benchmark | `perf.command`'s last line, `better` either way | `compare`; `perf.check` |
 | `lessons` | the lessons table: family, reword, standardise | rows since the last distill pass | the owner, who reads each proposal |
@@ -240,12 +244,12 @@ value is a red run naming it.
 **A proposals night's PR** lists what it proposed, for the owner: a lessons
 night, each proposal file (decide it by applying it to the table yourself
 and setting its `status:` to accepted or declined; a declined one is never
-proposed again; a lesson that belongs home is sent by you, with `keel
+proposed again; a lesson that belongs home is sent by you, with `plates
 lessons`); a loop night, each finding with its proposed rank and why (decide
 with `node scripts/loop.mjs decide`). Nothing proposed opens nothing.
 
 **Which agent.** `"agent"` on `climb` and `tend` names the agent that runs
-the pass (keel phase 45; listed in `"agents"`, default `claude`): `claude`
+the pass (plates phase 45; listed in `"agents"`, default `claude`): `claude`
 or `codex` (phase 47). Each workflow has one step per provider, both named
 `Climb` (or `Tend`, so the Budget line finds either), and runs only the one
 the pass names; "Configured?" asks for that provider's secret alone.
@@ -254,12 +258,12 @@ Codex runs in `openai/codex-action`'s `workspace-write` sandbox with sudo
 dropped (`safety-strategy: drop-sudo`; never `danger-full-access`, never
 `unsafe`, no `allow-users` or `allow-bots`, `GH_TOKEN` blanked), in the
 same read-only agent job. That sandbox keeps `.git` read-only by name, so
-a keel step before the agent gives Codex a second git dir,
-`.keel/agent-git` (a bare repo holding the night's branch, fetched from
+a plates step before the agent gives Codex a second git dir,
+`.plates/agent-git` (a bare repo holding the night's branch, fetched from
 `.git`, ignored by both), and the brief tells it to run git as `git
---git-dir=.keel/agent-git --work-tree=. …` and climb.mjs as
-`KEEL_AGENT_GIT=.keel/agent-git node scripts/keel/climb.mjs …` (the step
-sets `KEEL_AGENT_GIT` too). With it set, `climb.mjs` and `tend.mjs` run
+--git-dir=.plates/agent-git --work-tree=. …` and climb.mjs as
+`PLATES_AGENT_GIT=.plates/agent-git node scripts/plates/climb.mjs …` (the step
+sets `PLATES_AGENT_GIT` too). With it set, `climb.mjs` and `tend.mjs` run
 their git there, and `compare`'s worktrees go in the OS temp, since the
 checkout's parent is outside Codex's writable roots (a sibling path the
 gate reads, as ledger's `../ledger-data`, is not beside them on a Codex
@@ -267,18 +271,18 @@ night). The protocol is unchanged: one change per commit, `compare
 --decide` keeps or resets it.
 
 That git dir is the agent's to write, config and hooks included, so
-nothing keel runs after the agent reads it. `Take Codex's commits, objects
+nothing plates runs after the agent reads it. `Take Codex's commits, objects
 only` copies its loose objects and packs (regular files, no symlinks, no
-alternates) into a bare repo keel makes in the runner's temp (its base
+alternates) into a bare repo plates makes in the runner's temp (its base
 objects borrowed from `.git`), reads the branch's ref as a file, refuses a
 head that is not on top of the run's commit, and bundles from there, with
 no system or global git config, `core.hooksPath=/dev/null` and fsmonitor
 off. From the bundle on, the judge and publish jobs are unchanged, and
-`sandbox` refuses `.keel/agent-git/` on the branch as it refuses
-`scripts/keel/`. `agent-ran --agent codex` judges the step by its outcome
+`sandbox` refuses `.plates/agent-git/` on the branch as it refuses
+`scripts/plates/`. `agent-ran --agent codex` judges the step by its outcome
 and its final message (the action's `output-file`), never printing it.
 Codex's sandbox may also write `$TMPDIR`, so every Codex step pins it to
-`/tmp/keel-codex` (made by the step before): a runner whose `TMPDIR` were
+`/tmp/plates-codex` (made by the step before): a runner whose `TMPDIR` were
 its own temp would let Codex write the command files there (`GITHUB_ENV`,
 `GITHUB_OUTPUT`) and so reach every later step.
 
@@ -293,20 +297,49 @@ The test ledger must be the test script's second reporter for `guard` to
 tell a dropped test; without it, guard says it cannot tell (exit 2) rather
 than pass.
 
-**Optional.** `keel init` and `keel adopt` leave it off unless asked
-(`--with climb`), or `.keel/keel.json` lists it; keel does not switch it on
+**Optional.** `plates init` and `plates adopt` leave it off unless asked
+(`--with climb`), or `.plates/plates.json` lists it; plates does not switch it on
 for itself until its owner says so with a budget.
 
-**Its files.** `.github/workflows/keel-climb.yml`, `keel-tend.yml`,
-`scripts/keel/climb.mjs`, `tend.mjs`, `distill.mjs` (phase 31's rules, which
-keel's `lib/distill.mjs` re-exports), `.agents/climb/PROTOCOL.md`,
+**Its files.** `.github/workflows/plates-climb.yml`, `plates-tend.yml`,
+`scripts/plates/climb.mjs`, `tend.mjs`, `distill.mjs` (phase 31's rules, which
+plates's `lib/distill.mjs` re-exports), `.agents/climb/PROTOCOL.md`,
 `TEND.md`, `.agents/climb/jobs/test-time.md`, `hygiene.md`,
 `build-time.md`, `perf.md`, `lessons.md` and `loop.md` (all managed). A
 loop night reads `STITCH_API_KEY`, the loop practice's secret. A hygiene night gathers
-CI's `keel-test-runs` artifacts first, and its workflow may file one issue
+CI's `plates-test-runs` artifacts first, and its workflow may file one issue
 (`issues: write`) on this repo, never elsewhere. It reads the `night` practice's `lib.mjs`, `test-ledger.mjs`,
 `pr-body.mjs` and (tend) `improve.mjs`.
 
-**Lineage.** Keel phases 35, 36, 37 (perf, lessons, loop), 38 (tend) and 47 (Codex), from the 6 October 2026 hill-climb on keel's own
-suite; design in keel's `docs/research/2026-10-06-climb-nights.md` and
+**Lineage.** Plates phases 35, 36, 37 (perf, lessons, loop), 38 (tend) and 47 (Codex), from the 6 October 2026 hill-climb on plates's own
+suite; design in plates's `docs/research/2026-10-06-climb-nights.md` and
 `docs/research/2026-10-06-tend-pass.md`.
+
+### Execution receipts and elapsed time
+
+Before baseline measurements, a bounded runner preflight checks scratch-file
+read/write access, Node/npm availability and an isolated Git commit. This does
+not prove the later agent action's permissions. No policy, credentials or tool
+allowlist is broadened. A failed preflight stops before measurement.
+
+A successful action still needs execution evidence. Claude permission denials
+block judging, including success with an unchanged head; missing or oversized
+execution evidence also blocks. Receipts keep denial counts and at most eight
+tool categories, never denied arguments, paths or session messages. A reported
+count without details stays explicitly unknown. Codex supplies only a final
+message here: missing output blocks, and denial telemetry is unavailable.
+
+The baseline clock begins before measurement. Artifacts retain runner setup,
+baseline, agent elapsed and judge wall seconds separately, with unavailable
+phases and CPU time represented by null. Total is elapsed wall time through the
+snapshot, including inter-job queue/transfer; it excludes checkout before the
+first timestamp and later publication. The phase fields are not summed as a
+total; later setup and queue intervals may remain unallocated. The provider's
+reported duration is separate from the action's elapsed wall time.
+
+Reports distinguish `blocked`, `no-candidate`, `incomplete`, `no-improvement` and `candidate`.
+A successful judge that retained completed comparison or failing proof evidence for every attempt but retained none can complete its
+plan item as `no-improvement` without a PR. No candidate and missing execution
+remain distinct failures. These receipts are advisory: existing sandbox,
+changed-file, test-ledger, mandatory gate and publish checks still decide what
+can proceed.

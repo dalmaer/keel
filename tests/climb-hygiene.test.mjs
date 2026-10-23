@@ -14,11 +14,11 @@ import { fileURLToPath } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
-const CLIMB = join(KEEL, 'practices/climb/files/scripts/keel/climb.mjs');
-const WORKFLOW = join(KEEL, 'practices/climb/files/.github/workflows/keel-climb.yml');
-const LEDGER_TEST = 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/keel/test-ledger.mjs --test-reporter-destination=stdout acme.test.mjs';
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const NIGHT = join(PLATES, 'practices/night/files/scripts/plates');
+const CLIMB = join(PLATES, 'practices/climb/files/scripts/plates/climb.mjs');
+const WORKFLOW = join(PLATES, 'practices/climb/files/.github/workflows/plates-climb.yml');
+const LEDGER_TEST = 'node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./scripts/plates/test-ledger.mjs --test-reporter-destination=stdout acme.test.mjs';
 
 const git = (cwd, args) => {
   const r = run('git', args, { cwd });
@@ -51,31 +51,32 @@ test('acme counts', () => {
 `;
 
 async function acme(t) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-climb-hygiene-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-climb-hygiene-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/keel', f));
-  await cp(CLIMB, join(dir, 'scripts/keel/climb.mjs'));
-  await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/keel/tend.mjs'));
-  await write(dir, { '.keel/keel.json': JSON.stringify({ name: 'Acme', check: LEDGER_TEST, climb: { jobs: ['hygiene'], testCommand: LEDGER_TEST } }), 'acme.test.mjs': counting() });
+  await mkdir(join(dir, 'scripts/plates'), { recursive: true });
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
+  await cp(join(dirname(CLIMB), 'climb-execution.mjs'), join(dir, 'scripts/plates/climb-execution.mjs'));
+  await cp(CLIMB, join(dir, 'scripts/plates/climb.mjs'));
+  await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/plates/tend.mjs'));
+  await write(dir, { '.plates/plates.json': JSON.stringify({ name: 'Acme', check: LEDGER_TEST, climb: { jobs: ['hygiene'], testCommand: LEDGER_TEST } }), 'acme.test.mjs': counting() });
   git(dir, ['init', '-q', '-b', 'main']);
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-q', '-m', 'acme']);
   // The ledger, as CI's artifacts would bring it: acme counts passed and failed on this one clean tree.
   const commitSha = git(dir, ['rev-parse', 'HEAD']), tree = git(dir, ['rev-parse', 'HEAD^{tree}']);
-  await mkdir(join(dir, '.keel/test-runs'), { recursive: true });
-  await writeFile(join(dir, '.keel/test-runs/.gitignore'), '*\n');
+  await mkdir(join(dir, '.plates/test-runs'), { recursive: true });
+  await writeFile(join(dir, '.plates/test-runs/.gitignore'), '*\n');
   for (const [i, outcome] of ['pass', 'fail', 'pass', 'pass'].entries()) {
-    await writeFile(join(dir, `.keel/test-runs/2026-10-05T0${i}-00-00-000Z-${i}.json`), JSON.stringify({ commit: commitSha, tree, dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: 'v24.0.0', date: `2026-10-05T0${i}:00:00.000Z`, tests: [{ file: 'acme.test.mjs', name: 'acme adds', outcome: 'pass', ms: 1 }, { file: 'acme.test.mjs', name: 'acme counts', outcome, ms: 1 }] }));
+    await writeFile(join(dir, `.plates/test-runs/2026-10-05T0${i}-00-00-000Z-${i}.json`), JSON.stringify({ commit: commitSha, tree, dirty: false, machine: { os: 'linux', arch: 'x64', cpus: 4 }, node: 'v24.0.0', date: `2026-10-05T0${i}:00:00.000Z`, tests: [{ file: 'acme.test.mjs', name: 'acme adds', outcome: 'pass', ms: 1 }, { file: 'acme.test.mjs', name: 'acme counts', outcome, ms: 1 }] }));
   }
   return dir;
 }
 
-const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, ...env } });
+const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/plates/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, ...env } });
 const json = r => { try { return JSON.parse(r.stdout); } catch { assert.fail(`not JSON (exit ${r.status}): ${r.stdout}${r.stderr}`); } };
 /** A fresh counter outside the repo, so the worktree stays clean. */
 async function counter(t) {
-  const d = await mkdtemp(join(tmpdir(), 'keel-climb-count-'));
+  const d = await mkdtemp(join(tmpdir(), 'plates-climb-count-'));
   t.after(() => rm(d, { recursive: true, force: true }));
   return { ACME_COUNT: join(d, 'count') };
 }
@@ -106,7 +107,7 @@ test('prove-steady: N runs of one test on one clean worktree; steady only with N
     assert.match(json(r).error, re);
   }
   // The suite's preloads ride along, so a test runs alone as it ran in the suite.
-  const { preloadsOf } = await import(`${new URL(`file://${join(dir, 'scripts/keel/climb.mjs')}`).href}`);
+  const { preloadsOf } = await import(`${new URL(`file://${join(dir, 'scripts/plates/climb.mjs')}`).href}`);
   await writeFile(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --import ./tests/helpers/hermetic.mjs --test --test-reporter=spec tests/' } }));
   assert.deepEqual(await preloadsOf(dir, { climb: { jobs: ['hygiene'] } }), ['--import=./tests/helpers/hermetic.mjs']);
   assert.deepEqual(await preloadsOf(dir, { climb: { jobs: ['hygiene'], testCommand: "node -r ./a.cjs --test 'x'" } }), ['--require=./a.cjs']);
@@ -116,7 +117,7 @@ test('a hygiene night: prove-steady --decide keeps a proven fix with its runs an
   const dir = await acme(t);
   const spec = 'acme.test.mjs: acme counts';
   const base = git(dir, ['rev-parse', 'HEAD']);
-  const night = () => readFile(join(dir, '.keel/climb/night.json'), 'utf8').then(JSON.parse);
+  const night = () => readFile(join(dir, '.plates/climb/night.json'), 'utf8').then(JSON.parse);
   assert.equal(json(climb(dir, ['measure', 'hygiene', '--baseline', '--json'])).median, 1);
   // Hygiene has no timing: compare refuses to judge it, and the final compare is a no-op.
   assert.match(json(climb(dir, ['compare', '--decide', '--json'])).error, /hygiene is judged by prove-steady, not by timing/);
@@ -166,9 +167,9 @@ test('a hygiene night: prove-steady --decide keeps a proven fix with its runs an
   assert.match(issue, /^- acme: a later run fails instead: acme\.test\.mjs "acme counts" failed at run 4 of 5/m);
 });
 
-/** Run one named step of keel-climb.yml with a gh that logs its calls: { status, out, calls }. */
+/** Run one named step of plates-climb.yml with a gh that logs its calls: { status, out, calls }. */
 async function issueStep(t, open) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-climb-issue-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-climb-issue-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   // The judge's handoff, as the publish job downloads it into $RUNNER_TEMP/night.
   await mkdir(join(dir, 'night'));
@@ -177,7 +178,7 @@ async function issueStep(t, open) {
   await mkdir(join(dir, 'bin'));
   await writeFile(join(dir, 'bin/gh'), `#!/bin/sh\necho "$@" >> "${join(dir, 'calls')}"\nif [ "$1 $2" = "issue list" ]; then printf '%s\\n' ${open.map(o => `'${o}'`).join(' ') || "''"}; fi\n`, { mode: 0o755 });
   const block = runBlocks(await readFile(WORKFLOW, 'utf8')).find(b => b.step === 'File the flaky test');
-  assert.ok(block, 'keel-climb.yml has a step "File the flaky test"');
+  assert.ok(block, 'plates-climb.yml has a step "File the flaky test"');
   const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: 'acme/anvils' } });
   const calls = await readFile(join(dir, 'calls'), 'utf8').catch(() => '');
   return { status: r.status, out: r.stdout + r.stderr, calls };
@@ -212,15 +213,15 @@ async function assertBunNamedNotClimbed(dir) {
 
 test('a bun or vitest flake is named, not climbed: prove-steady runs node --test only (review on #56)', async t => {
   const dir = await acme(t);
-  const runs = JSON.parse(await readFile(join(dir, '.keel/test-runs/2026-10-05T00-00-00-000Z-0.json'), 'utf8'));
+  const runs = JSON.parse(await readFile(join(dir, '.plates/test-runs/2026-10-05T00-00-00-000Z-0.json'), 'utf8'));
   for (const [i, outcome] of ['pass', 'fail'].entries()) {
-    await writeFile(join(dir, `.keel/test-runs/2026-10-05T1${i}-00-00-000Z-${i}.json`), JSON.stringify({ ...runs, runner: 'bun', config: 'acmebun', date: `2026-10-05T1${i}:00:00.000Z`, tests: [{ file: 'web/a.test.ts', name: 'save', outcome, ms: 1 }] }));
+    await writeFile(join(dir, `.plates/test-runs/2026-10-05T1${i}-00-00-000Z-${i}.json`), JSON.stringify({ ...runs, runner: 'bun', config: 'acmebun', date: `2026-10-05T1${i}:00:00.000Z`, tests: [{ file: 'web/a.test.ts', name: 'save', outcome, ms: 1 }] }));
   }
   await assertBunNamedNotClimbed(dir);
   // Mutation: hygiene that climbs every flake takes the bun one too, and fails the assertion above.
-  const text = await readFile(join(dir, 'scripts/keel/climb.mjs'), 'utf8');
+  const text = await readFile(join(dir, 'scripts/plates/climb.mjs'), 'utf8');
   const from = "const found = all.filter(f => !f.runner || f.runner === 'node').map(";
   assert.ok(text.includes(from), 'the mutation\'s target is still in the source');
-  await writeFile(join(dir, 'scripts/keel/climb.mjs'), text.replace(from, () => 'const found = all.map('));
+  await writeFile(join(dir, 'scripts/plates/climb.mjs'), text.replace(from, () => 'const found = all.map('));
   await assert.rejects(assertBunNamedNotClimbed(dir), assert.AssertionError);
 });

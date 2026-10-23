@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, writeFile, readFile, cp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readMilestones, projectMilestones, milestoneNext, exitCriteria } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { readMilestones, projectMilestones, milestoneNext, exitCriteria } from '../practices/night/files/scripts/plates/milestones.mjs';
 import { rememberQuota } from '../lib/quota.mjs';
 import { verbs } from '../lib/cli.mjs';
 import { collect } from '../practices/phases/files/scripts/roadmap.mjs';
@@ -12,10 +12,10 @@ import { goalAdd, goalRetire, phaseNew } from '../lib/goals.mjs';
 import { milestoneConfig as config, connection, milestone, issue, response, queryResponse } from './helpers/milestones.mjs';
 
 async function scratch(t) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-milestone-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-milestone-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'));
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify(config));
+  await mkdir(join(root, '.plates'));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify(config));
   return root;
 }
 
@@ -47,7 +47,7 @@ test('malformed/error responses fail; complete empty and every truncation are di
 });
 
 test('bounded read uses shared ten-minute cache and quota floor; failed reads are never cached', async t => {
-  const root = await scratch(t), env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const root = await scratch(t), env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   let reads = 0;
   const graphql = async ({ query }) => { reads++; assert.match(query, /milestones\(first:50/); assert.match(query, /issues\(first:50/); return response(); };
   const first = await readMilestones(config, { env, graphql, guard: async () => null });
@@ -76,12 +76,12 @@ test('CLI envelope never interprets truncated closed-only data as complete; loca
   for (const run of [() => goalAdd({ root, title: 'Acme', outcome: 'Land' }), () => goalRetire({ root, id: 'G0', reason: 'Acme' }), () => phaseNew({ root, title: 'Acme', goal: 'G0' }), () => collect(root)]) await assert.rejects(run(), /read-only/);
 });
 
-test('installed standalone night reads milestones without a Keel checkout and reports incomplete or unavailable honestly', async t => {
+test('installed standalone night reads milestones without a Plates checkout and reports incomplete or unavailable honestly', async t => {
   const root = await scratch(t);
-  await cp(resolve('practices/night/files/scripts/keel'), join(root, 'scripts/keel'), { recursive: true });
-  const { MEASURES, measure } = await import(pathToFileURL(join(root, 'scripts/keel/improve.mjs')).href);
+  await cp(resolve('practices/night/files/scripts/plates'), join(root, 'scripts/plates'), { recursive: true });
+  const { MEASURES, measure } = await import(pathToFileURL(join(root, 'scripts/plates/improve.mjs')).href);
   const selected = MEASURES.filter(m => ['phases_without_issue', 'phases_stuck', 'roadmap_stale', 'proofs_hold'].includes(m.id));
-  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   await readMilestones(config, { env, guard: async () => null, graphql: async () => response([milestone(1, 'OPEN', [issue(1)]), milestone(2, 'CLOSED')]) });
   const results = await measure({ root, config, env, measures: selected });
   const rows = Array.isArray(results) ? results : results.results;
@@ -95,7 +95,7 @@ test('installed standalone night reads milestones without a Keel checkout and re
 });
 
 test('GraphQL errors still account observed cost and stop the next read below the quota floor', async t => {
-  const root = await scratch(t), env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const root = await scratch(t), env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   const spend = { cost: 0, queries: 0, remaining: null, resetAt: null };
   await rememberQuota(env, { remaining: 1001, resetAt: '2099-01-01T00:00:00Z' });
   let calls = 0;
@@ -110,7 +110,7 @@ test('GraphQL errors still account observed cost and stop the next read below th
 });
 
 test('owner labels that sanitize alike never reuse each other’s cached walk projection', async t => {
-  const root = await scratch(t), env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const root = await scratch(t), env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   let calls = 0;
   const graphql = async () => { calls++; return response([milestone(1, 'OPEN', [issue(1, 'OPEN', ['team:owner'])])]); };
   const read = ownerLabel => readMilestones({ ...config, phases: { source: 'milestones', ownerLabel } }, { env, graphql, guard: async () => null });
@@ -124,7 +124,7 @@ test('a nonzero gh GraphQL response still remembers its validated quota and neve
   const root = await scratch(t), stub = join(root, 'gh.mjs');
   const body = { data: { rateLimit: { cost: 26, remaining: 975, resetAt: '2099-01-01T00:00:00Z' } }, errors: [{ message: 'Acme denied' }] };
   await writeFile(stub, `#!${process.execPath}\nconsole.log(${JSON.stringify(JSON.stringify(body))}); console.error('Acme denied'); process.exitCode = 1;\n`, { mode: 0o755 });
-  const env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: stub };
+  const env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: stub };
   await rememberQuota(env, { remaining: 1001, resetAt: '2099-01-01T00:00:00Z' });
   await assert.rejects(readMilestones(config, { env }), /Acme denied/);
   await assert.rejects(readMilestones(config, { env }), /saving your GitHub quota \(975/);
@@ -132,7 +132,7 @@ test('a nonzero gh GraphQL response still remembers its validated quota and neve
 
 
 test('closed history cannot consume open capacity; one query bounds each connection and projects number order', async t => {
-  const root = await scratch(t), env = { ...process.env, KEEL_CACHE: join(root, 'cache'), KEEL_GH: '/no-real-gh' };
+  const root = await scratch(t), env = { ...process.env, PLATES_CACHE: join(root, 'cache'), PLATES_GH: '/no-real-gh' };
   const history = Array.from({ length: 60 }, (_, i) => ({ ...milestone(i + 1, 'CLOSED'), updatedAt: new Date(Date.UTC(2026, 0, 60 - i)).toISOString() }));
   for (const openCount of [2, 51]) {
     let calls = 0;

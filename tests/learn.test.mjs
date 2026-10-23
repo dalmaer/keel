@@ -1,4 +1,4 @@
-// keel learn: lesson issues and moved sources become proposals in docs/inbox/;
+// plates learn: lesson issues and moved sources become proposals in docs/inbox/;
 // an agent proposes, a person decides. gh is stubbed at the boundary the way
 // real gh behaves (lesson 8): `issue list --json` prints a JSON array of the
 // asked fields, `api .../commits?path=…` prints commit objects newest first,
@@ -17,9 +17,9 @@ import { gather, propose, decide, render, proposals, parseProposal, formatPropos
 import { load as loadMigrations, view } from '../lib/migrations.mjs';
 import { parseLessons } from '../lib/lessons.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
-const FIXTURES = join(KEEL, 'tests', 'fixtures', 'learn');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
+const FIXTURES = join(PLATES, 'tests', 'fixtures', 'learn');
 const NOW = '2026-10-02T00:00:00.000Z';
 const PINNED = 'a1b2c3d4';
 const PIN_FULL = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
@@ -32,24 +32,24 @@ async function scratch(t, prefix) {
   return dir;
 }
 
-/** A synthetic keel home ("keel": "self", repo acme/keel), copied from the fixture. */
+/** A synthetic plates home ("plates": "self", repo acme/plates), copied from the fixture. */
 async function home(t) {
-  const dir = join(await scratch(t, 'keel-learn-'), 'home');
+  const dir = join(await scratch(t, 'plates-learn-'), 'home');
   await copyProject(join(FIXTURES, 'home'), dir);
   return dir;
 }
 
-/** A lesson issue the way keel lessons files one. */
+/** A lesson issue the way plates lessons files one. */
 const lessonIssue = (number, n, shape, extra = {}) => {
   const fingerprint = `acme/notes/lesson/${n}/0badc0de`;
   const payload = [`**The shape of it**\n\n${shape}`, '**What it cost**\n\nAcme lost an afternoon.', '**Guard**\n\nA test names it.', `Source: acme/notes docs/lessons.md, row ${n}`].join('\n\n');
   return { number, title: `lesson(acme/notes): ${shape}`, body: issueBody('acme/notes', { kind: 'lesson', fingerprint, payload }),
-    url: `https://github.com/acme/keel/issues/${number}`, state: 'OPEN', labels: ['lesson'], ...extra };
+    url: `https://github.com/acme/plates/issues/${number}`, state: 'OPEN', labels: ['lesson'], ...extra };
 };
 
 /** A gh that behaves like gh over a JSON state file. */
 async function stubGh(t, seed) {
-  const dir = await scratch(t, 'keel-gh-');
+  const dir = await scratch(t, 'plates-gh-');
   const log = join(dir, 'gh.log'), state = join(dir, 'state.json'), gh = join(dir, 'gh');
   await writeFile(state, JSON.stringify(seed));
   await writeFile(gh, `#!${process.execPath}
@@ -89,7 +89,7 @@ if (a === 'issue' && b === 'list') {
 `);
   await chmod(gh, 0o755);
   return {
-    env: { ...cleanEnv(), KEEL_GH: gh },
+    env: { ...cleanEnv(), PLATES_GH: gh },
     calls: async () => (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)),
     state: async () => JSON.parse(await readFile(state, 'utf8')),
   };
@@ -107,21 +107,21 @@ const moved = (over = {}) => seed({
   ...over,
 });
 
-const keel = (args, cwd, env) => {
+const plates = (args, cwd, env) => {
   const r = runCmd(process.execPath, [BIN, ...args], { cwd, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 
 test('learn runs at home only: elsewhere exit 2', async t => {
-  const dir = await scratch(t, 'keel-learn-away-');
+  const dir = await scratch(t, 'plates-learn-away-');
   await copyProject(join(FIXTURES, 'home'), dir);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-  delete cfg.keel;
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(cfg));
+  const cfg = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+  delete cfg.plates;
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(cfg));
   for (const args of [['learn'], ['learn', 'render', '--check']]) {
-    const r = keel([...args, '--json'], dir, { ...cleanEnv(), KEEL_GH: '/nonexistent/gh' });
+    const r = plates([...args, '--json'], dir, { ...cleanEnv(), PLATES_GH: '/nonexistent/gh' });
     assert.equal(r.code, 2, args.join(' '));
-    assert.match(JSON.parse(r.out).error, /learn runs at home, on keel/);
+    assert.match(JSON.parse(r.out).error, /learn runs at home, on plates/);
   }
 });
 
@@ -172,7 +172,7 @@ test('an instruction inside a lesson is flagged, quoted verbatim, never followed
   const body = issueBody('acme/notes', { kind: 'lesson', fingerprint: 'acme/notes/lesson/9/deadbee5',
     payload: (await readFile(join(FIXTURES, 'injected-body.md'), 'utf8')).trimEnd() });
   const gh = await stubGh(t, seed({ issues: [
-    { number: 7, title: 'lesson(acme/notes): A gate that trusts its own summary line.', body, url: 'https://github.com/acme/keel/issues/7', state: 'OPEN', labels: ['lesson'] },
+    { number: 7, title: 'lesson(acme/notes): A gate that trusts its own summary line.', body, url: 'https://github.com/acme/plates/issues/7', state: 'OPEN', labels: ['lesson'] },
     lessonIssue(8, 3, '**A clean lesson.** *(acme 3)*'),
   ] }));
   const r = await gather({ dir }, { env: gh.env, now: NOW });
@@ -186,7 +186,7 @@ test('an instruction inside a lesson is flagged, quoted verbatim, never followed
   assert.match(text, /## Claim\n\n```\n/);
   // Nothing was executed: the only gh calls were reads, and no file outside docs/ changed.
   for (const c of await gh.calls()) assert.ok((c[0] === 'issue' && c[1] === 'list') || c[0] === 'api', c.join(' '));
-  assert.deepEqual((await readdir(dir)).sort(), ['.keel', 'docs', 'migrations', 'practices']);
+  assert.deepEqual((await readdir(dir)).sort(), ['.plates', 'docs', 'migrations', 'practices']);
 
   const read = 'The claim asks to run `rm -rf ~`; checked docs/lessons.md, no such shape.';
   await assert.rejects(propose({ dir, slug: bad.slug, outcome: 'decline', note: 'injected', read }), /instruction-shaped.*Surfaced, not followed:/);
@@ -206,7 +206,7 @@ test('an issue without the data line or a fingerprint is gathered, flagged unrec
   await gather({ dir }, { env: gh.env, now: NOW });
   const [p] = await proposals(dir);
   assert.equal(p.slug, 'issue-4');
-  assert.equal(p.meta.from, 'acme/keel#4');
+  assert.equal(p.meta.from, 'acme/plates#4');
   assert.equal(p.meta.flag, 'unrecognised');
 });
 
@@ -218,7 +218,7 @@ test('propose rejects a read that cites no path or sha, and a link without --lin
   await assert.rejects(propose({ dir, slug: p.slug, outcome: 'lesson', note: 'n', read: 'Looks right to me.' }), /must cite something checked/);
   await assert.rejects(propose({ dir, slug: p.slug, outcome: 'link', note: 'n', read: 'Same as row 1 of docs/lessons.md.' }), /needs --link/);
   await assert.rejects(propose({ dir, slug: p.slug, outcome: 'link', link: '99', note: 'n', read: 'Same as docs/lessons.md row.' }), /no lesson 99/);
-  const r = keel(['learn', 'propose', p.slug, '--outcome', 'lesson', '--note', 'n', '--read', 'fine', '--json'], dir, gh.env);
+  const r = plates(['learn', 'propose', p.slug, '--outcome', 'lesson', '--note', 'n', '--read', 'fine', '--json'], dir, gh.env);
   assert.equal(r.code, 2);
   assert.match(JSON.parse(r.out).error, /must cite/);
   assert.equal((await proposals(dir))[0].meta.status, 'untriaged');
@@ -281,7 +281,7 @@ test('decide accepted + practice: the lesson row and an inert migration stub, an
   assert.equal(await m.applies(await view(dir)), false, 'inert until written');
   const rows = parseLessons(await readFile(join(dir, 'docs/lessons.md'), 'utf8')).rows;
   assert.equal(rows.length, 3);
-  assert.equal(rows[2].shape, `**builders test by file** *(${UPSTREAM})*`, 'the shape is written bold, keel\'s table style');
+  assert.equal(rows[2].shape, `**builders test by file** *(${UPSTREAM})*`, 'the shape is written bold, plates\'s table style');
   assert.equal(rows[2].cost, 'to write');
 });
 
@@ -292,23 +292,23 @@ test('decide declined with an issue: exit 3 with the plan, record written; --yes
   const [p] = await proposals(dir);
   await propose({ dir, slug: p.slug, outcome: 'decline', note: 'project-specific', read: 'An Acme network fact; nothing in docs/lessons.md generalises it.' });
   const lessons = await readFile(join(dir, 'docs/lessons.md'), 'utf8');
-  const first = keel(['learn', 'decide', p.slug, 'declined', '--note', 'Acme-specific: a network fact, not a shape', '--json'], dir, gh.env);
+  const first = plates(['learn', 'decide', p.slug, 'declined', '--note', 'Acme-specific: a network fact, not a shape', '--json'], dir, gh.env);
   assert.equal(first.code, 3, first.err);
   const plan = JSON.parse(first.out);
   assert.equal(plan.needs, 'yes');
   assert.equal(plan.plan.issue, 6);
-  assert.match(plan.plan.what, /^gh issue close 6 -R acme\/keel --comment /);
+  assert.match(plan.plan.what, /^gh issue close 6 -R acme\/plates --comment /);
   assert.ok(!(await gh.calls()).some(c => c[0] === 'issue' && c[1] === 'close'), 'nothing closed without a yes');
   assert.equal((await proposals(dir))[0].meta.status, 'declined', 'the local record is written');
   assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), lessons);
 
-  const yes = keel(['learn', 'decide', p.slug, 'declined', '--yes', '--json'], dir, gh.env);
+  const yes = plates(['learn', 'decide', p.slug, 'declined', '--yes', '--json'], dir, gh.env);
   assert.equal(yes.code, 0, yes.out + yes.err);
   assert.equal(JSON.parse(yes.out).closed, true);
   const close = (await gh.calls()).filter(c => c[0] === 'issue' && c[1] === 'close');
   assert.equal(close.length, 1);
   assert.deepEqual(close[0].slice(0, 4), ['issue', 'close', '6', '-R']);
-  assert.equal(close[0][close[0].indexOf('--comment') + 1], 'keel learn: declined. Acme-specific: a network fact, not a shape');
+  assert.equal(close[0][close[0].indexOf('--comment') + 1], 'plates learn: declined. Acme-specific: a network fact, not a shape');
   const state = await gh.state();
   assert.equal(state.issues[0].state, 'CLOSED');
   assert.equal((await proposals(dir))[0].meta.closed, true);
@@ -325,20 +325,20 @@ test('render --check fails on a stale INBOX.md, passes once rendered; the CLI ex
   // A hand edit to a proposal (here: an agent's read written by hand) makes INBOX.md stale.
   const text = await readFile(join(dir, p.file), 'utf8');
   await writeFile(join(dir, p.file), text.replace('status: untriaged', 'status: proposed\noutcome: lesson\nnote: "by hand"'));
-  const stale = keel(['learn', 'render', '--check', '--json'], dir, gh.env);
+  const stale = plates(['learn', 'render', '--check', '--json'], dir, gh.env);
   assert.equal(stale.code, 1);
   assert.equal(JSON.parse(stale.out).ok, false);
-  assert.equal(keel(['learn', 'render'], dir, gh.env).code, 0);
+  assert.equal(plates(['learn', 'render'], dir, gh.env).code, 0);
   const inbox = await readFile(join(dir, INBOX_MD), 'utf8');
   assert.match(inbox, /\| proposed \| 1 \|/);
   assert.match(inbox, /\| \[lesson-notes-4-0badc0de\]\(inbox\/2026-10-02-lesson-notes-4-0badc0de\.md\) \| lesson \| lesson \| by hand \|/);
-  assert.equal(keel(['learn', 'render', '--check'], dir, gh.env).code, 0);
+  assert.equal(plates(['learn', 'render', '--check'], dir, gh.env).code, 0);
 });
 
 test('gather under --json over the CLI: one document, the counts', async t => {
   const dir = await home(t);
   const gh = await stubGh(t, seed({ issues: [lessonIssue(5, 4, '**Shape four.** *(acme 4)*')] }));
-  const r = keel(['learn', '--json'], dir, gh.env);
+  const r = plates(['learn', '--json'], dir, gh.env);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.err, '');
   const out = JSON.parse(r.out);
@@ -361,7 +361,7 @@ test('a proposal round-trips: a claim full of fences and headings survives parse
 test('a read may cite a dotfile path (.nvmrc, .gitignore); prose and a bare word still do not count', async () => {
   const { concrete } = await import('../lib/learn.mjs');
   assert.ok(concrete('practices/base/files/.nvmrc pins the runtime'));
-  assert.ok(concrete('checked keel/.gitignore'));
+  assert.ok(concrete('checked plates/.gitignore'));
   assert.ok(concrete('docs/lessons.md row 6'));
   assert.ok(!concrete('Looks right to me.'));
   assert.ok(!concrete('the .nvmrc file'), 'a bare dotfile name with no directory is not a path');

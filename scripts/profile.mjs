@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// node scripts/profile.mjs --output /tmp/profile.json -- <keel arguments>
+// node scripts/profile.mjs --output /tmp/profile.json -- <plates arguments>
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -9,7 +9,7 @@ export function runProfile(args, { entry = fileURLToPath(new URL('./profile-entr
   return new Promise((resolveResult, reject) => {
     const start = process.hrtime.bigint();
     const child = spawn(process.execPath, ['--import', fileURLToPath(new URL('./profile-preload.mjs', import.meta.url)), entry, ...args], {
-      cwd, env: { ...env, KEEL_PROFILE_START_NS: String(start), KEEL_PROFILE_PID: String(process.pid) },
+      cwd, env: { ...env, PLATES_PROFILE_START_NS: String(start), PLATES_PROFILE_PID: String(process.pid) },
       stdio: [stdio, stdio, stdio, 'pipe'],
     });
     let data = ''; let overflow = false;
@@ -29,9 +29,9 @@ export function runProfile(args, { entry = fileURLToPath(new URL('./profile-entr
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === '--help') {
-    console.log('Usage: node scripts/profile.mjs --output <new-json-file> -- <keel arguments>');
+    console.log('Usage: node scripts/profile.mjs --output <new-json-file> -- <plates arguments>');
   } else if (args[0] !== '--output' || !args[1] || args[2] !== '--') {
-    console.error('Usage: node scripts/profile.mjs --output <new-json-file> -- <keel arguments>');
+    console.error('Usage: node scripts/profile.mjs --output <new-json-file> -- <plates arguments>');
     process.exitCode = 2;
   } else {
     // Reserve a private, new destination before executing any command.

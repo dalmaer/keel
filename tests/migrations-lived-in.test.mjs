@@ -8,19 +8,19 @@ import { view } from '../lib/migrations.mjs';
 import * as m0006 from '../migrations/0006-lived-in-kept.mjs';
 
 async function acme(t, config) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-0006-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-0006-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`);
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`);
   return dir;
 }
 const run = async dir => {
   const project = await view(dir);
   if (!(await m0006.applies(project))) return null;
-  return JSON.parse((await m0006.up(project)).find(e => e.path === '.keel/keel.json').content);
+  return JSON.parse((await m0006.up(project)).find(e => e.path === '.plates/plates.json').content);
 };
 
-test('0006: a project updating from before 0.8.15 with keel\'s phases keeps lived-in on, and the update says how to drop it', async t => {
+test('0006: a project updating from before 0.8.15 with plates\'s phases keeps lived-in on, and the update says how to drop it', async t => {
   const config = await run(await acme(t, { practice: '0.8.14', practices: ['base', 'phases'], phases: { shape: 'files' } }));
   assert.deepEqual(config.phases, { shape: 'files', livedIn: true }, 'kept, beside what phases already held');
   assert.equal(config.practice, '0.8.14', 'nothing else changes');

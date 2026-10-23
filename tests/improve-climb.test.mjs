@@ -1,6 +1,6 @@
 // The health page's climb line (phase 35): improve --report reads the newest
-// climb night's record, which the night fetched from the keel-climb artifact
-// into .keel/climb/night.json, and writes one line: kept N and the PR, or kept
+// climb night's record, which the night fetched from the plates-climb artifact
+// into .plates/climb/night.json, and writes one line: kept N and the PR, or kept
 // nothing and why; nothing when climb is off or never ran. Not a measure.
 // Phase 36: a line when a climb job's last three PRs were closed unmerged (it
 // proposes its own retirement), and build_time, the build timed once a night.
@@ -9,17 +9,17 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { climbLine } from '../practices/night/files/scripts/keel/lib.mjs';
+import { improve } from '../practices/night/files/scripts/plates/improve.mjs';
+import { climbLine } from '../practices/night/files/scripts/plates/lib.mjs';
 import { ENV } from './helpers/improve.mjs';
 
 /** An Acme repo with a config and, when given, a synthetic climb record as the artifact unpacks it. */
 async function acme(t, { climb = { jobs: ['test-time'] }, night } = {}) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-improve-climb-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-improve-climb-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel/climb'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], ...(climb ? { climb } : {}) }));
-  if (night !== undefined) await writeFile(join(dir, '.keel/climb/night.json'), typeof night === 'string' ? night : JSON.stringify(night));
+  await mkdir(join(dir, '.plates/climb'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], ...(climb ? { climb } : {}) }));
+  if (night !== undefined) await writeFile(join(dir, '.plates/climb/night.json'), typeof night === 'string' ? night : JSON.stringify(night));
   return dir;
 }
 
@@ -38,7 +38,7 @@ test('the health page says what the newest climb night kept and its PR, or that 
   const nothing = await pageOf(await acme(t, { night: { job: 'test-time', date: '2026-10-06', margin: 0.05, tried: tried('revert', 'revert') } }));
   assert.match(nothing.text, /^Climb: 2026-10-06 test-time: kept nothing \(2 tried, none beat the noise \(margin 5%\)\)\.$/m);
   const idle = await pageOf(await acme(t, { night: { job: 'test-time', date: '2026-10-06', tried: [] } }));
-  assert.match(idle.text, /^Climb: 2026-10-06 test-time: kept nothing \(nothing was tried\)\.$/m);
+  assert.match(idle.text, /^Climb: 2026-10-06 test-time: kept nothing \(no measured attempts recorded\)\.$/m);
 
   for (const [why, opts] of [['climb off', { climb: null, night: { job: 'test-time', date: '2026-10-06', tried: tried('keep'), pr: 3 } }], ['never ran', {}]]) {
     const p = await pageOf(await acme(t, opts));
@@ -46,15 +46,28 @@ test('the health page says what the newest climb night kept and its PR, or that 
     assert.equal(p.data.climb, null, why);
   }
   const torn = await pageOf(await acme(t, { night: '{ "job": ' }));
-  assert.match(torn.text, /^Climb: the newest record \(\.keel\/climb\/night\.json\) is unreadable/m, 'a torn record is said, never dropped');
+  assert.match(torn.text, /^Climb: the newest record \(\.plates\/climb\/night\.json\) is unreadable/m, 'a torn record is said, never dropped');
 
   // Kept with no PR (the guard failed, or Actions may not open PRs): said, not invented.
   assert.equal(climbLine({ climb: {} }, { job: 'test-time', date: '2026-10-06', tried: tried('keep') }), 'Climb: 2026-10-06 test-time: kept 1, no PR opened (the guard did not pass).');
 });
 
+test('the health page retains incomplete settlement evidence without inferring historical candidates', async t => {
+  const night = { job: 'test-time', date: '2026-10-06', tried: [], line: 'historical summary: nothing was tried' };
+  const settlements = [{ from: 'a'.repeat(40), to: 'b'.repeat(40), uncommitted: false, at: '2026-10-06T12:00:00Z' }];
+  const current = await pageOf(await acme(t, { night: { ...night, settlements } }));
+  assert.equal(current.data.climb, 'Climb: 2026-10-06 test-time: kept nothing (no measured attempts recorded; incomplete: unmeasured work recorded at settlement).');
+  assert.ok(current.text.includes(current.data.climb));
+  for (const record of [night, { ...night, settlements: [] }]) {
+    const historical = await pageOf(await acme(t, { night: record }));
+    assert.match(historical.data.climb, /no measured attempts recorded/);
+    assert.doesNotMatch(historical.data.climb, /incomplete|candidate|nothing was tried/, 'missing settlement evidence cannot establish whether a candidate existed');
+  }
+});
+
 /** A gh that answers `pr list --state all` with these PRs, `--state closed` with those not OPEN (as gh does), and fails anything else. */
 async function closedGh(t, prs, { fail = false } = {}) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-improve-climb-gh-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-improve-climb-gh-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const gh = join(dir, 'gh');
   const shut = prs.filter(p => p.state !== 'OPEN');
@@ -66,9 +79,9 @@ test('the health page says when a climb job proposes its own retirement: its las
   const pr = (n, job, merged = false) => ({ headRefName: `keel-climb/${job}/2026-10-0${n}`, number: n, createdAt: `2026-10-0${n}T10:00:00Z`, mergedAt: merged ? `2026-10-0${n}T11:00:00Z` : null });
   const at = async (prs, opts) => {
     const dir = await acme(t, { climb: { jobs: ['test-time', 'hygiene'] } });
-    const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...config, repo: 'acme/anvils' }));
-    const r = await improve({ root: dir, report: true, date: '2026-10-07' }, { env: { ...ENV, KEEL_GH: await closedGh(t, prs, opts) }, measures: [] });
+    const config = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...config, repo: 'acme/anvils' }));
+    const r = await improve({ root: dir, report: true, date: '2026-10-07' }, { env: { ...ENV, PLATES_GH: await closedGh(t, prs, opts) }, measures: [] });
     return { data: r.data, text: await readFile(join(dir, 'docs/health/2026-10-07.md'), 'utf8') };
   };
   const three = await at([pr(1, 'test-time'), pr(2, 'test-time'), pr(3, 'test-time'), pr(4, 'hygiene', true)]);
@@ -87,8 +100,8 @@ test('the health page says when a climb job proposes its own retirement: its las
 });
 
 test('build_time: the build timed once when "climb".build names it; outside over buildBudgetMs, recorded only without one, n/a without a build, broken when it fails', async t => {
-  const { measure, page: pageText } = await import('../practices/night/files/scripts/keel/improve.mjs');
-  const { MEASURES } = await import('../practices/night/files/scripts/keel/improve.mjs');
+  const { measure, page: pageText } = await import('../practices/night/files/scripts/plates/improve.mjs');
+  const { MEASURES } = await import('../practices/night/files/scripts/plates/improve.mjs');
   const only = MEASURES.filter(m => m.id === 'build_time');
   const at = async climb => {
     const dir = await acme(t, { climb });

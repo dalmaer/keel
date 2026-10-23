@@ -1,9 +1,17 @@
-# What's new in keel
+# What's new in Plates
 
-Each entry is for the person whose project `keel update` brings to that
+Each entry is for the person whose project `plates update` brings to that
 practice version: what changes in your repo, and anything you need to do.
-Newest first. `keel release` writes them; `keel update` puts the entries
+Newest first. `plates release` writes them; `plates update` puts the entries
 between your version and the new one into its pull request.
+
+## v0.8.33 — practice 0.8.33 (2026-10-22)
+
+Keel is now Plates. Each project is a plate, the overview is All plates, and /spin runs the existing guided phase workflow. The plates executable, .plates configuration, managed scripts, workflows, skills and active documentation use the new name; legacy keel and /conduct entry points remain available for compatibility.
+
+The rename migration inventories exact paths and content before writing, requires the reviewed digest, retains recovery receipts, preserves private directory permissions and historical identities, and refuses unsupported transformations. Project-owned commands and configuration require explicit preparation instead of guessed substitutions. Existing data, receipts, scheduling identities and external interfaces remain intact.
+
+Local and CI use Node 24.22.1 or later. An owner-approved temporary exception permits exactly Node 24.21.0 only for an explicitly opted-in production Vercel web deployment while its managed patch rollout remains incomplete. Authentication, origin, preview isolation, recovery and feature gates remain in force. The exception must be removed once a fresh function verifies the patched baseline; WAF protection is not a substitute for the runtime patch.
 
 ## v0.8.32 — practice 0.8.32 (2026-10-17)
 
@@ -203,7 +211,7 @@ Released without the review gate (41 practice commits unchecked): 41 practice co
 
 ## v0.8.11 — practice 0.8.11 (2026-10-07)
 
-- **Climb and tend agents can no longer reach a token that writes to your repo.** Each workflow is now three jobs: `agent` (read-only; the Claude action is handed that read-only token), `judge` (read-only, no agent: checks that the commits touch no `.github/`, `scripts/keel/` or `.keel/keel.json`, then runs the guard and your gate) and `publish` (pushes and opens the PR, running nothing from the branch). Found by Claude's cross-review of ledger#92. Runs take a little longer (the judge installs again) and keep two more artifacts for 7 days.
+- **Climb and tend agents can no longer reach a token that writes to your repo.** Each workflow is now three jobs: `agent` (read-only; the Claude action is handed that read-only token), `judge` (read-only, no agent: checks that the commits touch no `.github/`, `scripts/plates/` or `.keel/keel.json`, then runs the guard and your gate) and `publish` (pushes and opens the PR, running nothing from the branch). Found by Claude's cross-review of ledger#92. Runs take a little longer (the judge installs again) and keep two more artifacts for 7 days.
 - **Cross-review keeps a person's `/review` queued**: a bot's comment on the PR no longer replaces it.
 - **The unbounded-measure check** reads every measure an item names, and skips "not a night measure".
 
@@ -310,7 +318,7 @@ This update rewrites some of your own files, so its PR is marked a one-way door:
 
 - **Renovate watches vendored git submodules.** If your repo vendors code as submodules, their updates now arrive in the Monday majors PR, for a person to read. A repo without submodules sees no change.
 - **New optional practice, `reconciliation`** (`keel adopt --with reconciliation`): it compares your phase and decision records with what actually shipped, and asks each PR to declare which records it touches (a `keel-impact` block). Renovate, night and Loop PRs carry a no-impact declaration. Off unless you switch it on; the night shows its measure as n/a.
-- **With reconciliation on, editing a PR's description re-checks it** (`keel-impact.yml`, a few seconds), so fixing the declaration turns the PR green without re-running your gate.
+- **With reconciliation on, editing a PR's description re-checks it** (`plates-impact.yml`, a few seconds), so fixing the declaration turns the PR green without re-running your gate.
 - **Node 24.21.0** in the `.nvmrc` keel seeds for new projects.
 
 ## v0.6.5 — practice 0.6.5 (2026-10-04)
@@ -440,8 +448,8 @@ Your project now runs entirely on its own, and keel can read projects that
 were built differently.
 
 - **Your night shift needs nothing from keel.**
-  - `keel-night.yml` runs your repo's own `scripts/keel/improve.mjs` and
-    `scripts/keel/drain.mjs`, which are new managed files. There's no keel
+  - `keel-night.yml` runs your repo's own `scripts/plates/improve.mjs` and
+    `scripts/plates/drain.mjs`, which are new managed files. There's no keel
     checkout and no secret.
   - What it can't measure from your repo alone, it marks "keel-side" rather
     than 0.

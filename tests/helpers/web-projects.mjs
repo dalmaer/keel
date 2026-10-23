@@ -9,7 +9,7 @@ export function projectHarness({ files, shape = 'files' } = {}) {
   const h = harness();
   const state = { revision: 'b'.repeat(40), treeTruncated: false, fail: false, denied: false, requests: [], hold: null,
     files: files ?? {
-      '.keel/keel.json': JSON.stringify({ name: 'Acme Studio', tagline: 'Publish useful things.', practice: '0.8.32', stack: ['node'], phases: { shape } }),
+      '.plates/plates.json': JSON.stringify({ name: 'Acme Studio', tagline: 'Publish useful things.', practice: '0.8.32', stack: ['node'], phases: { shape } }),
       'docs/goals.json': JSON.stringify([{ id: 'G1', title: 'A dependable studio', outcome: 'People publish confidently.' }]),
       'docs/phases/01-first.md': phaseFile(1, { next: '⚑ Choose the publishing policy.' }),
       'docs/phases/02-walk.md': phaseFile(2, { status: 'partial', owes: true }),

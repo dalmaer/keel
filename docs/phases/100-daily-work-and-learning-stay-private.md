@@ -21,7 +21,7 @@ Implement morning/night read and draft views, learning catalogue, setup diagnost
 
 Implementation: [Daily work, private learning and reviewed transfers](../specs/web-daily-learning.md).
 
-Contract: [Private workspace, public Keel application](../specs/web-workspace.md),
+Contract: [Private workspace, public Plates application](../specs/web-workspace.md),
 [UX](../specs/web-ui.md) and [CLI mapping](../specs/web-ui-command-map.md).
 
 ## Acceptance

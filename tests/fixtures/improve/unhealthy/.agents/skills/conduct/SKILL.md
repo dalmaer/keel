@@ -5,8 +5,8 @@ argument-hint: "[status | <phase number> | one]"
 ---
 
 <!-- Source: dglazkov/isocan .claude/skills/conduct/SKILL.md @ 7227f325 (Apache-2.0).
-     Adapted by keel for one-file-per-phase projects (docs/phases/NN-*.md).
-     Keel manages this file: change it upstream in keel, or send the change home with `keel lessons`. -->
+     Adapted by plates for one-file-per-phase projects (docs/phases/NN-*.md).
+     Plates manages this file: change it upstream in plates, or send the change home with `plates lessons`. -->
 
 # conduct: one phase, verified, recorded, committed
 

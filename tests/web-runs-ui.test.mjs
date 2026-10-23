@@ -74,8 +74,8 @@ test('removing only the selected project during collection suppresses the old pr
     const h=runsHarness(),login=await h.login();let removed=false;
     h.actions.onRequest=()=>{removed=true;};
     const fetcher=async(url,options)=>{
-      if(removed&&new URL(url).pathname==='/repos/acme/keel-private/contents/workspace.json'){
-        const content=JSON.stringify({version:1,id:'acme',name:'Acme workspace',repo:'acme/keel-private',projects:[]});
+      if(removed&&new URL(url).pathname==='/repos/acme/plates-private/contents/workspace.json'){
+        const content=JSON.stringify({version:1,id:'acme',name:'Acme workspace',repo:'acme/plates-private',projects:[]});
         return Response.json({type:'file',encoding:'base64',size:Buffer.byteLength(content),content:Buffer.from(content).toString('base64')});
       }
       return h.fetcher(url,options);
@@ -113,4 +113,18 @@ test('old unresolved private receipts remain visible without becoming running or
 test('definition-to-activity and attempt-back links retain the current applicable URL filters',()=>{
   const definition=routineCard({id:'.github/workflows/acme.yml',name:'Acme'},project,'now',{days:7,status:'failed'});assert.match(definition,/days=7&amp;status=failed&amp;routine=\.github%2Fworkflows%2Facme.yml/);
   const html=runsView({project,items:[item],filters:{days:7,status:'failed'},coverage:{gaps:[]},pagination:{page:2}},access);assert.match(html,/attempts\/2\?days=7&amp;status=failed&amp;page=2/);
+});
+
+
+test('Routines uses canonical Plates branding and All plates scope without changing route identities', () => {
+  const html = runsView({ routines: [], projects: [], filters: { days: 30 } }, access, 'routines');
+  assert.match(html, /· Plates<\/title>/);
+  assert.match(html, /<summary class="nav-project">All plates<\/summary>/);
+  assert.match(html, /aria-label="Choose project"/);
+  assert.match(html, /data-project-lens="" href="\/routines\?days=30" aria-current="true"><span>All plates<small\b/);
+  assert.match(html, /data-project-lens="studio" href="\/projects\/studio\/routines\?days=30"/);
+  assert.match(html, /data-nav-destination="routines" href="\/routines" aria-current="page"/);
+  assert.match(html, /href="\/assets\/plates.css"/);
+  assert.match(html, /action="\/routines"/);
+  assert.doesNotMatch(html, />Fleet|· Keel|assets\/keel/);
 });

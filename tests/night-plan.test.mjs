@@ -1,5 +1,5 @@
 // The night's plan (phase 73): one plan per night, written before it runs,
-// ticked as it goes. The validator holds the design's schema and rules; keel
+// ticked as it goes. The validator holds the design's schema and rules; plates
 // night plan makes the same default plan from the same inputs and writes
 // nothing when one cannot be read; the night uses tonight's plan from the plan
 // branch or the default; a tick moves one item and never back from done; the
@@ -17,13 +17,13 @@ import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { validatePlan, admit, defaultPlan, nightOf, tickMeasures, planSection, healthProposal, safeWrite, writeRecord, MAX_BUILD, PLAN, ITEM_FIELDS, PLAN_FIELDS, CANDIDATE_SOURCES } from '../lib/night-plan.mjs';
 import { isData } from '../lib/night.mjs';
-import { formatRobotRubric } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
+import { formatRobotRubric } from '../practices/climb/files/scripts/plates/robot-rubric.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const NIGHT = '2026-10-15';
 
-const keel = (args, cwd, env = {}) => {
+const plates = (args, cwd, env = {}) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env: { ...process.env, ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
@@ -173,11 +173,11 @@ async function acme(t, { config = {}, prs, issues, failGh = false } = {}) {
   const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-plan-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'anvils');
-  await mkdir(join(root, '.keel'), { recursive: true });
-  await mkdir(join(root, 'scripts', 'keel'), { recursive: true });
-  for (const p of ['night', 'climb']) await cp(join(KEEL, 'practices', p, 'files', 'scripts', 'keel'), join(root, 'scripts', 'keel'), { recursive: true });
-  await cp(join(KEEL, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
-  await writeFile(join(root, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop'], climb: { jobs: ['test-time'], budget: { minutes: 40 } }, robot: { on: true, budgetMinutes: 60 }, ...config }));
+  await mkdir(join(root, '.plates'), { recursive: true });
+  await mkdir(join(root, 'scripts', 'plates'), { recursive: true });
+  for (const p of ['night', 'climb']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
+  await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop'], climb: { jobs: ['test-time'], budget: { minutes: 40 } }, robot: { on: true, budgetMinutes: 60 }, ...config }));
   await mkdir(join(root, 'docs', 'health'), { recursive: true });
   await writeFile(join(root, 'docs', 'health', '2026-10-14.md'), PAGE);
   // Tonight's own page, when a rerun has one: never what the plan reads.
@@ -218,18 +218,18 @@ if (a[0] === 'pr' && a[1] === 'list') {
   return { root, base, gh, log };
 }
 
-test('keel night plan makes the same default plan from the same inputs: the measures, the health proposal, the climb job pick chooses, the robot\'s next issue, untriaged Loop findings', async t => {
+test('plates night plan makes the same default plan from the same inputs: the measures, the health proposal, the climb job pick chooses, the robot\'s next issue, untriaged Loop findings', async t => {
   const { root, gh } = await acme(t);
-  const a = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const a = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(a.code, 0, a.err + a.out);
   const first = await readFile(join(root, PLAN), 'utf8');
-  const b = keel(['night', 'plan', '--date', NIGHT], root, { KEEL_GH: gh });
+  const b = plates(['night', 'plan', '--date', NIGHT], root, { PLATES_GH: gh });
   assert.equal(b.code, 0, b.err);
   assert.equal(await readFile(join(root, PLAN), 'utf8'), first, 'the same inputs, the same bytes');
-  const script = run(process.execPath, [join(root, 'scripts/keel/night-plan.mjs'), 'plan', '--date', NIGHT, '--json'], { cwd: root, env: { ...process.env, KEEL_GH: gh } });
+  const script = run(process.execPath, [join(root, 'scripts/plates/night-plan.mjs'), 'plan', '--date', NIGHT, '--json'], { cwd: root, env: { ...process.env, PLATES_GH: gh } });
   assert.equal(script.status, 0, script.stderr);
-  assert.equal(await readFile(join(root, PLAN), 'utf8'), first, 'the project\'s own copy makes the same plan as keel\'s verb');
-  assert.equal(await readFile(join(root, '.keel/night/.gitignore'), 'utf8'), '*\n', 'the working plan ignores itself');
+  assert.equal(await readFile(join(root, PLAN), 'utf8'), first, 'the project\'s own copy makes the same plan as plates\'s verb');
+  assert.equal(await readFile(join(root, '.plates/night/.gitignore'), 'utf8'), '*\n', 'the working plan ignores itself');
 
   const plan = JSON.parse(first);
   assert.deepEqual(validatePlan(plan, { openRobotPrs: [3] }).problems, []);
@@ -260,18 +260,18 @@ test('keel night plan makes the same default plan from the same inputs: the meas
   assert.equal(a.json().plan.items[0].id, 'measures');
 });
 
-test('keel night plan writes nothing when an input cannot be read, and says which (exit 2)', async t => {
+test('plates night plan writes nothing when an input cannot be read, and says which (exit 2)', async t => {
   // gh cannot be read: climb's pick and the robot's PRs both need it.
   const down = await acme(t, { failGh: true });
-  await mkdir(join(down.root, '.keel/night'), { recursive: true });
+  await mkdir(join(down.root, '.plates/night'), { recursive: true });
   await writeFile(join(down.root, PLAN), 'last night\'s plan, untouched\n');
-  const r = keel(['night', 'plan', '--date', NIGHT, '--json'], down.root, { KEEL_GH: down.gh });
+  const r = plates(['night', 'plan', '--date', NIGHT, '--json'], down.root, { PLATES_GH: down.gh });
   assert.equal(r.code, 2, r.out);
   assert.match(r.json().error, /cannot read the climb pick: .*HTTP 502: Acme gateway/);
   assert.equal(await readFile(join(down.root, PLAN), 'utf8'), 'last night\'s plan, untouched\n', 'nothing written');
   // Climb off: then it is the robot's open PRs that cannot be read.
   const robot = await acme(t, { failGh: true, config: { climb: undefined } });
-  const rr = keel(['night', 'plan', '--date', NIGHT, '--json'], robot.root, { KEEL_GH: robot.gh });
+  const rr = plates(['night', 'plan', '--date', NIGHT, '--json'], robot.root, { PLATES_GH: robot.gh });
   assert.equal(rr.code, 2);
   assert.match(rr.json().error, /cannot read the open PRs: gh exited 1, HTTP 502: Acme gateway/);
   assert.ok(!existsSync(join(robot.root, PLAN)), 'no plan file at all');
@@ -279,7 +279,7 @@ test('keel night plan writes nothing when an input cannot be read, and says whic
   const page = await acme(t);
   await chmod(join(page.root, 'docs/health/2026-10-14.md'), 0o000);
   t.after(() => chmod(join(page.root, 'docs/health/2026-10-14.md'), 0o644).catch(() => {}));
-  const p = keel(['night', 'plan', '--date', NIGHT, '--json'], page.root, { KEEL_GH: page.gh });
+  const p = plates(['night', 'plan', '--date', NIGHT, '--json'], page.root, { PLATES_GH: page.gh });
   assert.equal(p.code, 2, p.out);
   assert.match(p.json().error, /cannot read the health page docs\/health\/2026-10-14\.md: EACCES/);
   assert.ok(!existsSync(join(page.root, PLAN)));
@@ -287,12 +287,12 @@ test('keel night plan writes nothing when an input cannot be read, and says whic
   const loop = await acme(t);
   await chmod(join(loop.root, 'docs/loop/slow-search.md'), 0o000);
   t.after(() => chmod(join(loop.root, 'docs/loop/slow-search.md'), 0o644).catch(() => {}));
-  const l = keel(['night', 'plan', '--date', NIGHT, '--json'], loop.root, { KEEL_GH: loop.gh });
+  const l = plates(['night', 'plan', '--date', NIGHT, '--json'], loop.root, { PLATES_GH: loop.gh });
   assert.equal(l.code, 2, l.out);
   assert.match(l.json().error, /cannot read the Loop findings \(docs\/loop\)/);
   assert.ok(!existsSync(join(loop.root, PLAN)));
   // A bad date is usage.
-  const bad = keel(['night', 'plan', '--date', '15/10/2026', '--json'], loop.root, { KEEL_GH: loop.gh });
+  const bad = plates(['night', 'plan', '--date', '15/10/2026', '--json'], loop.root, { PLATES_GH: loop.gh });
   assert.equal(bad.code, 2);
   assert.match(bad.json().error, /--date is the night's UTC date/);
 });
@@ -342,7 +342,7 @@ test('the validator refuses a build in lane loop, and a persona build; the defau
 
 test('the night\'s step uses tonight\'s plan from the plan branch, else the default plan, and says which', async t => {
   const { root, gh, base } = await acme(t);
-  const tonight = (...args) => run(process.execPath, [join(root, 'scripts/keel/night-plan.mjs'), 'tonight', '--date', NIGHT, ...args, '--json'], { cwd: root, env: { ...process.env, KEEL_GH: gh } });
+  const tonight = (...args) => run(process.execPath, [join(root, 'scripts/plates/night-plan.mjs'), 'tonight', '--date', NIGHT, ...args, '--json'], { cwd: root, env: { ...process.env, PLATES_GH: gh } });
   const branch = join(base, 'branch-plan.json');
   const owner = designPlan([designItem({ id: 'acme-owner', lane: 'climb:test-time' })], { willNotTouch: ['lib/anvil.mjs'] });
   await writeFile(branch, JSON.stringify(owner));
@@ -354,7 +354,7 @@ test('the night\'s step uses tonight\'s plan from the plan branch, else the defa
   // None on the branch: the default, saying so.
   const none = JSON.parse(tonight().stdout);
   assert.deepEqual([none.from, none.plan.shapedBy], ['default', 'default']);
-  assert.match(none.why, /keel's default plan: no plan on keel-night-plan/);
+  assert.match(none.why, /plates's default plan: no plan on keel-night-plan/);
   // Dated for another night: the default.
   await writeFile(branch, JSON.stringify({ ...owner, date: '2026-10-14' }));
   const old = JSON.parse(tonight('--branch-plan', branch).stdout);
@@ -381,14 +381,14 @@ test('the night\'s step uses tonight\'s plan from the plan branch, else the defa
   assert.match(unread.why, /could not be read \(git ls-remote exit 128\)/);
 });
 
-test('keel night tick changes one item\'s status with a note and a link, and refuses an unknown id or a move back from done', async t => {
+test('plates night tick changes one item\'s status with a note and a link, and refuses an unknown id or a move back from done', async t => {
   const { root, gh } = await acme(t);
-  assert.equal(keel(['night', 'plan', '--date', NIGHT], root, { KEEL_GH: gh }).code, 0);
-  const env = { KEEL_GH: gh };
-  const running = keel(['night', 'tick', 'climb-test-time', '--status', 'running', '--json'], root, env);
+  assert.equal(plates(['night', 'plan', '--date', NIGHT], root, { PLATES_GH: gh }).code, 0);
+  const env = { PLATES_GH: gh };
+  const running = plates(['night', 'tick', 'climb-test-time', '--status', 'running', '--json'], root, env);
   assert.equal(running.code, 0, running.err + running.out);
   assert.deepEqual([running.json().from, running.json().item.status], ['planned', 'running']);
-  const done = keel(['night', 'tick', 'climb-test-time', '--status', 'done', '--note', 'Acme tests 12% faster', '--link', 'https://github.com/acme/anvils/pull/21', '--json'], root, env);
+  const done = plates(['night', 'tick', 'climb-test-time', '--status', 'done', '--note', 'Acme tests 12% faster', '--link', 'https://github.com/acme/anvils/pull/21', '--json'], root, env);
   assert.equal(done.code, 0, done.out);
   const after = JSON.parse(await readFile(join(root, PLAN), 'utf8'));
   const it = after.items.find(i => i.id === 'climb-test-time');
@@ -396,24 +396,24 @@ test('keel night tick changes one item\'s status with a note and a link, and ref
   assert.deepEqual(after.items.filter(i => i.id !== 'climb-test-time').map(i => i.status), after.items.filter(i => i.id !== 'climb-test-time').map(() => 'planned'), 'one item changed, and only it');
   const bytes = await readFile(join(root, PLAN), 'utf8');
   // Refused: a move back from done, an unknown id, an unknown status; the plan is untouched.
-  const back = keel(['night', 'tick', 'climb-test-time', '--status', 'running', '--json'], root, env);
+  const back = plates(['night', 'tick', 'climb-test-time', '--status', 'running', '--json'], root, env);
   assert.equal(back.code, 2);
   assert.match(back.json().error, /"climb-test-time" is done; a done item never moves back \(to running\)/);
-  const unknown = keel(['night', 'tick', 'acme-nothing', '--status', 'done', '--json'], root, env);
+  const unknown = plates(['night', 'tick', 'acme-nothing', '--status', 'done', '--json'], root, env);
   assert.equal(unknown.code, 2);
   assert.match(unknown.json().error, /no item "acme-nothing" in tonight's plan \(2026-10-15\); its items: measures, health-prs-stale, climb-test-time/);
-  const status = keel(['night', 'tick', 'measures', '--status', 'finished', '--json'], root, env);
+  const status = plates(['night', 'tick', 'measures', '--status', 'finished', '--json'], root, env);
   assert.equal(status.code, 2);
   assert.match(status.json().error, /--status is one of planned, running, done, failed, skipped, left-alone/);
-  assert.equal(keel(['night', 'tick', 'measures', '--json'], root, env).code, 2, '--status is required');
+  assert.equal(plates(['night', 'tick', 'measures', '--json'], root, env).code, 2, '--status is required');
   assert.equal(await readFile(join(root, PLAN), 'utf8'), bytes, 'a refused tick writes nothing');
   // Done again mends the note; a failed item may run again.
-  assert.equal(keel(['night', 'tick', 'climb-test-time', '--status', 'done', '--note', 'Acme tests 13% faster'], root, env).code, 0);
-  assert.equal(keel(['night', 'tick', 'robot-12', '--status', 'failed', '--note', 'the allowance ran out'], root, env).code, 0);
-  assert.equal(keel(['night', 'tick', 'robot-12', '--status', 'running'], root, env).code, 0);
+  assert.equal(plates(['night', 'tick', 'climb-test-time', '--status', 'done', '--note', 'Acme tests 13% faster'], root, env).code, 0);
+  assert.equal(plates(['night', 'tick', 'robot-12', '--status', 'failed', '--note', 'the allowance ran out'], root, env).code, 0);
+  assert.equal(plates(['night', 'tick', 'robot-12', '--status', 'running'], root, env).code, 0);
   // No plan: refused, naming the verb that writes one.
   await rm(join(root, PLAN));
-  assert.match(keel(['night', 'tick', 'measures', '--status', 'done', '--json'], root, env).json().error, /no plan to tick: .*keel night plan writes one/);
+  assert.match(plates(['night', 'tick', 'measures', '--status', 'done', '--json'], root, env).json().error, /no plan to tick: .*plates night plan writes one/);
 });
 
 test('the record is the night\'s data: the drain merges docs/night/<date>.json and nothing else there, and the page section shows each item and its outcome', () => {
@@ -425,7 +425,7 @@ test('the record is the night\'s data: the drain merges docs/night/<date>.json a
     { results: [{ id: 'gate', state: 'ok' }, { id: 'slow_tests', state: 'outside' }], page: 'docs/health/2026-10-15.md' });
   const text = planSection(plan, { record: 'docs/night/2026-10-15.json' }).join('\n');
   assert.match(text, /^## Tonight's plan$/m);
-  assert.match(text, /Shaped by keel's default plan/);
+  assert.match(text, /Shaped by plates's default plan/);
   assert.match(text, /^\| measures: Measure the practice: 1 measures; .* \| measure \| night \| — \| done \| 1 ok, 1 outside, 0 n\/a, 0 broken — docs\/health\/2026-10-15\.md \|$/m);
   assert.match(text, /^\| climb-test-time: Climb test-time: slow_tests is outside \| build \| climb:test-time \| `slow_tests` ≤ 0 \| planned \| — \|$/m);
   assert.match(text, /The record: `docs\/night\/2026-10-15\.json`/);
@@ -437,12 +437,12 @@ test('the record is the night\'s data: the drain merges docs/night/<date>.json a
   assert.deepEqual(healthProposal('## Proposal\n\nNone: every measure is within its bound.\n'), null);
 });
 
-test('with the personas practice, keel night plan runs every persona and each missed goal is an item with its number; no personas is no items, never a failure', async t => {
+test('with the personas practice, plates night plan runs every persona and each missed goal is an item with its number; no personas is no items, never a failure', async t => {
   const config = { practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: undefined, robot: undefined };
   const { root, gh } = await acme(t, { config });
-  await cp(join(KEEL, 'practices/personas/files/scripts/keel/persona.mjs'), join(root, 'scripts/keel/persona.mjs'));
+  await cp(join(PLATES, 'practices/personas/files/scripts/plates/persona.mjs'), join(root, 'scripts/plates/persona.mjs'));
   // Installed, no persona files: the plan is made as before.
-  const none = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const none = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(none.code, 0, none.out + none.err);
   assert.ok(!none.json().plan.items.some(i => i.source.startsWith('persona:')));
   await mkdir(join(root, '.agents/personas'), { recursive: true });
@@ -463,7 +463,7 @@ goal:
 
 Acme's lens.
 `);
-  const r = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const r = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(r.code, 0, r.out + r.err);
   const items = r.json().plan.items.filter(i => i.source === 'persona:speed');
   assert.deepEqual(items.map(i => [i.id, i.kind, i.lane, i.number]), [
@@ -473,26 +473,26 @@ Acme's lens.
   assert.match(items[0].result.note, /no climb job here measures persona:speed:entry-bundle/);
   assert.ok(existsSync(join(root, `docs/reviews/${NIGHT}-speed.md`)), 'persona run wrote its review page');
   // Not installed (no "personas" in practices): the persona files are not run.
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night'] }));
-  const off = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night'] }));
+  const off = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.ok(!off.json().plan.items.some(i => i.source.startsWith('persona:')));
   // A persona file that cannot be read is an input the plan cannot read: exit 2, nothing written.
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'personas'] }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'personas'] }));
   await writeFile(join(root, '.agents/personas/broken.md'), 'no front matter\n');
   const before = await readFile(join(root, PLAN), 'utf8');
-  const bad = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const bad = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(bad.code, 2, bad.out);
   assert.match(bad.json().error, /cannot read a plan source \(personaCandidates\)/);
   assert.equal(await readFile(join(root, PLAN), 'utf8'), before);
 });
 
-test('keel#142: a broken persona with a long command and long stderr still makes a valid plan; the title is cut, the review page keeps them whole', async t => {
+test('plates#142: a broken persona with a long command and long stderr still makes a valid plan; the title is cut, the review page keeps them whole', async t => {
   const { root, gh } = await acme(t, { config: { practices: ['base', 'night', 'personas'], climb: undefined, robot: undefined } });
-  await cp(join(KEEL, 'practices/personas/files/scripts/keel/persona.mjs'), join(root, 'scripts/keel/persona.mjs'));
+  await cp(join(PLATES, 'practices/personas/files/scripts/plates/persona.mjs'), join(root, 'scripts/plates/persona.mjs'));
   await mkdir(join(root, '.agents/personas'), { recursive: true });
   const command = `echo ${'acme-anvil-'.repeat(40)} >&2; echo ${'stderr-'.repeat(60)} >&2; exit 3`;
   await writeFile(join(root, '.agents/personas/speed.md'), `---\nname: speed\ndescription: Acme.\ngoal:\n  - name: latency\n    at most: 100\n    measured by: ${command}\n---\n\nAcme's lens.\n`);
-  const r = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const r = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(r.code, 0, r.out + r.err);
   const item = r.json().plan.items.find(i => i.id === 'persona-speed--latency');
   assert.equal(item.kind, 'review');
@@ -505,7 +505,7 @@ test('keel#142: a broken persona with a long command and long stderr still makes
 });
 
 test('the plan and its record are never written through a symlink: a linked directory or file pointing outside the project is refused, and its target is untouched', async t => {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-links-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-night-links-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const outside = join(base, 'outside');
   await mkdir(outside, { recursive: true });
@@ -531,33 +531,33 @@ test('the plan and its record are never written through a symlink: a linked dire
   assert.deepEqual(JSON.parse(await readFile(join(plain, `docs/night/${NIGHT}.json`), 'utf8')), plan);
   await assert.rejects(safeWrite(plain, '../escape.json', 'x'), /not a plain repo path/);
 
-  // keel night plan and tick: a symlinked .keel/night, and a symlinked plan.json, each refused (exit 2), the target untouched.
+  // plates night plan and tick: a symlinked .plates/night, and a symlinked plan.json, each refused (exit 2), the target untouched.
   const { root, gh } = await acme(t);
   await writeFile(join(outside, 'plan.json'), 'Acme\'s plan elsewhere\n');
-  await symlink(outside, join(root, '.keel/night'));
-  const linkedDir = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  await symlink(outside, join(root, '.plates/night'));
+  const linkedDir = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(linkedDir.code, 2, linkedDir.out);
-  assert.match(linkedDir.json().error, /refusing to write \.keel\/night\/\.gitignore: \.keel\/night is a symlink/);
+  assert.match(linkedDir.json().error, /refusing to write \.plates\/night\/\.gitignore: \.plates\/night is a symlink/);
   assert.equal(await readFile(join(outside, 'plan.json'), 'utf8'), 'Acme\'s plan elsewhere\n');
   assert.ok(!existsSync(join(outside, '.gitignore')));
-  await rm(join(root, '.keel/night'));
-  await mkdir(join(root, '.keel/night'));
+  await rm(join(root, '.plates/night'));
+  await mkdir(join(root, '.plates/night'));
   await writeFile(join(outside, 'target.json'), JSON.stringify(plan));
   await symlink(join(outside, 'target.json'), join(root, PLAN));
-  const linkedFile = keel(['night', 'plan', '--date', NIGHT, '--json'], root, { KEEL_GH: gh });
+  const linkedFile = plates(['night', 'plan', '--date', NIGHT, '--json'], root, { PLATES_GH: gh });
   assert.equal(linkedFile.code, 2, linkedFile.out);
-  assert.match(linkedFile.json().error, /\.keel\/night\/plan\.json is a symlink/);
-  const tick = keel(['night', 'tick', 'measures', '--status', 'done', '--json'], root, { KEEL_GH: gh });
+  assert.match(linkedFile.json().error, /\.plates\/night\/plan\.json is a symlink/);
+  const tick = plates(['night', 'tick', 'measures', '--status', 'done', '--json'], root, { PLATES_GH: gh });
   assert.equal(tick.code, 2, tick.out);
-  assert.match(tick.json().error, /\.keel\/night\/plan\.json is a symlink/);
+  assert.match(tick.json().error, /\.plates\/night\/plan\.json is a symlink/);
   assert.equal(await readFile(join(outside, 'target.json'), 'utf8'), JSON.stringify(plan), 'neither the plan nor the tick wrote through the link');
 });
 
-test('keel night is announced: both verbs are in the cold start and the guide', async () => {
-  const guide = await readFile(join(KEEL, 'lib/agent-guide.md'), 'utf8');
-  assert.match(guide, /- `keel night plan\|tick`/);
+test('plates night is announced: both verbs are in the cold start and the guide', async () => {
+  const guide = await readFile(join(PLATES, 'lib/agent-guide.md'), 'utf8');
+  assert.match(guide, /- `plates night plan\|tick`/);
   assert.match(guide, /<!-- topic: night \|/);
-  const names = (await readdir(join(KEEL, 'practices/night/files/scripts/keel'))).filter(n => n === 'night-plan.mjs');
+  const names = (await readdir(join(PLATES, 'practices/night/files/scripts/plates'))).filter(n => n === 'night-plan.mjs');
   assert.deepEqual(names, ['night-plan.mjs']);
 });
 
@@ -566,20 +566,20 @@ test('keel night is announced: both verbs are in the cold start and the guide', 
 /**
  * A synthetic Acme project whose origin is a bare repo holding main and the
  * plan branch keel-night-plan (one file, on its own history, as /goodnight
- * pushes it), with the night practice's scripts in scripts/keel.
+ * pushes it), with the night practice's scripts in scripts/plates.
  * Returns { dir, origin, git, tip, show, temp }.
  */
 async function planRemote(t, plan) {
-  const base = await mkdtemp(join(tmpdir(), 'keel-plan-record-'));
+  const base = await mkdtemp(join(tmpdir(), 'plates-plan-record-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const dir = join(base, 'acme'), origin = join(base, 'origin.git'), temp = join(base, 'tmp');
   const git = (args, cwd = dir) => { const r = run('git', args, { cwd }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
   for (const d of [dir, temp]) await mkdir(d, { recursive: true });
   git(['init', '-q', '--bare', origin], base);
   git(['init', '-q', '-b', 'main']);
-  await cp(join(KEEL, 'practices/night/files/scripts/keel'), join(dir, 'scripts/keel'), { recursive: true });
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ name: 'Acme' })}\n`);
+  await cp(join(PLATES, 'practices/night/files/scripts/plates'), join(dir, 'scripts/plates'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ name: 'Acme' })}\n`);
   git(['add', '-A']);
   git(['commit', '-q', '-m', 'acme']);
   git(['remote', 'add', 'origin', origin]);
@@ -609,7 +609,7 @@ const plannedTonight = () => designPlan([
 
 /** Run one workflow's "Tick tonight's plan" step in `dir`, as the workflow has it. */
 async function tickStep(workflow, dir, env) {
-  const text = await readFile(join(KEEL, 'practices/climb/files/.github/workflows', workflow), 'utf8');
+  const text = await readFile(join(PLATES, 'practices/climb/files/.github/workflows', workflow), 'utf8');
   const block = runBlocks(text).find(b => b.step === 'Tick tonight\'s plan');
   assert.ok(block, `${workflow} has a Tick tonight's plan step`);
   const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, GITHUB_SERVER_URL: 'https://github.com', REPO: 'acme/anvils', RUN: 'https://github.com/acme/anvils/actions/runs/5', ...env } });
@@ -622,7 +622,7 @@ test('each pass ticks its item running, then done with the PR link or failed wit
   await mkdir(join(temp, 'plan'), { recursive: true });
   // Climb's publish job: its item ran and opened PR 21; the other climb item was skipped, saying why.
   await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [{ id: 'climb-build', note: 'climb runs one job a night, and tonight\'s plan named climb-tests first' }] } }));
-  const climbTick = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster' });
+  const climbTick = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster' });
   assert.equal(climbTick.status, 0, climbTick.out);
   assert.match(climbTick.out, /ticked on keel-night-plan \([0-9a-f]{7}\): climb-build planned → skipped, climb-tests planned → running, climb-tests running → done/);
   let plan = show();
@@ -635,14 +635,14 @@ test('each pass ticks its item running, then done with the PR link or failed wit
   assert.equal(tip('refs/heads/main'), main, 'the plan branch is never main');
   // The robot's publish job: its item's judge failed, so no PR; a planned issue it refused is failed with why.
   await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ state: 'ready', nightPlan: { used: true, applies: true, date: NIGHT, item: 'robot-12', ticks: [{ id: 'robot-13', status: 'failed', note: 'the robot refused #13: rubric: acceptance is missing' }], willNotTouch: [] } }));
-  const robotTick = await tickStep('keel-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'failure', PR: '' });
+  const robotTick = await tickStep('plates-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'failure', PR: '' });
   assert.equal(robotTick.status, 0, robotTick.out);
   plan = show();
   assert.deepEqual([byId('robot-12').status, byId('robot-12').result], ['failed', { note: 'the robot built no candidate that passed its judge (the judge ended failure)', link: 'https://github.com/acme/anvils/actions/runs/5' }]);
   assert.deepEqual([byId('robot-13').status, byId('robot-13').result.note], ['failed', 'the robot refused #13: rubric: acceptance is missing']);
   assert.equal(byId('climb-tests').status, 'done', 'the robot\'s ticks sit on top of climb\'s, never over them');
   // A re-run of climb that kept nothing: running is refused for a done item and named; it stays done.
-  const rerun = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'skipped', PR: '', LINE: 'climb test-time: kept nothing' });
+  const rerun = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'skipped', PR: '', LINE: 'climb test-time: kept nothing' });
   assert.equal(rerun.status, 0, rerun.out);
   assert.match(rerun.out, /::warning::climb-tests not ticked running: "climb-tests" is done; a done item never moves back/);
   plan = show();
@@ -694,7 +694,7 @@ test('the validator refuses a build item in lane night: the night measures and n
   assert.deepEqual(validatePlan(designPlan([designItem({ kind: 'review', lane: 'night' })])).problems, [], 'a review in lane night is the night\'s own');
 });
 
-// Phase 78: a night that ran keel's default plan records it on the plan branch, so the passes tick it.
+// Phase 78: a night that ran plates's default plan records it on the plan branch, so the passes tick it.
 const defaultTonight = () => designPlan([
   designItem({ id: 'measures', kind: 'measure', source: 'default', lane: 'night', number: null, budget: null, status: 'done', result: { note: '40 ok' } }),
   designItem({ id: 'climb-tests', source: 'default', lane: 'climb:test-time', budget: null, result: null }),
@@ -702,7 +702,7 @@ const defaultTonight = () => designPlan([
 
 test('a night with no owner plan writes its default plan to the plan branch, and the passes tick it; an owner\'s plan, tonight\'s or later, is never replaced', async t => {
   const { publishDefault, writePlan } = await import('../lib/night-plan.mjs');
-  const publish = (dir, env) => run(process.execPath, [join(dir, 'scripts/keel/night-plan.mjs'), 'publish', '--date', NIGHT, '--json'], { cwd: dir, env: { ...process.env, ...env } });
+  const publish = (dir, env) => run(process.execPath, [join(dir, 'scripts/plates/night-plan.mjs'), 'publish', '--date', NIGHT, '--json'], { cwd: dir, env: { ...process.env, ...env } });
   // No plan branch: created, the default plan alone, no parent.
   const fresh = await planRemote(t, null);
   await writePlan(fresh.dir, defaultTonight());
@@ -715,7 +715,7 @@ test('a night with no owner plan writes its default plan to the plan branch, and
   // Climb's pass ticks it, exactly as it ticks an owner's plan (mutation: no publish, and there is nothing to tick).
   await mkdir(join(fresh.temp, 'plan'), { recursive: true });
   await writeFile(join(fresh.temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [] } }));
-  const climbTick = await tickStep('keel-climb.yml', fresh.dir, { RUNNER_TEMP: fresh.temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
+  const climbTick = await tickStep('plates-climb.yml', fresh.dir, { RUNNER_TEMP: fresh.temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
   assert.equal(climbTick.status, 0, climbTick.out);
   assert.deepEqual(fresh.show().items.find(i => i.id === 'climb-tests').status, 'done');
   // A rerun of the night: tonight's plan is there (with its ticks), so nothing is written over it.
@@ -774,7 +774,7 @@ test('a night with no owner plan writes its default plan to the plan branch, and
   assert.deepEqual(raced.show(), plannedTonight(), 'the owner\'s plan stands');
 });
 
-// keel#147: the owner reshaped the plan while a pass ran, keeping an id; the old item's ticks never land on the new one.
+// plates#147: the owner reshaped the plan while a pass ran, keeping an id; the old item's ticks never land on the new one.
 test('a tick carries the item as its pass admitted it, and one whose item kept its id but changed lane or number is refused, naming why', async t => {
   const NUMBER = { measure: 'bundle_bytes', bound: 747000, better: 'lower' };
   // Reshaped since the robot admitted it: robot-12 is now issue #14's, and climb-build measures another number.
@@ -786,7 +786,7 @@ test('a tick carries the item as its pass admitted it, and one whose item kept i
   const { dir, show, temp } = await planRemote(t, reshaped);
   await mkdir(join(temp, 'plan'), { recursive: true });
   await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ state: 'ready', nightPlan: { used: true, applies: true, date: NIGHT, item: 'robot-12', admitted: { lane: 'robot:#12', number: NUMBER }, ticks: [], willNotTouch: [] } }));
-  const robotTick = await tickStep('keel-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'success', PR: '31' });
+  const robotTick = await tickStep('plates-robot.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, PUBLISHED: 'success', JUDGED: 'success', PR: '31' });
   assert.equal(robotTick.status, 0, robotTick.out);
   assert.match(robotTick.out, /::warning::robot-12 not ticked done: "robot-12" changed since the pass admitted it \(robot:#12, `bundle_bytes` ≤ 747000; now robot:#14, `bundle_bytes` ≤ 747000\)/);
   let plan = show();
@@ -794,9 +794,42 @@ test('a tick carries the item as its pass admitted it, and one whose item kept i
   assert.deepEqual([byId('robot-12').status, byId('robot-12').result], ['planned', null], 'the new item is never ticked with #12\'s outcome, so it is still admitted');
   // Climb: its own item unchanged is ticked; the item it skipped, its number changed since, is not.
   await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', admitted: { lane: 'climb:test-time', number: NUMBER }, skipped: [{ id: 'climb-build', note: 'climb runs one job a night', admitted: { lane: 'climb:build-time', number: NUMBER } }] } }));
-  const climbTick = await tickStep('keel-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
+  const climbTick = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time: kept 1' });
   assert.equal(climbTick.status, 0, climbTick.out);
   assert.match(climbTick.out, /::warning::climb-build not ticked skipped: "climb-build" changed since the pass admitted it/);
   plan = show();
   assert.deepEqual([byId('climb-tests').status, byId('climb-build').status], ['done', 'planned']);
+});
+
+
+test('renamed workflows read the durable legacy remote blob while working plans use Plates paths', async () => {
+  const { REMOTE_PLAN, PLAN_BRANCH } = await import('../lib/night-plan.mjs');
+  assert.equal(PLAN, '.plates/night/plan.json');
+  assert.equal(REMOTE_PLAN, '.keel/night/plan.json');
+  assert.equal(PLAN_BRANCH, 'keel-night-plan');
+  for (const [practice, name] of [['night', 'night'], ['climb', 'climb'], ['climb', 'robot']]) {
+    const text = await readFile(join(PLATES, `practices/${practice}/files/.github/workflows/plates-${name}.yml`), 'utf8');
+    if (name === 'night') assert(text.includes('keel-night-plan:.keel/night/plan.json'));
+    else assert(text.includes('contents/.keel/night/plan.json?ref=keel-night-plan'));
+    assert(!text.includes('contents/.plates/night/plan.json'));
+    assert(!text.includes('keel-night-plan:.plates/night/plan.json'));
+  }
+});
+
+test('climb plan distinguishes a judged no-improvement from blocked and no-candidate runs', async t => {
+  for (const [execution, completion, judged, expected, prefix] of [
+    ['executed', 'no-improvement', 'success', 'done', 'no-improvement:'],
+    ['executed', 'no-candidate', 'success', 'failed', 'no-candidate:'],
+    ['blocked', '', 'skipped', 'failed', 'blocked:'],
+    ['', 'no-improvement', 'success', 'failed', 'no pull request:'],
+  ]) {
+    const { dir, temp, show } = await planRemote(t, plannedTonight());
+    await mkdir(join(temp, 'plan'), { recursive: true });
+    await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ plan: { item: 'climb-tests', admitted: { lane: 'climb:test-time', number: plannedTonight().items[0].number }, skipped: [] } }));
+    const r = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: judged, EXECUTION: execution, COMPLETION: completion, OPENED: 'skipped', PR: '', LINE: 'kept nothing; two attempts were judged' });
+    assert.equal(r.status, 0, r.out);
+    const item = show().items.find(i => i.id === 'climb-tests');
+    assert.equal(item.status, expected);
+    assert.ok(item.result.note.startsWith(prefix), item.result.note);
+  }
 });

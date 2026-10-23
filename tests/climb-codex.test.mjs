@@ -11,13 +11,13 @@ import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { WORKFLOW, git, write, commit, acme, climb, json, TIMED, tendAcme, TEND_WORKFLOW, runStep, agentGit, sandboxGit, plantHostile } from './helpers/climb.mjs';
 
-/** A "suite" that took `ms` by the clock compare reads (KEEL_CLIMB_CLOCK) and waits no real time (phase 55); `tag` keeps two equal suites different commits. */
-const clocked = (ms, tag = '') => `// acme suite ${tag}\nimport { writeFileSync } from 'node:fs';\nif (process.env.KEEL_CLIMB_CLOCK) writeFileSync(process.env.KEEL_CLIMB_CLOCK, '${ms}');\n`;
+/** A "suite" that took `ms` by the clock compare reads (PLATES_CLIMB_CLOCK) and waits no real time (phase 55); `tag` keeps two equal suites different commits. */
+const clocked = (ms, tag = '') => `// acme suite ${tag}\nimport { writeFileSync } from 'node:fs';\nif (process.env.PLATES_CLIMB_CLOCK) writeFileSync(process.env.PLATES_CLIMB_CLOCK, '${ms}');\n`;
 
-test('phase 47: under KEEL_AGENT_GIT, with .git and the checkout\'s parent read-only as Codex\'s sandbox keeps them, a climb night commits, compares, keeps and reverts in .keel/agent-git; .git never moves', async t => {
+test('phase 47: under PLATES_AGENT_GIT, with .git and the checkout\'s parent read-only as Codex\'s sandbox keeps them, a climb night commits, compares, keeps and reverts in .plates/agent-git; .git never moves', async t => {
   // The checkout's parent is outside Codex's writable roots too: read-only here, so worktrees beside it would fail.
   const made = await acme(t, { climb: TIMED, files: { 't.mjs': clocked(1500), 'package.json': '{ "name": "acme" }\n' } });
-  const parent = await mkdtemp(join(tmpdir(), 'keel-codex-parent-'));
+  const parent = await mkdtemp(join(tmpdir(), 'plates-codex-parent-'));
   t.after(async () => { run('chmod', ['u+w', parent]); await rm(parent, { recursive: true, force: true }); });
   const dir = join(parent, 'acme');
   await cp(made, dir, { recursive: true });
@@ -29,14 +29,14 @@ test('phase 47: under KEEL_AGENT_GIT, with .git and the checkout\'s parent read-
   const text = await readFile(WORKFLOW, 'utf8');
   const given = runStep(text, dir, 'Give Codex its git dir', { BRANCH });
   assert.equal(given.status, 0, given.out);
-  assert.equal((await readFile(join(dir, '.keel/agent-git/HEAD'), 'utf8')).trim(), `ref: refs/heads/${BRANCH}`);
+  assert.equal((await readFile(join(dir, '.plates/agent-git/HEAD'), 'utf8')).trim(), `ref: refs/heads/${BRANCH}`);
   assert.equal(git(dir, ['status', '--porcelain']), '', '.git ignores the agent\'s git dir');
   assert.equal(agentGit(dir, ['status', '--porcelain']), '', 'so does the agent\'s own');
   const restore = await sandboxGit(t, dir);
   // The suite's own clock, not the wall clock: compare's keep and revert are the fixture's (phase 55).
   const clock = join(parent, '..', `${parent.split('/').pop()}-clock`);
   t.after(() => rm(clock, { force: true }));
-  const A = { KEEL_AGENT_GIT: '.keel/agent-git', KEEL_CLIMB_CLOCK: clock };
+  const A = { PLATES_AGENT_GIT: '.plates/agent-git', PLATES_CLIMB_CLOCK: clock };
 
   // The fast candidate, written in place (the agent's git dir commits it, not commit()).
   await writeFile(join(dir, 't.mjs'), clocked(10, 'fast'));
@@ -68,7 +68,7 @@ test('phase 47: Codex\'s commits leave its git dir as objects only, running noth
   const base = git(dir, ['rev-parse', 'HEAD']);
   const BRANCH = 'keel-climb/test-time/2026-10-08';
   const text = await readFile(WORKFLOW, 'utf8');
-  const temp = await mkdtemp(join(tmpdir(), 'keel-runner-temp-'));
+  const temp = await mkdtemp(join(tmpdir(), 'plates-runner-temp-'));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const env = { BRANCH, RUNNER_TEMP: temp, GITHUB_SHA: base };
   const bundle = join(temp, 'handoff/night.bundle');
@@ -76,7 +76,7 @@ test('phase 47: Codex\'s commits leave its git dir as objects only, running noth
   /** A night: the git dir given, Codex's commits (`files` each), hostile config planted, then the handoff. */
   const night = async (commits, { workflow = text } = {}) => {
     git(dir, ['checkout', '-q', '-f', '-B', BRANCH, base]);
-    git(dir, ['clean', '-q', '-fdx', '-e', '.keel/climb']);
+    git(dir, ['clean', '-q', '-fdx', '-e', '.plates/climb']);
     await rm(join(temp, 'handoff'), { recursive: true, force: true });
     assert.equal(runStep(text, dir, 'Give Codex its git dir', env).status, 0);
     const restore = await sandboxGit(t, dir);
@@ -106,9 +106,9 @@ test('phase 47: Codex\'s commits leave its git dir as objects only, running noth
   assert.equal(head, fine.tip, 'the judge gets the agent\'s commits, as made');
   assert.equal(sb.status, 0, sb.stdout);
 
-  // The judge refuses what it refuses of Claude's: keel's scripts, a workflow, the config, and a git dir carried as files.
-  for (const [path, opts] of [['scripts/keel/acme.mjs'], ['.github/workflows/acme.yml'], ['.keel/keel.json'], ['.keel/agent-git/config', { force: true }]]) {
-    const n = await night([[{ [path]: path === '.keel/keel.json' ? '{"name":"Acme","check":"true"}\n' : '# acme\n' }, opts]]);
+  // The judge refuses what it refuses of Claude's: plates's scripts, a workflow, the config, and a git dir carried as files.
+  for (const [path, opts] of [['scripts/plates/acme.mjs'], ['.github/workflows/acme.yml'], ['.plates/plates.json'], ['.plates/agent-git/config', { force: true }]]) {
+    const n = await night([[{ [path]: path === '.plates/plates.json' ? '{"name":"Acme","check":"true"}\n' : '# acme\n' }, opts]]);
     assert.equal(n.status, 0, `${path}: ${n.out}`);
     assert.deepEqual(n.ran, [], `${path}: nothing ran`);
     const j = judge();
@@ -120,14 +120,14 @@ test('phase 47: Codex\'s commits leave its git dir as objects only, running noth
   git(dir, ['checkout', '-q', '-f', '-B', BRANCH, base]);
   await rm(join(temp, 'handoff'), { recursive: true, force: true });
   assert.equal(runStep(text, dir, 'Give Codex its git dir', env).status, 0);
-  const orphan = git(dir, ['--git-dir=.keel/agent-git', 'commit-tree', '-m', 'acme: orphan', git(dir, ['--git-dir=.keel/agent-git', 'rev-parse', 'HEAD^{tree}'])]);
-  await writeFile(join(dir, `.keel/agent-git/refs/heads/${BRANCH}`), `${orphan}\n`);
+  const orphan = git(dir, ['--git-dir=.plates/agent-git', 'commit-tree', '-m', 'acme: orphan', git(dir, ['--git-dir=.plates/agent-git', 'rev-parse', 'HEAD^{tree}'])]);
+  await writeFile(join(dir, `.plates/agent-git/refs/heads/${BRANCH}`), `${orphan}\n`);
   const off = runStep(text, dir, 'Take Codex\'s commits, objects only', env);
   assert.equal(off.status, 1, off.out);
   assert.match(off.out, /is not on top of the run's commit/);
   assert.equal(existsSync(bundle), false, 'nothing handed on');
   // A ref that names no object, or a symlinked ref, hands nothing on.
-  await writeFile(join(dir, `.keel/agent-git/refs/heads/${BRANCH}`), 'ref: refs/heads/main\n');
+  await writeFile(join(dir, `.plates/agent-git/refs/heads/${BRANCH}`), 'ref: refs/heads/main\n');
   assert.equal(runStep(text, dir, 'Take Codex\'s commits, objects only', env).status, 1);
 
   // Mutation: the handoff's git reads the agent's git dir (its config, hooks and all): they run.
@@ -139,13 +139,13 @@ test('phase 47: Codex\'s commits leave its git dir as objects only, running noth
 
 test('phase 47: a Codex tend pass\'s commits, handed on as objects, meet the tend guard as Claude\'s do: a cited fix passes, an evidence edit and an uncited commit are refused', async t => {
   const dir = await tendAcme(t);
-  assert.equal(climb(dir, ['tend-input', '--record'], { KEEL_CLI: join(dir, 'no-such-keel') }).status, 0);
+  assert.equal(climb(dir, ['tend-input', '--record'], { PLATES_CLI: join(dir, 'no-such-plates') }).status, 0);
   const base = git(dir, ['rev-parse', 'HEAD']);
-  const findings = JSON.parse(await readFile(join(dir, '.keel/tend/pass.json'), 'utf8')).worksheet.findings;
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const findings = JSON.parse(await readFile(join(dir, '.plates/tend/pass.json'), 'utf8')).worksheet.findings;
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   const BRANCH = 'keel-tend/2026-10-08';
   const text = await readFile(TEND_WORKFLOW, 'utf8');
-  const temp = await mkdtemp(join(tmpdir(), 'keel-runner-temp-'));
+  const temp = await mkdtemp(join(tmpdir(), 'plates-runner-temp-'));
   t.after(() => rm(temp, { recursive: true, force: true }));
   const env = { BRANCH, RUNNER_TEMP: temp, GITHUB_SHA: base };
   const pass = async (files, message) => {

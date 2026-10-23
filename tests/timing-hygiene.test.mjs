@@ -3,23 +3,23 @@
 // October CI escapes, lesson 40): a timed suite's base had to sleep 300 ms,
 // then 1000. A longer sleep still judges the wall clock, only with a wider
 // margin, and every run pays for it. Now a file that times a suite (it runs
-// climb compare or measure) must be pinned in .keel/keel.json
+// climb compare or measure) must be pinned in .plates/plates.json
 // "tests": { "stalls": [...] }, which runs it paused at random moments in
-// every gate (the test ledger, scripts/keel/stalls.mjs) so a wall-clock wait
+// every gate (the test ledger, scripts/plates/stalls.mjs) so a wall-clock wait
 // that creeps back fails there. Giving code its clock with node:test's
 // mock.timers can make it ready to pin, but a source match cannot prove that
 // every timed path (including spawned suites) uses that clock. Keep the pin
-// even when mock timers appear. `keel test <file> --stalls` checks readiness.
+// even when mock timers appear. `plates test <file> --stalls` checks readiness.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stallsPins } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { stallsPins } from '../practices/night/files/scripts/plates/test-ledger.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const KEEL = resolve(HERE, '..');
+const PLATES = resolve(HERE, '..');
 
 /** A file that times a suite: it runs climb compare or measure. */
 export const timesASuite = text => /\[\s*['"](?:compare|measure)['"]/.test(text);
@@ -27,13 +27,13 @@ export const timesASuite = text => /\[\s*['"](?:compare|measure)['"]/.test(text)
 /** What is wrong with one test file (`file` is repo-relative) under the rule, given the pinned files: [string]. */
 export function timingProblems(file, text, pins) {
   if (!timesASuite(text) || pins.includes(file)) return [];
-  return [`${file} times a suite (climb compare or measure) and is not pinned to stalls: source alone cannot establish mock-timer coverage of every timed path; run keel test ${file} --stalls, give each test it names its clock, then pin it in .keel/keel.json "tests": { "stalls": [${JSON.stringify(file)}] }`];
+  return [`${file} times a suite (climb compare or measure) and is not pinned to stalls: source alone cannot establish mock-timer coverage of every timed path; run plates test ${file} --stalls, give each test it names its clock, then pin it in .plates/plates.json "tests": { "stalls": [${JSON.stringify(file)}] }`];
 }
 
-const keelPins = async () => stallsPins(JSON.parse(await readFile(join(KEEL, '.keel/keel.json'), 'utf8')));
+const platesPins = async () => stallsPins(JSON.parse(await readFile(join(PLATES, '.plates/plates.json'), 'utf8')));
 
 test('every test file that times a suite is pinned to stalls, and every pin is a test file', async () => {
-  const pins = await keelPins();
+  const pins = await platesPins();
   const names = (await readdir(HERE)).filter(n => n.endsWith('.test.mjs') && n !== basename(fileURLToPath(import.meta.url))).sort();
   const timed = [];
   const out = [];
@@ -44,7 +44,7 @@ test('every test file that times a suite is pinned to stalls, and every pin is a
   }
   assert.ok(timed.includes('tests/climb.test.mjs'), `climb.test.mjs no longer times a suite; this check would read nothing (timed: ${timed.join(', ')})`);
   assert.deepEqual(out, []);
-  for (const p of pins) assert.ok(existsSync(join(KEEL, p)) && p.endsWith('.test.mjs'), `${p} is pinned to stalls and is not a test file: a pin to a renamed file pins nothing`);
+  for (const p of pins) assert.ok(existsSync(join(PLATES, p)) && p.endsWith('.test.mjs'), `${p} is pinned to stalls and is not a test file: a pin to a renamed file pins nothing`);
 });
 
 test('the escape: a 600 ms base, which passed the old 300 ms floor and failed on CI, is refused, and so is the 1500 ms that "fixed" it', () => {
@@ -57,12 +57,12 @@ test('the escape: a 600 ms base, which passed the old 300 ms floor and failed on
 });
 
 test('mutations: unpinning climb.test.mjs fails even with mock timers; pins and files that time no suite remain exempt', async () => {
-  const pins = await keelPins();
-  const text = await readFile(join(KEEL, 'tests/climb.test.mjs'), 'utf8');
+  const pins = await platesPins();
+  const text = await readFile(join(PLATES, 'tests/climb.test.mjs'), 'utf8');
   assert.ok(pins.includes('tests/climb.test.mjs'), 'climb.test.mjs is pinned');
   const unpinned = timingProblems('tests/climb.test.mjs', text, pins.filter(p => p !== 'tests/climb.test.mjs'));
   assert.equal(unpinned.length, 1, 'unpinned, it is named');
-  assert.match(unpinned[0], /keel test tests\/climb\.test\.mjs --stalls/);
+  assert.match(unpinned[0], /plates test tests\/climb\.test\.mjs --stalls/);
   assert.equal(timingProblems('tests/climb.test.mjs', `${text}\nmock.timers.enable({ apis: ['setTimeout'] });\n`, []).length, 1, 'mock timers alone cannot establish coverage');
   assert.deepEqual(timingProblems('tests/acme.test.mjs', "await acme(t, { files: { 't.mjs': 'setTimeout(() => {}, 150);' } });\n", []), [], 'a file that times nothing');
   assert.deepEqual(timingProblems('tests/acme.test.mjs', "climb(dir, ['measure', '--json']);\n", ['tests/acme.test.mjs']), [], 'pinned');
@@ -86,7 +86,7 @@ test('issue 64: a mocked test cannot exempt an unrelated real-sleep suite in the
     for (const text of [mocked + real, real + mocked]) {
       const problems = timingProblems(file, text, []);
       assert.equal(problems.length, 1, `${verb}: an unrelated mock must not hide the real sleep`);
-      assert.match(problems[0], /keel test tests\/acme\.test\.mjs --stalls/);
+      assert.match(problems[0], /plates test tests\/acme\.test\.mjs --stalls/);
       assert.deepEqual(timingProblems(file, text, [file]), [], 'the mixed file is allowed when pinned');
     }
   }

@@ -1,7 +1,7 @@
 # Operate the fleet from the web
 
 Design extension, 21 October 2026, following the owner's request to drive all
-Keel projects from mobile and desktop. This expands G7 beyond the first decision
+Plates projects from mobile and desktop. This expands G7 beyond the first decision
 workspace; it does not claim that hosted execution or provider integrations exist.
 The [workspace contract](web-workspace.md) owns privacy and authorization, the
 [UI spec](web-ui.md) owns Home, and the [command inventory](web-ui-command-map.md)
@@ -9,7 +9,7 @@ owns the dated CLI mapping. This document owns fleet operations and phases 102â€
 
 ## Outcome and scope
 
-The owner can choose a project, understand everything Keel has done and is doing,
+The owner can choose a project, understand everything Plates has done and is doing,
 make decisions, test changes, manage routines and updates, learn across the fleet,
 and manage execution capacity from the web. Desktop and mobile have the same
 capabilities. The first Home release remains focused on decisions, guided tests
@@ -45,8 +45,11 @@ Mobile uses Home / Projects / Activity / More, full-page details and a persisten
 project selector. Routines, Learning, Updates and Connections remain reachable
 through More; do not cut features to achieve a narrow layout. Rows become labeled
 cards with at least 44px touch targets, keyboard/focus support and text status.
-A sticky action footer shows the actual operation, project and scope. Filters,
-selected record and drafts survive navigation, backgrounding and reconnection.
+A sticky action footer shows the actual operation, project and scope. Filters and selected records use validated deep links. Explicitly server-saved
+drafts survive navigation, backgrounding and reconnection; unsaved offline edits
+remain only in the open page and may be lost on mobile process eviction. The
+[operation experience](web-operation-experience.md) defines typed persistence,
+source revalidation and current capability gaps.
 Offline pages show their age; queue no consequential mutation silently for replay.
 An expired session preserves a draft but requires fresh authorization and preview
 before submission. Large logs are paginated, searchable and downloadable with
@@ -67,7 +70,7 @@ A run detail answers **what ran, why, what changed, what it cost, and what next*
   routine version, project/ref, actual worker/provider/model and policy revision.
 - Requested, queued, running, waiting for a person, cancellation requested,
   cancelled, succeeded, failed, skipped or uncertain state, with source timestamp.
-  Provider state and Keel's interpreted outcome are both retained. Process success
+  Provider state and Plates's interpreted outcome are both retained. Process success
   does not mean accepted, merged, production-verified or useful.
 - Stage timeline, elapsed/queued time, sanitized logs, outputs, screenshots,
   test results, decisions, PRs and links to the authoritative external run.
@@ -121,7 +124,7 @@ local drift, ejected/customized files and inaccessible repos remain visible.
 unknown state must not look up to date. The app's deployed version is another fact.
 
 An update begins with a selected target and project set, a per-project migration
-preview and expected checks. Respect `keel update` and `keel fleet update` domain
+preview and expected checks. Respect `plates update` and `plates fleet update` domain
 semantics: preserve project-owned files and deliver reviewable PRs. Revalidate
 refs before dispatch, recover existing intents/PRs, use bounded rollout batches
 and pause remaining projects on configured failure conditions. Offer a canary

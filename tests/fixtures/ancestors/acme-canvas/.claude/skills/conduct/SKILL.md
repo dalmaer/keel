@@ -1,6 +1,6 @@
 ---
 name: acme-conduct
-description: Acme Canvas's own conductor (the original keel adapted).
+description: Acme Canvas's own conductor (the original plates adapted).
 ---
 
 # Conduct

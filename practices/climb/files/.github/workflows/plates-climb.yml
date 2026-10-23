@@ -1,0 +1,1002 @@
+# A climb night (plates practice `climb`; managed: plates render rewrites it).
+#
+# An agent climbs one number (the test suite's wall time, first) under the
+# shared protocol in .agents/climb/PROTOCOL.md, and a person merges what it
+# finds. scripts/plates/climb.mjs makes every measurement and every
+# keep-or-revert, so the numbers are the script's, never the agent's. The
+# rules, as the night's (plates docs/design.md §6):
+#
+#   - Off unless .plates/plates.json has "climb"; with no secret, a notice and green.
+#   - One job a night: climb.mjs pick chooses it, and a job with an open
+#     keel-climb/<job>/ PR waits for a person to read it. With tonight's
+#     plan on the branch keel-night-plan (phase 76), only the plan's first
+#     climb item that may run, or nothing; its willNotTouch is refused like
+#     the off-limits paths (on the pushed head too: a willNotTouch naming
+#     .plates/climb.json stops the rotation commit), its minutes may lower the
+#     budget, never raise it, and the publish job ticks its items on that
+#     branch.
+#   - The agent never pushes and never merges: its tools let git read, stage,
+#     commit and switch, nothing more. It is time-boxed to the budget.
+#   - Three jobs, so the agent never holds a credential that can write
+#     (ledger#92). `agent` runs it with a token that can only read: checkout
+#     keeps no credential, and claude-code-action is given that token, so it
+#     never trades for its app's. Its commits leave as a git bundle. `judge`
+#     (read-only too, no agent) installs on a fresh checkout of the run's
+#     commit (the setup token's only step), then takes them: climb.mjs
+#     sandbox first (no workflow, scripts/plates/, .plates/plates.json or install
+#     file changed, so the scripts that judge are the default branch's), then
+#     the gate and no test dropped (climb.mjs guard), from the run's commit,
+#     never the base the night's record names. Its gate runs the agent's
+#     code, with no setup token, so it holds no write either. It names the
+#     commit it judges before any of that code runs, checks after compare
+#     and report that nothing moved, and hands on that commit alone (#68).
+#     `publish` holds the write token, runs no code of the branch's, pushes
+#     only a bundle whose head is that commit, checks the sandbox again
+#     itself, and opens one PR on refs/heads/keel-climb/<job>/<date>, never
+#     main, never merged here. A night that keeps nothing opens nothing.
+#   - A hygiene night that proved no fix files one issue on this repo instead
+#     (climb.mjs report --issue): the workflow files it, never the agent.
+#   - A lessons or a loop night changes no code: it proposes, for the owner,
+#     and its guard refuses anything decided. A loop night pulls Loop first
+#     only where plates-loop.yml is not installed; where it is, that workflow's
+#     daily pull stands and the night proposes for what it brought, so the
+#     two never both pull. Loop unreachable is a notice, not red.
+#   - The rotation remembers a night that kept nothing from its record (the
+#     plates-climb artifact), never by pushing to main.
+#
+#   - "agent": "codex" on "climb" (phase 47) runs openai/codex-action in
+#     workspace-write with sudo dropped, never danger-full-access or unsafe.
+#     Its sandbox keeps .git read-only, so it commits to .plates/agent-git,
+#     a git dir a plates step makes before it; after it, a plates step takes only
+#     that dir's objects and the branch's ref (never its config or hooks)
+#     into a repo plates makes, and the bundle goes on to the judge as Claude's.
+#
+# SECRET: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`) or ANTHROPIC_API_KEY,
+# as the claude practice's; OPENAI_API_KEY for a Codex night, billed per
+# token to the OpenAI API account. Each climb night spends model tokens, up
+# to the configured minutes. No model is pinned here: a pinned model is a fact that ages.
+name: plates-climb
+
+on:
+  schedule:
+    # 10:17 UTC daily, off the night's minute, and after plates-loop.yml's pull
+    # (09:43, its job bounded at 30 minutes), so a loop night proposes on
+    # today's findings, not yesterday's (ledger#94); a weekly climb's pick
+    # says "not tonight" on the other days (cron cannot come from the config).
+    - cron: "17 10 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keel-climb
+  cancel-in-progress: false
+
+# Each job asks for its own; nothing is granted by default.
+permissions: {}
+
+jobs:
+  # The agent's job: its token reads and nothing more. No id-token: the
+  # action is handed this token (github_token), so it never exchanges OIDC
+  # for the Claude app's token, which could write.
+  agent:
+    runs-on: ubuntu-latest
+    # The agent's own step is bounded by the budget (5 to 180 minutes); this
+    # bounds the whole job, measuring included.
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      job: ${{ steps.pick.outputs.job }}
+      branch: ${{ steps.pick.outputs.branch }}
+      day: ${{ steps.pick.outputs.day }}
+      started: ${{ steps.clock.outputs.started }}
+      baseline_started: ${{ steps.baseline.outputs.started }}
+      baseline_ended: ${{ steps.baseline.outputs.ended }}
+      agent_seconds: ${{ steps.execution.outputs.seconds }}
+      execution: ${{ steps.execution.outputs.state || steps.preflight.outputs.state }}
+      # Tonight's plan (phase 76): whether pick ran one, and whether it has an item to tick.
+      plan_used: ${{ steps.pick.outputs.plan_used }}
+      plan_ticks: ${{ steps.pick.outputs.plan_ticks }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Is climb on?
+        id: on
+        run: |
+          node -e '
+            const fs = require("fs");
+            let c = {};
+            try { c = JSON.parse(fs.readFileSync(".plates/plates.json", "utf8")); } catch {}
+            const on = c.climb !== undefined;
+            if (!on) console.log("climb is off: .plates/plates.json has no \"climb\", so this run does nothing.");
+            // Which provider runs it (phase 47): read here for the secret gate; the pick validates it.
+            const named = c.climb && typeof c.climb === "object" ? c.climb.agent : undefined;
+            const agent = named === undefined ? "claude" : /^[a-z]+$/.test(String(named)) ? String(named) : "invalid";
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagent=${agent}\n`);
+          '
+      - name: Start the runner clock
+        id: clock
+        run: echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - name: Configured?
+        id: configured
+        if: steps.on.outputs.on == 'true'
+        env:
+          AGENT: ${{ steps.on.outputs.agent }}
+          OAUTH: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ "$AGENT" = codex ] && [ -z "$OPENAI" ]; then
+            echo "::notice::Skipped: add the OPENAI_API_KEY secret for a climb night by Codex to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ "$AGENT" != codex ] && [ -z "$OAUTH" ] && [ -z "$API_KEY" ]; then
+            echo "::notice::Skipped: add the CLAUDE_CODE_OAUTH_TOKEN (or ANTHROPIC_API_KEY) secret for a climb night to run."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.configured.outputs.enabled == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # The project's install, as the night's: `setup` when it has one, else
+      # npm ci when a lockfile exists; `env` goes to every later step.
+      - name: Read the config
+        id: config
+        if: steps.configured.outputs.enabled == 'true'
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".plates/plates.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".plates/plates.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".plates/plates.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".plates/plates.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `PLATES_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.plates/plates.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        if: steps.configured.outputs.enabled == 'true'
+        # setupToken (a secret's name in .plates/plates.json) becomes GH_TOKEN here
+        # and in no other step. Absent or unset, the job's own token. Never echoed.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.plates/plates.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      # The rotation's memory: the last night's record (the plates-climb
+      # artifact every night keeps, kept or not), read-only, by name, on the
+      # default branch. .plates/climb.json rides on a night's PR, so a night
+      # that keeps nothing never reaches main; without this the next night
+      # would pick the same job (ledger#92). Nothing is pushed to main for it.
+      # None found, or unreadable: a notice, and the rotation reads
+      # .plates/climb.json alone.
+      - name: Read the last night's record
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/last-night"
+          if ! id=$(gh api "repos/$REPO/actions/artifacts?name=plates-climb&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | last | .id // empty"); then
+            echo "::notice::The last night's record could not be listed; the rotation reads .plates/climb.json alone."
+            exit 0
+          fi
+          if [ -z "$id" ]; then
+            echo "No earlier night's record: the rotation reads .plates/climb.json alone."
+            exit 0
+          fi
+          if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/last-night.zip" \
+            && unzip -o -q "$RUNNER_TEMP/last-night.zip" -d "$RUNNER_TEMP/last-night"; then
+            echo "the last night's record: artifact $id"
+          else
+            echo "::notice::The last night's record (artifact $id) could not be read; the rotation reads .plates/climb.json alone."
+          fi
+
+      # Durable remote plan: .keel/night/plan.json on the plan
+      # branch keel-night-plan, as the night reads it, but through the
+      # contents API with this job's read token (its checkout keeps no
+      # credential for git). None there: climb picks as it always has. A
+      # branch that cannot be read is red and nothing runs: pick never
+      # guesses there is no plan.
+      - name: Read tonight's plan
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/night-plan"
+          code=0
+          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan" > "$RUNNER_TEMP/night-plan/branch.json" 2> "$RUNNER_TEMP/night-plan/error.txt" || code=$?
+          if [ "$code" = 0 ]; then
+            echo "tonight's plan: read from keel-night-plan"
+          elif grep -q "HTTP 404" "$RUNNER_TEMP/night-plan/error.txt"; then
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "no plan on keel-night-plan: climb picks as it always has"
+          else
+            rm -f "$RUNNER_TEMP/night-plan/branch.json"
+            echo "::error::The plan branch keel-night-plan could not be read (gh api exit $code: $(head -n 1 "$RUNNER_TEMP/night-plan/error.txt")); climb never guesses there is no plan."
+            exit 1
+          fi
+
+      # The climb config, validated (a bad one is red, naming the key), and
+      # tonight's job: with tonight's plan (valid and dated today, UTC), the
+      # plan's first climb item whose job may run, or none at all; without
+      # one, the job tied to the health page's worst measure, else the next in
+      # rotation after the last night's. A job with an open PR waits. A
+      # dispatch runs even on a weekly climb's off day. The budget is the
+      # pick's: a plan item's minutes may lower climb's, never raise them.
+      - name: Pick tonight's job
+        id: pick
+        if: steps.configured.outputs.enabled == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/plates/climb.mjs config --json > "$RUNNER_TEMP/climb-config.json"
+          set --
+          if [ "$EVENT" = workflow_dispatch ]; then set -- "$@" --force; fi
+          if [ -f "$RUNNER_TEMP/last-night/night.json" ]; then set -- "$@" --last-night "$RUNNER_TEMP/last-night/night.json"; fi
+          if [ -f "$RUNNER_TEMP/night-plan/branch.json" ]; then set -- "$@" --plan "$RUNNER_TEMP/night-plan/branch.json"; fi
+          node scripts/plates/climb.mjs pick --json "$@" > "$RUNNER_TEMP/pick.json"
+          node -e '
+            const fs = require("fs");
+            const [cfg, pick, out] = process.argv.slice(1);
+            const c = JSON.parse(fs.readFileSync(cfg, "utf8"));
+            const p = JSON.parse(fs.readFileSync(pick, "utf8"));
+            const used = p.plan?.used === true;
+            const ticks = used && Boolean(p.plan.item || p.plan.skipped.length);
+            const lines = [`minutes=${p.minutes ?? c.minutes}`, `job=${p.job ?? ""}`, `branch=${p.branch ?? ""}`, `day=${p.date}`, `plan_used=${used}`, `plan_ticks=${ticks}`];
+            fs.appendFileSync(out, `${lines.join("\n")}\n`);
+            if (p.plan) console.log(used ? `the plan for tonight (${p.plan.date}, shaped by ${p.plan.shapedBy}): ${p.plan.item ? `climb runs ${p.plan.item}` : "no climb item runs"}` : `no plan tonight: ${p.plan.why}`);
+            console.log(p.job ? `tonight: ${p.job} (${p.why}), ${p.minutes} min` : `no climb tonight: ${p.reason}`);
+          ' "$RUNNER_TEMP/climb-config.json" "$RUNNER_TEMP/pick.json" "$GITHUB_OUTPUT"
+          if [ -f "$RUNNER_TEMP/night-plan/branch.json" ] && grep -q '^plan_used=true$' "$GITHUB_OUTPUT"; then
+            mkdir -p "$RUNNER_TEMP/plan-handoff"
+            cp "$RUNNER_TEMP/night-plan/branch.json" "$RUNNER_TEMP/plan-handoff/night-plan.json"
+            cp "$RUNNER_TEMP/pick.json" "$RUNNER_TEMP/plan-handoff/pick.json"
+          fi
+
+      # Tonight's plan and the pick, kept before any agent runs (as the
+      # robot's admission is): the judge and the publisher refuse the plan's
+      # willNotTouch from this copy, and the publisher ticks the items it
+      # names, never from anything the agent could write.
+      - name: Keep tonight's plan
+        if: steps.pick.outputs.plan_used == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: plates-climb-plan
+          path: ${{ runner.temp }}/plan-handoff/
+          if-no-files-found: error
+          retention-days: 7
+
+      # Hygiene's number is the test ledger's flaky count: CI's plates-test-runs
+      # artifacts on the default branch, read-only, by name, into
+      # .plates/test-runs, as the night gathers them. None found is a warning;
+      # the baseline then says it cannot tell (exit 2), never a zero.
+      - name: Gather the test ledger
+        if: steps.pick.outputs.job == 'hygiene'
+        env:
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .plates/test-runs
+          if ! gh api "repos/$REPO/actions/artifacts?name=plates-test-runs&per_page=100" \
+            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:30][] | .id" > "$RUNNER_TEMP/ledger.txt"; then
+            echo "::warning::The test ledger's artifacts could not be listed."
+            exit 0
+          fi
+          n=0
+          while read -r id; do
+            [ -n "$id" ] || continue
+            if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/ledger-$id.zip"; then
+              unzip -o -q "$RUNNER_TEMP/ledger-$id.zip" -d .plates/test-runs && n=$((n + 1))
+            fi
+          done < "$RUNNER_TEMP/ledger.txt"
+          echo "test ledger: $n artifacts read; $(find .plates/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
+
+      # The baseline opens the night's record (.plates/climb/night.json), on the
+      # night's own branch, before the agent changes anything.
+      - name: Check runner capabilities before baseline
+        id: preflight
+        if: steps.pick.outputs.job != ''
+        run: |
+          status=0
+          node --input-type=module -e 'import { preflight } from "./scripts/plates/climb-execution.mjs"; const r = await preflight(process.cwd()); console.log(JSON.stringify(r)); process.exitCode = r.ok ? 0 : 1' > "$RUNNER_TEMP/climb-preflight.json" || status=$?
+          node -e 'const fs=require("fs"), r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${r.state}\n`); console.log(r.line)' "$RUNNER_TEMP/climb-preflight.json"
+          exit "$status"
+
+      - name: Baseline
+        id: baseline
+        if: steps.pick.outputs.job != ''
+        env:
+          JOB: ${{ steps.pick.outputs.job }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          git config user.name "plates-climb"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH"
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+          status=0
+          node scripts/plates/climb.mjs measure "$JOB" --baseline || status=$?
+          echo "ended=$(date +%s)" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      # A loop night pulls Loop first where plates-loop.yml is not installed
+      # (pull --no-prove: the agent proposes, not a model in the pull);
+      # climb.mjs commits it. Where plates-loop.yml is, its daily pull stands
+      # and climb.mjs says so: the two never both pull. Loop unreachable (no
+      # STITCH_API_KEY, no stitch, a pull that fails) is a notice, never red:
+      # the night proposes for the findings already here, and its record
+      # says why it did not pull.
+      - name: Pull Loop's findings
+        if: steps.pick.outputs.job == 'loop'
+        env:
+          STITCH_API_KEY: ${{ secrets.STITCH_API_KEY }}
+        run: |
+          if [ -n "$STITCH_API_KEY" ] && [ ! -f .github/workflows/plates-loop.yml ]; then
+            if ! { npm install -g @google/stitch@0 && stitch enable loop; }; then
+              echo "::notice::The stitch CLI could not be installed or switched on; the pull says so below."
+            fi
+          fi
+          node scripts/plates/climb.mjs loop-pull
+
+      # Codex's sandbox keeps .git read-only (phase 47): its commits go to a
+      # git dir at .plates/agent-git, made here before it runs, holding the
+      # branch as the steps above left it (fetched, so it shares no file with
+      # .git's objects), and ignored by both, so no add ever carries it.
+      - name: Give Codex its git dir
+        if: steps.pick.outputs.job != '' && steps.on.outputs.agent == 'codex'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          rm -rf .plates/agent-git
+          git init -q --bare .plates/agent-git
+          # Codex's TMPDIR, which its sandbox may write: pinned under /tmp,
+          # never the runner's temp (GITHUB_ENV and GITHUB_OUTPUT live there).
+          mkdir -p /tmp/plates-codex
+          git --git-dir=.plates/agent-git fetch -q --no-tags "$PWD/.git" "refs/heads/$BRANCH:refs/heads/$BRANCH"
+          git --git-dir=.plates/agent-git symbolic-ref HEAD "refs/heads/$BRANCH"
+          git --git-dir=.plates/agent-git config user.name "plates-climb"
+          git --git-dir=.plates/agent-git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git --git-dir=.plates/agent-git --work-tree=. reset -q
+          mkdir -p .plates/agent-git/info .git/info
+          echo "/.plates/agent-git/" >> .plates/agent-git/info/exclude
+          echo "/.plates/agent-git/" >> .git/info/exclude
+          echo "Codex's git dir: .plates/agent-git, on $(git --git-dir=.plates/agent-git symbolic-ref --short HEAD) at $(git --git-dir=.plates/agent-git rev-parse --short HEAD)"
+
+      # The brief: the protocol, the job, and the pick, as one prompt.
+      - name: Brief
+        id: brief
+        if: steps.pick.outputs.job != ''
+        env:
+          AGENT: ${{ steps.on.outputs.agent }}
+          BRANCH: ${{ steps.pick.outputs.branch }}
+          JOB: ${{ steps.pick.outputs.job }}
+        run: |
+          # plates's scripts as the run's commit has them, kept outside the workspace
+          # before the agent runs (PR #59): the steps after it run these, never a
+          # file the agent edited and did not commit.
+          mkdir -p "$RUNNER_TEMP/plates" && git archive "$GITHUB_SHA" scripts/plates .plates/plates.json | tar -x -C "$RUNNER_TEMP/plates"
+          {
+            cat .agents/climb/PROTOCOL.md
+            echo
+            cat ".agents/climb/jobs/$JOB.md"
+            echo
+            echo "## Tonight (climb.mjs pick)"
+            echo
+            cat "$RUNNER_TEMP/pick.json"
+          } > "$RUNNER_TEMP/prompt.md"
+          if [ "$AGENT" = codex ]; then
+            {
+              echo
+              echo "## Your git dir (Codex)"
+              echo
+              echo "Your sandbox keeps \`.git\` read-only, so your git dir is \`.plates/agent-git\`, a clone the workflow made of \`$BRANCH\`. Run every git command as \`git --git-dir=.plates/agent-git --work-tree=. <command>\`, and every climb.mjs command as \`PLATES_AGENT_GIT=.plates/agent-git node scripts/plates/climb.mjs …\`, so its commits, resets and worktrees use it too. Commit on \`$BRANCH\`: only that branch's commits leave this job, as objects (the git dir's config and hooks never do). Never change the git dir's config, hooks or \`info/\`, and never touch \`.git\`."
+            } >> "$RUNNER_TEMP/prompt.md"
+          fi
+          eof="PLATES_EOF_$(date +%s%N)"
+          {
+            echo "prompt<<$eof"
+            cat "$RUNNER_TEMP/prompt.md"
+            echo "$eof"
+            echo "started=$(date +%s)"
+          } >> "$GITHUB_OUTPUT"
+
+      # The agent, time-boxed to the budget. Its tools cannot push or merge,
+      # it measures only through climb.mjs, and the token it is given reads.
+      # A timeout is not red: what it kept before the box closed is judged.
+      - name: Climb
+        id: climb
+        if: steps.pick.outputs.job != '' && steps.on.outputs.agent == 'claude'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          prompt: ${{ steps.brief.outputs.prompt }}
+          claude_args: |
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/plates/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"
+      - name: Climb
+        id: climb_codex
+        if: steps.pick.outputs.job != '' && steps.on.outputs.agent == 'codex'
+        continue-on-error: true
+        timeout-minutes: ${{ fromJSON(steps.pick.outputs.minutes) }}
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ""
+          PLATES_AGENT_GIT: .plates/agent-git
+          # Its sandbox writes $TMPDIR: pinned away from the runner's temp, whose
+          # command files (GITHUB_ENV, GITHUB_OUTPUT) would reach every later step.
+          TMPDIR: /tmp/plates-codex
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: ${{ runner.temp }}/prompt.md
+          output-file: ${{ runner.temp }}/codex-final-message.md
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+
+      # An agent that failed before its budget ran out (no secret, a bad
+      # model: is_error after one turn) is red, and nothing is judged or
+      # pushed: a run that did nothing never reports success (lesson 29). A
+      # budget timeout is judged only with valid execution evidence and no
+      # permission denials. Missing, invalid or oversized evidence stays blocked.
+      - name: Did the agent run?
+        id: execution
+        if: steps.pick.outputs.job != ''
+        env:
+          AGENT: ${{ steps.on.outputs.agent }}
+          OUTCOME: ${{ steps.on.outputs.agent == 'codex' && steps.climb_codex.outcome || steps.climb.outcome }}
+          EXECUTION: ${{ steps.climb.outputs.execution_file }}
+          MINUTES: ${{ steps.pick.outputs.minutes }}
+          STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          status=0
+          if [ "$AGENT" = codex ]; then
+            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED" --json > "$RUNNER_TEMP/climb-execution.json" || status=$?
+          else
+            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED" --json > "$RUNNER_TEMP/climb-execution.json" || status=$?
+          fi
+          node -e '
+            const fs=require("fs"), r=JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${r.ok ? "executed" : "blocked"}\nseconds=${r.elapsedSec ?? ""}\n`);
+            console.log(`${r.ok ? "" : "::error::"}${r.line || "blocked: missing execution evidence"}`);
+          ' "$RUNNER_TEMP/climb-execution.json"
+          exit "$status"
+
+
+      # Never trust the git dir Codex could write (phase 47): its config,
+      # hooks, attributes and aliases are the agent's, so no git command here
+      # reads it. Only objects leave it: its loose objects and packs (regular
+      # files; no symlink, no alternates), copied into a repo plates makes here
+      # (its objects' base from .git, which Codex could not write), and the
+      # one ref, read as a file. git runs with no system or global config,
+      # hooks and fsmonitor off. A head not on top of the run's commit is
+      # refused, as the judge would; the night's commits leave as a bundle from plates's repo.
+      - name: Take Codex's commits, objects only
+        if: always() && steps.pick.outputs.job != '' && steps.on.outputs.agent == 'codex'
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+        run: |
+          src=.plates/agent-git
+          dst="$RUNNER_TEMP/agent-objects"
+          out="$RUNNER_TEMP/handoff"
+          export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false --git-dir="$dst" "$@"; }
+          rm -rf "$dst"
+          mkdir -p "$out"
+          git init -q --bare "$dst"
+          echo "$PWD/.git/objects" > "$dst/objects/info/alternates"
+          if [ -d "$src/objects" ] && [ ! -L "$src" ] && [ ! -L "$src/objects" ]; then
+            (cd "$src/objects" && find . -type f -print0) | while IFS= read -r -d '' f; do
+              case "$f" in
+                */*/*/*) continue ;;
+                ./[0-9a-f][0-9a-f]/[0-9a-f]*|./pack/pack-*.pack|./pack/pack-*.idx) ;;
+                *) continue ;;
+              esac
+              d=$(dirname "$f")
+              if [ -L "$src/objects/$d" ] || [ -L "$src/objects/$f" ] || [ ! -f "$src/objects/$f" ]; then continue; fi
+              mkdir -p "$dst/objects/$d"
+              cp "$src/objects/$f" "$dst/objects/$f"
+            done
+          fi
+          ref="refs/heads/$BRANCH"
+          tip=""
+          if [ -f "$src/$ref" ] && [ ! -L "$src/$ref" ]; then
+            tip=$(sed -n 1p "$src/$ref")
+          elif [ -f "$src/packed-refs" ] && [ ! -L "$src/packed-refs" ]; then
+            tip=$(awk -v r="$ref" '$2 == r { print $1; exit }' "$src/packed-refs")
+          fi
+          if [ -z "$tip" ]; then
+            echo "::warning::Codex's git dir has no $ref: nothing of Codex's is handed on."
+            exit 0
+          fi
+          case "$tip" in *[!0-9a-f]*) echo "::error::Codex's $ref is not an object name; nothing is handed on."; exit 1 ;; esac
+          if [ "${#tip}" != 40 ] && [ "${#tip}" != 64 ]; then
+            echo "::error::Codex's $ref is not an object name; nothing is handed on."
+            exit 1
+          fi
+          if ! g cat-file -e "$tip^{commit}" 2> /dev/null; then
+            echo "::error::Codex's $ref names no commit its objects hold; nothing is handed on."
+            exit 1
+          fi
+          if ! g merge-base --is-ancestor "$GITHUB_SHA" "$tip"; then
+            echo "::error::Codex's $ref ($tip) is not on top of the run's commit ($GITHUB_SHA); nothing is handed on."
+            exit 1
+          fi
+          g update-ref "$ref" "$tip"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            g bundle create "$out/night.bundle" "$GITHUB_SHA..$ref"
+          fi
+          echo "Codex's commits: $(g rev-list --count "$GITHUB_SHA..$tip") on $BRANCH, taken as objects"
+
+      # The night's commits leave this job as a git bundle (the run's commit
+      # to the branch's head), with the night's record and the test ledger;
+      # never its working tree. Kept or not, the record goes on, so the
+      # night's history keeps a night whose agent failed.
+      - name: Record execution costs
+        if: always() && steps.pick.outputs.job != ''
+        env:
+          START: ${{ steps.clock.outputs.started }}
+          BASELINE_START: ${{ steps.baseline.outputs.started }}
+          BASELINE_END: ${{ steps.baseline.outputs.ended }}
+          AGENT_SECONDS: ${{ steps.execution.outputs.seconds }}
+          BRIEF_STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const e = process.env;
+            // The archived helper predates the agent; preflight failure has not run an agent.
+            const { durations } = await import(e.BRIEF_STARTED ? e.RUNNER_TEMP + "/plates/scripts/plates/climb-execution.mjs" : "./scripts/plates/climb-execution.mjs");
+            writeFileSync(e.RUNNER_TEMP + "/climb-durations.json", JSON.stringify(durations({ started:e.START, baselineStarted:e.BASELINE_START, baselineEnded:e.BASELINE_END, agentSeconds:e.AGENT_SECONDS })));
+          '
+
+      - name: Hand the night on
+        if: always() && steps.pick.outputs.job != ''
+        env:
+          BRANCH: ${{ steps.pick.outputs.branch }}
+          AGENT: ${{ steps.on.outputs.agent }}
+        run: |
+          out="$RUNNER_TEMP/handoff"
+          mkdir -p "$out/record" "$out/test-runs"
+          for f in climb-preflight.json climb-execution.json climb-durations.json; do
+            if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
+          done
+          # Codex's commits are in its git dir, handed on above as objects; .git holds Claude's.
+          if [ "$AGENT" != codex ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
+            git bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          if [ -d .plates/climb ]; then cp -R .plates/climb/. "$out/record/"; fi
+          if [ -d .plates/test-runs ]; then cp -R .plates/test-runs/. "$out/test-runs/"; fi
+      - name: Keep the agent's commits
+        if: always() && steps.pick.outputs.job != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: plates-climb-agent
+          path: ${{ runner.temp }}/handoff/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The judge: no agent, and a token that reads. A fresh checkout of the
+  # run's commit installs first (the setup token's only step), then takes the
+  # agent's commits only after climb.mjs sandbox (this checkout's copy, the
+  # default branch's) says they change no workflow, no scripts/plates/, no
+  # .plates/plates.json and no install file, so every script below, the config
+  # and what was installed are the default branch's, and nothing of the
+  # agent's ran where the setup token was. The gate runs the agent's code,
+  # with no setup token, which is why this job cannot write either.
+  judge:
+    needs: agent
+    if: needs.agent.outputs.job != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: read
+    outputs:
+      # The commit the guard checked, named before any of the agent's code ran (#68).
+      validated: ${{ steps.take.outputs.validated }}
+      kept: ${{ steps.judge.outputs.kept }}
+      line: ${{ steps.judge.outputs.line }}
+      issue: ${{ steps.judge.outputs.issue }}
+      state: ${{ steps.judge.outputs.state }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Start the judge clock
+        id: judge_clock
+        run: |
+          cp scripts/plates/climb-execution.mjs "$RUNNER_TEMP/climb-judge-execution.mjs"
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Read the config
+        id: config
+        run: |
+          node -e '
+            const fs = require("fs");
+            const c = JSON.parse(fs.readFileSync(".plates/plates.json", "utf8"));
+            const env = c.env ?? {};
+            if (!env || typeof env !== "object" || Array.isArray(env)) throw new Error(".plates/plates.json: \"env\" must be an object of NAME: \"value\"");
+            if (c.setup !== undefined && (typeof c.setup !== "string" || !c.setup.trim())) throw new Error(".plates/plates.json: \"setup\" must be a non-empty shell command");
+            const tok = c.setupToken;
+            if (tok !== undefined && (typeof tok !== "string" || !/^[A-Z_][A-Z0-9_]*$/.test(tok) || tok.startsWith("GITHUB_") || c.setup === undefined)) throw new Error(".plates/plates.json: \"setupToken\" must name a repo secret (not GITHUB_*) and needs a \"setup\"");
+            const eof = `PLATES_EOF_${Date.now()}`;
+            const lines = [];
+            for (const [k, v] of Object.entries(env)) {
+              if (!/^[A-Z_][A-Z0-9_]*$/.test(k) || typeof v !== "string") throw new Error(`.plates/plates.json: "env" ${k} must be NAME: "value"`);
+              lines.push(`${k}<<${eof}`, v, eof);
+              console.log(`env: ${k}`);
+            }
+            if (lines.length) fs.appendFileSync(process.env.GITHUB_ENV, `${lines.join("\n")}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup<<${eof}\n${c.setup ?? ""}\n${eof}\n`);
+            // Only the secret NAME, never its value: the Install step looks it up.
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `setup_token=${tok ?? ""}\n`);
+            if (tok) console.log(`setupToken: ${tok} (a repo secret, for the Install step only)`);
+          '
+      - name: Install
+        # As the agent job's: setupToken becomes GH_TOKEN here and in no other
+        # step. It runs on the run's own commit, before the agent's commits are
+        # taken: no code of theirs (a preinstall script, a changed lockfile)
+        # ever runs where the setup token is, and the sandbox below refuses
+        # an install file changed, so what is installed is what they run on.
+        env:
+          SETUP: ${{ steps.config.outputs.setup }}
+          GH_TOKEN: ${{ secrets[steps.config.outputs.setup_token] || github.token }}
+        run: |
+          if [ -n "$SETUP" ]; then
+            echo "setup (.plates/plates.json): $SETUP"
+            bash -e -c "$SETUP"
+          elif [ -f package-lock.json ]; then
+            npm ci
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: plates-climb-agent
+          path: ${{ runner.temp }}/handoff
+      # Tonight's plan as the agent job kept it before its agent ran (phase 76).
+      - if: needs.agent.outputs.plan_used == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: plates-climb-plan
+          path: ${{ runner.temp }}/plan
+      # Drop anything no compare kept (climb.mjs settle: git only), then name
+      # the commit to judge, and the checkout's state, before any of the
+      # agent's code runs (#68): this step's outputs are fixed when it ends,
+      # so nothing the gate leaves running can rename them. With tonight's
+      # plan, the sandbox also refuses anything its willNotTouch covers.
+      - name: Take the night's commits
+        id: take
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+          PLAN_USED: ${{ needs.agent.outputs.plan_used }}
+        run: |
+          in="$RUNNER_TEMP/handoff"
+          head="$GITHUB_SHA"
+          if [ -f "$in/night.bundle" ]; then
+            git fetch -q "$in/night.bundle" "refs/heads/$BRANCH"
+            head=$(git rev-parse FETCH_HEAD)
+          fi
+          node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          if [ "$PLAN_USED" = true ]; then node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
+          git config user.name "plates-climb"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -q -c "$BRANCH" "$head"
+          # The night's record and the ledger, as data: nothing else of the agent's tree.
+          mkdir -p .plates/climb .plates/test-runs
+          for f in night.json .gitignore; do
+            if [ -f "$in/record/$f" ]; then cp "$in/record/$f" .plates/climb/; fi
+          done
+          if [ -d "$in/test-runs" ]; then cp -R "$in/test-runs/." .plates/test-runs/; fi
+          # The base is the run's commit, never the record's (the agent wrote
+          # the record): a night naming another base is refused.
+          node scripts/plates/climb.mjs settle --base "$GITHUB_SHA"
+          validated=$(git rev-parse HEAD)
+          held=$(node scripts/plates/climb.mjs held)
+          echo "validated=$validated" >> "$GITHUB_OUTPUT"
+          echo "held=$held" >> "$GITHUB_OUTPUT"
+          echo "the commit to judge: $validated"
+
+      # Judged by the script, not the agent: run the gate and check no test
+      # was dropped (red if either fails), the night's base against its end,
+      # then the PR body and the night's line. The guard, compare and report
+      # run the agent's code; held then refuses anything it moved (#68).
+      - name: Judge the night
+        id: judge
+        env:
+          PLATES_CLIMB_JUDGE_STARTED: ${{ steps.judge_clock.outputs.started }}
+          PLATES_CLIMB_STARTED: ${{ needs.agent.outputs.started }}
+          PLATES_CLIMB_BASELINE_STARTED: ${{ needs.agent.outputs.baseline_started }}
+          PLATES_CLIMB_BASELINE_ENDED: ${{ needs.agent.outputs.baseline_ended }}
+          PLATES_CLIMB_AGENT_SECONDS: ${{ needs.agent.outputs.agent_seconds }}
+          VALIDATED: ${{ steps.take.outputs.validated }}
+          HELD: ${{ steps.take.outputs.held }}
+        run: |
+          node scripts/plates/climb.mjs guard --base "$GITHUB_SHA"
+          node scripts/plates/climb.mjs compare --final --base "$GITHUB_SHA"
+          node scripts/plates/climb.mjs report --body "$RUNNER_TEMP/body.md" --issue "$RUNNER_TEMP/issue.md" --base "$GITHUB_SHA" --json > "$RUNNER_TEMP/report.json"
+          node scripts/plates/climb.mjs held --since "$HELD" --head "$VALIDATED" --what "the agent's code the judge ran (the guard, compare --final, report)"
+          node -e '
+            const fs = require("fs");
+            const [file, out, summary, title] = process.argv.slice(1);
+            const r = JSON.parse(fs.readFileSync(file, "utf8"));
+            // A hygiene night that proved nothing: the issue to file, its title in a file (never an output to escape).
+            if (r.issue) fs.writeFileSync(title, r.issue.title);
+            fs.appendFileSync(out, `state=${r.state}\nkept=${r.kept}\nline=${r.line}\nissue=${r.issue ? "yes" : ""}\n`);
+            fs.appendFileSync(summary, `${r.line}\nExecution: ${r.state}; wall seconds (CPU unavailable): ${JSON.stringify(r.durations)}\n`);
+            console.log(r.line);
+          ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
+
+      # The judged night goes on as the agent's did: a bundle, the PR body,
+      # the issue, the record. Kept or not, the record goes on. The bundle is
+      # the commit named before any of the agent's code ran, never the
+      # branch as the guard, compare and report left it (#68).
+      - name: Record judge costs
+        if: always()
+        env:
+          START: ${{ needs.agent.outputs.started }}
+          BASELINE_START: ${{ needs.agent.outputs.baseline_started }}
+          BASELINE_END: ${{ needs.agent.outputs.baseline_ended }}
+          AGENT_SECONDS: ${{ needs.agent.outputs.agent_seconds }}
+          JUDGE_START: ${{ steps.judge_clock.outputs.started }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const e = process.env;
+            const { durations } = await import(e.RUNNER_TEMP + "/climb-judge-execution.mjs");
+            writeFileSync(e.RUNNER_TEMP + "/climb-durations.json", JSON.stringify(durations({ started:e.START, baselineStarted:e.BASELINE_START, baselineEnded:e.BASELINE_END, agentSeconds:e.AGENT_SECONDS, judgeStarted:e.JUDGE_START })));
+          '
+
+      - name: Hand the judged night on
+        if: always()
+        env:
+          BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ steps.take.outputs.validated }}
+        run: |
+          out="$RUNNER_TEMP/judged"
+          mkdir -p "$out/record"
+          if [ -n "$VALIDATED" ] && [ "$VALIDATED" != "$GITHUB_SHA" ]; then
+            g() { git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.useReplaceRefs=false "$@"; }
+            g update-ref "refs/heads/$BRANCH" "$VALIDATED"
+            g bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
+          fi
+          for f in body.md issue.md issue-title.txt report.json climb-durations.json; do
+            if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
+          done
+          if [ -d .plates/climb ]; then cp -R .plates/climb/. "$out/record/"; fi
+      - name: Keep the judged night
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plates-climb-judged
+          path: ${{ runner.temp }}/judged/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # The only job that can write: no agent, and nothing of the branch's runs
+  # here. It takes only the commit the judge named (#68), checks the sandbox
+  # again (git only), pushes it to the night's own branch with the rotation's
+  # state, opens one PR, files hygiene's issue, and keeps the night's record,
+  # whatever happened before it. With tonight's plan it is also the one job
+  # that ticks the plan's items on the plan branch (phase 76).
+  publish:
+    needs: [agent, judge]
+    if: always() && (needs.agent.outputs.job != '' || needs.agent.outputs.plan_ticks == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - if: needs.judge.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: plates-climb-judged
+          path: ${{ runner.temp }}/night
+      # A night the judge never finished keeps the agent's record.
+      - if: needs.judge.result != 'success' && needs.agent.outputs.job != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: plates-climb-agent
+          path: ${{ runner.temp }}/night
+      # Tonight's plan as the agent job kept it before its agent ran (phase 76).
+      - if: needs.agent.outputs.plan_used == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: plates-climb-plan
+          path: ${{ runner.temp }}/plan
+
+      # One PR, on this workflow's own prefix; a person merges it. A night
+      # that kept nothing pushes nothing.
+      - name: Open the climb's pull request
+        id: open
+        if: needs.judge.result == 'success'
+        env:
+          PLAN_USED: ${{ needs.agent.outputs.plan_used }}
+          KEPT: ${{ needs.judge.outputs.kept }}
+          LINE: ${{ needs.judge.outputs.line }}
+          JOB: ${{ needs.agent.outputs.job }}
+          DAY: ${{ needs.agent.outputs.day }}
+          BRANCH: ${{ needs.agent.outputs.branch }}
+          VALIDATED: ${{ needs.judge.outputs.validated }}
+          BASE: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$KEPT" = 0 ] || [ -z "$KEPT" ]; then
+            echo "::notice::No PR: $LINE"
+            exit 0
+          fi
+          if [ ! -f "$RUNNER_TEMP/night/night.bundle" ]; then
+            echo "::error::The judge kept $KEPT, but handed on no commits; nothing is pushed."
+            exit 1
+          fi
+          # The judged commits, fetched as objects: the working tree stays
+          # this run's commit, and the sandbox is this checkout's script.
+          git fetch -q "$RUNNER_TEMP/night/night.bundle" "refs/heads/$BRANCH"
+          head=$(git rev-parse FETCH_HEAD)
+          # Only the commit the judge named before any of the agent's code ran
+          # (#68): a later one (a gate's background commit) was never guarded.
+          if [ -z "$VALIDATED" ] || [ "$head" != "$VALIDATED" ]; then
+            echo "::error::The judged bundle's head ($head) is not the commit the judge named before the agent's code ran (${VALIDATED:-none}); nothing is pushed."
+            exit 1
+          fi
+          node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head"
+          if [ "$PLAN_USED" = true ]; then node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
+          # The rotation's state rides on the PR as one more commit, made here
+          # from the night's job, day and count, never from a tree the agent's
+          # code ran in: .plates/climb.json on the judged commit, by plumbing (no
+          # checkout, no hook). A night that keeps nothing is remembered by its
+          # record (the plates-climb artifact), which the next night's pick reads.
+          case "$KEPT" in *[!0-9]*) echo "::error::The judge's count ($KEPT) is not a number; nothing is pushed."; exit 1 ;; esac
+          state=$(node -e 'console.log(JSON.stringify({ last: { job: process.argv[1], date: process.argv[2], kept: Number(process.argv[3]) } }, null, 2))' "$JOB" "$DAY" "$KEPT")
+          blob=$(printf '%s\n' "$state" | git hash-object -w --stdin)
+          # A plan whose willNotTouch covers .plates/climb.json holds for plates's
+          # own commit too (plates#147): no rotation commit, and the night is
+          # remembered by its record alone. Exit 3: covered; anything else
+          # but 0 is a plan that cannot be read, and nothing is pushed.
+          covered=0
+          if [ "$PLAN_USED" = true ]; then
+            node --input-type=module -e '
+              import { planWillNotTouch, touchRules, touchedBy, STATE } from "./scripts/plates/climb.mjs";
+              process.exit(touchedBy(STATE, touchRules(await planWillNotTouch(process.argv[1])).paths) ? 3 : 0);
+            ' "$RUNNER_TEMP/plan/night-plan.json" || covered=$?
+          fi
+          case "$covered" in
+            0) ;;
+            3) echo "::notice::Tonight's plan will not touch .plates/climb.json: no rotation commit; the next pick reads this night's record (the plates-climb artifact)." ;;
+            *) echo "::error::Tonight's plan could not be read for its willNotTouch; nothing is pushed."; exit 1 ;;
+          esac
+          if [ "$covered" = 0 ] && [ "$(git rev-parse -q --verify "$head:.plates/climb.json" || true)" != "$blob" ]; then
+            index="$RUNNER_TEMP/rotation.index"
+            GIT_INDEX_FILE="$index" git read-tree "$head"
+            GIT_INDEX_FILE="$index" git update-index --add --cacheinfo "100644,$blob,.plates/climb.json"
+            tree=$(GIT_INDEX_FILE="$index" git write-tree)
+            head=$(git -c user.name=plates-climb -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit-tree "$tree" -p "$head" -m "plates climb: $JOB $DAY, rotation state")
+          fi
+          # willNotTouch, checked again on the head that is pushed.
+          if [ "$PLAN_USED" = true ]; then node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
+          # The branch is this workflow's alone; a re-run the same day replaces
+          # its own night, so force is safe here and nowhere else.
+          git push --force origin "$head:refs/heads/keel-climb/$JOB/$DAY"
+          if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
+            code=0
+            out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "plates climb: $JOB, $DAY" --body-file "$RUNNER_TEMP/night/body.md" 2>&1) || code=$?
+            echo "$out"
+            if [ "$code" != 0 ]; then
+              if printf '%s' "$out" | grep -qi 'not permitted to create or approve pull requests'; then
+                echo "::notice::$BRANCH is pushed, but no PR was opened: allow it in Settings → Actions → General → Workflow permissions → \"Allow GitHub Actions to create and approve pull requests\"."
+              else
+                exit "$code"
+              fi
+            fi
+          fi
+          # The PR's number goes in the night's record, for the night's health line.
+          num=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' || true)
+          if [ -n "$num" ]; then
+            node -e '
+              const fs = require("fs");
+              const [file, n] = process.argv.slice(1);
+              const night = JSON.parse(fs.readFileSync(file, "utf8"));
+              night.pr = Number(n);
+              fs.writeFileSync(file, `${JSON.stringify(night, null, 2)}\n`);
+            ' "$RUNNER_TEMP/night/record/night.json" "$num"
+            echo "pr=$num" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A hygiene night that proved no fix: one issue on this repo, with the
+      # ledger's evidence, unless one with the same title is already open.
+      - name: File the flaky test
+        if: needs.agent.outputs.job == 'hygiene' && needs.judge.outputs.issue == 'yes'
+        env:
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title=$(cat "$RUNNER_TEMP/night/issue-title.txt")
+          if gh issue list --repo "$REPO" --state open --json title --limit 200 --jq '.[].title' | grep -qxF -- "$title"; then
+            echo "::notice::Already open: $title"
+            exit 0
+          fi
+          gh issue create --repo "$REPO" --title "$title" --body-file "$RUNNER_TEMP/night/issue.md"
+
+      # The night's record (every attempt, its numbers, the line), kept 30
+      # days, kept or not: the one plates-climb artifact the night reads.
+      - name: Keep the climb's record
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plates-climb
+          path: ${{ runner.temp }}/night/record/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # Tonight's plan, ticked where the morning reads it (phase 76): the
+      # plan branch keel-night-plan, never main, never merged. Climb's item
+      # runs, then is done with its PR, or failed with why (and this run);
+      # every other climb item is skipped, saying why. One commit on the
+      # branch's tip, pushed with a lease on it, retried from a new tip
+      # (scripts/plates/night-plan.mjs record). A plan since replaced by
+      # another night's is never ticked. Last, so the PR stands either way.
+      - name: Tick tonight's plan
+        if: always() && needs.agent.outputs.plan_ticks == 'true'
+        env:
+          DAY: ${{ needs.agent.outputs.day }}
+          EXECUTION: ${{ needs.agent.outputs.execution }}
+          COMPLETION: ${{ needs.judge.outputs.state }}
+          JUDGED: ${{ needs.judge.result }}
+          LINE: ${{ needs.judge.outputs.line }}
+          OPENED: ${{ steps.open.outcome }}
+          PR: ${{ steps.open.outputs.pr }}
+          REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            import { passTicks } from "./scripts/plates/night-plan.mjs";
+            const [pick, out] = process.argv.slice(1);
+            const { plan } = JSON.parse(readFileSync(pick, "utf8"));
+            const e = process.env;
+            const failed = e.EXECUTION === "blocked" ? "blocked: runner preflight or execution evidence refused the climb; inspect the retained sanitized receipt" : ["no-candidate", "incomplete"].includes(e.COMPLETION) ? `${e.COMPLETION}: ${e.LINE || "the agent produced no judged attempt"}` : e.JUDGED !== "success" ? `the climb did not finish: its judge ended ${e.JUDGED || "unrun"}` : e.OPENED === "failure" ? "the judge kept a change, and its pull request could not be opened" : `no pull request: ${e.LINE || "the night kept nothing"}`;
+            const ticks = passTicks({ item: plan.item, admitted: plan.admitted, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN });
+            if (!e.PR && e.JUDGED === "success" && e.COMPLETION === "no-improvement" && e.OPENED !== "failure" && e.EXECUTION === "executed") {
+              const last = ticks.at(-1);
+              if (last?.id === plan.item && last.status === "failed") { last.status = "done"; last.note = passTicks({ item: plan.item, failed: `no-improvement: ${e.LINE}` }).at(-1).note; }
+            }
+            writeFileSync(out, JSON.stringify(ticks));
+          ' "$RUNNER_TEMP/plan/pick.json" "$RUNNER_TEMP/plan-ticks.json"
+          node scripts/plates/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"

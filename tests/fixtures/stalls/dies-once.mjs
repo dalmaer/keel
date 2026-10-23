@@ -1,6 +1,6 @@
 // A synthetic Acme test for tests/stalls.test.mjs: the first time it runs it
 // kills its own runner (node --test dies with no test failed, as a crash or a
-// time limit would); after that it passes. keel test runs it without stalls
+// time limit would); after that it passes. plates test runs it without stalls
 // first, so only that run dies. ACME_ONCE is the marker file.
 import { test } from 'node:test';
 import { existsSync, writeFileSync } from 'node:fs';

@@ -1,18 +1,18 @@
 # Reconcile the working record
 
-Enable with `keel adopt --with reconciliation`. For a new project use
-`keel init <dir> --description "<paragraph>" --with reconciliation`.
+Enable with `plates adopt --with reconciliation`. For a new project use
+`plates init <dir> --description "<paragraph>" --with reconciliation`.
 Existing PR templates are preserved: copy the impact section from
 `docs/templates/reconciliation.md` into your template when needed.
 
-`keel doctor --json` checks local references. `keel doctor --github --json`
+`plates doctor --json` checks local references. `plates doctor --github --json`
 also compares read-only GitHub observations. The installed runtime is
-`node scripts/keel/reconcile.mjs --json` (add `--github` for remote comparison).
+`node scripts/plates/reconcile.mjs --json` (add `--github` for remote comparison).
 Exit 0 means clean, 1 findings, 2 incomplete/broken. Missing remote facts are
 unknown, never evidence that the record is clean.
 
-The existing managed check workflow runs local checks. `keel-impact.yml`
-(managed by this practice) runs `node scripts/keel/reconcile.mjs --event
+The existing managed check workflow runs local checks. `plates-impact.yml`
+(managed by this practice) runs `node scripts/plates/reconcile.mjs --event
 "$GITHUB_EVENT_PATH" --json` on every pull request, and again whenever its
 description is edited, so fixing a declaration turns the check green without
 re-running the gate. It checks the actual base/head diff and the PR body. Default-branch pushes
@@ -21,7 +21,7 @@ add these steps to yours, using checkout with full history and only contents
 and pull-requests read permissions. Use `pull_request`, never privileged fork
 execution through `pull_request_target`. The existing night dynamically loads
 the same installed runtime; no central fetch or npm dependency is needed.
-`keel improve --report` includes `record_contradictions` (bound 0, no ratchet).
+`plates improve --report` includes `record_contradictions` (bound 0, no ratchet).
 The health page retains findings, unknown observations and manual proposals.
 
 Keep each phase format, including inline Next action sections. Add stable
@@ -59,7 +59,7 @@ configurations are not rewritten: add the declaration to their bodies/configs.
 
 ## Decision context for a builder
 
-Run `keel decision context --phase <id> --json` before dispatch and resume.
+Run `plates decision context --phase <id> --json` before dispatch and resume.
 For an issue use `--issue <owner/repo#n>`; its repository must match local config.
 Phase references come from `keel-reconciliation.decisions`; issue references from
 rubric `decisions` or `keel-impact.decisions`. Unstructured issue prose is data.

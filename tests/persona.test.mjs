@@ -9,10 +9,10 @@ import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, symlink, link } from 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { run as runNode } from './helpers/run.mjs';
-import { parsePersona, run, planCandidates, personaMeasures, parseArgs, readPersonas } from '../practices/personas/files/scripts/keel/persona.mjs';
-import { measure } from '../practices/night/files/scripts/keel/improve.mjs';
+import { parsePersona, run, planCandidates, personaMeasures, parseArgs, readPersonas } from '../practices/personas/files/scripts/plates/persona.mjs';
+import { measure } from '../practices/night/files/scripts/plates/improve.mjs';
 
-const BIN = resolve('bin/keel.mjs');
+const BIN = resolve('bin/plates.mjs');
 const EXAMPLE = resolve('practices/personas/files/.agents/personas/performance.md');
 const DATE = '2026-10-14';
 const FILE = '.agents/personas/speed.md';
@@ -29,11 +29,11 @@ The lens, in prose.
 const goal = (name, bound, command, extra = '') => `  - name: ${name}\n    ${bound}\n    measured by: ${command}\n${extra}`;
 
 async function project(t, files = {}) {
-  const root = await mkdtemp(join(tmpdir(), 'keel-persona-acme-'));
+  const root = await mkdtemp(join(tmpdir(), 'plates-persona-acme-'));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel'), { recursive: true });
+  await mkdir(join(root, '.plates'), { recursive: true });
   await mkdir(join(root, '.agents/personas'), { recursive: true });
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['night', 'personas'] }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['night', 'personas'] }));
   for (const [path, text] of Object.entries(files)) await writeFile(join(root, path), text);
   return root;
 }
@@ -88,7 +88,7 @@ test('an unknown key, a goal with no command and a bound that is not a number ar
   assert.throws(() => parsePersona('.agents/personas/Speed Test.md', persona(ok)), /lowercase letters, digits and dashes/);
 });
 
-test('keel persona run measures each goal, marks met, missed or broken, writes the review page, and writes nothing else', async t => {
+test('plates persona run measures each goal, marks met, missed or broken, writes the review page, and writes nothing else', async t => {
   const root = await project(t, { [FILE]: persona([
     goal('bundle bytes', 'at most: 10', 'echo 7', '    baseline: 9, 2026-10-01\n'),
     goal('cold start', 'at most: 100ms', 'echo 140'),
@@ -114,7 +114,7 @@ test('keel persona run measures each goal, marks met, missed or broken, writes t
   assert.equal(detail['nothing-printed'], 'printed nothing, not one number');
   assert.equal(detail['too-slow'], 'timed out after 2 s');
   assert.deepEqual([r.data.met, r.data.missed, r.data.broken], [2, 2, 5]);
-  assert.equal(r.exitCode, 2, 'a broken instrument outranks a missed number, as in keel improve');
+  assert.equal(r.exitCode, 2, 'a broken instrument outranks a missed number, as in plates improve');
   assert.equal(p.page, `docs/reviews/${DATE}-speed.md`);
   const after = await tree(root);
   const page = after[p.page];
@@ -149,7 +149,7 @@ test('exit 1 when a goal is missed and none broken, 0 when every goal is met; on
 });
 
 test('a review page that is a symlink or a hard link to a file outside the project is refused (exit 1), and the target is untouched', async t => {
-  const outside = await mkdtemp(join(tmpdir(), 'keel-persona-outside-'));
+  const outside = await mkdtemp(join(tmpdir(), 'plates-persona-outside-'));
   t.after(() => rm(outside, { recursive: true, force: true }));
   const target = join(outside, 'acme-precious.txt');
   await writeFile(target, 'Acme anvils ledger\n');
@@ -212,7 +212,7 @@ test('a missed goal is a candidate item naming its number: a build for the climb
   assert.ok(handed.every(i => i.kind !== 'build' || (i.number && /^climb:/.test(i.lane))), 'a build names its number and a pass that builds it');
 });
 
-test('keel#141: candidate ids never collide across personas ("a-b" + "c" and "a" + "b-c")', () => {
+test('plates#141: candidate ids never collide across personas ("a-b" + "c" and "a" + "b-c")', () => {
   const missed = id => ({ id, name: id, state: 'missed', kind: 'at most', bound: 1, unit: '', value: 2, measure: 'x', better: 'lower' });
   const one = planCandidates({ name: 'a-b', goals: [missed('c')] });
   const two = planCandidates({ name: 'a', goals: [missed('b-c')] });
@@ -220,7 +220,7 @@ test('keel#141: candidate ids never collide across personas ("a-b" + "c" and "a"
   assert.notEqual(one[0].id, two[0].id);
 });
 
-test("persona goals are measures the night's measure() takes, bounded by the persona file, never by .keel/bounds.json", async t => {
+test("persona goals are measures the night's measure() takes, bounded by the persona file, never by .plates/bounds.json", async t => {
   const root = await project(t, { [FILE]: persona([
     goal('size', 'at most: 10', 'echo 4'),
     goal('hits', 'at least: 90', 'echo 80'),
@@ -234,13 +234,13 @@ test("persona goals are measures the night's measure() takes, bounded by the per
     ['persona:speed:size', 'ok', 4, 10], ['persona:speed:hits', 'outside', 80, 90], ['persona:speed:broken', 'broken', null, null]]);
 });
 
-test('a goal command runs in the project root with the gate environment: NODE_TEST_* stripped, .keel/keel.json env merged', async t => {
+test('a goal command runs in the project root with the gate environment: NODE_TEST_* stripped, .plates/plates.json env merged', async t => {
   const root = await project(t, { [FILE]: persona([
     goal('acme env', 'at most: 10', 'echo $ACME_N'),
     goal('test context', 'at most: 0', 'echo ${#NODE_TEST_CONTEXT}'),
-    goal('cwd', 'at most: 1', 'test -f .keel/keel.json && echo 1'),
+    goal('cwd', 'at most: 1', 'test -f .plates/plates.json && echo 1'),
   ].join('')) });
-  await writeFile(join(root, '.keel/keel.json'), JSON.stringify({ name: 'Acme', env: { ACME_N: '7' } }));
+  await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ name: 'Acme', env: { ACME_N: '7' } }));
   const r = await run({ root, all: true, date: DATE, env: { ...process.env, NODE_TEST_CONTEXT: 'child' } });
   assert.deepEqual(r.data.personas[0].goals.map(g => [g.id, g.value]), [['acme-env', 7], ['test-context', 0], ['cwd', 1]]);
 });
@@ -254,18 +254,18 @@ test("the shipped example parses, and its placeholder commands read broken, neve
   assert.match(r.data.personas[0].goals[0].detail, /replace this with a command printing the entry bundle size in bytes/);
 });
 
-test('the keel persona run verb: JSON, the exit code, and usage errors exit 2', async t => {
+test('the plates persona run verb: JSON, the exit code, and usage errors exit 2', async t => {
   const root = await project(t, { [FILE]: persona(goal('size', 'at most: 10', 'echo 12')) });
   const r = runNode(process.execPath, [BIN, 'persona', 'run', '--all', '--json'], { cwd: root });
   assert.equal(r.status, 1, r.stderr);
   const data = JSON.parse(r.stdout);
   assert.equal(data.missed, 1);
   assert.equal(data.personas[0].candidates[0].number.measure, 'persona:speed:size');
-  assert.match(await readFile(join(root, data.personas[0].page), 'utf8'), /Measured by `keel persona run`/);
+  assert.match(await readFile(join(root, data.personas[0].page), 'utf8'), /Measured by `plates persona run`/);
   const bad = runNode(process.execPath, [BIN, 'persona', 'run', '--json'], { cwd: root });
   assert.equal(bad.status, 2);
   assert.match(JSON.parse(bad.stdout).error, /name one persona or --all/);
   const noVerb = runNode(process.execPath, [BIN, 'persona'], { cwd: root });
   assert.equal(noVerb.status, 2);
-  assert.match(noVerb.stderr, /keel persona needs one of: run/);
+  assert.match(noVerb.stderr, /plates persona needs one of: run/);
 });

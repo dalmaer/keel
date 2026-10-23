@@ -8,11 +8,11 @@ export async function copyProject(source, destination) {
     verbatimSymlinks: true,
     filter: path => {
       const local = relative(source, path).split(sep).join('/');
-      // Some probes copy the checkout's .keel subtree on its own.
-      const projectPath = basename(source) === '.keel' ? `.keel/${local}` : local;
+      // Some probes copy the checkout's .plates subtree on its own.
+      const projectPath = basename(source) === '.plates' ? `.plates/${local}` : local;
       // Reject the directory itself before cp enumerates rotating records.
       return !/^(?:\.git|node_modules)(?:\/|$)/.test(local)
-        && !/(?:^|\/)\.keel\/test-runs(?:\/|$)/.test(projectPath);
+        && !/(?:^|\/)\.plates\/test-runs(?:\/|$)/.test(projectPath);
     },
   });
 }

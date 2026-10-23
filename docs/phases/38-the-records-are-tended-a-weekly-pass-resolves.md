@@ -6,8 +6,8 @@ since: 2026-10-06
 goal: G4
 spec: 2
 depends: [26, 32, 33, 35, 39]
-note: "Built and on for keel and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). keel's first pass (keel#22) was read and closed with a reason. Owes ledger's first pass and the night after it."
-evidence: ["evidence/2026-10-06-tend.md"]
+note: "Built and on for plates and ledger (weekly, 30 minutes; ledger#92, opened by Codex, the first PR Claude cross-reviewed). plates's first pass (plates#22) was read and closed with a reason. Ledger #130 merged on 21 October; still owes the post-merge record comparison and owner assessment."
+evidence: ["evidence/2026-10-06-tend.md", "evidence/2026-10-23-roadmap-followthrough.md"]
 issue: 16
 ---
 
@@ -15,7 +15,7 @@ issue: 16
 
 ## Done when
 
-On keel and one adopted project, a scheduled tend pass has read the night's record findings and opened one `keel-tend/<date>` PR that resolves them (corrections applied, lost proofs repaired or proposed back to partial, docs brought in line, drift and loose ends described for the owner to choose), the owner has merged it, and the next night's record findings fell to what the PR left, each of those named on the health page with what was tried.
+On plates and one adopted project, a scheduled tend pass has read the night's record findings and opened one `keel-tend/<date>` PR that resolves them (corrections applied, lost proofs repaired or proposed back to partial, docs brought in line, drift and loose ends described for the owner to choose), the owner has merged it, and the next night's record findings fell to what the PR left, each of those named on the health page with what was tried.
 
 ## Scope
 
@@ -27,7 +27,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 - **Reads** (deterministic, from the night): `proofs_hold` (phase 32),
   reconciliation's proposals (phase 26, when on), `roadmap_stale`,
   `phases_stuck`, `evidence_placeholders`, `drift`, `lint`, and loose-ends.
-  `scripts/keel/climb.mjs tend-input` gathers them into one worksheet.
+  `scripts/plates/climb.mjs tend-input` gathers them into one worksheet.
 - **May**: apply reconciliation's corrections; refresh a next action whose
   step is done; repair a renamed test reference (the ledger shows the new
   name ran); bring README and agent-facing text in line with the code it
@@ -36,7 +36,7 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
   send home for a drifted file; closing a merged branch or abandoned PR.
 - **May never**: write evidence; mark built, lived-in or accepted; delete a
   branch, PR or data; merge.
-- **Its PR body** comes from `scripts/keel/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
+- **Its PR body** comes from `scripts/plates/pr-body.mjs` (phase 39): Summary, Evidence (the before-and-after), Merge danger.
 - **Unresolved findings** stay on the health page with what tend tried.
 
 ## Acceptance
@@ -45,12 +45,12 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 - [x] A tend PR that adds or edits an evidence file, or changes a phase's status to built, lived-in or accepted, is refused by the guard; mutation: removing the refusal fails the test. `tests/climb.test.mjs: "tend guard"`
 - [x] The tend workflow has the climb workflow's rights only (its prefix, no merge, no delete), checked by the workflows test, and its shell passes `bash -n` and `node --check`. `tests/workflows.test.mjs`
 - [x] With no `tend` key, nothing runs; with no secret, it ends green with a notice. `tests/climb.test.mjs: "tend off"`
-- [ ] ⚑ by hand: one tend PR on keel and one on an adopted project, each read and merged (or closed with a reason) by the owner, and the next night's record findings checked against it.
+- [ ] ⚑ by hand: one tend PR on plates and one on an adopted project, each read and merged (or closed with a reason) by the owner, and the next night's record findings checked against it.
 
 ## Your part
 
 - **Ask:** Read ledger's first weekly tidy-up pull request, merge it or close it with a reason, and check that the next morning's report lists fewer open findings.
-- **Why:** It proves the weekly pass fixes what the nightly checks find, with a person merging every change (keel's own first pass was read on 7 October).
+- **Why:** It proves the weekly pass fixes what the nightly checks find, with a person merging every change (plates's own first pass was read on 7 October).
 - **Look at:** ledger's `keel-tend/…` pull request, then the next morning's health page.
 - **Choices:** Merged, and findings fell | Merged, but findings did not fall | Closed it
 - **Keeps it open:** Merged, but findings did not fall
@@ -75,12 +75,17 @@ The design is [The tend pass](../research/2026-10-06-tend-pass.md).
 - **Weekly or nightly.** Weekly, so the PR is worth reading; nightly only if
   findings pile up faster than a week.
 - **Tending projects that keep phases per project (isocan's shape).** Read-only
-  in keel today (phase 27); tend proposes there, edits only once that shape
+  in plates today (phase 27); tend proposes there, edits only once that shape
   is writable.
 
 ## Next action
 
-Tend is on for ledger (ledger#92, weekly, 30 minutes; first pass Monday 2026-10-12 at 10:18 UTC, on the sandboxed three-job workflows): read its first PR, merge or close it with a reason, and check the next night's record findings against it.
+Ledger's first retained tend PR [#130](https://github.com/dalmaer/ledger/pull/130)
+merged on 21 October as `30f454899bbaeb2615cd3a81f892ca0b1b7f206f`.
+Compare the next night's record findings with that PR's one-finding worksheet,
+then obtain the owner's assessment. Its reported lint change from one to zero
+is branch evidence, not proof of the post-merge night or acceptance. Preserve
+partial status until that remaining walk is recorded; do not ask to merge #130.
 
 ## Trajectory
 
@@ -89,3 +94,5 @@ Tend is on for ledger (ledger#92, weekly, 30 minutes; first pass Monday 2026-10-
 - **2026-10-06** — On keel itself the first worksheet found no record findings (every record measure 0); its loose ends were this session's uncommitted files, two ⚑ phases and seven repos missing from fleet.json.
 - **2026-10-07** — keel's first tend PR (#22) was read and closed with a reason, on the owner's "merge what's valid": its one edit, phase 38's stale next action, was right but had already landed (7263b36). It missed phase 35's equally stale next action, and leaked the runner's checkout path into its loose ends (fixed in 2c6e105).
 - **2026-10-07** — Escape: Claude's cross-review of ledger#92 found the tend (and climb) agent could edit a script it may run (package.json, climb.mjs, roadmap.mjs) and push with the job's token, git's persisted credentials, or the GitHub App token the action exchanges OIDC for. Fixed in 10c59b5: three jobs, the agent's and the judge's tokens read-only, the publish job running nothing from the branch. keel's tend run 37641282288 on the new shape: all three jobs green, the agent 35 s, nothing to resolve (six owner steps), so no PR; the push path is proven by tests, not yet on GitHub.
+
+- **2026-10-23** — Fresh GitHub merge facts replace the obsolete first-PR merge request. Kept the next-night comparison and owner walk outstanding. [Evidence](../evidence/2026-10-23-roadmap-followthrough.md).

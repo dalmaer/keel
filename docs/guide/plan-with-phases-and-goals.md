@@ -31,7 +31,7 @@ its report.
 
 **Spec 2: each box names its check, and the phase says where it runs for
 real.** A phase with `spec: 2` in its front matter (the template writes it,
-so every `keel phase new` draft has it) is held to two more rules by the
+so every `plates phase new` draft has it) is held to two more rules by the
 roadmap check:
 
 - Each Acceptance box names the check behind it: a cited test
@@ -41,7 +41,7 @@ roadmap check:
 - A **Real surfaces** section lists the places the change runs for real,
   from a closed list (published package, workflow shell, adopted project,
   owner's machine, GitHub API, fleet over time), each with its proof there,
-  or the single line `none`. This is where keel's own escapes came from:
+  or the single line `none`. This is where plates's own escapes came from:
   most passed against a fixture and failed on a real surface. `none` keeps a
   doc-only phase cheap, so rigour lands where it pays.
 
@@ -54,15 +54,15 @@ exists, but it can't pass CI until someone has written what it means.
 Where things stand, and what to do next:
 
 ```bash
-keel status          # each goal's built count, and the next phase
-keel next            # the next free phase: its file, its Done when, its next action
-keel phase claim 3   # say phase 3 is taken, before building it
-keel phase list      # every phase, as the roadmap reads it
-keel goal list       # every goal, with progress counted from its phases
-keel goal show G1    # one goal: its phases, its counts, its next phase
+plates status          # each goal's built count, and the next phase
+plates next            # the next free phase: its file, its Done when, its next action
+plates phase claim 3   # say phase 3 is taken, before building it
+plates phase list      # every phase, as the roadmap reads it
+plates goal list       # every goal, with progress counted from its phases
+plates goal show G1    # one goal: its phases, its counts, its next phase
 ```
 
-`keel next` is the one an agent should run first: it picks the first
+`plates next` is the one an agent should run first: it picks the first
 unfinished phase whose dependencies are built, so it never sends you to work
 that is blocked. Where the project has a git remote it fetches first, and
 lists every such phase: the free ones (the first in full, the rest under it)
@@ -70,28 +70,28 @@ and the claimed ones, each with who holds it. If the fetch fails it says the
 claims could not be read and exits 2: it never guesses that everything is
 free.
 
-`keel phase claim <n>` is how a session says a phase is taken, so two
+`plates phase claim <n>` is how a session says a phase is taken, so two
 sessions do not build the same one. It pushes one shared branch,
 `claims/phase-<n>`, that the server accepts only if it does not exist yet: of
 two sessions claiming at once, one is refused and told who holds the phase
 and since when. An open PR whose branch names the phase (`claude/phase-3`)
 counts as a claim too. The claim ends when the phase is built on the default
-branch; `keel phase claim <n> --release` gives it back earlier, when no work
-branch or PR for the phase exists. keel never releases another session's
+branch; `plates phase claim <n> --release` gives it back earlier, when no work
+branch or PR for the phase exists. plates never releases another session's
 claim. It is advice with a record, not a lock: a session that never asks is
 not stopped.
 
 A partial phase whose building is done and whose rest is a
 walk (a run on a real surface, an owner's read, a week of nights) says
-`owes: walk` in its front matter: its dependents may proceed and `keel next`
+`owes: walk` in its front matter: its dependents may proceed and `plates next`
 skips it, while it stays partial until the walk is done. Beside it,
 `waits: owner | time | external` says whose walk it is (absent: the owner's;
 a week of nights is `time`, a secret someone else sets is `external`), and
-`keel board` files it under that column. A phase that is not buildable before
-a day says `after: 2026-11-01`: `keel next` skips it until that day, and the
+`plates board` files it under that column. A phase that is not buildable before
+a day says `after: 2026-11-01`: `plates next` skips it until that day, and the
 board lists it under time. The generated roadmap never reads the clock (a day
 passing must not make it stale): it names a dated phase "on or after" its date.
-When the owner has walked it, `keel walk done <phase> --note "<what you saw>"`
+When the owner has walked it, `plates walk done <phase> --note "<what you saw>"`
 checks the box and records the read (see [the board](the-board.md)).
 
 A phase with a ⚑ walk also says, in a **Your part** section after
@@ -119,36 +119,36 @@ happen first>` in place of `**Ready:** yes` says the owner cannot act yet:
 the board lists it under Waiting with that reason, never as the owner's. A
 Markdown table of the data may follow the bullets, and the board shows it.
 Two walk boxes: one `### ` sub-heading per box, in order. The owner answers
-with `keel walk done <phase> --choice "<choice>"` (or the board's button for
+with `plates walk done <phase> --choice "<choice>"` (or the board's button for
 it), which records the choice and ticks the walk's box (a choice listed under
 Keeps it open records it and leaves the walk open, to be answered again): the change a choice asks
 for is the conductor's next step, and Then says so. A choice not in the list
 is refused. `npm run roadmap -- --check` notes a walk with no Your part, and
 a Your part with no Ask, Choices or Ready (advice, never a failure). Lived-in counts are
-a project's choice: `"phases": {"livedIn": true}` in `.keel/keel.json` turns
-them on; off, the roadmap and `keel status` count built only. In a repo whose phases live in the projects shape
-(`docs/projects/<p>/phases.md`), `keel next --project <p>` narrows it to one
-project; keel reads that shape but never writes it.
+a project's choice: `"phases": {"livedIn": true}` in `.plates/plates.json` turns
+them on; off, the roadmap and `plates status` count built only. In a repo whose phases live in the projects shape
+(`docs/projects/<p>/phases.md`), `plates next --project <p>` narrows it to one
+project; plates reads that shape but never writes it.
 
 Adding to the plan:
 
 ```bash
-keel goal add "Acme exports notes" --outcome "A person can export any meeting's notes as one file."
-keel phase new "Export one meeting" --goal G1 --depends 0
+plates goal add "Acme exports notes" --outcome "A person can export any meeting's notes as one file."
+plates phase new "Export one meeting" --goal G1 --depends 0
 ```
 
-- `keel goal add` takes the next free id. `--outcome` is required because a
+- `plates goal add` takes the next free id. `--outcome` is required because a
   goal without an outcome is a topic, not a goal. A goal with no phase yet is
-  reported by `keel doctor` until one names it.
-- `keel phase new` takes the next free number and drafts from the project's
+  reported by `plates doctor` until one names it.
+- `plates phase new` takes the next free number and drafts from the project's
   template. `--goal` is required: every phase serves a goal. `--depends`
-  names the phases it needs built first; that is what makes `keel next` skip
+  names the phases it needs built first; that is what makes `plates next` skip
   it until they are.
 
 Taking a goal off the plan:
 
 ```bash
-keel goal retire G3 --reason "Nobody exports" --phases supersede --yes
+plates goal retire G3 --reason "Nobody exports" --phases supersede --yes
 ```
 
 - `--reason` is required and is written into the goal, so a later reader
@@ -165,19 +165,19 @@ own script (`npm run roadmap`), then run the gate.
 
 ## What you'll see
 
-`keel status` prints one line per goal and the next phase with its next
-action. `keel next` prints the phase line, `Done when:` and `Next action:`,
-or `Nothing left unbuilt.` `keel phase new` prints the file it drafted and
+`plates status` prints one line per goal and the next phase with its next
+action. `plates next` prints the phase line, `Done when:` and `Next action:`,
+or `Nothing left unbuilt.` `plates phase new` prints the file it drafted and
 reminds you the roadmap check refuses it until the template text is gone.
 
 - **0**: done.
 - **2**: usage, not in a project, or a project where `phases` is a local
-  variant (keel's parser would only call the project's own format an error,
+  variant (plates's parser would only call the project's own format an error,
   so it points you at the project's own roadmap instead).
 - **3**: `goal retire` without `--yes`.
 
-`keel doctor` reports a draft's template text as the `phase` lint, one line
-per section, and `keel --agent-help goals` is the exact reference.
+`plates doctor` reports a draft's template text as the `phase` lint, one line
+per section, and `plates --agent-help goals` is the exact reference.
 
 ## What it never does
 
@@ -186,7 +186,7 @@ per section, and `keel --agent-help goals` is the exact reference.
   conductor writes after verifying; lived-in needs someone who used the
   thing.
 - It never renumbers a phase. If two branches take the same number, the
-  roadmap check and `keel doctor` name both files, and you renumber one.
+  roadmap check and `plates doctor` name both files, and you renumber one.
 
 ## Dated observations and re-derivation
 
@@ -199,9 +199,9 @@ Code, comments, URLs and explicit thresholds are ignored. This is a syntax
 heuristic: it can miss inline-code figures and non-ISO dates, and some examples
 can still attract a note. Advice does not change the check's exit status.
 
-For repeatable measurements, add explicit `keel-measurements` JSON records to the
-phase or its linked evidence; `keel --agent-help evidence` gives the schema.
-Run `keel evidence rederive <phase> --json` to inspect the commands, then add
+For repeatable measurements, add explicit `plates-measurements` JSON records to the
+phase or its linked evidence; `plates --agent-help evidence` gives the schema.
+Run `plates evidence rederive <phase> --json` to inspect the commands, then add
 `--yes` to execute them. It reports dated old and new observations without
 rewriting history. Programs run with your permissions, without a shell, under
 per-command time/output limits. Execution requires POSIX; Windows can preview.
@@ -210,24 +210,24 @@ alone proves neither acceptance nor improvement.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): what happens once a phase is
+- [Spin a phase](spin-a-phase.md): what happens once a phase is
   specified.
 - [`docs/phases/README.md`](../phases/README.md): the phase contract, as
-  keel's own phases follow it.
+  plates's own phases follow it.
 - [`practices/phases/README.md`](../../practices/phases/README.md) and
   [`practices/evidence/README.md`](../../practices/evidence/README.md).
 
 ## Shape an idea into reviewed drafts
 
-Opt into `shaping` with `keel adopt --with shaping`. Read the installed
+Opt into `shaping` with `plates adopt --with shaping`. Read the installed
 `docs/shaping.md` and named sources before asking unresolved owner questions.
 Recommendations, manual owner answers and unanswered questions stay separate.
 
 ```sh
-keel shape check idea.json --json
-keel shape render idea.json --output review-acme --json
-keel shape plan idea.json --json
-keel shape plan idea.json --yes --digest <reviewed-digest> --json
+plates shape check idea.json --json
+plates shape render idea.json --output review-acme --json
+plates shape plan idea.json --json
+plates shape plan idea.json --yes --digest <reviewed-digest> --json
 ```
 
 The preview retains exact draft bytes and source hashes. Approval requires its

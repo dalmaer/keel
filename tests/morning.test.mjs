@@ -4,7 +4,7 @@
 // pages; --send opens one assigned, labelled issue, closes the previous one
 // and never sends twice; the night is over when every build item is terminal
 // or readyBy passed, never sooner; finalization puts the final outcomes in
-// the night's record and health page (keel#137); the plan card is refused
+// the night's record and health page (plates#137); the plan card is refused
 // without a live binding that lists it. Fixtures are synthetic (Acme Anvils);
 // gh is a stub at the boundary and origin is a local bare repo. Nothing here
 // reads the live world.
@@ -19,19 +19,19 @@ import { execFileSync } from 'node:child_process';
 import { run } from './helpers/run.mjs';
 import { renderBrief, readiness, lastNight, finalPlan, healthAround, linksOf, withPlanSection, readyByOf, titleOf, LABEL, planCard, PLAN_CARD } from '../lib/morning.mjs';
 import * as morningModule from '../lib/morning.mjs';
-import { planSection, validatePlan, PLAN } from '../lib/night-plan.mjs';
+import { planSection, validatePlan, PLAN, REMOTE_PLAN } from '../lib/night-plan.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const NIGHT = '2026-10-05';
 const READY_BY = `${NIGHT}T15:00:00Z`;
 const BEFORE = new Date(`${NIGHT}T12:00:00Z`), AFTER = new Date(`${NIGHT}T16:00:00Z`);
 const PR = 'https://github.com/acme/anvils/pull/21';
 
-// Hermetic: on GitHub Actions the runner sets GITHUB_REPOSITORY (keel's own repo) and
+// Hermetic: on GitHub Actions the runner sets GITHUB_REPOSITORY (plates's own repo) and
 // GITHUB_ACTIONS; a fixture's repo comes from its config, so neither leaks in.
 const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !['GITHUB_REPOSITORY', 'GITHUB_ACTIONS'].includes(k)));
-const keel = (args, cwd, env = {}) => {
+const plates = (args, cwd, env = {}) => {
   const r = run(process.execPath, [BIN, ...args], { cwd, env: { ...ENV, ...env } });
   return { code: r.status, out: r.stdout, err: r.stderr, json: () => JSON.parse(r.stdout) };
 };
@@ -67,33 +67,33 @@ const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils',
  * the "after". gh is a stub with a state file.
  */
 async function project(t, { config = CONFIG, issues = [], failCreate = false, branch = finished() } = {}) {
-  const base = await mkdtemp(join(tmpdir(), 'keel-morning-'));
+  const base = await mkdtemp(join(tmpdir(), 'plates-morning-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'acme'), origin = join(base, 'origin.git');
   git(base, 'init', '-q', '--bare', '-b', 'main', origin);
-  await mkdir(join(root, '.keel'), { recursive: true });
+  await mkdir(join(root, '.plates'), { recursive: true });
   await mkdir(join(root, 'docs/night'), { recursive: true });
   await mkdir(join(root, 'docs/health'), { recursive: true });
   git(root, 'init', '-q', '-b', 'main');
   git(root, 'remote', 'add', 'origin', origin);
-  await writeFile(join(root, '.keel/keel.json'), `${JSON.stringify(config, null, 2)}\n`);
+  await writeFile(join(root, '.plates/plates.json'), `${JSON.stringify(config, null, 2)}\n`);
   await writeFile(join(root, `docs/night/${NIGHT}.json`), `${JSON.stringify(asRecorded(), null, 2)}\n`);
   await writeFile(join(root, `docs/health/${NIGHT}.md`), page(NIGHT, 760000));
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
-  await mkdir(join(root, 'scripts/keel'), { recursive: true });
-  for (const f of ['morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(KEEL, 'practices/night/files/scripts/keel', f), join(root, 'scripts/keel', f));
+  await mkdir(join(root, 'scripts/plates'), { recursive: true });
+  for (const f of ['morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {
     git(root, 'checkout', '-q', '--orphan', 'keel-night-plan');
     git(root, 'rm', '-q', '-rf', '--cached', '.');
     await mkdir(join(root, '.keel/night'), { recursive: true });
-    await writeFile(join(root, PLAN), `${JSON.stringify(branch, null, 2)}\n`);
-    git(root, 'add', '-f', PLAN); git(root, 'commit', '-q', '-m', 'Acme: the plan, ticked');
+    await writeFile(join(root, REMOTE_PLAN), `${JSON.stringify(branch, null, 2)}\n`);
+    git(root, 'add', '-f', REMOTE_PLAN); git(root, 'commit', '-q', '-m', 'Acme: the plan, ticked');
     git(root, 'push', '-q', 'origin', 'keel-night-plan');
     git(root, 'checkout', '-q', '-f', 'main');
-    await rm(join(root, '.keel/night'), { recursive: true, force: true });
+    await rm(join(root, '.plates/night'), { recursive: true, force: true });
   }
   const state = join(base, 'gh-state.json'), log = join(base, 'gh.log'), gh = join(base, 'gh');
   await writeFile(state, JSON.stringify({ issues, next: 31 }));
@@ -150,7 +150,7 @@ test('the night is over only when every build item is terminal, or at readyBy; t
   assert.equal(readiness({ ...plan, items: plan.items.map(i => (i.id === 'climb-docs' ? { ...i, status: 'planned' } : i)) }, BEFORE).ready, false);
 });
 
-test('keel morning renders the brief in isocan\'s order, with every link and each item\'s terminal outcome, from a fixture plan and health pages; deterministic', () => {
+test('plates morning renders the brief in isocan\'s order, with every link and each item\'s terminal outcome, from a fixture plan and health pages; deterministic', () => {
   const b = renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS });
   assert.equal(b.markdown, renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS }).markdown, 'the same inputs make the same bytes');
   const heads = b.markdown.split('\n').filter(l => /^#{1,2} /.test(l));
@@ -198,7 +198,7 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
     [`keel-night/${NIGHT}-final:docs/night/${NIGHT}.json`, 'absent'],
     [`keel-night/${NIGHT}:docs/night/${NIGHT}.json`, 'absent'],
     [`docs/night/${NIGHT}.json`, 'read'],
-    ['.keel/night/plan.json', 'absent'],
+    ['.plates/night/plan.json', 'absent'],
   ]);
   assert.deepEqual(found.plan.items.map(i => [i.id, i.status]), finished().items.map(i => [i.id, i.status]), 'the ticks on the plan branch reach the brief');
   assert.equal(validatePlan(found.plan).ok, true);
@@ -216,7 +216,7 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   assert.deepEqual([h.before.file, h.after.file], [`docs/health/${NIGHT}.md`, 'docs/health/2026-10-06.md']);
 
   // The CLI, end to end: the same brief, its links on GitHub and the canvas.
-  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  const r = plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(r.code, 0, r.err + r.out);
   const data = r.json();
   assert.equal(data.title, `Good morning, ${NIGHT}`);
@@ -224,21 +224,21 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   assert.equal(data.markdown, renderBrief({ plan: found.plan, now: new Date(), health: h, links: LINKS }).markdown);
   assert.match(data.markdown, /760000 before → 741000 after/);
   assert.deepEqual(await p.calls(), [], 'rendering the brief never calls gh');
-  const text = keel(['morning', '--date', NIGHT], p.root, { KEEL_GH: p.gh });
+  const text = plates(['morning', '--date', NIGHT], p.root, { PLATES_GH: p.gh });
   assert.equal(text.out.trim(), data.markdown.trim());
   // No plan for the night: exit 2, naming where it looked.
-  const none = keel(['morning', '--date', '2026-09-01', '--json'], p.root, { KEEL_GH: p.gh });
+  const none = plates(['morning', '--date', '2026-09-01', '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(none.code, 2);
   assert.match(none.json().error, /^no plan for the night of 2026-09-01: keel-night-plan:\.keel\/night\/plan\.json another night \(2026-10-05\)/);
-  assert.equal(keel(['morning', '--date', '5/10/2026', '--json'], p.root, { KEEL_GH: p.gh }).code, 2);
-  assert.equal(keel(['morning', '--send', '--card', '--json'], p.root, { KEEL_GH: p.gh }).code, 2);
-  assert.equal(keel(['morning', '--yes', '--json'], p.root, { KEEL_GH: p.gh }).code, 2);
+  assert.equal(plates(['morning', '--date', '5/10/2026', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
+  assert.equal(plates(['morning', '--send', '--card', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
+  assert.equal(plates(['morning', '--yes', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
 });
 
 test('--send opens one assigned, labelled issue, closes the previous one, and a second send for the same night does nothing', async t => {
   const p = await project(t, { issues: [{ number: 20, title: 'Good morning, 2026-10-03', state: 'CLOSED' }, { number: 30, title: 'Good morning, 2026-10-04', state: 'OPEN' }] });
-  const brief = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh }).json().markdown;
-  const r = keel(['morning', '--send', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  const brief = plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().markdown;
+  const r = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(r.code, 0, r.err + r.out);
   assert.deepEqual({ ...r.json(), readiness: undefined }, { ok: true, sent: true, date: NIGHT, issue: 31, url: 'https://github.com/acme/anvils/issues/31', assignee: 'acme-owner', closed: [30], readiness: undefined });
   const issues = await p.issuesNow();
@@ -246,32 +246,32 @@ test('--send opens one assigned, labelled issue, closes the previous one, and a 
   assert.deepEqual([sent.title, sent.state, sent.assignee, sent.label], [titleOf(NIGHT), 'OPEN', 'acme-owner', 'keel:morning']);
   assert.equal(sent.body, brief, 'the issue body is the brief');
   assert.deepEqual(issues.filter(i => i.state === 'OPEN').map(i => i.number), [31], 'one open at a time');
-  assert.equal(issues.find(i => i.number === 30).comment, 'Superseded by #31 (keel morning).');
+  assert.equal(issues.find(i => i.number === 30).comment, 'Superseded by #31 (plates morning).');
   const calls = (await p.calls()).map(c => c.a);
   assert.ok(calls.every(a => a.includes('--repo') && a[a.indexOf('--repo') + 1] === 'acme/anvils'), 'every call names the repo');
   assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'label create', 'issue create', 'issue close']);
   // Again, the same night: nothing.
-  const again = keel(['morning', '--send', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  const again = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(again.code, 0);
   assert.deepEqual(again.json(), { ok: true, sent: false, date: NIGHT, issue: 31, why: 'already sent' });
   assert.deepEqual((await p.calls()).slice(4).map(c => c.a.slice(0, 2).join(' ')), ['issue list'], 'nothing is created or closed');
   // Closed since: still this night's brief, never sent again.
   const closed = await project(t, { issues: [{ number: 31, title: titleOf(NIGHT), state: 'CLOSED' }] });
-  assert.equal(keel(['morning', '--send', '--date', NIGHT, '--json'], closed.root, { KEEL_GH: closed.gh }).json().sent, false);
+  assert.equal(plates(['morning', '--send', '--date', NIGHT, '--json'], closed.root, { PLATES_GH: closed.gh }).json().sent, false);
 });
 
 test('--send with no morning.assignee refuses, naming the key, and calls no gh; a failed create is exit 1', async t => {
   const { morning, ...rest } = CONFIG;
   for (const config of [rest, { ...rest, morning: {} }, { ...rest, morning: { assignee: 'not a login!' } }]) {
     const p = await project(t, { config });
-    const r = keel(['morning', '--send', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+    const r = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
     assert.equal(r.code, 2);
-    assert.match(r.json().error, /^morning\.assignee is not set in \.keel\/keel\.json/);
+    assert.match(r.json().error, /^morning\.assignee is not set in \.plates\/plates\.json/);
     assert.deepEqual(await p.calls(), []);
   }
   assert.equal(morning.assignee, 'acme-owner');
   const down = await project(t, { failCreate: true });
-  const r = keel(['morning', '--send', '--date', NIGHT, '--json'], down.root, { KEEL_GH: down.gh });
+  const r = plates(['morning', '--send', '--date', NIGHT, '--json'], down.root, { PLATES_GH: down.gh });
   assert.equal(r.code, 1, 'a send that fails is red');
   assert.match(r.json().error, /cannot open the issue "Good morning, 2026-10-05": gh exited 1, HTTP 502/);
 });
@@ -281,34 +281,34 @@ test('the workflow\'s decision: over and unsent, or not yet; already sent; no as
   // decide reads the clock: in-process, with a fixed now (the script is the same module).
   const { decide: decideFn } = await import('../lib/morning.mjs');
   const out = join(p.base, 'out-before');
-  const before = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: BEFORE, githubOutput: out });
+  const before = await decideFn({ root: p.root, env: { ...ENV, PLATES_GH: p.gh }, now: BEFORE, githubOutput: out });
   assert.deepEqual([before.data.day, before.data.ready, before.data.sent, before.data.assignee], [NIGHT, false, false, 'set']);
   assert.equal(await readFile(out, 'utf8'), `day=${NIGHT}\nready=false\nsent=false\nassignee=set\nplan=found\n`);
   assert.deepEqual(await p.calls(), [], 'a night not over asks GitHub nothing');
-  const after = await decideFn({ root: p.root, env: { ...ENV, KEEL_GH: p.gh }, now: AFTER });
+  const after = await decideFn({ root: p.root, env: { ...ENV, PLATES_GH: p.gh }, now: AFTER });
   assert.deepEqual([after.data.ready, after.data.sent], [true, false]);
   // Every build terminal: over before readyBy.
   const done = await project(t, { branch: { ...finished(), items: finished().items.map(i => (i.id === 'climb-docs' ? { ...i, status: 'done', result: { link: 'https://github.com/acme/anvils/pull/22' } } : i)) } });
-  assert.equal((await decideFn({ root: done.root, env: { ...ENV, KEEL_GH: done.gh }, now: BEFORE })).data.ready, true);
+  assert.equal((await decideFn({ root: done.root, env: { ...ENV, PLATES_GH: done.gh }, now: BEFORE })).data.ready, true);
   // Sent: the workflow does nothing more.
   const sent = await project(t, { issues: [{ number: 31, title: titleOf(NIGHT), state: 'OPEN' }] });
-  const s = await decideFn({ root: sent.root, env: { ...ENV, KEEL_GH: sent.gh }, now: AFTER });
+  const s = await decideFn({ root: sent.root, env: { ...ENV, PLATES_GH: sent.gh }, now: AFTER });
   assert.deepEqual([s.data.ready, s.data.sent, s.data.why], [true, true, 'already sent as #31']);
   const { morning: _, ...rest } = CONFIG;
   const unset = await project(t, { config: rest });
-  assert.equal((await decideFn({ root: unset.root, env: { ...ENV, KEEL_GH: unset.gh }, now: AFTER })).data.assignee, 'unset');
-  // The project's own script, as keel-morning.yml runs it: its output lines.
+  assert.equal((await decideFn({ root: unset.root, env: { ...ENV, PLATES_GH: unset.gh }, now: AFTER })).data.assignee, 'unset');
+  // The project's own script, as plates-morning.yml runs it: its output lines.
   const lines = join(p.base, 'out-script');
-  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'decide', '--github-output', lines, '--json'], { cwd: p.root, env: { ...ENV, KEEL_GH: p.gh } });
+  const r = run(process.execPath, [join(p.root, 'scripts/plates/morning.mjs'), 'decide', '--github-output', lines, '--json'], { cwd: p.root, env: { ...ENV, PLATES_GH: p.gh } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.match(await readFile(lines, 'utf8'), /^day=\d{4}-\d{2}-\d{2}\nready=(true|false)\nsent=(true|false)\nassignee=set\nplan=(found|none)\n$/);
 });
 
-test('keel#137: finalization puts a later build outcome in the night\'s record and its health page, keeping the rest of the page', async t => {
+test('plates#137: finalization puts a later build outcome in the night\'s record and its health page, keeping the rest of the page', async t => {
   const p = await project(t);
   const pageBefore = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
-  // The project's own script, as keel-morning.yml's finalize job runs it.
-  const r = run(process.execPath, [join(p.root, 'scripts/keel/morning.mjs'), 'finalize', '--date', NIGHT, '--pr-input', join(p.base, 'pr.json'), '--json'], { cwd: p.root, env: { ...ENV, KEEL_GH: p.gh } });
+  // The project's own script, as plates-morning.yml's finalize job runs it.
+  const r = run(process.execPath, [join(p.root, 'scripts/plates/morning.mjs'), 'finalize', '--date', NIGHT, '--pr-input', join(p.base, 'pr.json'), '--json'], { cwd: p.root, env: { ...ENV, PLATES_GH: p.gh } });
   assert.equal(r.status, 0, r.stderr + r.stdout);
   assert.deepEqual(JSON.parse(r.stdout).written, [`docs/night/${NIGHT}.json`, `docs/health/${NIGHT}.md`]);
   assert.deepEqual(await p.calls(), [], 'finalizing calls no gh');
@@ -322,7 +322,7 @@ test('keel#137: finalization puts a later build outcome in the night\'s record a
   assert.equal(pageAfter.split('## Tonight\'s plan')[0], pageBefore.split('## Tonight\'s plan')[0], 'what came before it is kept');
   assert.equal(pageAfter.split('## Proposal')[1], pageBefore.split('## Proposal')[1], 'and what came after it');
   assert.equal(withPlanSection(pageAfter, planSection(record, { record: `docs/night/${NIGHT}.json` })), pageAfter, 'finalizing again changes nothing');
-  // keel-morning finalizes on every run once the night is over, sent or not: a repeat with nothing new writes the same bytes.
+  // plates-morning finalizes on every run once the night is over, sent or not: a repeat with nothing new writes the same bytes.
   const recordBytes = await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8');
   await finalize({ root: p.root, date: NIGHT });
   assert.equal(await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8'), recordBytes);
@@ -344,10 +344,10 @@ test('the plan card is the plan alone (no clock), and --card is refused, naming 
   assert.notEqual(planCard(asRecorded()).source, card.source, 'a tick changes the card');
   for (const canvas of [undefined, CONFIG.canvas, { ...CONFIG.canvas, mode: 'live' }, { ...CONFIG.canvas, mode: 'immutable', liveKeys: ['night-plan'] }]) {
     const p = await project(t, { config: { ...CONFIG, canvas } });
-    const r = keel(['morning', '--card', '--yes', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, KEEL_ISOCAN: join(p.base, 'no-isocan') });
+    const r = plates(['morning', '--card', '--yes', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh, PLATES_ISOCAN: join(p.base, 'no-isocan') });
     assert.equal(r.code, 2, JSON.stringify(canvas));
-    assert.match(r.json().error, canvas ? /keel canvas live --card pulse --card night-plan --yes/ : /No canvas is bound/);
-    assert.equal(existsSync(join(p.root, '.keel/canvas')), false, 'nothing was written');
+    assert.match(r.json().error, canvas ? /plates canvas live --card pulse --card night-plan --yes/ : /No canvas is bound/);
+    assert.equal(existsSync(join(p.root, '.plates/canvas')), false, 'nothing was written');
   }
 });
 
@@ -376,9 +376,9 @@ test('the brief\'s repo: in a GitHub Actions run, the run\'s own repository; any
   assert.equal(repoOf(CONFIG, { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/elsewhere' }), 'acme/elsewhere', 'in the workflow: the run\'s repository is the truth');
   assert.equal(repoOf(CONFIG, { GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'not a repo' }), 'acme/anvils');
   assert.equal(repoOf({}, { GITHUB_REPOSITORY: 'acme/elsewhere' }), null, 'outside Actions with no config repo: no GitHub link, the page\'s path');
-  // End to end: a stray GITHUB_REPOSITORY (keel's own CI) does not move the fixture's links.
+  // End to end: a stray GITHUB_REPOSITORY (plates's own CI) does not move the fixture's links.
   const p = await project(t);
-  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, GITHUB_REPOSITORY: 'acme/elsewhere' });
+  const r = plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh, GITHUB_REPOSITORY: 'acme/elsewhere' });
   assert.equal(r.code, 0, r.err + r.out);
   assert.equal(r.json().links.health, LINKS.health);
 });
@@ -391,9 +391,9 @@ test('the plan card republishes after each tick through the live card\'s conditi
   const f = await isocan(t);
   await f.attach();
   await f.goLive({ cards: ['pulse', PLAN_CARD] });
-  const night = async plan => { await mkdir(join(f.root, '.keel/night'), { recursive: true }); await writeFile(join(f.root, PLAN), `${JSON.stringify(plan, null, 2)}\n`); };
+  const night = async plan => { await mkdir(join(f.root, '.plates/night'), { recursive: true }); await writeFile(join(f.root, PLAN), `${JSON.stringify(plan, null, 2)}\n`); };
   const publish = () => publishPlanCard({ root: f.root, date: NIGHT, yes: true }, { transport: f.transport });
-  const cardNow = async () => f.remote.items.get(JSON.parse(await readFile(join(f.root, '.keel/canvas/manifest.json'), 'utf8')).items[PLAN_CARD].itemId);
+  const cardNow = async () => f.remote.items.get(JSON.parse(await readFile(join(f.root, '.plates/canvas/manifest.json'), 'utf8')).items[PLAN_CARD].itemId);
   // The night starts: the card is made once, from the plan as the night recorded it.
   await night(asRecorded());
   const first = await publish();
@@ -405,14 +405,14 @@ test('the plan card republishes after each tick through the live card\'s conditi
   const same = await publish();
   assert.equal(same.data.state, 'unchanged');
   assert.equal(f.remote.edits.length, 0);
-  // Climb finishes: its tick republishes the same card in place, one conditional edit on the version keel recorded.
+  // Climb finishes: its tick republishes the same card in place, one conditional edit on the version plates recorded.
   const climbed = asRecorded();
   climbed.items = climbed.items.map(i => (i.id === 'perf-bundle' ? { ...i, status: 'done', result: { note: 'Split the vendor chunk', link: PR } } : i));
   await night(climbed);
   const ticked = await publish();
   assert.equal(ticked.data.state, 'published', JSON.stringify(ticked.data));
   assert.equal(f.remote.edits.length, 1);
-  assert.equal(f.remote.edits[0].ifVersion, made, 'the edit is conditional on keel\'s own last version');
+  assert.equal(f.remote.edits[0].ifVersion, made, 'the edit is conditional on plates\'s own last version');
   assert.notEqual((await cardNow()).currentVersionId, made, 'the card moved');
   assert.equal((await cardNow()).id, card.id, 'the same card, edited in place: never a new card per tick');
   assert.equal(f.remote.adds, [...f.remote.items.values()].filter(i => i.properties?.['keel.key']).length, 'no card was added for the tick');
@@ -431,49 +431,49 @@ test('the plan card republishes after each tick through the live card\'s conditi
   assert.equal(f.remote.edits.length, 1);
 });
 
-test('on CI the card keeps the night\'s journal: restored from the newest canvas writer, saved for the next, with keel-morning\'s provenance', async t => {
+test('on CI the card keeps the night\'s journal: restored from the newest canvas writer, saved for the next, with plates-morning\'s provenance', async t => {
   const { fixture: isocan } = await import('./helpers/isocan.mjs');
   const { restoreJournal } = await import('../lib/canvas-night.mjs');
   const { publishPlanCard } = morningModule;
   const f = await isocan(t);
   await f.attach();
   await f.goLive({ cards: ['pulse', PLAN_CARD] });
-  await mkdir(join(f.root, '.keel/night'), { recursive: true });
+  await mkdir(join(f.root, '.plates/night'), { recursive: true });
   await writeFile(join(f.root, PLAN), `${JSON.stringify(asRecorded(), null, 2)}\n`);
-  const config = JSON.parse(await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(f.root, '.keel/keel.json'), JSON.stringify({ ...config, canvas: { ...config.canvas, cadence: 'nightly' } }));
-  const output = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-output-')));
+  const config = JSON.parse(await readFile(join(f.root, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(f.root, '.plates/plates.json'), JSON.stringify({ ...config, canvas: { ...config.canvas, cadence: 'nightly' } }));
+  const output = await realpath(await mkdtemp(join(tmpdir(), 'plates-card-output-')));
   t.after(() => rm(output, { recursive: true, force: true }));
-  const env = { ...ENV, KEEL_CANVAS_PERSISTENCE: 'artifact-v1', KEEL_CANVAS_OUTPUT: output, GITHUB_REPOSITORY: 'acme/anvils', GITHUB_RUN_ID: '300', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: 'b'.repeat(40) };
+  const env = { ...ENV, PLATES_CANVAS_PERSISTENCE: 'artifact-v1', PLATES_CANVAS_OUTPUT: output, GITHUB_REPOSITORY: 'acme/anvils', GITHUB_RUN_ID: '300', GITHUB_RUN_ATTEMPT: '1', GITHUB_SHA: 'b'.repeat(40) };
   const r = await publishPlanCard({ root: f.root, date: NIGHT, yes: true, env, now: new Date() }, { transport: f.transport });
   assert.equal(r.exitCode ?? 0, 0, JSON.stringify(r.data));
   const bundle = JSON.parse(await readFile(join(output, 'recovery.json'), 'utf8'));
-  assert.deepEqual(bundle.provenance, { repo: 'acme/anvils', workflow: '.github/workflows/keel-morning.yml', runId: '300', attempt: 1, headSha: 'b'.repeat(40) });
+  assert.deepEqual(bundle.provenance, { repo: 'acme/anvils', workflow: '.github/workflows/plates-morning.yml', runId: '300', attempt: 1, headSha: 'b'.repeat(40) });
   assert.ok(bundle.manifest.items[PLAN_CARD], 'the card\'s own receipt travels in the journal');
   // A fresh checkout (the next night, or the next pass) restores it: one journal, so the card's edit is never taken for a person's.
-  const fresh = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-fresh-')));
+  const fresh = await realpath(await mkdtemp(join(tmpdir(), 'plates-card-fresh-')));
   t.after(() => rm(fresh, { recursive: true, force: true }));
-  await mkdir(join(fresh, '.keel'), { recursive: true });
-  await writeFile(join(fresh, '.keel/keel.json'), await readFile(join(f.root, '.keel/keel.json'), 'utf8'));
-  const restored = await restoreJournal({ root: fresh, config: JSON.parse(await readFile(join(fresh, '.keel/keel.json'), 'utf8')), env: { KEEL_CANVAS_RECOVERY: join(output, 'recovery.json') }, yes: true, now: Date.now() + 1000 });
+  await mkdir(join(fresh, '.plates'), { recursive: true });
+  await writeFile(join(fresh, '.plates/plates.json'), await readFile(join(f.root, '.plates/plates.json'), 'utf8'));
+  const restored = await restoreJournal({ root: fresh, config: JSON.parse(await readFile(join(fresh, '.plates/plates.json'), 'utf8')), env: { PLATES_CANVAS_RECOVERY: join(output, 'recovery.json') }, yes: true, now: Date.now() + 1000 });
   assert.equal(restored.binding.canvasId, config.canvas.canvasId);
-  assert.deepEqual(JSON.parse(await readFile(join(fresh, '.keel/canvas/manifest.json'), 'utf8')).items[PLAN_CARD], bundle.manifest.items[PLAN_CARD]);
+  assert.deepEqual(JSON.parse(await readFile(join(fresh, '.plates/canvas/manifest.json'), 'utf8')).items[PLAN_CARD], bundle.manifest.items[PLAN_CARD]);
   // No journal to restore, and none provisioned: nothing is published.
-  const empty = await realpath(await mkdtemp(join(tmpdir(), 'keel-card-empty-')));
+  const empty = await realpath(await mkdtemp(join(tmpdir(), 'plates-card-empty-')));
   t.after(() => rm(empty, { recursive: true, force: true }));
-  await mkdir(join(empty, '.keel'), { recursive: true });
-  await cp(join(f.root, '.keel/keel.json'), join(empty, '.keel/keel.json'));
-  await mkdir(join(empty, '.keel/night'), { recursive: true });
+  await mkdir(join(empty, '.plates'), { recursive: true });
+  await cp(join(f.root, '.plates/plates.json'), join(empty, '.plates/plates.json'));
+  await mkdir(join(empty, '.plates/night'), { recursive: true });
   await writeFile(join(empty, PLAN), `${JSON.stringify(asRecorded(), null, 2)}\n`);
   const adds = f.remote.adds;
-  await assert.rejects(publishPlanCard({ root: empty, date: NIGHT, yes: true, env: { ...env, KEEL_CANVAS_OUTPUT: join(empty, 'out') } }, { transport: f.transport }), e => e.exitCode === 1 && /could not be restored/.test(e.message));
+  await assert.rejects(publishPlanCard({ root: empty, date: NIGHT, yes: true, env: { ...env, PLATES_CANVAS_OUTPUT: join(empty, 'out') } }, { transport: f.transport }), e => e.exitCode === 1 && /could not be restored/.test(e.message));
   assert.equal(f.remote.adds, adds, 'nothing was written to the canvas');
 });
 
-// keel#149: the issues go where the links point, and the night's page is read where its record was.
+// plates#149: the issues go where the links point, and the night's page is read where its record was.
 test('in a GitHub Actions run, --send lists, labels, opens and closes its issues in the run\'s own repository, the one the brief links into', async t => {
   const p = await project(t, { issues: [{ number: 30, title: 'Good morning, 2026-10-04', state: 'OPEN' }] });
-  const r = keel(['morning', '--send', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/anvils-fork' });
+  const r = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/anvils-fork' });
   assert.equal(r.code, 0, r.err + r.out);
   const calls = (await p.calls()).map(c => c.a);
   assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'label create', 'issue create', 'issue close']);
@@ -493,13 +493,13 @@ test('while the night\'s PR is unmerged, the brief reads the night\'s health pag
   assert.deepEqual([found.from, found.branch], [`keel-night/${NIGHT}:docs/night/${NIGHT}.json`, `keel-night/${NIGHT}`]);
   const h = await healthAround(p.root, CONFIG, NIGHT, { branch: found.branch });
   assert.deepEqual([h.before.file, h.before.ref, h.after.file, h.after.ref], [`docs/health/${NIGHT}.md`, `keel-night/${NIGHT}`, 'docs/health/2026-10-06.md', `keel-night/${NIGHT}`]);
-  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  const r = plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(r.code, 0, r.err + r.out);
   assert.equal(r.json().links.health, `https://github.com/acme/anvils/blob/keel-night/${NIGHT}/docs/health/${NIGHT}.md`);
   assert.match(r.json().markdown, /760000 before → 741000 after/, 'the night\'s own numbers, not the older page\'s 790000');
   // Merged, the checkout's page is the night's, linked at HEAD as before.
   const merged = await project(t);
-  assert.equal(keel(['morning', '--date', NIGHT, '--json'], merged.root, { KEEL_GH: merged.gh }).json().links.health, LINKS.health);
+  assert.equal(plates(['morning', '--date', NIGHT, '--json'], merged.root, { PLATES_GH: merged.gh }).json().links.health, LINKS.health);
 });
 
 // Phase 81: a failed verify of production is a line in the next morning brief, once.
@@ -529,19 +529,19 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   const write = (args, input) => execFileSync('git', args, { cwd: p.root, input, encoding: 'utf8' }).trim();
   const b2 = write(['hash-object', '-w', '--stdin'], JSON.stringify({ results }));
   const tree = write(['mktree'], `100644 blob ${b2}\tverify.json\n`);
-  write(['push', '-q', 'origin', `${write(['commit-tree', tree, '-m', 'keel verify'])}:refs/heads/keel-verify`]);
-  const r = keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh });
+  write(['push', '-q', 'origin', `${write(['commit-tree', tree, '-m', 'plates verify'])}:refs/heads/keel-verify`]);
+  const r = plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(r.code, 0, r.err + r.out);
   assert.equal(r.json().next[0], line);
   assert.deepEqual(await p.calls(), [], 'reading the record never calls gh');
   // Without delivery, the record is not read and the brief is as before.
   const off = await project(t);
-  assert.doesNotMatch(keel(['morning', '--date', NIGHT, '--json'], off.root, { KEEL_GH: off.gh }).json().markdown, /verify/);
+  assert.doesNotMatch(plates(['morning', '--date', NIGHT, '--json'], off.root, { PLATES_GH: off.gh }).json().markdown, /verify/);
   // A record that is not one: said in the brief, never "nothing failed".
   const bad = write(['hash-object', '-w', '--stdin'], '{"results": "Acme"}');
   const badTree = write(['mktree'], `100644 blob ${bad}\tverify.json\n`);
   write(['push', '-q', '--force', 'origin', `${write(['commit-tree', badTree, '-m', 'not a record'])}:refs/heads/keel-verify`]);
-  assert.match(keel(['morning', '--date', NIGHT, '--json'], p.root, { KEEL_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
+  assert.match(plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
 });
 
 // PR #182 review: a preview's pass counted as production having passed since.

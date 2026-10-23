@@ -58,7 +58,7 @@ Use one of the availability states shown here:
 ```
 
 Availability is visibly a project-source declaration, never an independent
-production observation by Keel. A matching walk must name the same result
+production observation by Plates. A matching walk must name the same result
 revision and environment; otherwise the UI explains why it cannot offer that
 walk. A screenshot does not establish serving state or human acceptance.
 

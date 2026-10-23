@@ -22,7 +22,7 @@ function partition(p) {
 test('real CLI preserves stdout, stderr and success/failure status; private dedicated profile', t => {
   const { dir } = fixture(t);
   for (const args of [['--agent-help'], ['Acme-invalid-command', '--json']]) {
-    const plain = run(process.execPath, ['bin/keel.mjs', ...args], { cwd: root });
+    const plain = run(process.execPath, ['bin/plates.mjs', ...args], { cwd: root });
     const output = join(dir, `${args.length}-${args[0]}.json`);
     const measured = run(process.execPath, ['scripts/profile.mjs', '--output', output, '--', ...args], { cwd: root });
     assert.equal(measured.status, plain.status);
@@ -48,13 +48,17 @@ test('overlapping subprocesses and direct fetch have union accounting and no sec
   assert.ok(r.profile.timingMs.subprocessNetworkOverlap > 0);
   assert.equal(r.profile.incomplete.subprocess, 0);
   assert.equal(r.profile.incomplete.directNetwork, 0);
-  assert.doesNotMatch(JSON.stringify(r), /Acme|127\.0|authorization|secret/);
+  // A millisecond value such as 127.045917 is not the fixture's IP address.
+  const privateFixtureData = /Acme|127\.0\.0\.1|authorization|secret/;
+  assert.doesNotMatch(JSON.stringify({ environment: 127.045917 }), privateFixtureData);
+  for (const value of ['Acme-secret-arg', '127.0.0.1', 'authorization', 'secret']) assert.match(value, privateFixtureData);
+  assert.doesNotMatch(JSON.stringify(r), privateFixtureData);
   partition(r.profile);
 });
 
 test('sync, async and failed spawns, promisify and opaque gh classification', async () => {
   const entry = join(root, 'tests/fixtures/profile/subprocess-failures.mjs');
-  const r = await runProfile([], { entry, stdio: 'ignore', env: { ...cleanEnv(process.env), KEEL_GH: process.execPath } });
+  const r = await runProfile([], { entry, stdio: 'ignore', env: { ...cleanEnv(process.env), PLATES_GH: process.execPath } });
   assert.equal(r.code, 0);
   assert.equal(r.profile.counts.subprocess, 4);
   assert.equal(r.profile.counts.failures, 4);

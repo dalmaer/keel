@@ -4,7 +4,7 @@ import {createLessonRollout} from '../../lib/web/lesson-rollout.mjs';
 import {gitBlob} from '../../lib/web/decision-github.mjs';
 import {lessonId} from '../../lib/web/learning-model.mjs';
 import {hash} from '../../lib/web/common.mjs';
-import {parseLessons,lessonFingerprint} from '../../practices/night/files/scripts/keel/lib.mjs';
+import {parseLessons,lessonFingerprint} from '../../practices/night/files/scripts/plates/lib.mjs';
 import {formatProposal} from '../../lib/learn.mjs';
 export {token};
 export function lessonRolloutHarness() {
@@ -20,11 +20,11 @@ export function lessonRolloutHarness() {
   const manifest={version:1,id,source,decision:{kind:'proposal',source:ref('docs/inbox/acme.md')},catalogue:source,
     guards:[ref('scripts/acme-bound.mjs')],migrations:[{id:'0001-acme-bound',source:ref('migrations/0001-acme-bound.mjs')}],proofs:[ref('docs/proof.md')],
     release:{repoId:102,repo:'acme/studio',tag:'v1.0.0',revision:old},
-    adoptions:[{projectId:'studio',cataloguePath:'docs/keel-lessons.md',guardPaths:[{sourcePath:'scripts/acme-bound.mjs',projectPath:'scripts/acme-bound.mjs'}],migrationIds:['0001-acme-bound']}]};
+    adoptions:[{projectId:'studio',cataloguePath:'docs/plates-lessons.md',guardPaths:[{sourcePath:'scripts/acme-bound.mjs',projectPath:'scripts/acme-bound.mjs'}],migrationIds:['0001-acme-bound']}]};
   h.source.revisions[old]={...h.source.files};h.source.head='c'.repeat(40);
-  h.source.files['.keel/keel.json']=JSON.stringify({name:'Acme Studio',repo:'acme/studio',practice:'1.0.0',migrations:['0001-acme-bound'],lessons:'docs/lessons.md'});
-  h.source.files['.keel/lock.json']=JSON.stringify({practice:'1.0.0',files:{'scripts/acme-bound.mjs':{practice:'acme',sha256:hash(guard)}}});
-  h.source.files['docs/keel-lessons.md']=lessonTable;
+  h.source.files['.plates/plates.json']=JSON.stringify({name:'Acme Studio',repo:'acme/studio',practice:'1.0.0',migrations:['0001-acme-bound'],lessons:'docs/lessons.md'});
+  h.source.files['.plates/lock.json']=JSON.stringify({practice:'1.0.0',files:{'scripts/acme-bound.mjs':{practice:'acme',sha256:hash(guard)}}});
+  h.source.files['docs/plates-lessons.md']=lessonTable;
   const trace={tag:old,tagRef:'refs/tags/v1.0.0',calls:[],issue:null};
   const save=()=>{h.workspace.files[`lesson-traces/${id}.json`]=JSON.stringify(manifest);};save();
   const fetcher=async(url,options)=>{

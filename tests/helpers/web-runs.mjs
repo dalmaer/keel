@@ -8,7 +8,7 @@ export const artifactFixture = (extra = {}) => ({ id: 7001, name: 'Acme evidence
 export function runsHarness() {
   const h = decisionHarness();
   h.state.now = Date.parse('2026-10-21T19:00:00Z');
-  h.source.files['.keel/keel.json'] = JSON.stringify({ name: 'Acme Studio', ci: { weeklyMinutes: 120 } });
+  h.source.files['.plates/plates.json'] = JSON.stringify({ name: 'Acme Studio', ci: { weeklyMinutes: 120 } });
   h.source.files['.github/workflows/check.yml'] = 'name: Acme check\non:\n  push:\n  schedule:\n    - cron: "23 7 * * *"\npermissions:\n  contents: read\nconcurrency: acme-check\njobs:\n  test:\n    runs-on: ubuntu-latest\n';
   const actions = { permission: 'read', denied: false, status: null, requests: [], workflows: [{ id: 501, path: '.github/workflows/check.yml', name: 'Acme check', state: 'active' }], runs: [runFixture()], attempts: new Map(), jobs: new Map([['9001:1', [jobFixture()]]]), artifacts: new Map([[9001, [artifactFixture()]]]), pages: {}, onRequest: null };
   const fetcher = async (url, options = {}) => {

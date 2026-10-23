@@ -20,7 +20,7 @@ verified capacity or may use explicitly bounded billed API work while provider
 capacity is unknown. Review the task requirements, temporary provider retention,
 input/output ceilings, attempt/task allowances, rolling seven-day allowances and
 concurrency. Capacity age, protected reserve, cooldown and reentry headroom are
-explicit values; Keel does not invent them. Monetary policy fields use integer
+explicit values; Plates does not invent them. Monetary policy fields use integer
 micro-USD: 1,000,000 equals $1 USD. Preview the exact private files and commit before
 saving. Saving policy does not send project text or start a model.
 
@@ -48,7 +48,7 @@ neither. A supported, unexpired model/price record converts the count plus the f
 output ceiling into an upper-bound quote. Output limits include reasoning tokens.
 The quote is not an invoice.
 
-Review the quote and explicitly approve **Run this stage**. Keel rechecks source,
+Review the quote and explicitly approve **Run this stage**. Plates rechecks source,
 policy, connection generation, model evidence and allowance. A change requires new
 review. The attempt pins one model. Its receipt URL exists before submission: keep
 it if the response is lost. Do not create a replacement request because a browser
@@ -68,7 +68,7 @@ cancellation or scheduler is promised.
 ## Continue from saved work
 
 A completed first-stage summary can support **Review suggested next actions**.
-Keel retains the summary and original task allowance. The second stage reviews its
+Plates retains the summary and original task allowance. The second stage reviews its
 exact prompt, obtains a fresh count/quote and needs a separate Run approval. It
 links to the completed summary attempt; there is no live model swap or repeated
 first stage. Changed required source, decisions, ownership or uncertain effects
@@ -120,3 +120,13 @@ not prove live entitlement, actual cost or owner acceptance.
 See the [model-routing contract](../specs/web-model-routing.md) for exact protocol
 bounds and the pending live run/checkpoint proof. This phase adds no subscription
 scraping, copied managed credentials or paid fallback by default.
+
+## Restore and reconnect trial
+
+After a configured workspace restore, new runs and checkpoint continuations
+require a model restore assertion at or after `recovery.startedAt` and completed
+global reconciliation. Disabling execution does not block current-authorized
+readback of an original known response ID; current credential/policy checks still
+apply. An unknown response ID remains uncertain and charged, without a resend.
+See the [fleet trial worksheet](web-fleet-trial.md) for real device and recovery
+observations, including terminal detours and unavailable costs.

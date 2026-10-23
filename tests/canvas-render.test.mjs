@@ -122,7 +122,7 @@ test('current headlines precede compact filters; goals and undated lessons remai
 test('test and health records show their measurements, never delivery-stage unknowns', () => {
   const s = fixture();
   s.entities = [
-    { key: 'test:one', kind: 'test', title: 'Acme test run', source: { path: '.keel/test-runs/acme.json' }, counts: { pass: 7, fail: 0, skip: 1, todo: 0 }, status: 'pass' },
+    { key: 'test:one', kind: 'test', title: 'Acme test run', source: { path: '.plates/test-runs/acme.json' }, counts: { pass: 7, fail: 0, skip: 1, todo: 0 }, status: 'pass' },
     { key: 'health:one', kind: 'health', title: 'Acme health', source: { path: 'docs/health/2026-10-08.md' }, measures: [{ id: 'slow_tests', value: 0, state: 'ok', bound: '≤ 0' }, { id: 'dependency_age', value: null, state: 'n/a' }] },
   ];
   s.relations = []; s.observations = []; s.metrics = [];
@@ -193,7 +193,7 @@ test('rendering is byte-deterministic, preserves inputs and never uses the brows
   assert.equal(first.total, 2); assert.equal(selectView(s, { window: '7' }).total, 1);
   const dirty = fixture(); dirty.revision.dirty = true;
   assert.ok(sourceHref(dirty.entities[0].source, dirty).includes(`/blob/${commit}/`));
-  assert.equal(sourceHref({ path: '.keel/test-runs/example.json' }, dirty), null);
+  assert.equal(sourceHref({ path: '.plates/test-runs/example.json' }, dirty), null);
   assert.match(renderSnapshot(dirty).html, /committed reference; local contents may differ/);
   assert.match(renderSnapshot(dirty).html, /Local \/ uncommitted/);
 });

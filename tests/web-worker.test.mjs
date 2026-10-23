@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { runJobWorker, createWorkerTransport, workerChildEnvironment } from '../lib/web/job-worker.mjs';
 import { workerFixture, waitFor, alive } from './helpers/web-worker.mjs';
 
@@ -132,6 +134,29 @@ test('actual worker kills sleeping child and descendant on cancellation, revoked
   }
 });
 
+test('synthetic parent waits for a complete PID payload from its current descendant', async t => {
+  const fixture = await workerFixture(t, 'parent-exit');
+  // Execute the generated parent's actual readiness callback deterministically.
+  // The real process-group test below still establishes descendant cleanup.
+  const source = (await readFile(join(fixture.cwd, 'npm'), 'utf8'))
+    .replace(/^#![^\n]*\n/, '').replace(/^import [^\n]*\n/gm, '');
+  let poll, payload;
+  const exits = [];
+  runInNewContext(source, {
+    process: { execPath: '/acme/node', argv: [], pid: 100, exit: code => exits.push(code) },
+    spawn: () => ({ pid: 101 }), appendFileSync() {},
+    existsSync: () => true, readFileSync: () => payload,
+    setInterval: callback => { poll = callback; return 1; }, clearInterval() {},
+  });
+  assert.equal(typeof poll, 'function', 'the parent-exit fixture installed its readiness poll');
+  for (payload of ['', '{', '{"parent":100,"child":', '{}', '{"parent":99,"child":101}', '{"parent":100,"child":98}']) {
+    poll();
+    assert.deepEqual(exits, [], `must wait on partial or stale PID payload ${JSON.stringify(payload)}`);
+  }
+  payload = '{"parent":100,"child":101}';poll();
+  assert.deepEqual(exits, [0], 'only this parent and descendant can signal readiness');
+});
+
 test('actual worker kills leftover descendants when their parent exits before moving to next command', async t => {
   const fixture = await workerFixture(t, 'parent-exit');
   const p = protocol();
@@ -212,7 +237,7 @@ test('workflow separates ordinary CI, web OIDC, fixed source, trusted callback a
   assert.match(worker, /timeout-minutes: 15/);
   assert.match(worker, /id-token: write/);
   assert.match(worker, /ref: \$\{\{ github.sha \}\}/);
-  assert.match(worker, /KEEL_WEB_ORIGIN: \$\{\{ vars.KEEL_WEB_ORIGIN \}\}/);
+  assert.match(worker, /PLATES_WEB_ORIGIN: \$\{\{ vars.PLATES_WEB_ORIGIN \|\| vars.KEEL_WEB_ORIGIN \}\}/);
   assert.match(worker, /run: node scripts\/web-worker.mjs/);
   assert.doesNotMatch(worker, /run: npm|secrets\.|cron:/);
 });

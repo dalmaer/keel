@@ -5,7 +5,7 @@ import { createMigration } from "../lib/web/migration.mjs";
 import { createOperations } from "../lib/web/operations.mjs";
 import { createGitHub } from "../lib/web/github.mjs";
 import { lessonId, validateLesson } from "../lib/web/learning-model.mjs";
-import { lessonFingerprint } from "../practices/night/files/scripts/keel/lib.mjs";
+import { lessonFingerprint } from "../practices/night/files/scripts/plates/lib.mjs";
 const fresh = (h) => () =>
   createGitHub(h.config, h.fetcher).access(token, h.access.userId);
 async function preview(h, count = 1) {
@@ -31,6 +31,7 @@ test("migration previews and atomically copies three exact typed files to immuta
     assert.equal(file.originalBlob, null);
     validateLesson(JSON.parse(file.content));
   }
+  assert.equal(p.commitMessage, `Copy Plates private lessons\n\nKeel-Operation: ${p.operationId}`);
   const result = await apply(h, p);
   assert.equal(result.state, "committed");
   assert.equal(result.receipt.acceptance, "not-established");

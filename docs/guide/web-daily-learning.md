@@ -28,7 +28,7 @@ while validation is in flight invalidates that response.
 Draft text exists only in the current page. Leaving or reloading loses it; it is
 not stored in localStorage, saved to a repository, published or scheduled. The
 CLI command is a copy control, not execution. The existing explicit workflow is
-`keel goodnight`; inspect its selected plan and authority before running it in an
+`plates goodnight`; inspect its selected plan and authority before running it in an
 authorized checkout. Hosted execution and publication are unavailable here.
 
 ## Inspect lessons and their origins
@@ -75,7 +75,7 @@ approve its digest. Editing the text or selection invalidates the preview.
 
 The authenticated download rechecks current access and selected source identity.
 It returns only the approved UTF-8 text as an attachment named
-`keel-reviewed-lessons.txt`, with no-store response headers. The client checks the
+`plates-reviewed-lessons.txt`, with no-store response headers. The client checks the
 received bytes against the approved text before offering the file. This is not
 anonymization and it does not publish anything. Any later publication is a separate
 owner-authorized action.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# An npm for keel improve --selftest: only `npm outdated --json`, which exits 1
+# An npm for plates improve --selftest: only `npm outdated --json`, which exits 1
 # when anything is outdated, as real npm does. Synthetic packages. Plain sh,
 # not node: the selftest runs it often.
 json=''

@@ -5,7 +5,7 @@ since: 2026-10-07
 goal: G2
 spec: 2
 depends: [41, 45]
-note: "Built: keel release's review gate (each practice-scope commit since the last tag through a merged PR whose keel review --gate passes, reviewed by someone other than its author; --unreviewed \"<why>\" the owner's only way past, written into the commit and WHATSNEW), keel's own cross-review on (claude/ and codex/), and the conduct skill's rule. Owes the walk: three releases through the gate, and the owner's comparison of fleet rounds' findings with v0.8.12 to v0.8.19's."
+note: "Built: plates release's review gate (each practice-scope commit since the last tag through a merged PR whose plates review --gate passes, reviewed by someone other than its author; --unreviewed \"<why>\" the owner's only way past, written into the commit and WHATSNEW), plates's own cross-review on (claude/ and codex/), and the conduct skill's rule. Owes the walk: three releases through the gate, and the owner's comparison of fleet rounds' findings with v0.8.12 to v0.8.19's."
 evidence: []
 issue: 34
 ---
@@ -14,36 +14,36 @@ issue: 34
 
 ## Done when
 
-`keel release` refuses while a shipped practice change since the last release has not come through a keel PR reviewed by a provider other than its author with every comment answered, and three releases have gone through that gate; the owner has compared the fleet rounds' findings after it with the eight rounds before.
+`plates release` refuses while a shipped practice change since the last release has not come through a plates PR reviewed by a provider other than its author with every comment answered, and three releases have gone through that gate; the owner has compared the fleet rounds' findings after it with the eight rounds before.
 
 ## Scope
 
 The design is [Review hardening](../research/2026-10-07-review-hardening.md), §3.
 
-- **keel reviews itself**: keel's own `.keel/keel.json` turns on cross-review (`"agents": {"claude": {}, "codex": {}}`, `"for": ["claude/", "codex/"]`) with `OPENAI_API_KEY` on keel (⚑ the owner's secret and spend), so the conductor's `claude/` PRs are reviewed by Codex.
-- **The gate**: `keel release` reads the commits since the last release tag that touch `practices/`, `migrations/` or `docs/lessons.md` (its SCOPE), and requires each to have arrived through a merged PR whose `keel review --gate` passes (every comment answered, the reviewer reviewed the head). A commit on main outside a PR fails it, naming the commit. `--yes` does not skip it; an owner's `--unreviewed "<why>"` does, recording the reason in the release commit and WHATSNEW.
+- **plates reviews itself**: plates's own `.plates/plates.json` turns on cross-review (`"agents": {"claude": {}, "codex": {}}`, `"for": ["claude/", "codex/"]`) with `OPENAI_API_KEY` on plates (⚑ the owner's secret and spend), so the conductor's `claude/` PRs are reviewed by Codex.
+- **The gate**: `plates release` reads the commits since the last release tag that touch `practices/`, `migrations/` or `docs/lessons.md` (its SCOPE), and requires each to have arrived through a merged PR whose `plates review --gate` passes (every comment answered, the reviewer reviewed the head). A commit on main outside a PR fails it, naming the commit. `--yes` does not skip it; an owner's `--unreviewed "<why>"` does, recording the reason in the release commit and WHATSNEW.
 - **The conductor**: the skill says a practice change lands as a `claude/` PR, waits for the other provider's review, answers it, then merges; records and CLI-only changes may still go to main.
-- **Measured**: findings per fleet update round, from the update PRs' reviews (`keel review`), before and after, in the evidence.
+- **Measured**: findings per fleet update round, from the update PRs' reviews (`plates review`), before and after, in the evidence.
 
 ## Acceptance
 
-- [x] `keel release` refuses (exit 1, naming each commit) when a practice-scope commit since the last tag did not arrive through a merged PR, or arrived through one whose `keel review --gate` fails; passes when each did; `--unreviewed "<why>"` passes and writes the reason. `tests/release.test.mjs`
+- [x] `plates release` refuses (exit 1, naming each commit) when a practice-scope commit since the last tag did not arrive through a merged PR, or arrived through one whose `plates review --gate` fails; passes when each did; `--unreviewed "<why>"` passes and writes the reason. `tests/release.test.mjs`
 - [x] The conduct skill names the rule: practice changes land as a reviewed PR before release. `tests/skill.test.mjs`
-- [ ] ⚑ by hand: the owner sets `OPENAI_API_KEY` on keel and turns on keel's own cross-review; three releases go through the gate; the owner compares the fleet rounds' findings with v0.8.12–v0.8.19's.
+- [ ] ⚑ by hand: the owner sets `OPENAI_API_KEY` on plates and turns on plates's own cross-review; three releases go through the gate; the owner compares the fleet rounds' findings with v0.8.12–v0.8.19's.
 
 ## Your part
 
-- **Ask:** After three keel releases have gone through the review check, compare the review comments your projects' update pull requests drew for them with those for v0.8.12 to v0.8.19, and say whether the check stays.
+- **Ask:** After three plates releases have gone through the review check, compare the review comments your projects' update pull requests drew for them with those for v0.8.12 to v0.8.19, and say whether the check stays.
 - **Why:** The check adds a review before every release. It earns that only if the projects' update rounds draw fewer findings.
-- **Look at:** The reviews on each project's update pull request for the three releases (`keel review <repo>#<n>`), beside those for v0.8.12 to v0.8.19.
+- **Look at:** The reviews on each project's update pull request for the three releases (`plates review <repo>#<n>`), beside those for v0.8.12 to v0.8.19.
 - **Choices:** Keep the gate | Keep it, narrower | Drop it
-- **Takes:** 30 minutes, after the third release. Each reviewed keel PR bills the OpenAI API account per token, up to its minutes budget.
-- **Then:** Keep the gate: the comparison goes in an evidence file, and this is done. Keep it, narrower: say which commits should still count in the note; the conductor narrows the scope and records it. Drop it: recorded, and the conductor takes the gate out of keel release.
+- **Takes:** 30 minutes, after the third release. Each reviewed plates PR bills the OpenAI API account per token, up to its minutes budget.
+- **Then:** Keep the gate: the comparison goes in an evidence file, and this is done. Keep it, narrower: say which commits should still count in the note; the conductor narrows the scope and records it. Drop it: recorded, and the conductor takes the gate out of plates release.
 - **Ready when:** three releases have gone through the gate.
 
 ## Real surfaces
 
-- GitHub API: keel's PRs, their reviews and merge state, read by the release gate.
+- GitHub API: plates's PRs, their reviews and merge state, read by the release gate.
 - Fleet over time: three releases' fleet update rounds.
 
 ## Proof
@@ -54,7 +54,7 @@ The design is [Review hardening](../research/2026-10-07-review-hardening.md), §
 ## Deliberately open
 
 - **The conductor's pace**: a review before every release adds the reviewer's minutes to each release. Its effect: fewer, larger releases. Settled by the comparison: if fleet rounds' findings do not fall, the gate goes.
-- **Which commits count**: SCOPE only (practice files, migrations, the lessons catalogue); keel's CLI and records stay direct to main. Settled after three releases.
+- **Which commits count**: SCOPE only (practice files, migrations, the lessons catalogue); plates's CLI and records stay direct to main. Settled after three releases.
 
 ## Next action
 

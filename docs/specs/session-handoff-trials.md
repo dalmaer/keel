@@ -1,8 +1,8 @@
 # Session handoffs that learn from evidence
 
 Decision: 12 October 2026. Phase 72 implements a local experiment protocol under
-`keel retro sessions`, with the same read-only audit available through
-`keel improve --sessions`. The existing phase, evidence and acceptance records
+`plates retro sessions`, with the same read-only audit available through
+`plates improve --sessions`. The existing phase, evidence and acceptance records
 keep their authority. This is a measurement ledger, not another task tracker.
 
 ## Problem and provenance
@@ -20,7 +20,7 @@ a replay estimate of reduced reread volume. Its referenced user-local
 `context-watch.py` is not in that checkout or on this machine. No BenOS source
 or prose is copied here; no license file was found in the inspected checkout.
 This design independently implements the idea. The estimate is not a measured
-Keel saving, and 250k is an experiment parameter, not a universal optimum.
+Plates saving, and 250k is an experiment parameter, not a universal optimum.
 
 ## Authority and scope
 
@@ -116,7 +116,7 @@ transition history. It does not erase a failed trial or restart the allowance.
 
 ## Durability and failure behavior
 
-Keep bounded records beneath `.keel/session-trials/`, isolated by project and
+Keep bounded records beneath `.plates/session-trials/`, isolated by project and
 experiment identity. Validate external JSON at runtime, reject unknown or unsafe
 identities and symlink escapes, serialize writers and atomically replace state.
 Retries must not duplicate reservations, outcomes or handoffs. Conflicting reuse

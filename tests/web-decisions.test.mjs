@@ -53,3 +53,12 @@ test('canonical accepted choices and proposals remain distinct from a shaping re
  assert.equal(detail.context.state,'complete',JSON.stringify(detail.context.gaps));assert.equal(detail.context.decisions.length,1);assert.equal(detail.context.proposals.length,1);
  assert.match(detail.context.decisions[0].ref,/accepted\.md/);assert.match(detail.context.proposals[0].ref,/proposed\.md/);assert.match(detail.question.recommendation.text,/exact matches/);
 });
+
+test('renamed web decisions read legacy config only when canonical config is absent',async()=>{
+ const h=decisionHarness(),d=service(h);
+ h.source.files['.keel/keel.json']=h.source.files['.plates/plates.json'];delete h.source.files['.plates/plates.json'];
+ assert.equal((await d.detail(h.access,token,h.project,healthTarget)).supported,true);
+ h.source.files['.plates/plates.json']='invalid canonical config';
+ await assert.rejects(d.detail(h.access,token,h.project,healthTarget),e=>e.code==='invalid_source');
+ assert.equal(h.source.writes.length,0);
+});

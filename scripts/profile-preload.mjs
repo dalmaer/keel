@@ -9,12 +9,12 @@ import { writeSync } from 'node:fs';
 import { basename } from 'node:path';
 import { performance } from 'node:perf_hooks';
 
-const origin = Number(process.env.KEEL_PROFILE_START_NS);
-const owner = process.env.KEEL_PROFILE_PID;
+const origin = Number(process.env.PLATES_PROFILE_START_NS);
+const owner = process.env.PLATES_PROFILE_PID;
 // Inherited preloads must never emit a second record on the parent's descriptor.
 if (Number.isFinite(origin) && owner === String(process.ppid)) {
-  delete process.env.KEEL_PROFILE_START_NS;
-  delete process.env.KEEL_PROFILE_PID;
+  delete process.env.PLATES_PROFILE_START_NS;
+  delete process.env.PLATES_PROFILE_PID;
   const now = () => Number(process.hrtime.bigint()) / 1e6;
   const start = origin / 1e6;
   const preload = now();
@@ -43,7 +43,7 @@ if (Number.isFinite(origin) && owner === String(process.ppid)) {
     };
   };
   const isGh = value => typeof value === 'string' &&
-    (basename(value).toLowerCase() === 'gh' || basename(value).toLowerCase() === 'gh.exe' || value === process.env.KEEL_GH);
+    (basename(value).toLowerCase() === 'gh' || basename(value).toLowerCase() === 'gh.exe' || value === process.env.PLATES_GH);
   // exec (including its native promisify hook) delegates to the exported execFile.
   // Instrument that boundary once; execSync uses an internal spawnSync instead.
   for (const name of ['spawn', 'execFile', 'fork', 'spawnSync', 'execSync', 'execFileSync']) {
@@ -101,7 +101,7 @@ if (Number.isFinite(origin) && owner === String(process.ppid)) {
     module.get = function (...args) { const req = module.request(...args); req.end(); return req; };
   }
   syncBuiltinESMExports();
-  globalThis[Symbol.for('keel.profile')] = {
+  globalThis[Symbol.for('plates.profile')] = {
     importStart() { importStart = now(); },
     importEnd() { importEnd = now(); },
   };

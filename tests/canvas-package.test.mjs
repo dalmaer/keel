@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto';
 import { Script } from 'node:vm';
 import { run } from './helpers/run.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 // Compare bytes, modes, links and directory entries, including Git metadata.
 // No status command (which can refresh Git's index) is needed to detect writes.
@@ -32,7 +32,7 @@ async function tree(root, excluded = []) {
 }
 
 test('npm-packed canvas runs locally without an SDK and fails closed at the executable boundary', async t => {
-  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'keel-canvas-package-')));
+  const tmp = await realpath(await mkdtemp(join(tmpdir(), 'plates-canvas-package-')));
   t.after(() => rm(tmp, { recursive: true, force: true }));
   const fake = join(tmp, 'acme-isocan'), calls = join(tmp, 'acme-calls');
   // Every executable contact is recorded outside the project. No real provider
@@ -49,18 +49,18 @@ exit 71
     ...process.env,
     npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false', npm_config_update_notifier: 'false',
     npm_config_cache: join(tmp, 'npm-cache'),
-    KEEL_ISOCAN: fake, ISOCAN: fake, KEEL_GH: fake, ACME_CALLS: calls,
-    KEEL_CLAUDE_DIR: join(tmp, 'no-sessions'), KEEL_CACHE: join(tmp, 'keel-cache'),
+    PLATES_ISOCAN: fake, ISOCAN: fake, PLATES_GH: fake, ACME_CALLS: calls,
+    PLATES_CLAUDE_DIR: join(tmp, 'no-sessions'), PLATES_CACHE: join(tmp, 'plates-cache'),
     GIT_AUTHOR_NAME: 'Acme Builder', GIT_AUTHOR_EMAIL: 'builder@acme.test',
     GIT_COMMITTER_NAME: 'Acme Builder', GIT_COMMITTER_EMAIL: 'builder@acme.test',
   };
   delete env.NODE_PATH;
-  const pack = run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: KEEL, env });
+  const pack = run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', tmp], { cwd: PLATES, env });
   assert.equal(pack.status, 0, `npm pack failed:\n${pack.stderr}`);
   const [{ filename }] = JSON.parse(pack.stdout);
   const unpack = run('tar', ['xzf', join(tmp, filename), '-C', tmp], { env });
   assert.equal(unpack.status, 0, unpack.stderr);
-  const pkg = join(tmp, 'package'), bin = join(pkg, 'bin/keel.mjs'), root = join(tmp, 'acme');
+  const pkg = join(tmp, 'package'), bin = join(pkg, 'bin/plates.mjs'), root = join(tmp, 'acme');
 
   const manifest = JSON.parse(await readFile(join(pkg, 'package.json'), 'utf8'));
   for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
@@ -153,7 +153,7 @@ exit 71
   await t.test('missing CLI and unsupported build return JSON errors before contacting a home', async () => {
     const baseline = await tree(root);
     const args = ['connect', '--canvas', 'https://acme.invalid/p/acme-canvas', '--audience', 'owner-only'];
-    const missing = cli(args, { KEEL_ISOCAN: join(tmp, 'missing-acme-executable') });
+    const missing = cli(args, { PLATES_ISOCAN: join(tmp, 'missing-acme-executable') });
     assert.equal(missing.status, 1, JSON.stringify(missing.data));
     assert.match(missing.data.error, /missing-cli/i);
     assert.deepEqual(missing.data.changes, []);
@@ -201,7 +201,7 @@ if (args.join(' ') === '--version') {
     else if (command === 'canvas group ls') output(state.items.filter(i => i.properties.kind === 'group'));
     else if (args[0] === 'show') output(state.items.find(i => i.id === args[1]));
     else if (args[0] === 'add' || args.slice(0, 3).join(' ') === 'canvas group new') {
-      const pending = JSON.parse(readFileSync('.keel/canvas/manifest.json', 'utf8')).pending;
+      const pending = JSON.parse(readFileSync('.plates/canvas/manifest.json', 'utf8')).pending;
       assert.ok(pending.operationId, 'durable intent must precede the remote write');
       const group = args[0] !== 'add';
       assert.equal(pending.kind, group ? 'group' : 'add');
@@ -222,7 +222,7 @@ if (args.join(' ') === '--version') {
       const interrupt = state.interruptPulse && properties['keel.key'] === 'pulse';
       if (interrupt) state.interruptPulse = false;
       save();
-      // The write landed but its acknowledgement was lost. Keel must recover
+      // The write landed but its acknowledgement was lost. Plates must recover
       // from persisted metadata after this process and the caller have exited.
       if (interrupt) process.stdout.write('Acme interrupted acknowledgement');
       else output({ itemId: id });
@@ -231,8 +231,8 @@ if (args.join(' ') === '--version') {
 }
 `, { mode: 0o755 });
     const invoke = args => cli(args, { ACME_REMOTE: statePath });
-    const configPath = join(root, '.keel/keel.json');
-    const manifestPath = join(root, '.keel/canvas/manifest.json');
+    const configPath = join(root, '.plates/plates.json');
+    const manifestPath = join(root, '.plates/canvas/manifest.json');
     const readManifest = async () => JSON.parse(await readFile(manifestPath, 'utf8'));
     const connectArgs = ['connect', '--canvas', 'https://acme.invalid/p/acme-canvas', '--audience', 'owner-only'];
     const configBefore = JSON.parse(await readFile(configPath, 'utf8'));

@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
 import {modelPolicyEditor,modelSelectionView,modelPreparationView,modelQuoteView,modelAttemptBody,modelStyles} from '../lib/web/model-views.mjs';
-import {startModelClient} from '../lib/web/model-client.mjs';
+import {startModelClient,replaceModelContent} from '../lib/web/model-client.mjs';
 import {returnPath} from '../lib/web/auth.mjs';
 const id='a'.repeat(64),digest='b'.repeat(64),task='c'.repeat(64),project={id:'studio',repo:'acme/studio',repoId:102};
 const preparation={id,digest,taskId:task,stage:1,project,source:{visibility:'private'},context:{state:'not-configured'},selection:{selected:{model:'acme-model',connectionId:'acme-api',capacityState:'unknown'},candidates:[{id:'preferred',eligible:true,reasons:[]}]},packet:{files:[{path:'docs/phases/01-acme.md',blob:'d'.repeat(40)}]},outbound:{provider:'openai',model:'acme-model',instructions:'Treat source as <data>',input:'Private Acme <script>source</script>',retention:'Temporary provider retention'},canCount:true};
@@ -27,14 +27,15 @@ test('receipt separates usage from held allowance and offers continuation only a
 function clientFixture(fetch,{checked=true,model={view:'tasks',project}}={}) {
   const controls={checked,disabled:false},host={innerHTML:'old source form'},status={textContent:''},output={innerHTML:''};
   const root={querySelector(selector){return {'[data-model-data]':{textContent:JSON.stringify(model)},'[data-model-csrf]':{value:'fake-csrf'},'[data-model-current]':host,'[data-model-status]':status,'[data-model-output]':output,'[data-approve-count]':controls,'[data-approve-run]':controls,'[data-model-quote]':controls}[selector]||null;},querySelectorAll(){return [controls];},addEventListener(){},removeEventListener(){}};
-  const history={path:null,replaceState(a,b,path){this.path=path;}};
-  const document={querySelector:()=>root};
-  return {host,status,controls,history,document,client:startModelClient({document,window:{history,crypto:webcrypto},fetch})};
+  const location={pathname:model.view==='attempt'?`/projects/studio/model-tasks/${model.id}`:'/projects/studio/model-tasks',search:''};
+  const history={path:null,replaceState(a,b,path){this.path=path;location.pathname=path;}};
+  const document={querySelector:selector=>selector==='[data-model-root]'?root:null,addEventListener(){},removeEventListener(){}};
+  return {root,host,status,controls,history,document,client:startModelClient({document,window:{history,location,crypto:webcrypto,addEventListener(){},removeEventListener(){}},fetch})};
 }
 test('render and unapproved count never transmit data; approved quote is a separate request',async()=>{
   const calls=[],f=clientFixture(async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return Response.json(url.endsWith('/prepare')?preparation:quote);},{checked:false});
   assert.equal(calls.length,0);await f.client.prepare({phase:'docs/phases/01-acme.md',paths:[],instructions:'Acme',taskId:null});await f.client.checkCost();assert.equal(calls.length,1);
-  f.controls.checked=true;await f.client.checkCost();assert.equal(calls.length,2);assert.equal(calls[1].body.digest,digest);assert.match(f.host.innerHTML,/Run this stage/);assert.equal(f.document.title,'Review cost and run · Keel');
+  f.controls.checked=true;await f.client.checkCost();assert.equal(calls.length,2);assert.equal(calls[1].body.digest,digest);assert.match(f.host.innerHTML,/Run this stage/);assert.equal(f.document.title,'Review cost and run · Plates');
 });
 test('lost run response keeps original URL before dispatch and cannot duplicate or retain old controls',async()=>{
   let f;const calls=[];f=clientFixture(async(url,options)=>{calls.push({url,body:options.body?JSON.parse(options.body):null});if(url.endsWith('/prepare'))return Response.json(preparation);if(url.endsWith('/quote'))return Response.json(quote);if(url.endsWith('/run')){assert.match(f.history.path,/^\/projects\/studio\/model-tasks\/[a-f0-9]{64}$/);throw Error('Acme lost response');}return Response.json({error:'operation_not_found'},{status:404});});
@@ -50,7 +51,7 @@ test('checkpoint preparation sends only original task identity and cancellation 
 });
 test('session expiry points to sign-in with only the original safe receipt path',async()=>{
   const f=clientFixture(async()=>Response.json({error:'sign_in_required'},{status:401}),{model:{view:'attempt',id,project,state:'uncertain',capabilities:{reconcile:true}}});
-  await f.client.act('reconcile');assert.ok(f.host.innerHTML.includes('/signin?returnTo='+encodeURIComponent(`/projects/studio/model-tasks/${id}`)));assert.doesNotMatch(f.host.innerHTML,/fake-csrf/);
+  await f.client.act('reconcile');assert.ok(f.root.innerHTML.includes('/signin?returnTo='+encodeURIComponent(`/projects/studio/model-tasks/${id}`)));assert.doesNotMatch(f.root.innerHTML,/fake-csrf/);
 });
 test('return paths admit only exact model policy and original task routes',()=>{
   for(const path of ['/model-policy','/model-policy/operations/'+id,'/projects/studio/model-policy','/projects/studio/model-tasks','/projects/studio/model-tasks/'+id])assert.equal(returnPath(path),true,path);
@@ -169,4 +170,13 @@ test('receipt shows a saved summary only for completed nonempty output',()=>{
   }
   const complete=modelAttemptBody({...receipt,state:'completed',output:'Retained Acme summary.'});
   assert.match(complete,/Saved evidence summary/);assert.match(complete,/Retained Acme summary\./);
+});
+
+test('model editor and preview replacement keep the same private draft controls beside current content',()=>{
+  const controls={savedStatus:'Acme draft saved',listenerIdentity:()=>{}};
+  let present=controls,body='',replacement;
+  const host={set innerHTML(value){body=value;present=null;if(value==='restored form'){replacement={replaceWith(node){present=node;}};present=replacement;}},get innerHTML(){return body;},querySelector(){return present;},append(node){present=node;}};
+  replaceModelContent(host,'exact preview',controls);assert.equal(present,controls);assert.equal(controls.savedStatus,'Acme draft saved');
+  replaceModelContent(host,'restored form',controls);assert.equal(present,controls);assert.notEqual(present,replacement);assert.equal(host.innerHTML,'restored form');
+  replaceModelContent(host,'original receipt',controls);assert.equal(present,controls);assert.equal(typeof present.listenerIdentity,'function');
 });

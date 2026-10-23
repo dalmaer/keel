@@ -1,11 +1,11 @@
 # Job: test-time
 
 **The number:** the wall time of the project's test command
-(`.keel/keel.json` `"climb"` `"testCommand"`, default `npm test`), median of
+(`.plates/plates.json` `"climb"` `"testCommand"`, default `npm test`), median of
 k runs. Lower is better. `climb.mjs measure test-time` prints it.
 
 **Where to look first:** the slowest test files. The test ledger
-(`.keel/test-runs/*.json`, written by `scripts/keel/test-ledger.mjs`) records
+(`.plates/test-runs/*.json`, written by `scripts/plates/test-ledger.mjs`) records
 each top-level test's file, name and milliseconds; sum by file and start at
 the top. The health page's `slow_tests` row names tests that got slower.
 

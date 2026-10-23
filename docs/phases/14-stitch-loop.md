@@ -7,11 +7,11 @@ note: "The optional loop practice runs ledger's Loop: the real cycle pulled 10 n
 evidence: ["evidence/2026-10-02-loop.md", "evidence/2026-10-03-ledger.md", "evidence/loop-collection-validation-2026-10-08.md"]
 ---
 
-# A project's Stitch Loop findings are triaged the same way everywhere, through keel
+# A project's Stitch Loop findings are triaged the same way everywhere, through plates
 
 ## Done when
 
-One adopted project's Loop cycle (pull new insights, propose a rank for each, render `docs/LOOP.md`) runs through keel's `loop` practice, and that project's own scripts/loop.* is retired in favour of it.
+One adopted project's Loop cycle (pull new insights, propose a rank for each, render `docs/LOOP.md`) runs through plates's `loop` practice, and that project's own scripts/loop.* is retired in favour of it.
 
 ## Scope
 
@@ -37,8 +37,8 @@ The rules carry over unchanged:
 
 ## Acceptance
 
-- [x] `keel adopt` on a project with its own loop script reports `loop` as local, with the convergence proposal, and leaves its findings untouched.
-- [x] Findings parse identically under keel's script and the project's own, before it is retired (same `docs/LOOP.md` bytes, except the generator's own name on line 1).
+- [x] `plates adopt` on a project with its own loop script reports `loop` as local, with the convergence proposal, and leaves its findings untouched.
+- [x] Findings parse identically under plates's script and the project's own, before it is retired (same `docs/LOOP.md` bytes, except the generator's own name on line 1).
 - [x] `pull` against a stubbed `stitch` CLI files new insights as untriaged, and never overwrites our fields on a re-filing.
 - [x] `propose` records a proposal; only `decide` (a person) changes a decision, and `push` is the only verb that sends anything to Loop.
 - [x] `render --check` fails CI on a stale `docs/LOOP.md` or a proposal without a read of the code.
@@ -52,7 +52,7 @@ at the process boundary (both ledger and isocan drive Loop through `stitch …
 --format json`, never HTTP), answering in its real JSON envelope (lesson: a
 fake that mirrors the code only confirms it).
 
-Equivalence: render a copy of ledger's real `docs/loop/` with keel's port and
+Equivalence: render a copy of ledger's real `docs/loop/` with plates's port and
 with ledger's own `scripts/loop.ts`; the two `docs/LOOP.md` files must be
 byte-identical.
 
@@ -68,10 +68,10 @@ real workspace.
   script, but isn't adopted yet; it needs its own phase-4 run.
 - **Whose shape wins where ledger and isocan differ.** **Settled 2026-10-02**
   (recorded in `practices/loop/README.md`): ledger's. That means YAML
-  findings, `phase`, and its rendered page. From isocan, keel took only
+  findings, `phase`, and its rendered page. From isocan, plates took only
   additions that leave ledger's bytes unchanged. It didn't take isocan's
   unverified-read regex, which flags 7 of ledger's findings.
-- **Whether keel learns from isocan's loop.mjs as a pinned source** (phase 8),
+- **Whether plates learns from isocan's loop.mjs as a pinned source** (phase 8),
   as it does for conduct.
 
 ## Next action

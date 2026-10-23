@@ -1,6 +1,6 @@
 # Feedback on the result you reviewed
 
-`keel feedback` retains a private observation tied to an immutable result. It
+`plates feedback` retains a private observation tied to an immutable result. It
 can prepare a follow-up for review; it never creates an issue, starts an agent,
 accepts a decision or marks a phase accepted. This is the local CLI workflow.
 [Guided browser walks](web-walks.md) reuse its private observation model and issue
@@ -31,17 +31,17 @@ Write a schema-1 JSON record outside tracked project content. For example:
 ```
 
 Replace the example revision and hash with the actual full source commit and
-SHA-256 of the exact reviewed bytes. The repository must match `.keel/keel.json`.
+SHA-256 of the exact reviewed bytes. The repository must match `.plates/plates.json`.
 Manual attribution records what you supplied; it is not provider authentication.
 Optional `result.work` is `{ "kind": "phase", "ref": "92" }`, or an `issue`/`pr`
 with a reference such as `acme/studio#12`. `result.anchor` identifies a location
 within the result. Optional `conflicts` contains explicit `{ref, reason}` entries
-for accepted canonical decisions; Keel does not infer disagreement from words.
+for accepted canonical decisions; Plates does not infer disagreement from words.
 
 ```sh
-keel feedback capture /private/acme-note.json --json
-keel feedback capture /private/acme-note.json --yes --digest <preview-digest> --json
-keel feedback list --json
+plates feedback capture /private/acme-note.json --json
+plates feedback capture /private/acme-note.json --yes --digest <preview-digest> --json
+plates feedback list --json
 ```
 
 Capture previews exit 3 and write nothing. Copy the returned `digest` into the
@@ -49,7 +49,7 @@ second command after reviewing it. The paired `--yes --digest` flags authorize
 only those exact bytes; a stale digest refuses. Success exits 0, invalid or
 refused input exits 2. All four subcommands accept `--json`.
 
-Stored observations use `.keel/feedback/` with restricted permissions. Keel
+Stored observations use `.plates/feedback/` with restricted permissions. Plates
 checks that storage is untracked and ignored before persisting, adding a local
 Git exclude when needed. Every actual private destination is checked, including
 against negated Git ignore rules. A store-local `.npmignore` excludes retained
@@ -67,7 +67,7 @@ The same source, artifact and result version deduplicate. Changed words require
 the next `revision` and the current item's `digest` as `previousDigest`; earlier
 words and resolutions remain. A new result version is a separate observation.
 A verified retained result survives changes to its original file. Missing or
-corrupt retained bytes remain a gap and prevent follow-up proposals; Keel never
+corrupt retained bytes remain a gap and prevent follow-up proposals; Plates never
 substitutes the latest version. Unsupported provider references remain unavailable.
 
 ## Propose follow-up work
@@ -79,7 +79,7 @@ an exact `excerpt` from the stored words, the configured repository as
 `ownerBlockers`.
 
 ```sh
-keel feedback propose <id> --record /private/acme-publication.json --json
+plates feedback propose <id> --record /private/acme-publication.json --json
 ```
 
 This is an explicit publication preview: inspect its exact excerpt, outbound
@@ -90,13 +90,13 @@ a replacement decision. A local phase is planning context, not closure evidence.
 
 When a conflict requires reopening, include `shaping` in the publication record:
 an explicitly authored version-1 [shaping record](../../practices/shaping/files/docs/shaping.md).
-It must reference each conflicted decision and pass the existing validator. Keel
-returns that draft with a `keel shape check` handoff; it invents no goal, proof
+It must reference each conflicted decision and pass the existing validator. Plates
+returns that draft with a `plates shape check` handoff; it invents no goal, proof
 command or owner answer. Without the draft, the preview reports
 `{"error":"shaping_draft_required"}`. Save it privately and review it through shaping before
 approving any resulting plan. Supplied answers remain manual attribution.
 
-Delivery is a separate, explicitly approved `keel issue new --agent` operation
+Delivery is a separate, explicitly approved `plates issue new --agent` operation
 using the preview's handoff inputs. It reuses the existing issue identity and
 recovery journal. A feedback preview is not delivery approval. An uncertain issue
 write must recover its original intent; never create a second issue to retry.
@@ -110,8 +110,8 @@ For `linked`, supply `reference` to the resulting proposal or issue. For
 another existing observation in this project.
 
 ```sh
-keel feedback resolve <id> --record /private/acme-resolution.json --json
-keel feedback resolve <id> --record /private/acme-resolution.json --yes --digest <preview-digest> --json
+plates feedback resolve <id> --record /private/acme-resolution.json --json
+plates feedback resolve <id> --record /private/acme-resolution.json --yes --digest <preview-digest> --json
 ```
 
 Resolution history remains intact. Editing resolved feedback creates a new
@@ -126,7 +126,7 @@ Retention and exports require explicit owner work; no automatic deletion is enab
 
 If an interrupted write returns `{"error":"writer_busy"}`, the lock alone does not block reads;
 incomplete records or temporary files may still make coverage unavailable. Confirm
-that all feedback writers have stopped before using `rmdir .keel/feedback/.lock` from the
+that all feedback writers have stopped before using `rmdir .plates/feedback/.lock` from the
 project root. Remove only that empty lock directory; preserve observations,
-snapshots and temporary files for inspection. Keel never assumes that a lock is
+snapshots and temporary files for inspection. Plates never assumes that a lock is
 abandoned because it is old.

@@ -4,27 +4,28 @@
   "optional": true,
   "requires": ["night"],
   "runtimeFiles": [
-    { "practice": "reconciliation", "path": "scripts/keel/reconcile.mjs" },
-    { "practice": "reconciliation", "path": "scripts/keel/decision-context.mjs" }
+    { "practice": "reconciliation", "path": "scripts/plates/reconcile.mjs" },
+    { "practice": "reconciliation", "path": "scripts/plates/decision-context.mjs" }
   ],
   "secrets": [
-    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each climb night spends model tokens up to .keel/keel.json climb.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/keel-climb.yml" },
-    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/keel-climb.yml" },
-    { "name": "OPENAI_API_KEY", "why": "Codex's credential, only when climb.agent is \"codex\" (and \"agents\" lists codex): each climb night spends tokens billed to the OpenAI API account (no subscription path), up to climb.budget.minutes; until it is set a Codex night ends green with a notice", "workflow": ".github/workflows/keel-climb.yml" },
-    { "name": "STITCH_API_KEY", "why": "a loop night's pull (the loop practice's key); without it the night proposes for the findings already pulled, with a notice", "workflow": ".github/workflows/keel-climb.yml" },
-    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the weekly tend pass; it spends model tokens up to .keel/keel.json tend.budget.minutes, and only when \"tend\" is set", "workflow": ".github/workflows/keel-tend.yml" },
-    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the tend pass; set one of the two, not both", "workflow": ".github/workflows/keel-tend.yml" },
-    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/keel-tend.yml" },
-    {"name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"},
-    {"name": "ANTHROPIC_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"},
-    {"name": "OPENAI_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/keel-robot.yml"}
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Claude's credential (`claude setup-token`), as the claude practice's; each climb night spends model tokens up to .plates/plates.json climb.budget.minutes. Either this or ANTHROPIC_API_KEY; until one is set the run ends green with a notice", "workflow": ".github/workflows/plates-climb.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN, billed per token to the API account; set one of the two, not both", "workflow": ".github/workflows/plates-climb.yml" },
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential, only when climb.agent is \"codex\" (and \"agents\" lists codex): each climb night spends tokens billed to the OpenAI API account (no subscription path), up to climb.budget.minutes; until it is set a Codex night ends green with a notice", "workflow": ".github/workflows/plates-climb.yml" },
+    { "name": "STITCH_API_KEY", "why": "a loop night's pull (the loop practice's key); without it the night proposes for the findings already pulled, with a notice", "workflow": ".github/workflows/plates-climb.yml" },
+    { "name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "the same credential, for the weekly tend pass; it spends model tokens up to .plates/plates.json tend.budget.minutes, and only when \"tend\" is set", "workflow": ".github/workflows/plates-tend.yml" },
+    { "name": "ANTHROPIC_API_KEY", "why": "the alternative to CLAUDE_CODE_OAUTH_TOKEN for the tend pass; set one of the two, not both", "workflow": ".github/workflows/plates-tend.yml" },
+    { "name": "OPENAI_API_KEY", "why": "Codex's credential for the tend pass, only when tend.agent is \"codex\": billed per token to the OpenAI API account, up to tend.budget.minutes", "workflow": ".github/workflows/plates-tend.yml" },
+    {"name": "CLAUDE_CODE_OAUTH_TOKEN", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/plates-robot.yml"},
+    {"name": "ANTHROPIC_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/plates-robot.yml"},
+    {"name": "OPENAI_API_KEY", "why": "Robot build and other-provider review share the explicitly approved robot.budgetMinutes weekly allowance; robot remains off without robot.on.", "workflow": ".github/workflows/plates-robot.yml"}
   ],
   "files": [
-    { "path": ".github/workflows/keel-climb.yml", "from": ".github/workflows/keel-climb.yml", "kind": "managed" },
-    { "path": ".github/workflows/keel-tend.yml", "from": ".github/workflows/keel-tend.yml", "kind": "managed" },
-    { "path": "scripts/keel/climb.mjs", "from": "scripts/keel/climb.mjs", "kind": "managed" },
-    { "path": "scripts/keel/tend.mjs", "from": "scripts/keel/tend.mjs", "kind": "managed" },
-    { "path": "scripts/keel/distill.mjs", "from": "scripts/keel/distill.mjs", "kind": "managed" },
+    { "path": ".github/workflows/plates-climb.yml", "from": ".github/workflows/plates-climb.yml", "kind": "managed" },
+    { "path": ".github/workflows/plates-tend.yml", "from": ".github/workflows/plates-tend.yml", "kind": "managed" },
+    { "path": "scripts/plates/climb-execution.mjs", "from": "scripts/plates/climb-execution.mjs", "kind": "managed" },
+    { "path": "scripts/plates/climb.mjs", "from": "scripts/plates/climb.mjs", "kind": "managed" },
+    { "path": "scripts/plates/tend.mjs", "from": "scripts/plates/tend.mjs", "kind": "managed" },
+    { "path": "scripts/plates/distill.mjs", "from": "scripts/plates/distill.mjs", "kind": "managed" },
     { "path": ".agents/climb/PROTOCOL.md", "from": ".agents/climb/PROTOCOL.md", "kind": "managed" },
     { "path": ".agents/climb/TEND.md", "from": ".agents/climb/TEND.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/test-time.md", "from": ".agents/climb/jobs/test-time.md", "kind": "managed" },
@@ -33,11 +34,11 @@
     { "path": ".agents/climb/jobs/perf.md", "from": ".agents/climb/jobs/perf.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/lessons.md", "from": ".agents/climb/jobs/lessons.md", "kind": "managed" },
     { "path": ".agents/climb/jobs/loop.md", "from": ".agents/climb/jobs/loop.md", "kind": "managed" },
-    {"path": ".github/workflows/keel-robot.yml", "from": ".github/workflows/keel-robot.yml", "kind": "managed"},
-    {"path": ".github/workflows/keel-robot-route.yml", "from": ".github/workflows/keel-robot-route.yml", "kind": "managed"},
+    {"path": ".github/workflows/plates-robot.yml", "from": ".github/workflows/plates-robot.yml", "kind": "managed"},
+    {"path": ".github/workflows/plates-robot-route.yml", "from": ".github/workflows/plates-robot-route.yml", "kind": "managed"},
     {"path": ".agents/robot/PROTOCOL.md", "from": ".agents/robot/PROTOCOL.md", "kind": "managed"},
-    {"path": "scripts/keel/robot.mjs", "from": "scripts/keel/robot.mjs", "kind": "managed"},
-    {"path": "scripts/keel/robot-policy.mjs", "from": "scripts/keel/robot-policy.mjs", "kind": "managed"},
-    {"path": "scripts/keel/robot-rubric.mjs", "from": "scripts/keel/robot-rubric.mjs", "kind": "managed"}
+    {"path": "scripts/plates/robot.mjs", "from": "scripts/plates/robot.mjs", "kind": "managed"},
+    {"path": "scripts/plates/robot-policy.mjs", "from": "scripts/plates/robot-policy.mjs", "kind": "managed"},
+    {"path": "scripts/plates/robot-rubric.mjs", "from": "scripts/plates/robot-rubric.mjs", "kind": "managed"}
   ]
 }

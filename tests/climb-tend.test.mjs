@@ -9,12 +9,16 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
-import { KEEL, git, write, commit, acme, climb, json, load, stubGh, page, step, tendAcme, stubKeel, DISTILL, LOOP, STITCH, setConfig, LESSONS_MD, READ_LESSONS, findingText, ALPHA, BETA, GAMMA, loopInsight } from './helpers/climb.mjs';
+import { PLATES, git, write, commit, acme, climb, json, load, stubGh, page, step, tendAcme, stubPlates, DISTILL, LOOP, STITCH, setConfig, LESSONS_MD, READ_LESSONS, findingText, ALPHA, BETA, GAMMA, loopInsight } from './helpers/climb.mjs';
 
 test('tend input: one worksheet of every record measure, reconciliation and loose ends; a source that could not run is n/a with why, never empty', async t => {
   const dir = await tendAcme(t);
-  const NO_KEEL = { KEEL_CLI: join(dir, 'no-such-keel') };
-  const w = json(climb(dir, ['tend-input', '--json'], NO_KEEL));
+  // This worksheet fixture predates the stuck-phase threshold; freeze the
+  // actual child clock so a calendar rollover cannot add unrelated findings.
+  const preload = pathToFileURL(join(PLATES, 'tests/helpers/night-box-preload.mjs')).href;
+  const input = (args, env = {}) => climb(dir, args, { ...env, PLATES_BOX_NOW: '2026-10-10T12:00:00Z', NODE_OPTIONS: `--import=${preload}` });
+  const NO_PLATES = { PLATES_CLI: join(dir, 'no-such-plates') };
+  const w = json(input(['tend-input', '--json'], NO_PLATES));
   assert.deepEqual(w.measures.map(m => m.id), ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders', 'drift', 'lint']);
   const proofs = w.measures.find(m => m.id === 'proofs_hold');
   assert.equal(proofs.value, 1, JSON.stringify(proofs));
@@ -23,7 +27,7 @@ test('tend input: one worksheet of every record measure, reconciliation and loos
   assert.equal(w.count, 1);
   assert.deepEqual(w.reconciliation, { state: 'n/a', why: 'the reconciliation practice is off here', findings: [] });
   assert.equal(w.looseEnds.state, 'n/a');
-  assert.match(w.looseEnds.why, /^keel is not installed here/);
+  assert.match(w.looseEnds.why, /^plates is not installed here/);
   assert.equal(w.health, null);
   // Every source has a state; every n/a says why (mutation: a measure returned empty fails here).
   for (const s of [...w.measures, w.reconciliation, w.looseEnds]) {
@@ -31,42 +35,42 @@ test('tend input: one worksheet of every record measure, reconciliation and loos
     if (s.state === 'n/a') assert.ok(s.why?.trim(), `n/a with no why: ${JSON.stringify(s)}`);
     else assert.ok(Number.isFinite(s.value), `a number or n/a: ${JSON.stringify(s)}`);
   }
-  // The night's row rides beside each measure; loose ends from keel when it is there.
+  // The night's row rides beside each measure; loose ends from plates when it is there.
   await write(dir, { 'docs/health/2026-10-05.md': page([['proofs_hold', 2, '≤ 0', 'outside'], ['lint', 0, '≤ 0', 'ok']]) });
-  const KEEL_STUB = { KEEL_CLI: await stubKeel(t, { dir, items: [{ id: 'ab12', kind: 'branch', fingerprint: 'branch:acme-old', title: 'acme-old', move: 'delete it: merged', commands: ['git branch -d acme-old'] }] }) };
-  const w2 = json(climb(dir, ['tend-input', '--json'], KEEL_STUB));
+  const PLATES_STUB = { PLATES_CLI: await stubPlates(t, { dir, items: [{ id: 'ab12', kind: 'branch', fingerprint: 'branch:acme-old', title: 'acme-old', move: 'delete it: merged', commands: ['git branch -d acme-old'] }] }) };
+  const w2 = json(input(['tend-input', '--json'], PLATES_STUB));
   assert.equal(w2.health, 'docs/health/2026-10-05.md');
   assert.deepEqual(w2.measures.find(m => m.id === 'proofs_hold').night, { value: 2, state: 'outside', detail: 'detail' });
   assert.deepEqual(w2.looseEnds.findings, [{ id: 'loose:branch:acme-old', measure: 'loose-ends', what: 'branch: acme-old → delete it: merged (git branch -d acme-old)' }]);
   assert.equal(w2.count, 1, 'loose ends are listed, not counted as records');
-  // keel#22: a loose end's command named the runner's checkout path; the PR is read on GitHub, so paths are the repo's.
+  // plates#22: a loose end's command named the runner's checkout path; the PR is read on GitHub, so paths are the repo's.
   const real = await realpath(dir);
-  const PATHS = { KEEL_CLI: await stubKeel(t, { dir: real, items: [{ id: 'cd34', kind: 'phase', fingerprint: 'phase:7', title: 'phase 7: Acme orders', move: 'the owner\'s step', commands: [`less ${real}/docs/phases/07-acme-orders.md`] }] }) };
-  const wPaths = json(climb(dir, ['tend-input', '--json'], PATHS));
+  const PATHS = { PLATES_CLI: await stubPlates(t, { dir: real, items: [{ id: 'cd34', kind: 'phase', fingerprint: 'phase:7', title: 'phase 7: Acme orders', move: 'the owner\'s step', commands: [`less ${real}/docs/phases/07-acme-orders.md`] }] }) };
+  const wPaths = json(input(['tend-input', '--json'], PATHS));
   assert.deepEqual(wPaths.looseEnds.findings.map(f => f.what), ["phase: phase 7: Acme orders → the owner's step (less docs/phases/07-acme-orders.md)"]);
   // An instrument that cannot run: the phases measures are n/a, saying why, never 0.
   await rm(join(dir, 'scripts/roadmap.mjs'));
-  const w3 = json(climb(dir, ['tend-input', '--json'], NO_KEEL));
+  const w3 = json(input(['tend-input', '--json'], NO_PLATES));
   for (const id of ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders']) {
     const m = w3.measures.find(x => x.id === id);
     assert.deepEqual([m.state, m.value], ['n/a', null], id);
     assert.match(m.why, /^could not run: scripts\/roadmap\.mjs is missing/, id);
   }
-  // keel's loose-ends printing nothing usable is n/a too.
-  const garbled = json(climb(dir, ['tend-input', '--json'], { KEEL_CLI: await stubKeel(t, { raw: 'not json' }) }));
+  // plates's loose-ends printing nothing usable is n/a too.
+  const garbled = json(input(['tend-input', '--json'], { PLATES_CLI: await stubPlates(t, { raw: 'not json' }) }));
   assert.match(garbled.looseEnds.why, /printed no JSON/);
   // The text form names each source.
-  const text = climb(dir, ['tend-input'], NO_KEEL).stdout;
-  assert.match(text, /^ {2}loose-ends: n\/a: keel is not installed here/m);
+  const text = input(['tend-input'], NO_PLATES).stdout;
+  assert.match(text, /^ {2}loose-ends: n\/a: plates is not installed here/m);
 });
 
 test('tend guard: refuses an evidence edit, a status marked built, a ticked acceptance box, a deletion and an uncited commit, naming the line; passes a cited record fix, then the gate', async t => {
   const dir = await tendAcme(t);
-  const env = { KEEL_CLI: join(dir, 'no-such-keel') };
+  const env = { PLATES_CLI: join(dir, 'no-such-plates') };
   assert.equal(climb(dir, ['tend-input', '--record'], env).status, 0);
   const base = git(dir, ['rev-parse', 'HEAD']);
-  const m = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
-  const findings = JSON.parse(await readFile(join(dir, '.keel/tend/pass.json'), 'utf8')).worksheet.findings;
+  const m = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
+  const findings = JSON.parse(await readFile(join(dir, '.plates/tend/pass.json'), 'utf8')).worksheet.findings;
   const phase2 = await readFile(join(dir, 'docs/phases/02-acme-ships.md'), 'utf8');
   /** One commit on a fresh branch from base; the guard's refusals for it. */
   const attempt = async (name, change, message = 'acme: tend\n\nTend: proofs_hold:1') => {
@@ -113,8 +117,8 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   assert.match(no.stdout, /guard failed:\n {2}docs\/evidence\/2026-10-01-acme-orders\.md:1: edits evidence/);
   // A failing gate is a failing guard.
   git(dir, ['checkout', '-q', '-f', 'try-fix']);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: 'node -e "process.exit(3)"' }));
+  const cfg = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...cfg, check: 'node -e "process.exit(3)"' }));
   const gate = climb(dir, ['guard', '--job', 'tend', '--base', base]);
   assert.equal(gate.status, 1);
   assert.match(gate.stdout, /the gate `node -e "process\.exit\(3\)"` failed \(exit 3\)/);
@@ -124,11 +128,11 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
   for (const [check, said] of [
     ['echo "# Acme: proven" > docs/evidence/2026-10-09-sneak.md && git add docs/evidence && git commit -q -m sneak', /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/],
     ['echo "more" >> README.md && git add README.md', /changed the tracked tree or the index after the guard's checks/],
-    // PR #59: a hook planted in the git dir is refused before any git of keel's could run it.
+    // PR #59: a hook planted in the git dir is refused before any git of plates's could run it.
     ['printf "#!/bin/sh\\n" > "$(git rev-parse --git-common-dir)/hooks/reference-transaction"', /changed the git dir's config, hooks or attributes/],
   ]) {
     git(dir, ['reset', '-q', '--hard', checked]);
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check }));
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...cfg, check }));
     const moved = climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']);
     assert.equal(moved.status, 1, `${check}: ${moved.stdout}`);
     assert.ok(json(moved).problems.some(p => said.test(p)), JSON.stringify(json(moved).problems));
@@ -136,10 +140,10 @@ test('tend guard: refuses an evidence edit, a status marked built, a ticked acce
 });
 
 test('tend off: with no tend key nothing runs and gh is never asked; with no secret the run ends green with a notice; a bad tend is red naming the key', async t => {
-  const TEND = join(KEEL, 'practices/climb/files/.github/workflows/keel-tend.yml');
+  const TEND = join(PLATES, 'practices/climb/files/.github/workflows/plates-tend.yml');
   const tendStep = async (dir, name, env = {}) => {
     const block = runBlocks(await readFile(TEND, 'utf8')).find(b => b.step === name);
-    assert.ok(block, `keel-tend.yml has a step "${name}"`);
+    assert.ok(block, `plates-tend.yml has a step "${name}"`);
     const out = join(dir, '..', `tend-${name.replace(/\W/g, '')}-out`);
     await writeFile(out, '');
     const r = run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, ...env } });
@@ -149,12 +153,12 @@ test('tend off: with no tend key nothing runs and gh is never asked; with no sec
   const off = await tendAcme(t, { tend: null });
   const o = await tendStep(off, 'Is tend on?');
   assert.equal(o.status, 0, o.out);
-  assert.match(o.out, /tend is off: \.keel\/keel\.json has no "tend", so this run does nothing\./);
+  assert.match(o.out, /tend is off: \.plates\/plates\.json has no "tend", so this run does nothing\./);
   assert.equal(o.outputs.on, 'false');
-  const p = climb(off, ['tend-pick', '--json'], { KEEL_GH: await stubGh(t, null) });
+  const p = climb(off, ['tend-pick', '--json'], { PLATES_GH: await stubGh(t, null) });
   assert.equal(p.status, 0, 'tend off never asks gh');
-  assert.deepEqual([json(p).run, json(p).reason], [false, 'tend is off: .keel/keel.json has no "tend"']);
-  const rec = climb(off, ['tend-input', '--record'], { KEEL_CLI: join(off, 'no-keel') });
+  assert.deepEqual([json(p).run, json(p).reason], [false, 'tend is off: .plates/plates.json has no "tend"']);
+  const rec = climb(off, ['tend-input', '--record'], { PLATES_CLI: join(off, 'no-plates') });
   assert.equal(rec.status, 2);
   assert.match(rec.stdout + rec.stderr, /tend is off/);
   assert.equal(json(climb(off, ['config', '--json'])).tend, undefined);
@@ -179,19 +183,19 @@ test('tend off: with no tend key nothing runs and gh is never asked; with no sec
   assert.match(text, /\n  publish:\n    needs: \[agent, judge\]\n    if: always\(\) && needs\.agent\.outputs\.run == 'yes'\n/, 'no pass, nothing published');
   // A bad "tend" is exit 2, naming the key.
   for (const [bad, re] of [[{ schedule: 'nightly' }, /"tend"\.schedule must be "weekly"/], [{ budget: { minutes: 999 } }, /"tend"\.budget\.minutes must be a whole number from 5 to 180/], [{ jobs: [] }, /"tend" has an unknown key jobs/], ['weekly', /"tend" must be an object/]]) {
-    const cfg = JSON.parse(await readFile(join(on, '.keel/keel.json'), 'utf8'));
-    await writeFile(join(on, '.keel/keel.json'), JSON.stringify({ ...cfg, tend: bad }));
-    const r = climb(on, ['tend-pick', '--json'], { KEEL_GH: await stubGh(t, []) });
+    const cfg = JSON.parse(await readFile(join(on, '.plates/plates.json'), 'utf8'));
+    await writeFile(join(on, '.plates/plates.json'), JSON.stringify({ ...cfg, tend: bad }));
+    const r = climb(on, ['tend-pick', '--json'], { PLATES_GH: await stubGh(t, []) });
     assert.equal(r.status, 2, JSON.stringify(bad));
     assert.match(json(r).error, re);
   }
 });
 
 test('lessons: a distill pass over the project\'s own table writes proposals, one commit each, and changes no row; the guard refuses a row changed', async t => {
-  const dir = await acme(t, { climb: { jobs: ['test-time', 'lessons'] }, config: { check: 'node -e ""' }, files: { 'docs/lessons.md': LESSONS_MD, 'scripts/keel/distill.mjs': await readFile(DISTILL, 'utf8') } });
+  const dir = await acme(t, { climb: { jobs: ['test-time', 'lessons'] }, config: { check: 'node -e ""' }, files: { 'docs/lessons.md': LESSONS_MD, 'scripts/plates/distill.mjs': await readFile(DISTILL, 'utf8') } });
   const gh = await stubGh(t, []);
   // pick: every row is new (no pass yet), so lessons goes ahead of the rotation.
-  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: gh }));
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: gh }));
   assert.deepEqual([p.job, p.by], ['lessons', 'measure']);
   assert.match(p.why, /^lessons_since_distill is outside in docs\/lessons\.md since the last distill pass \(4 against ≤ 0\)/);
 
@@ -205,16 +209,16 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   const propose = (...args) => climb(dir, ['distill', 'propose', ...args, '--json']);
   const fam = propose('--kind', 'family', '--name', 'A cache trusted after its source moved', '--rule', 'A cache names what it was read from, and a test moves that.', '--guard', 'a test that moves or renames the source under a warm cache', '--rows', '1,2', '--read', READ_LESSONS);
   assert.equal(fam.status, 0, fam.stdout + fam.stderr);
-  assert.match(json(fam).file, /^\.keel\/climb\/lessons\/\d{4}-\d{2}-\d{2}-distill-family-a-cache-trusted-after-its-source-moved\.md$/);
+  assert.match(json(fam).file, /^\.plates\/climb\/lessons\/\d{4}-\d{2}-\d{2}-distill-family-a-cache-trusted-after-its-source-moved\.md$/);
   const rew = json(propose('--kind', 'reword', '--row', '2', '--guard', 'a test that renames a widget under a warm cache', '--read', READ_LESSONS));
   assert.deepEqual([rew.fields.cell, rew.fields.old, rew.fields.text], ['guard', 'to write', 'a test that renames a widget under a warm cache']);
   // Each proposal is its own commit, made by the script; nothing is left uncommitted.
   assert.equal(git(dir, ['status', '--porcelain']), '');
   assert.deepEqual(git(dir, ['log', '--format=%s', '-2']).split('\n'), ["climb lessons: propose reword: reword lesson 2's guard", 'climb lessons: propose family: family "A cache trusted after its source moved": lessons 1, 2']);
-  assert.equal(git(dir, ['diff', '--name-only', 'HEAD~2', 'HEAD']).split('\n').every(f => f.startsWith('.keel/climb/lessons/')), true);
+  assert.equal(git(dir, ['diff', '--name-only', 'HEAD~2', 'HEAD']).split('\n').every(f => f.startsWith('.plates/climb/lessons/')), true);
   // The table: not one byte changed.
   assert.equal(await readFile(join(dir, 'docs/lessons.md'), 'utf8'), before);
-  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  const night = JSON.parse(await readFile(join(dir, '.plates/climb/night.json'), 'utf8'));
   assert.deepEqual(night.tried.map(a => a.verdict), ['keep', 'keep']);
 
   // Refused: the same family again, a family over one row, a standardise with no decided family, a read that cites nothing.
@@ -239,12 +243,12 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   assert.equal(json(climb(dir, ['settle', '--json'])).dropped, false);
   const g = climb(dir, ['guard', '--json']);
   assert.equal(g.status, 0, g.stdout + g.stderr);
-  assert.match(json(g).line, /proposals only \(2 files under \.keel\/climb\/lessons\/\), no code changed, nothing decided/);
+  assert.match(json(g).line, /proposals only \(2 files under \.plates\/climb\/lessons\/\), no code changed, nothing decided/);
   // PR #59: the gate runs after the proposals' checks and is the agent's code: a gate that commits outside
   // the proposals (here, the table itself) and exits 0 is refused, never passed.
   const judged = git(dir, ['rev-parse', 'HEAD']);
-  const cfg = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...cfg, check: 'echo "| 9 | sneak |" >> docs/lessons.md && git add docs/lessons.md && git commit -q -m sneak' }));
+  const cfg = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...cfg, check: 'echo "| 9 | sneak |" >> docs/lessons.md && git add docs/lessons.md && git commit -q -m sneak' }));
   const moved = climb(dir, ['guard', '--json']);
   assert.equal(moved.status, 1, moved.stdout + moved.stderr);
   assert.match(json(moved).problems.join('\n'), /moved HEAD from [0-9a-f]{7} to [0-9a-f]{7} after the guard's checks/);
@@ -266,7 +270,7 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   // Mutations the guard refuses, naming each: a row of the table changed, a proposal edited, a path outside.
   // Each is guarded from its own --base, so the night's record (whose base is the night's start) goes:
   // a record naming another base than --base is refused (ledger#92).
-  await rm(join(dir, '.keel/climb/night.json'));
+  await rm(join(dir, '.plates/climb/night.json'));
   const refuse = async (files, re) => {
     const head = git(dir, ['rev-parse', 'HEAD']);
     await commit(dir, files, 'acme: tonight');
@@ -277,7 +281,7 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   };
   await refuse({ 'docs/lessons.md': before.replace('| an hour | to write |', '| an hour | a test that renames a widget under a warm cache |') }, /^docs\/lessons\.md changed \(lesson 2\): a lessons night proposes, and only the owner changes the table/);
   await refuse({ [rew.file]: 'edited\n' }, /changed: a lessons night adds proposals and never edits one/);
-  await refuse({ 'lib/acme.mjs': 'export {};\n' }, /^lib\/acme\.mjs is outside \.keel\/climb\/lessons\/: a lessons night only adds proposals$/);
+  await refuse({ 'lib/acme.mjs': 'export {};\n' }, /^lib\/acme\.mjs is outside \.plates\/climb\/lessons\/: a lessons night only adds proposals$/);
 });
 
 test('loop: pulls, proposes a rank for every untriaged finding and decides none; Loop unreachable is a notice, not red; the guard refuses a decided finding', async t => {
@@ -290,7 +294,7 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
     'docs/loop/sprocket-api-lacks-rate-limit.md': await findingText({ title: 'Sprocket API lacks rate limit', loop: [BETA], decision: 'accepted', rank: 'next', phase: 1, since: '2026-10-01', note: 'real, and cheap', body: '# Sprocket API lacks rate limit\n\n## Our read\n\nlib/widget.mjs:3 has no limit.' }),
   };
   const dir = await acme(t, { climb: { jobs: ['loop'] }, config: { practices: ['loop'], check: 'node -e ""' }, files });
-  const env = { KEEL_STITCH: STITCH, STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
+  const env = { PLATES_STITCH: STITCH, STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
   t.after(() => Promise.all([rm(env.STITCH_STUB_LOG, { force: true }), rm(env.STITCH_STUB_STATE, { force: true })]));
   await writeFile(env.STITCH_STUB_LOG, '');
   await writeFile(env.STITCH_STUB_STATE, JSON.stringify({ error: { code: 'UNAVAILABLE', message: 'acme: Loop is down' } }));
@@ -300,10 +304,10 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
   // A config naming loop needs the loop practice.
   await setConfig(dir, { climb: { jobs: ['loop'] }, practices: ['night'] });
   assert.match(json(climb(dir, ['config', '--json'])).error, /names loop, so "practices" must include loop/);
-  git(dir, ['checkout', '-q', '--', '.keel/keel.json']);
+  git(dir, ['checkout', '-q', '--', '.plates/plates.json']);
 
   // pick: one untriaged finding, so a loop night.
-  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, []) }));
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, []) }));
   assert.deepEqual([p.job, p.by], ['loop', 'measure']);
   assert.match(p.why, /^loop_untriaged is outside in docs\/loop\/ \(1 against ≤ 0\)/);
   git(dir, ['switch', '-q', '-c', 'keel-climb/loop/2026-10-06']);
@@ -329,7 +333,7 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
   const up = json(climb(dir, ['loop-pull', '--json'], { ...env, STITCH_API_KEY: 'acme-key' }));
   assert.equal(up.pulled, true);
   assert.deepEqual(up.untriaged.sort(), ['gear-loader-drops-errors', 'widget-cache-ignores-expiry']);
-  assert.match(git(dir, ['log', '-1', '--format=%s']), /^Loop: findings pulled \d{4}-\d{2}-\d{2} \(climb loop night, in place of keel-loop's pull\)$/);
+  assert.match(git(dir, ['log', '-1', '--format=%s']), /^Loop: findings pulled \d{4}-\d{2}-\d{2} \(climb loop night, in place of plates-loop's pull\)$/);
   assert.ok(!JSON.parse(`[${(await readFile(env.STITCH_STUB_LOG, 'utf8')).trim().split('\n').join(',')}]`).some(c => /^(dismiss|create|delete|generate)$/.test(c.args[0])), 'a pull sends nothing to Loop');
 
   // The agent proposes for each untriaged finding, as the job's brief says, and commits.
@@ -349,7 +353,7 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
   assert.match(rep.stdout, /^\| Finding \| Proposed rank \| Home \| Why \|$/m);
   assert.match(rep.stdout, /^\| Gear loader drops errors \(`docs\/loop\/gear-loader-drops-errors\.md`\) \| next \| phase 1 \| real: the code shows it \|$/m);
   assert.match(rep.stdout, /Decide each yourself: `node scripts\/loop\.mjs decide <slug>/);
-  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  const night = JSON.parse(await readFile(join(dir, '.plates/climb/night.json'), 'utf8'));
   assert.deepEqual(night.tried.map(a => a.verdict), ['keep', 'keep'], 'the health page\'s climb line counts the proposals');
   assert.equal(git(dir, ['show', 'HEAD:docs/loop/sprocket-api-lacks-rate-limit.md']).includes('decision: accepted'), true);
 
@@ -371,19 +375,19 @@ test('loop: pulls, proposes a rank for every untriaged finding and decides none;
   git(dir, ['reset', '-q', '--hard', head]);
 });
 
-test('a loop night and keel-loop.yml never both pull: where keel-loop.yml is installed the night pulls nothing, says so, and proposes for the findings already here (ledger#92)', async t => {
+test('a loop night and plates-loop.yml never both pull: where plates-loop.yml is installed the night pulls nothing, says so, and proposes for the findings already here (ledger#92)', async t => {
   const files = {
     'scripts/loop.mjs': await readFile(LOOP, 'utf8'),
     '.stitch.json': '{ "workspace": "acme-0000-workspace" }\n',
-    '.github/workflows/keel-loop.yml': 'name: keel-loop\n',
+    '.github/workflows/plates-loop.yml': 'name: plates-loop\n',
     'docs/loop/widget-cache-ignores-expiry.md': await findingText({ title: 'Widget cache ignores expiry', loop: [ALPHA], body: '# Widget cache ignores expiry\n\n## Our read\n\nNot yet checked.' }),
   };
   const dir = await acme(t, { climb: { jobs: ['loop'] }, config: { practices: ['loop'], check: 'node -e ""' }, files });
-  const env = { KEEL_STITCH: STITCH, STITCH_API_KEY: 'acme-key', STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
+  const env = { PLATES_STITCH: STITCH, STITCH_API_KEY: 'acme-key', STITCH_STUB_LOG: join(dir, '..', `${dir.split('/').pop()}-stitch.log`), STITCH_STUB_STATE: join(dir, '..', `${dir.split('/').pop()}-stitch.json`) };
   t.after(() => Promise.all([rm(env.STITCH_STUB_LOG, { force: true }), rm(env.STITCH_STUB_STATE, { force: true })]));
   await writeFile(env.STITCH_STUB_LOG, '');
   await writeFile(env.STITCH_STUB_STATE, JSON.stringify({ insights: [loopInsight(ALPHA, 'Widget cache ignores expiry'), loopInsight(GAMMA, 'Gear loader drops errors')] }));
-  assert.equal(json(climb(dir, ['pick', '--json'], { KEEL_GH: await stubGh(t, []) })).job, 'loop');
+  assert.equal(json(climb(dir, ['pick', '--json'], { PLATES_GH: await stubGh(t, []) })).job, 'loop');
   git(dir, ['switch', '-q', '-c', 'keel-climb/loop/2026-10-07']);
   climb(dir, ['measure', 'loop', '--baseline', '--json']);
   const base = git(dir, ['rev-parse', 'HEAD']);
@@ -391,10 +395,10 @@ test('a loop night and keel-loop.yml never both pull: where keel-loop.yml is ins
   const s = await step(t, dir, "Pull Loop's findings", env);
   assert.equal(s.status, 0, s.out);
   assert.doesNotMatch(s.out, /npm|stitch enable/);
-  assert.match(s.out, /^No pull tonight: \.github\/workflows\/keel-loop\.yml pulls Loop here every day, so this night does not \(the two never both pull\); the night proposes for the findings already here \(1 untriaged\)$/m);
+  assert.match(s.out, /^No pull tonight: \.github\/workflows\/plates-loop\.yml pulls Loop here every day, so this night does not \(the two never both pull\); the night proposes for the findings already here \(1 untriaged\)$/m);
   assert.equal((await readFile(env.STITCH_STUB_LOG, 'utf8')).trim(), '', 'Loop was never asked (mutation: a night that pulls here calls stitch)');
   assert.equal(git(dir, ['rev-parse', 'HEAD']), base, 'nothing pulled, nothing committed');
-  const night = JSON.parse(await readFile(join(dir, '.keel/climb/night.json'), 'utf8'));
+  const night = JSON.parse(await readFile(join(dir, '.plates/climb/night.json'), 'utf8'));
   assert.deepEqual([night.loop.pulled, night.loop.elsewhere], [false, true]);
-  assert.match(json(climb(dir, ['report', '--json'])).line, /; Loop pulled by keel-loop\.yml, not this night: proposed for the findings already here; \d+ min$/);
+  assert.match(json(climb(dir, ['report', '--json'])).line, /; Loop pulled by plates-loop\.yml, not this night: proposed for the findings already here; \d+ min$/);
 });

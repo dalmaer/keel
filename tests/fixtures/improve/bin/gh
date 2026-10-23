@@ -1,5 +1,5 @@
 #!/bin/sh
-# A gh for keel improve --selftest, answering the calls improve makes with the
+# A gh for plates improve --selftest, answering the calls improve makes with the
 # shapes real gh returns (it prints every field; real gh prints the ones asked
 # for). Synthetic: an Acme repo whose main has failed three runs in a row,
 # whose night-shift queue holds two PRs, all of them opened in 2020 (stale),
@@ -20,7 +20,7 @@ has() { # has WORD... -- ARG...: every WORD is one of the ARGs
 if has --version -- "$@"; then echo 'gh version 2.0.0 (stub)'
 elif has auth status -- "$@"; then echo 'Logged in to github.com as acme (stub)'
 elif has run list -- "$@"; then echo '[{"conclusion":""},{"conclusion":"failure"},{"conclusion":"failure"},{"conclusion":"failure"},{"conclusion":"success"}]'
-elif has pr list -- "$@"; then echo '[{"number":11,"title":"keel night 2020-03-01","createdAt":"2020-03-01T02:00:00Z","headRefName":"keel-night/2020-03-01"},{"number":12,"title":"keel night 2020-03-02","createdAt":"2020-03-02T02:00:00Z","headRefName":"keel-night/2020-03-02"},{"number":13,"title":"Update acme-anvil to 2.x","createdAt":"2020-03-02T05:00:00Z","headRefName":"renovate/anvil-2.x"},{"number":14,"title":"Rocket skates","createdAt":"2020-02-14T09:00:00Z","headRefName":"wile/rocket-skates"}]'
+elif has pr list -- "$@"; then echo '[{"number":11,"title":"plates night 2020-03-01","createdAt":"2020-03-01T02:00:00Z","headRefName":"keel-night/2020-03-01"},{"number":12,"title":"plates night 2020-03-02","createdAt":"2020-03-02T02:00:00Z","headRefName":"keel-night/2020-03-02"},{"number":13,"title":"Update acme-anvil to 2.x","createdAt":"2020-03-02T05:00:00Z","headRefName":"renovate/anvil-2.x"},{"number":14,"title":"Rocket skates","createdAt":"2020-02-14T09:00:00Z","headRefName":"wile/rocket-skates"}]'
 elif [ "$1" = api ] && [ "$2" = repos/acme/storefront ]; then echo '{"private":true,"default_branch":"main"}'
 elif [ "$1" = api ] && case "$2" in repos/acme/storefront/actions/runs*) true;; *) false;; esac; then
   case "$2" in

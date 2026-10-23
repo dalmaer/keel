@@ -1,6 +1,6 @@
 // Where a lesson applies (phase 30): a closed vocabulary of stack tags with
-// file evidence, keel's catalogue's Where column, a project's declared stack,
-// and the docs/keel-lessons.md view each project reads. Fixtures are
+// file evidence, plates's catalogue's Where column, a project's declared stack,
+// and the docs/plates-lessons.md view each project reads. Fixtures are
 // synthetic (Acme), built in temp directories.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,11 +12,11 @@ import { vocabulary, tags, whereTags, stackProblems, unknownWhere, detect, disag
 import { parseLessons, lessonFingerprint } from '../lib/lessons.mjs';
 import { load, fill, render } from '../lib/practices.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const read = p => readFile(join(KEEL, p), 'utf8');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const read = p => readFile(join(PLATES, p), 'utf8');
 
 async function scratch(t) {
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-stacks-')));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-stacks-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -55,16 +55,16 @@ test('the vocabulary is closed: exactly the seven tags, each with a meaning and 
   assert.throws(bad([{ tag: 'Node!', means: 'x', evidence: ['package.json'] }]), /bad tag/);
 });
 
-test('an unknown tag fails: in the catalogue, in a project\'s stack, and keel\'s own catalogue names none', async () => {
+test('an unknown tag fails: in the catalogue, in a project\'s stack, and plates\'s own catalogue names none', async () => {
   assert.deepEqual(unknownWhere(await read('docs/lessons.md')), [], 'docs/lessons.md names only tags in practices/lessons/stacks.json');
   const netlify = CATALOGUE.replace('| vercel |', '| netlify |');
   assert.deepEqual(unknownWhere(netlify), [{ n: 2, unknown: ['netlify'] }]);
   assert.throws(() => viewRows(netlify, ['vercel']), /lesson 2 names netlify/);
   assert.deepEqual(stackProblems(undefined), []);
   assert.deepEqual(stackProblems(['node', 'vercel']), []);
-  assert.match(stackProblems(['node', 'netlify'])[0], /names netlify, which is not in keel's vocabulary/);
+  assert.match(stackProblems(['node', 'netlify'])[0], /names netlify, which is not in plates's vocabulary/);
   assert.match(stackProblems('node')[0], /must be a list/);
-  assert.throws(() => shapeLessonsView('# x\n', { stack: ['netlify'] }, { catalogue: CATALOGUE }), /\.keel\/keel\.json: "stack" names netlify/);
+  assert.throws(() => shapeLessonsView('# x\n', { stack: ['netlify'] }, { catalogue: CATALOGUE }), /\.plates\/plates\.json: "stack" names netlify/);
 });
 
 test('the Where column: parsed when present, absent from a project\'s four columns, and no fingerprint moves', async () => {
@@ -72,7 +72,7 @@ test('the Where column: parsed when present, absent from a project\'s four colum
   assert.equal(five.where, 4);
   assert.deepEqual(five.rows.map(r => [r.n, r.guard, r.where]), [[1, 'A measured deadline.', ''], [2, 'A cache-busting test.', 'vercel'], [3, 'A lint on the step.', '`gcp`'], [4, 'A scan.', 'vercel, gcp']]);
   assert.deepEqual(whereTags('`vercel`, gcp'), ['vercel', 'gcp']);
-  // Every row of keel's catalogue: the fingerprint (and guard) of its five-column
+  // Every row of plates's catalogue: the fingerprint (and guard) of its five-column
   // line is the one its four-column line had, and tagging it moves nothing.
   const text = await read('docs/lessons.md');
   const four = text.split('\n').map(l => l.endsWith(' | Where |') ? l.slice(0, -' Where |'.length)
@@ -80,7 +80,7 @@ test('the Where column: parsed when present, absent from a project\'s four colum
     // A numbered row drops its last cell, Where, whatever it holds: tagged rows (11 and 35, web) included.
     : /^\| \d+ \|/.test(l) ? l.replace(/\|[^|]*\|$/, '|') : l).join('\n');
   const tagged = text.replace(/\|[^|]*\|$/gm, m => /^\|\s*(-+|Where)\s*\|$/.test(m) ? m : '| vercel, gcp |');
-  const prints = t => parseLessons(t).rows.map(r => [lessonFingerprint('dalmaer/keel', r), r.guard]);
+  const prints = t => parseLessons(t).rows.map(r => [lessonFingerprint('dalmaer/plates', r), r.guard]);
   assert.equal(parseLessons(four).where, -1, 'the four-column form has no Where');
   assert.ok(prints(text).length >= 56);
   assert.deepEqual(prints(text), prints(four));
@@ -123,15 +123,15 @@ test('the view: universal rows reach every project, a tagged row only its stack,
   assert.deepEqual(ids(['node', 'gcp']), [1, 3, 4], 'a gcp project: universal and gcp rows, no vercel-only row');
   assert.deepEqual(ids(['node']), [1], 'an untagged row reaches every project');
   assert.deepEqual(ids([]), [1], 'no stack: the universal rows');
-  const view = shapeLessonsView('# Lessons from keel\n', { stack: ['vercel'] }, { catalogue: CATALOGUE });
+  const view = shapeLessonsView('# Lessons from plates\n', { stack: ['vercel'] }, { catalogue: CATALOGUE });
   const lines = CATALOGUE.split('\n');
   assert.ok(view.includes(`${lines[2]}\n${lines[3]}\n${lines[4]}\n${lines[5]}\n${lines[7]}\n`), 'the header and rows exactly as the catalogue has them');
   assert.ok(!view.includes('Cloud Build'));
-  assert.match(view, /`vercel`\. 3 of keel's lessons apply/);
+  assert.match(view, /`vercel`\. 3 of plates's lessons apply/);
 });
 
-test('keel\'s own docs/keel-lessons.md is the catalogue filtered for keel\'s stack, and a changed stack is stale', async t => {
-  const config = JSON.parse(await read('.keel/keel.json'));
+test('plates\'s own docs/plates-lessons.md is the catalogue filtered for plates\'s stack, and a changed stack is stale', async t => {
+  const config = JSON.parse(await read('.plates/plates.json'));
   assert.deepEqual(config.stack, ['node', 'github-actions', 'vercel']);
   const view = await read(VIEW);
   const { rows } = viewRows(await read('docs/lessons.md'), config.stack);
@@ -143,21 +143,21 @@ test('keel\'s own docs/keel-lessons.md is the catalogue filtered for keel\'s sta
 
   // A project's view goes stale when its stack changes; render --check names it.
   const dir = await scratch(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
+  await mkdir(join(dir, '.plates'), { recursive: true });
   const acme = { name: 'Acme', tagline: 'Acme. A probe.', practices: ['agents-md', 'lessons'], stack: ['node'] };
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify(acme));
-  await writeFile(join(dir, 'AGENTS.md'), '# Acme\n\n<!-- keel:begin agents-md -->\n<!-- keel:end agents-md -->\n\n<!-- keel:begin lessons -->\n<!-- keel:end lessons -->\n');
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(acme));
+  await writeFile(join(dir, 'AGENTS.md'), '# Acme\n\n<!-- plates:begin agents-md -->\n<!-- plates:end agents-md -->\n\n<!-- plates:begin lessons -->\n<!-- plates:end lessons -->\n');
   await render(dir);
   assert.equal((await render(dir, { check: true })).ok, true);
-  assert.match(await readFile(join(dir, 'AGENTS.md'), 'utf8'), /`docs\/keel-lessons\.md`/, 'the lessons block names the view');
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...acme, stack: ['node', 'vercel'] }));
+  assert.match(await readFile(join(dir, 'AGENTS.md'), 'utf8'), /`docs\/plates-lessons\.md`/, 'the lessons block names the view');
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...acme, stack: ['node', 'vercel'] }));
   const stale = await render(dir, { check: true });
   assert.deepEqual(stale.differs.map(e => e.path), [VIEW]);
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ ...acme, stack: ['netlify'] }));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ ...acme, stack: ['netlify'] }));
   await assert.rejects(render(dir), /"stack" names netlify/);
 });
 
-test('keel learn appends a row with an empty Where to keel\'s catalogue, and four cells to a four-column table', async () => {
+test('plates learn appends a row with an empty Where to plates\'s catalogue, and four cells to a four-column table', async () => {
   const { appendLesson } = await import('../lib/learn.mjs');
   const row = { shape: 'A probe.', cost: 'Acme time.', guard: 'A test.', project: 'acme/notes' };
   const five = appendLesson(CATALOGUE, row);

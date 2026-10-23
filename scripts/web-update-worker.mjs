@@ -12,8 +12,8 @@ try {
     const result = await prepareUpdateTree(root, targetRoot, version, JSON.parse(await readFile(manifest, 'utf8')));
     process.stdout.write(JSON.stringify(result));
   } else {
-    const result = await runUpdateWorker({ origin: process.env.KEEL_WEB_ORIGIN,
-      operationId: process.env.KEEL_WEB_OPERATION, oidcUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
+    const result = await runUpdateWorker({ origin: process.env.PLATES_WEB_ORIGIN ?? process.env.KEEL_WEB_ORIGIN,
+      operationId: process.env.PLATES_WEB_OPERATION ?? process.env.KEEL_WEB_OPERATION, oidcUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
       oidcToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN, sha: process.env.GITHUB_SHA,
       workflowSha: process.env.GITHUB_WORKFLOW_SHA, runAttempt: process.env.GITHUB_RUN_ATTEMPT,
       projectRoot: join(process.env.GITHUB_WORKSPACE, 'project-source'),

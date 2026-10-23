@@ -4,7 +4,7 @@
 
 - **Loose ends**: you sit down after a few days away, or at the end of a
   long one, and want to know what you started and didn't finish, across
-  keel and every project checkout: a chat that stopped mid-work, files never
+  plates and every project checkout: a chat that stopped mid-work, files never
   committed, a branch never merged, a PR waiting, a step only you can take.
 - **The retro**: a phase just finished that changed real code, and you want
   to know what made the work harder than it needed to be, so the next phase
@@ -17,14 +17,14 @@
 Work gets dropped in the gaps between tools: a Claude Code session that
 asked you a question you never saw, a branch from a phase that was
 superseded, a lesson row never sent home. Each lives in a different place,
-and nothing gathers them. `keel loose-ends` reads them all and changes
+and nothing gathers them. `plates loose-ends` reads them all and changes
 nothing:
 
 - **session**: a Claude Code chat that wrote files still uncommitted, whose
   last turn asked you something, or that stopped mid-work. A session whose
   files are all committed is done and never listed.
 - **file**, **branch**, **worktree**, **pr**: uncommitted files, branches
-  not merged, extra worktrees, open PRs of yours or of keel's machine
+  not merged, extra worktrees, open PRs of yours or of plates's machine
   queues.
 - **phase**: a `partial` phase whose next action waits on the owner.
 - **health**, **inbox**, **lessons**: the night's proposal, proposals
@@ -34,19 +34,19 @@ Each item has a short id, one suggested move, and the exact commands for it.
 **Nothing is ever run.** Chat text reaches your screen only, never a file:
 a mark keeps a fingerprint, not your words.
 
-Projects are this one plus each managed repo in `fleet.json` that has a
+Projects are this one plus each managed repo in `plates.json` that has a
 checkout beside it (or under `--root`).
 
 ### The retro
 
-Keel learns from bugs (lessons) and from the night's numbers. Neither sees
+Plates learns from bugs (lessons) and from the night's numbers. Neither sees
 how a working session went: the command that failed and was retried, the
 file read five times because nothing said where the answer was, the
 instruction that did nothing. The retro looks at exactly that, after real
 work, and turns it into at most five candidates for the owner.
 
 - **When**: after a phase whose commit changed more than `docs/`. It is the
-  last step of `/conduct`. On a docs-only range it says so in one line, and
+  last step of `/spin`. On a docs-only range it says so in one line, and
   there is no retro.
 - **What it reads**: the session's transcript and its subagents', counted:
   failed commands retried, tool errors, permission denials, files read three
@@ -66,34 +66,34 @@ positives and keeps fixing them.
 
 ### Bounded session experiments
 
-`keel retro sessions` is a separate, explicit recording protocol for
+`plates retro sessions` is a separate, explicit recording protocol for
 [session handoff trials](session-handoff-trials.md). Its deterministic audit can
 select a policy inside an approved envelope. It does not run the worksheet from
 the night, apply general retro suggestions, or infer acceptance from a merge.
 Mutations preview until `--yes`; read-only audits also appear in
-`keel improve --sessions --json`.
+`plates improve --sessions --json`.
 
 ## The commands
 
 ```bash
-keel loose-ends                       # everything unfinished, here and in each fleet checkout
-keel loose-ends --phase 23            # only what names phase 23
-keel loose-ends mark 3fa9c1 park --reason "after the release" --until 2026-11-01
+plates loose-ends                       # everything unfinished, here and in each fleet checkout
+plates loose-ends --phase 23            # only what names phase 23
+plates loose-ends mark 3fa9c1 park --reason "after the release" --until 2026-11-01
 ```
 
 - `--phase N` when you are about to pick a phase back up and want only its
   threads.
-- `--root <dir>` when your fleet checkouts don't sit beside keel's.
+- `--root <dir>` when your fleet checkouts don't sit beside plates's.
 - `--all` to see what you marked hidden, with each mark.
-- `keel loose-ends mark <id> resume|park|drop --reason "<why>"`: `drop`
+- `plates loose-ends mark <id> resume|park|drop --reason "<why>"`: `drop`
   hides an item for good, `park` until the date (`--until` is required for
   it), `resume` sorts it first. The reason is required because a hidden item
   with no reason is how something gets lost twice. The mark is written in
-  that project's `.keel/loose-ends.json`; commit it.
+  that project's `.plates/loose-ends.json`; commit it.
 
 ```bash
-keel retro --since 4f2c1aa            # the worksheet, from the commit before the phase
-keel retro --session <id>             # a specific session, not the newest
+plates retro --since 4f2c1aa            # the worksheet, from the commit before the phase
+plates retro --session <id>             # a specific session, not the newest
 ```
 
 - `--since <commit>` is the brief's base, the commit before the phase:
@@ -125,10 +125,10 @@ id, commit or session.
 
 ## See also
 
-- [Conduct a phase](conduct-a-phase.md): where the retro sits in the walk.
+- [Spin a phase](spin-a-phase.md): where the retro sits in the walk.
 - [Lessons and learning](lessons-and-learning.md): where a lesson candidate
   goes.
-- `keel --agent-help loose-ends` and `keel --agent-help retro`: the exact
+- `plates --agent-help loose-ends` and `plates --agent-help retro`: the exact
   reference.
 - [`docs/research/2026-10-06-pr-and-retro.md`](../research/2026-10-06-pr-and-retro.md):
   the retro's design.

@@ -1,5 +1,5 @@
-// keel improve reads the test ledger (phase 33): flaky_tests and slow_tests
-// from .keel/test-runs (the night fills it from CI's keel-test-runs
+// plates improve reads the test ledger (phase 33): flaky_tests and slow_tests
+// from .plates/test-runs (the night fills it from CI's plates-test-runs
 // artifacts, then its own gate run adds one), n/a — never zero — with fewer
 // runs than the window; and proofs_hold's ledger half, a cited test that did
 // not pass in the last recorded run of its file.
@@ -9,27 +9,27 @@ import { mkdtemp, readFile, writeFile, rm, mkdir, realpath, cp } from 'node:fs/p
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { measure, MEASURES, proposalText } from '../practices/night/files/scripts/keel/improve.mjs';
-import { record, junitRun as readJunit, JUNIT } from '../practices/night/files/scripts/keel/test-ledger.mjs';
+import { measure, MEASURES, proposalText } from '../practices/night/files/scripts/plates/improve.mjs';
+import { record, junitRun as readJunit, JUNIT } from '../practices/night/files/scripts/plates/test-ledger.mjs';
 import { execFileSync } from 'node:child_process';
 import { ENV, byId, project } from './helpers/improve.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SHIPPED = join(KEEL, 'practices', 'night', 'files', 'scripts', 'keel');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const SHIPPED = join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates');
 const LEDGER = ['flaky_tests', 'slow_tests'];
 const MACHINE = { os: 'linux', arch: 'x64', cpus: 4 };
 
-async function scratch(t, prefix = 'keel-improve-ledger-') {
+async function scratch(t, prefix = 'plates-improve-ledger-') {
   const dir = await realpath(await mkdtemp(join(tmpdir(), prefix)));
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
 
-/** An Acme repo with nothing but a config: the ledger measures read .keel/test-runs alone. */
+/** An Acme repo with nothing but a config: the ledger measures read .plates/test-runs alone. */
 async function acme(t, tests) {
   const dir = await scratch(t);
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night'], ...(tests ? { tests } : {}) }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night'], ...(tests ? { tests } : {}) }));
   return dir;
 }
 
@@ -42,7 +42,7 @@ async function put(dir, { tree = 'acmetree1', dirty = false, machine = MACHINE, 
 }
 
 const read = async (dir, mod = { measure, MEASURES }, ids = LEDGER) => {
-  const config = JSON.parse(await readFile(join(dir, '.keel', 'keel.json'), 'utf8'));
+  const config = JSON.parse(await readFile(join(dir, '.plates', 'plates.json'), 'utf8'));
   const results = await mod.measure({ root: dir, config, env: ENV, measures: mod.MEASURES.filter(m => ids.includes(m.id)) });
   return { measures: results };
 };
@@ -54,7 +54,7 @@ async function assertTooFew(dir, mod) {
     const m = byId(data, id);
     assert.equal(m.state, 'n/a', `${id}: ${m.detail}`);
     assert.equal(m.value, null, id);
-    assert.match(m.detail, /recorded runs in \.keel\/test-runs: 2, fewer than the window of 3; n\/a until there are 3 .*never a zero/, id);
+    assert.match(m.detail, /recorded runs in \.plates\/test-runs: 2, fewer than the window of 3; n\/a until there are 3 .*never a zero/, id);
   }
 }
 
@@ -110,7 +110,7 @@ test('slow_tests counts the baseline slower() judges by, the same machine AND co
 
 test('mutation: counting same-machine runs alone (any config) reads 0 for the mixed history, and fails the n/a test', async t => {
   const dir = await mixedConfigs(t);
-  const copy = await scratch(t, 'keel-improve-mutant-');
+  const copy = await scratch(t, 'plates-improve-mutant-');
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
@@ -121,11 +121,11 @@ test('mutation: counting same-machine runs alone (any config) reads 0 for the mi
   await assert.rejects(assertMixedNa(dir, mutant), assert.AssertionError);
 });
 
-test('a history of the nights\' own runs only says so: CI does not upload keel-test-runs; one CI or local run among them, and it does not', async t => {
+test('a history of the nights\' own runs only says so: CI does not upload plates-test-runs; one CI or local run among them, and it does not', async t => {
   const dir = await acme(t, { window: 3 });
-  for (let i = 0; i < 3; i++) await put(dir, { workflow: 'keel-night', tests: { 'an anvil drops': ['pass', 400] } });
+  for (let i = 0; i < 3; i++) await put(dir, { workflow: 'plates-night', tests: { 'an anvil drops': ['pass', 400] } });
   let data = await read(dir);
-  for (const id of LEDGER) assert.match(byId(data, id).detail, /nightly runs only: CI does not upload keel-test-runs/, id);
+  for (const id of LEDGER) assert.match(byId(data, id).detail, /nightly runs only: CI does not upload plates-test-runs/, id);
   assert.equal(byId(data, 'flaky_tests').state, 'ok', 'a note, never a state');
   await put(dir, { workflow: 'check', tests: { 'an anvil drops': ['pass', 400] } });
   data = await read(dir);
@@ -135,7 +135,7 @@ test('a history of the nights\' own runs only says so: CI does not upload keel-t
   assert.doesNotMatch(byId(await read(local), 'flaky_tests').detail, /nightly runs only/, 'a local run (no workflow) is not a night\'s');
 });
 
-test('a bad .keel/keel.json "tests" breaks both measures; it is never read as a zero', async t => {
+test('a bad .plates/plates.json "tests" breaks both measures; it is never read as a zero', async t => {
   for (const window of [1, 201]) {
     const dir = await acme(t, { window });
     for (const id of LEDGER) {
@@ -166,7 +166,7 @@ test('slow_tests compares within a lane: 20 root runs and one web/ run under one
 
 test('mutation: comparable runs by config alone (any folder) judges the web run against the root, and fails the lane test', async t => {
   const dir = await rootThenWeb(t);
-  const copy = await scratch(t, 'keel-improve-mutant-');
+  const copy = await scratch(t, 'plates-improve-mutant-');
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'test-ledger.mjs');
   const text = await readFile(file, 'utf8');
@@ -179,13 +179,13 @@ test('mutation: comparable runs by config alone (any folder) judges the web run 
 
 // ---- bun and vitest (phase 59): the ledger's --junit records, read the same way ----
 
-const JUNIT_FIXTURES = join(KEEL, 'tests', 'fixtures', 'junit');
+const JUNIT_FIXTURES = join(PLATES, 'tests', 'fixtures', 'junit');
 /** The fixture with every failure taken out: the same tests, all passing (or skipped). */
 const passing = xml => xml.replace(/<failure\b[^>]*\/>/g, '').replace(/<failure\b[^>]*>[\s\S]*?<\/failure>/g, '');
 /** The fixture with slow-ish taking `ms`. */
 const slowIsh = (xml, ms) => xml.replace(/(name="slow-ish"[^>]*?time=")[0-9.]+/, `$1${ms / 1000}`);
 
-/** An Acme git repo on one clean commit, its .keel/keel.json among it: the ledger's own runs need a tree. */
+/** An Acme git repo on one clean commit, its .plates/plates.json among it: the ledger's own runs need a tree. */
 async function acmeRepo(t, tests) {
   const dir = await acme(t, tests);
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -197,7 +197,7 @@ async function acmeRepo(t, tests) {
 
 /** One run of `runner`, through the ledger's own --junit reading of a fixture variant. */
 async function junitRun(dir, runner, xml) {
-  await mkdir(join(dir, '.keel', 'test-runs'), { recursive: true });
+  await mkdir(join(dir, '.plates', 'test-runs'), { recursive: true });
   await writeFile(join(dir, JUNIT), xml);
   const r = await readJunit({ runner, cwd: dir, start: null, sample: async () => ({ load: [0, 0, 0], cores: 4 }) });
   assert.ok(!r.lines.some(l => /could not|not JUnit|already recorded/.test(l)), r.lines.join('\n'));
@@ -258,7 +258,7 @@ test('runs of two runners are never compared: node\'s history is not a bun run\'
 
 test('mutation: a lane without the runner judges the bun run against node\'s, and fails the runners test', async t => {
   const dir = await runnersApart(t);
-  const copy = await scratch(t, 'keel-improve-mutant-');
+  const copy = await scratch(t, 'plates-improve-mutant-');
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'test-ledger.mjs');
   const text = await readFile(file, 'utf8');
@@ -275,7 +275,7 @@ test('mutation: a ledger measure that returns 0 instead of n/a with too few runs
   await put(dir, { tests: { 'an anvil drops': ['pass', 400] } });
   await assertTooFew(dir);
   // A copy of the shipped scripts with the n/a guard turned into a zero.
-  const copy = await scratch(t, 'keel-improve-mutant-');
+  const copy = await scratch(t, 'plates-improve-mutant-');
   await cp(SHIPPED, copy, { recursive: true });
   const file = join(copy, 'improve.mjs');
   const text = await readFile(file, 'utf8');
@@ -300,7 +300,7 @@ test('proofs_hold\'s ledger half: a cited test that did not pass in the newest r
 
   let m = await proofs();
   assert.equal(m.state, 'ok', m.detail);
-  assert.match(m.detail, /the ledger half is n\/a: no recorded test run in \.keel\/test-runs$/);
+  assert.match(m.detail, /the ledger half is n\/a: no recorded test run in \.plates\/test-runs$/);
 
   const at = (outcome, name = 'orders an anvil') => ({ commit: 'c', tree: 't', dirty: false, machine: MACHINE, node: 'v24.21.0', date: new Date(Date.UTC(2026, 9, 2) + (minute++) * 60_000).toISOString(), tests: [{ file: 'tests/acme-orders.test.mjs', name, outcome, ms: 3 }] });
   await record(dir, at('pass'));

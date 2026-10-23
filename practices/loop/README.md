@@ -38,11 +38,11 @@ ours, not Loop's** (`now`, `next`, `later`, `never`; Loop's P/S rank is kept in
   labelled as data, never instructions. The model answers with its proposal
   as JSON, and `loop.mjs` records it through its own `propose` and its checks;
   the model never runs a command, decides or pushes. `pull` does the same
-  after filing, unless `--no-prove`. Off unless `.keel/keel.json` `"loop"
+  after filing, unless `--no-prove`. Off unless `.plates/plates.json` `"loop"
   "prove": true` **and** `ANTHROPIC_API_KEY` is set (as isocan keys it); the
   harness is `CLAUDE_BIN` or `claude`. Otherwise it skips and says so once. A
-  run that leaves no valid proposal is reported, not counted. keel's
-  `keel-loop.yml` does not pass the key: model spend is the owner's ⚑ step.
+  run that leaves no valid proposal is reported, not counted. plates's
+  `plates-loop.yml` does not pass the key: model spend is the owner's ⚑ step.
 
 **The hedge rule** (opt-in, `"loop" "hedge": true`; from isocan, phase 28).
 A read that says "did not check", "not run", "unverified" and the like is a
@@ -53,24 +53,24 @@ whose reads describe untested code.
 What Loop sends is data, never instructions.
 
 **The gate.** The managed `tests/loop.test.mjs` runs `render --check`, so a
-gate that runs `node --test tests/*.test.mjs` (keel's base package.json does)
-holds it. No edit to the project's own `check` is needed. `keel doctor` lints
+gate that runs `node --test tests/*.test.mjs` (plates's base package.json does)
+holds it. No edit to the project's own `check` is needed. `plates doctor` lints
 a loop-on project whose gate reaches neither that test nor
 `loop.mjs render --check` (`loop-gate`). It also lints one whose `.stitch.json`
 names no workspace (`loop-workspace`). This replaces a lint that only asked
 whether `check` mentions loop: a gate behind `npm test` is seen through.
 
-**Switching it on.** It is optional. `keel init` leaves it off, and so does
-`keel adopt` unless the project has a `.stitch.json` and no Loop triage of its
+**Switching it on.** It is optional. `plates init` leaves it off, and so does
+`plates adopt` unless the project has a `.stitch.json` and no Loop triage of its
 own. A project that already triages Loop (its own `scripts/loop.*`, or a
 workflow that runs one) is a local variant: nothing is installed and its
-findings are untouched. The convergence proposal is to render with keel's
-script in a copy, compare, set `"loop"` in `.keel/keel.json`, and retire its own.
+findings are untouched. The convergence proposal is to render with plates's
+script in a copy, compare, set `"loop"` in `.plates/plates.json`, and retire its own.
 To switch it on later, add the Loop workspace id to `.stitch.json` and run
-`keel adopt` again: it appends the `loop` markers to the selected working guide. Or add `loop`
-to `practices` and the markers by hand, then `keel render`.
+`plates adopt` again: it appends the `loop` markers to the selected working guide. Or add `loop`
+to `practices` and the markers by hand, then `plates render`.
 
-`.keel/keel.json` `"loop"` (all optional) keeps a project's wording:
+`.plates/plates.json` `"loop"` (all optional) keeps a project's wording:
 `name` (the name Loop sees, default the config's `name`; ledger's is
 `Ledger`), `run` (the command the page names, default `node scripts/loop.mjs`;
 ledger's is `npm run loop --`), `insights` (the Loop link, default
@@ -83,16 +83,16 @@ lessons link on the page follows the config's `lessons` path (default
 
 **Where the work lives** (phase 28, 5 Oct 2026). A finding names a `phase` (a
 `docs/phases/` number, or `new`) and the page groups accepted work "by
-phase". In a projects-shaped repo (`.keel/keel.json` `"phases": {"shape":
+phase". In a projects-shaped repo (`.plates/plates.json` `"phases": {"shape":
 "projects"}`) it names a `project` instead (a `docs/projects/<name>/`
 directory, or `new`): `propose`/`decide` take `--project` and refuse
 `--phase` (and the other way round, exit 2), the page groups "Accepted, by
 project" with a link to each directory, the triage context names the
 project, and `render --check` fails on a project that is not a directory.
-Rendered with keel's script and isocan's `intro`, isocan's 85 findings give
+Rendered with plates's script and isocan's `intro`, isocan's 85 findings give
 its own `docs/LOOP.md` byte for byte (the evidence is
-`docs/evidence/2026-10-05-loop-findings-name-a-project.md` in keel). One
-difference stays: keel writes a finding's front matter as ledger's does
+`docs/evidence/2026-10-05-loop-findings-name-a-project.md` in plates). One
+difference stays: plates writes a finding's front matter as ledger's does
 (`loop` as a list), so the first `propose` or `decide` reformats an isocan
 finding it touches; the page does not change.
 
@@ -100,7 +100,7 @@ finding it touches; the page does not change.
 "command" }]` (and optional `annotations`, default `{<name>: <source after
 its last colon>}`) are Loop contexts beyond the triage one. On `push`, every
 command runs first, in the gate's environment (`NODE_TEST_*` stripped,
-`.keel/keel.json` `env` over it); its stdout, less trailing whitespace, is the
+`.plates/plates.json` `env` over it); its stdout, less trailing whitespace, is the
 context's data, created or replaced exactly as the triage context is (the same
 dry-run line). A command that fails stops the push before anything reaches
 Loop; one that prints nothing is not sent, and the push says so. Ledger's is
@@ -122,11 +122,11 @@ runner, and main's is stale until someone reruns it by hand (ledger, 3 Oct
 2026). Each must be a plain repo-relative file path: no `..`, no `.github/`,
 no glob or whitespace.
 
-**Switching it on in an adopted project.** `keel adopt --with loop` adds only
+**Switching it on in an adopted project.** `plates adopt --with loop` adds only
 this practice and leaves every other byte; it refuses while the project's
 own `scripts/loop.*` is still there.
 
-**The night.** `keel-loop.yml` runs at 09:43 UTC and does the following:
+**The night.** `plates-loop.yml` runs at 09:43 UTC and does the following:
 
 1. Installs the official stitch CLI, `npm install -g @google/stitch@0`
    (major 0, checked against 0.11.0; a 1.0 never arrives unseen).
@@ -134,12 +134,12 @@ own `scripts/loop.*` is still there.
 3. Runs the gate: `render --check`, then the project's `{{check}}`.
 4. Opens one `keel-loop/<date>` PR when `docs/loop/`, `docs/LOOP.md` or an
    `afterRenderWrites` file changed, holding all of them.
-5. Runs `node scripts/keel/drain.mjs keel-loop/ --yes`, with `--gate-passed`
+5. Runs `node scripts/plates/drain.mjs keel-loop/ --yes`, with `--gate-passed`
    only when the gate passed.
 
 For this queue the drain's data is `docs/loop/`, `docs/LOOP.md` and the
 `afterRenderWrites` files only (`DATA_BY_PREFIX` and `extraData` in the night
-practice's `scripts/keel/drain.mjs`, which
+practice's `scripts/plates/drain.mjs`, which
 the workflow runs from the project's own checkout; without the night practice
 there is no drain, and the run says so with a notice). The workflow never
 decides, pushes, mines or proposes. Proposing with a model is a later
@@ -156,14 +156,14 @@ Allow Actions to create PRs. Every `decide --yes`, `push --yes` or `mine --yes`
 against a real workspace is the owner's.
 
 **Its files.** `scripts/loop.mjs`, `tests/loop.test.mjs`,
-`.github/workflows/keel-loop.yml` (managed); `.stitch.json` (seeded,
+`.github/workflows/plates-loop.yml` (managed); `.stitch.json` (seeded,
 `{"workspace": ""}`: a practice cannot know the id); `docs/loop/README.md`
 (seeded); the selected working guide’s `loop` block.
 
 ## Whose shape won (settled 2026-10-02, phase 14)
 
 Ledger's, because ledger holds 132 findings whose `docs/LOOP.md` must still
-render the same. Rendered with keel's script, ledger's findings give a page
+render the same. Rendered with plates's script, ledger's findings give a page
 whose 179 lines after the first are byte-identical to ledger's own render. The
 first line differs, because it names the generating script (`scripts/loop.mjs`,
 not `scripts/loop.ts`). That one line changes when ledger retires its script.
@@ -174,7 +174,7 @@ bytes unchanged.
 | Where they differ | ledger | isocan | Taken |
 | --- | --- | --- | --- |
 | Front matter | YAML via the `yaml` package; `loop` a list | flat lines, quoted fields, `loop` comma-separated | ledger's, written byte-identically with no dependency (all 132 round-trip); isocan's comma form is read as a list |
-| A finding's home | `phase` (a `docs/phases/` number, or `new`) | `project` (a `docs/projects/` dir) | both, by the repo's shape (phase 28): `phase` by default, `project` where `.keel/keel.json` says `"phases": {"shape": "projects"}` |
+| A finding's home | `phase` (a `docs/phases/` number, or `new`) | `project` (a `docs/projects/` dir) | both, by the repo's shape (phase 28): `phase` by default, `project` where `.plates/plates.json` says `"phases": {"shape": "projects"}` |
 | The read rule | none | rejects "Not yet checked" reads, and reads that say "unverified", "not run", … | the first always; the hedge regex opt-in (`loop.hedge`, phase 28), because it flags 7 of ledger's findings whose reads describe untested code |
 | `--read` on propose | free text | free text (its model prompt asks for file:line) | must cite `file:line`, checked at propose (the brief's rule) |
 | `loop_goal` | the priority id | the priority's name (an extra `find priorities` per pull) | ledger's: one fetch per pull, consistent with existing findings |
@@ -186,29 +186,29 @@ bytes unchanged.
 | After render | runs ledger's roadmap (it counts findings per phase) | runs isocan's roadmap | `loop.afterRender`, the project's command; `phaseCounts` is exported for a roadmap that counts (phase 20) |
 | Outward verbs | `decide` pushes by default | same | `decide`, `push` and `mine` need `--yes` (exit 3) |
 
-**Lineage.** Keel phase 14. Ported from `dalmaer/ledger` `scripts/loop.ts` and
+**Lineage.** Plates phase 14. Ported from `dalmaer/ledger` `scripts/loop.ts` and
 `core/loop.ts` at `fd70d6f1` (the owner's), with isocan's additions from
 `dglazkov/isocan` `scripts/loop.mjs` and `packages/core/src/loop.ts` at
 `92bec34f7` (Apache-2.0, Copyright Dimitri Glazkov), credited in the script's
 header. `practice.json` carries no `source` yet: a pinned source is watched by
-`keel learn` every night, and whether keel learns from isocan's or ledger's
+`plates learn` every night, and whether plates learns from isocan's or ledger's
 loop script that way is still open (phase 14, *Deliberately open*). The nightly's install and enable steps, the env aliases and the
 skip-with-a-notice are from isocan's `.github/workflows/loop.yml`.
 
-**Ancestors (phase 16, 3 Oct 2026).** What keel decided for the projects this
+**Ancestors (phase 16, 3 Oct 2026).** What plates decided for the projects this
 practice came from, where each keeps a version of its own:
 
-- **ledger**: *converges* (no migration needed). Keel's `scripts/loop.mjs` is
+- **ledger**: *converges* (no migration needed). Plates's `scripts/loop.mjs` is
   the port of ledger's `scripts/loop.ts` and renders ledger's `docs/LOOP.md`
   identically but for the generated-by line (phase 14). Phase 20 ported what
   the first port left out: the telemetry context (`loop.contexts`, sending the
   same bytes) and the roadmap's Loop counts (`phaseCounts`, `afterRender`).
-  Retiring ledger's script for keel's is the owner's PR, not a migration.
+  Retiring ledger's script for plates's is the owner's PR, not a migration.
 - **isocan**: *stays local* until it retires its own. Its `scripts/loop.mjs`
-  is its own; since phase 28 keel's renders isocan's findings to isocan's page
+  is its own; since phase 28 plates's renders isocan's findings to isocan's page
   byte for byte (with `loop.intro` set), so retiring it is the owner's PR.
   isocan sets `loop.hedge` and `loop.prove` to keep its hedge rule and its
-  model proving. Which loop script keel pins as a source is still open
+  model proving. Which loop script plates pins as a source is still open
   (phase 14).
 
 ### Collection and validation are separate outcomes

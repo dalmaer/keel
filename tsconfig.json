@@ -11,8 +11,8 @@
     "exactOptionalPropertyTypes": true
   },
   "include": [
-    "practices/night/files/scripts/keel/time-receipts.mjs",
-    "practices/climb/files/scripts/keel/robot-policy.mjs",
+    "practices/night/files/scripts/plates/time-receipts.mjs",
+    "practices/climb/files/scripts/plates/robot-policy.mjs",
     "type-tests/**/*.mts"
   ]
 }

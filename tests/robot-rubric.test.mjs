@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateRobotRubric, formatRobotRubric, parseRobotRubric, ROBOT_RUBRIC_LIMITS } from '../practices/climb/files/scripts/keel/robot-rubric.mjs';
+import { validateRobotRubric, formatRobotRubric, parseRobotRubric, ROBOT_RUBRIC_LIMITS } from '../practices/climb/files/scripts/plates/robot-rubric.mjs';
 const rubric = { version: 1, problem: 'Acme loses equal keys.', reproduction: 'node --test tests/acme.test.mjs', acceptance: 'Both rows survive.', change: 'Fix one equality branch.', prerequisites: [], ownerBlockers: [] };
 
 test('robot rubric round trips all fields and prevents marker injection', () => {

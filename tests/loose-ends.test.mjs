@@ -1,4 +1,4 @@
-// keel loose-ends (phase 24): synthetic Claude Code transcripts, built from
+// plates loose-ends (phase 24): synthetic Claude Code transcripts, built from
 // the real format's shapes (entry types and field names, never a real
 // session's words), synthetic git repos laid out the way a person's code
 // directory is, and a stub gh. Fixtures are Acme.
@@ -12,12 +12,12 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { run as runCmd, cleanEnv } from './helpers/run.mjs';
 import { looseEnds, mark, encodeDir, parseSession, MARKS } from '../lib/looseends.mjs';
-import { readMilestones } from '../practices/night/files/scripts/keel/milestones.mjs';
+import { readMilestones } from '../practices/night/files/scripts/plates/milestones.mjs';
 import { response } from './helpers/milestones.mjs';
 import { formatProposal } from '../lib/learn.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const BIN = join(KEEL, 'bin', 'keel.mjs');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const BIN = join(PLATES, 'bin', 'plates.mjs');
 const MARKER = 'ACME-CHAT-PRIVATE-4e1d-Wren-at-Gullhaven';
 const DAY = 86_400_000;
 
@@ -160,15 +160,15 @@ ${next}
 `;
 
 async function world(t, { marker = 'Acme' } = {}) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-loose-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-loose-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const code = join(base, 'code'), claude = join(base, 'claude'), bin = join(base, 'bin');
   await mkdir(bin, { recursive: true });
-  const home = join(code, 'keel'), app = join(code, 'app'), nested = join(code, 'group', 'nested');
-  await repo(home, 'acme/keel', {
-    '.keel/keel.json': JSON.stringify({ name: 'Acme keel', repo: 'acme/keel', inbox: 'acme/keel-inbox', practice: '0.6.0', practices: ['phases'] }),
-    'fleet.json': JSON.stringify([
-      { repo: 'acme/keel', kind: 'node', role: 'managed', note: 'home' },
+  const home = join(code, 'plates'), app = join(code, 'app'), nested = join(code, 'group', 'nested');
+  await repo(home, 'acme/plates', {
+    '.plates/plates.json': JSON.stringify({ name: 'Acme plates', repo: 'acme/plates', inbox: 'acme/plates-inbox', practice: '0.6.0', practices: ['phases'] }),
+    'plates.json': JSON.stringify([
+      { repo: 'acme/plates', kind: 'node', role: 'managed', note: 'home' },
       { repo: 'acme/app', kind: 'web', role: 'managed', note: 'an app' },
       { repo: 'acme/nested', kind: 'static', role: 'managed', note: 'one level down' },
       { repo: 'acme/gone', kind: 'web', role: 'managed', note: 'not on this machine' },
@@ -249,17 +249,17 @@ async function world(t, { marker = 'Acme' } = {}) {
       { nameWithOwner: 'acme-owner/shelved', createdAt: new Date(Date.now() - DAY).toISOString(), isArchived: true },
     ],
   });
-  // Each world keeps its own GitHub reads (keel's cache, 10 minutes): never another test's.
-  const env = { ...cleanEnv(), KEEL_GH: gh.path, KEEL_CLAUDE_DIR: claude, KEEL_CACHE: join(base, 'keel-cache') };
+  // Each world keeps its own GitHub reads (plates's cache, 10 minutes): never another test's.
+  const env = { ...cleanEnv(), PLATES_GH: gh.path, PLATES_CLAUDE_DIR: claude, PLATES_CACHE: join(base, 'plates-cache') };
   return { base, code, claude, home, app, nested, ids, gh, env };
 }
 
-const keel = (w, args, env = w.env) => {
+const plates = (w, args, env = w.env) => {
   const r = runCmd(process.execPath, [BIN, 'loose-ends', ...args], { cwd: w.home, env });
   return { code: r.status, out: r.stdout, err: r.stderr };
 };
 const json = (w, args = [], env) => {
-  const r = keel(w, [...args, '--json'], env);
+  const r = plates(w, [...args, '--json'], env);
   assert.equal(r.code, 0, r.out + r.err);
   return JSON.parse(r.out);
 };
@@ -311,25 +311,25 @@ test('synthetic transcripts and repos give the right items; committed work and f
   // Reviews: a PR with a comment unanswered for a day or more, with the command that reads it; a resolved one is not counted.
   const reviews = app.items.filter(i => i.kind === 'review');
   assert.deepEqual(reviews.map(i => [i.title, i.count, i.phase]), [['1 review comment unanswered on #1: Acme phase 7: the widget', 1, 7]]);
-  assert.deepEqual(reviews[0].commands, ['keel review acme/app#1']);
+  assert.deepEqual(reviews[0].commands, ['plates review acme/app#1']);
   assert.match(reviews[0].move, /validate each against the code, then answer it/);
 
-  // keel's row: the practice, and a new repo the fleet does not know.
-  const home = project(d, 'acme/keel');
+  // plates's row: the practice, and a new repo the fleet does not know.
+  const home = project(d, 'acme/plates');
   assert.equal(home.dir, w.home);
   assert.deepEqual(home.items.filter(i => i.kind === 'phase').map(i => i.phase), [5], 'partial and the owner\'s; not an agent\'s step, not a planned phase');
-  assert.match(item(d, 'acme/keel', 'health:phases_without_issue').title, /2026-10-01/, 'the newest page\'s proposal only');
-  assert.ok(!item(d, 'acme/keel', 'health:gate'));
-  assert.equal(item(d, 'acme/keel', 'inbox:proposed').title, '1 inbox proposal waiting for a decision');
+  assert.match(item(d, 'acme/plates', 'health:phases_without_issue').title, /2026-10-01/, 'the newest page\'s proposal only');
+  assert.ok(!item(d, 'acme/plates', 'health:gate'));
+  assert.equal(item(d, 'acme/plates', 'inbox:proposed').title, '1 inbox proposal waiting for a decision');
   assert.deepEqual(home.items.filter(i => i.kind === 'repo').map(i => i.title), ['acme-owner/walk'], 'new, unknown, not archived');
-  assert.ok(!home.items.some(i => i.kind === 'session'), 'no transcripts for keel here');
+  assert.ok(!home.items.some(i => i.kind === 'session'), 'no transcripts for plates here');
 
   // Checkouts: one level down is found; one not on the machine says so; a source is never scanned.
   assert.equal(project(d, 'acme/nested').dir, w.nested);
   assert.deepEqual(project(d, 'acme/nested').items, []);
   assert.deepEqual([project(d, 'acme/gone').checkout, project(d, 'acme/gone').dir], [false, null]);
   assert.ok(!project(d, 'acme/source'));
-  const text = keel(w, []).out;
+  const text = plates(w, []).out;
   assert.match(text, /^acme\/gone — no local checkout$/m);
   assert.match(text, /^acme\/nested — .*\n  nothing loose$/m);
   assert.match(text, /^ phase 7:$/m, 'listed under its phase');
@@ -339,7 +339,7 @@ test('synthetic transcripts and repos give the right items; committed work and f
   assert.deepEqual(seven.projects.flatMap(p => p.items.map(i => i.kind)).sort(), ['branch', 'pr', 'review', 'session']);
   const elsewhere = json(w, ['--root', join(w.base, 'bin')]);
   assert.equal(project(elsewhere, 'acme/app').checkout, false);
-  assert.equal(project(elsewhere, 'acme/keel').checkout, true, 'keel itself is always scanned');
+  assert.equal(project(elsewhere, 'acme/plates').checkout, true, 'plates itself is always scanned');
 });
 
 test('each item\'s move and commands fit its kind, and nothing is run', async t => {
@@ -347,7 +347,7 @@ test('each item\'s move and commands fit its kind, and nothing is run', async t 
   const before = git(w.app, 'status', '--porcelain');
   const d = json(w);
   const { app, ids } = { app: w.app, ids: w.ids };
-  const at = fp => item(d, 'acme/app', fp) ?? item(d, 'acme/keel', fp);
+  const at = fp => item(d, 'acme/app', fp) ?? item(d, 'acme/plates', fp);
   assert.deepEqual(at(`session:${ids.question}`).commands, [`cd ${app} && claude --resume ${ids.question}`]);
   assert.equal(at(`session:${ids.question}`).move, 'answer it');
   assert.equal(at(`session:${ids.midwork}`).move, 'resume it where it stopped');
@@ -360,7 +360,7 @@ test('each item\'s move and commands fit its kind, and nothing is run', async t 
   assert.deepEqual(at('pr:https://github.com/acme/app/pull/1').commands, ['gh pr view https://github.com/acme/app/pull/1', 'gh pr checks https://github.com/acme/app/pull/1']);
   assert.deepEqual(at('phase:5').commands, [`less ${join(w.home, 'docs/phases/05-owner-step.md')}`]);
   assert.deepEqual(at('health:phases_without_issue').commands, [`less ${join(w.home, 'docs/health/2026-10-01.md')}`]);
-  assert.deepEqual(at('inbox:proposed').commands, [`cd ${w.home} && keel learn`]);
+  assert.deepEqual(at('inbox:proposed').commands, [`cd ${w.home} && plates learn`]);
   assert.match(at('repo:acme-owner/walk').move, /⚑ yours/);
   // Only reads: gh was asked, never told; the repos are as they were.
   assert.deepEqual((await w.gh.calls()).map(c => c.slice(0, 2).join(' ')).filter(c => !['api user', 'pr list', 'repo list', 'api graphql'].includes(c)), []);
@@ -370,20 +370,20 @@ test('each item\'s move and commands fit its kind, and nothing is run', async t 
 
 test('offline: GitHub not checked, and the rest still listed', async t => {
   const w = await world(t);
-  const d = json(w, [], { ...w.env, KEEL_GH: w.gh.offline });
+  const d = json(w, [], { ...w.env, PLATES_GH: w.gh.offline });
   assert.match(project(d, 'acme/app').github, /^GitHub not checked: error connecting/);
   assert.ok(!project(d, 'acme/app').items.some(i => i.kind === 'pr' || i.kind === 'repo'));
   assert.ok(item(d, 'acme/app', `session:${w.ids.question}`));
-  assert.match(keel(w, [], { ...w.env, KEEL_GH: w.gh.offline }).out, /^acme\/app — .*\(GitHub not checked: /m);
+  assert.match(plates(w, [], { ...w.env, PLATES_GH: w.gh.offline }).out, /^acme\/app — .*\(GitHub not checked: /m);
 });
 
 test('PR103: source gaps ignore persisted marks and reject new marks without writing', async t => {
   const w = await world(t);
-  await mkdir(join(w.app, '.keel'), { recursive: true });
+  await mkdir(join(w.app, '.plates'), { recursive: true });
   const config = { name: 'Acme', repo: 'acme/app', practices: ['base'], phases: { source: 'milestones' } };
   const options = { home: w.home, env: w.env };
   for (const source of ['open', 'closed', 'unavailable']) {
-    await writeFile(join(w.app, '.keel/keel.json'), JSON.stringify({ ...config, ...(source === 'unavailable' ? { repo: 'invalid' } : {}) }));
+    await writeFile(join(w.app, '.plates/plates.json'), JSON.stringify({ ...config, ...(source === 'unavailable' ? { repo: 'invalid' } : {}) }));
     if (source !== 'unavailable') await readMilestones(config, {
       env: w.env, fresh: true, guard: async () => null,
       graphql: async () => response([], { [source]: true }),
@@ -413,22 +413,22 @@ test('marks persist across runs: drop never comes back, park comes back after it
 
   for (const [args, why] of [[[q.id, 'drop'], /--reason/], [[q.id, 'park', '--reason', 'later'], /park needs --until/], [[q.id, 'park', '--reason', 'x', '--until', 'soon'], /YYYY-MM-DD/],
     [[q.id, 'resume', '--reason', 'x', '--until', '2026-12-01'], /--until goes with park/], [['ffffff', 'drop', '--reason', 'x'], /no loose end ffffff/], [[q.id, 'finish', '--reason', 'x'], /one of resume, park, drop/]]) {
-    const r = keel(w, ['mark', ...args, '--json']);
+    const r = plates(w, ['mark', ...args, '--json']);
     assert.equal(r.code, 2, `${args.join(' ')}: ${r.out}`);
     assert.match(JSON.parse(r.out).error, why);
   }
   await assert.rejects(readFile(join(w.app, MARKS)), { code: 'ENOENT' }, 'a refused mark writes nothing');
 
-  const marked = JSON.parse(keel(w, ['mark', q.id, 'drop', '--reason', 'answered on the phone', '--json']).out);
+  const marked = JSON.parse(plates(w, ['mark', q.id, 'drop', '--reason', 'answered on the phone', '--json']).out);
   assert.equal(marked.file, join(w.app, MARKS));
   // The shortest prefix of four or more that names b alone: ids hash fixture values that include random
   // session ids, so a fixed four characters is ambiguous now and then, and mark rightly refuses it.
   const ids = d.projects.flatMap(p => p.items).map(i => i.id);
   let n = 4; while (ids.filter(id => id.startsWith(b.id.slice(0, n))).length > 1) n++;
-  const short = keel(w, ['mark', b.id.slice(0, n), 'park', '--reason', 'after the trip', '--until', '2999-01-01']);
+  const short = plates(w, ['mark', b.id.slice(0, n), 'park', '--reason', 'after the trip', '--until', '2999-01-01']);
   assert.equal(short.code, 0, `an id prefix of four or more will do (${b.id.slice(0, n)}): ${short.out}${short.err ?? ''}`);
-  assert.equal(keel(w, ['mark', f.id, 'park', '--reason', 'already due', '--until', '2020-01-01']).code, 0);
-  assert.equal(keel(w, ['mark', pr.id, 'resume', '--reason', 'first thing']).code, 0);
+  assert.equal(plates(w, ['mark', f.id, 'park', '--reason', 'already due', '--until', '2020-01-01']).code, 0);
+  assert.equal(plates(w, ['mark', pr.id, 'resume', '--reason', 'first thing']).code, 0);
   const saved = JSON.parse(await readFile(join(w.app, MARKS), 'utf8'));
   assert.deepEqual(saved.marks.map(m => [m.fingerprint, m.move, m.until ?? null]), [
     [`session:${w.ids.question}`, 'drop', null], ['branch:acme/wt', 'park', '2999-01-01'], ['file:notes.txt:untracked', 'park', '2020-01-01'], [pr.fingerprint, 'resume', null]]);
@@ -441,8 +441,8 @@ test('marks persist across runs: drop never comes back, park comes back after it
   assert.ok(item(again, 'acme/app', f.fingerprint), 'a park whose date has passed is back');
   assert.equal(app.items[0].fingerprint, pr.fingerprint, 'resume sorts first');
   assert.equal(again.hidden, 2);
-  assert.match(keel(w, []).out, /^ resume first:\n  [0-9a-f]{6}  pr /m);
-  assert.match(keel(w, []).out, /2 parked or dropped \(--all shows them\)/);
+  assert.match(plates(w, []).out, /^ resume first:\n  [0-9a-f]{6}  pr /m);
+  assert.match(plates(w, []).out, /2 parked or dropped \(--all shows them\)/);
 
   // --all shows the hidden, with their marks; time passing brings the park back, never the drop.
   const all = json(w, ['--all']);
@@ -452,23 +452,23 @@ test('marks persist across runs: drop never comes back, park comes back after it
   assert.ok(item(future.data, 'acme/app', b.fingerprint), 'the park is over');
   assert.ok(!item(future.data, 'acme/app', q.fingerprint), 'a drop is for good');
   // A re-mark replaces the old one.
-  keel(w, ['mark', q.id, 'resume', '--reason', 'it came back']);
+  plates(w, ['mark', q.id, 'resume', '--reason', 'it came back']);
   assert.equal(JSON.parse(await readFile(join(w.app, MARKS), 'utf8')).marks.filter(m => m.fingerprint === q.fingerprint).length, 1);
   assert.ok(item(json(w), 'acme/app', q.fingerprint));
 });
 
 test('the leak test: a chat\'s words reach the terminal and no file, through listing and marking', async t => {
   const w = await world(t, { marker: MARKER });
-  const out = keel(w, []);
+  const out = plates(w, []);
   assert.equal(out.code, 0, out.err);
   assert.ok(out.out.includes(MARKER), 'the name is the person\'s own words, on their own terminal');
   const d = json(w);
   assert.ok(JSON.stringify(d).includes(MARKER));
   for (const s of project(d, 'acme/app').items.filter(i => i.kind === 'session')) {
-    assert.equal(keel(w, ['mark', s.id, 'park', '--reason', 'tomorrow', '--until', '2999-01-01']).code, 0);
+    assert.equal(plates(w, ['mark', s.id, 'park', '--reason', 'tomorrow', '--until', '2999-01-01']).code, 0);
   }
-  assert.equal(keel(w, ['mark', item(d, 'acme/app', 'file:notes.txt:untracked').id, 'drop', '--reason', 'scratch']).code, 0);
-  assert.equal(keel(w, ['--all']).code, 0);
+  assert.equal(plates(w, ['mark', item(d, 'acme/app', 'file:notes.txt:untracked').id, 'drop', '--reason', 'scratch']).code, 0);
+  assert.equal(plates(w, ['--all']).code, 0);
   // Every file under the temp tree, except the transcripts themselves.
   const walk = async dir => (await readdir(dir, { withFileTypes: true, recursive: true })).filter(e => e.isFile()).map(e => join(e.parentPath ?? e.path, e.name));
   const leaks = async () => {
@@ -483,17 +483,17 @@ test('the leak test: a chat\'s words reach the terminal and no file, through lis
   assert.deepEqual(await leaks(), [], 'no file outside the transcripts holds the chat\'s words');
   assert.ok((await walk(w.claude)).length > 0);
   // The walk can see a leak: plant one and it is found.
-  await writeFile(join(w.app, '.keel', 'planted.json'), MARKER);
-  assert.deepEqual(await leaks(), ['code/app/.keel/planted.json']);
+  await writeFile(join(w.app, '.plates', 'planted.json'), MARKER);
+  assert.deepEqual(await leaks(), ['code/app/.plates/planted.json']);
 });
 
 test('usage: unknown flags exit 2; the help and the guide name the verb', async t => {
   const w = await world(t);
-  assert.equal(keel(w, ['--phase', 'seven']).code, 2);
-  assert.equal(keel(w, ['--bogus']).code, 2);
-  assert.equal(keel(w, ['mark']).code, 2);
-  const guide = await readFile(join(KEEL, 'lib', 'agent-guide.md'), 'utf8');
-  assert.match(guide, /^- `keel loose-ends` — /m);
+  assert.equal(plates(w, ['--phase', 'seven']).code, 2);
+  assert.equal(plates(w, ['--bogus']).code, 2);
+  assert.equal(plates(w, ['mark']).code, 2);
+  const guide = await readFile(join(PLATES, 'lib', 'agent-guide.md'), 'utf8');
+  assert.match(guide, /^- `plates loose-ends` — /m);
   assert.match(guide, /^<!-- topic: loose-ends \| /m);
 });
 
@@ -505,10 +505,10 @@ test('unsent lessons: one item per project with the send command; a mark holds w
   const w = await world(t);
   const { lessonFingerprint, parseLessons } = await import('../lib/lessons.mjs');
   const shapes = ['An Acme anvil falls twice.', 'An Acme rocket leaves early.', 'An Acme sign is believed.'];
-  const sent = { [lessonFingerprint('acme/nested', parseLessons(LESSONS_MD(shapes)).rows[0])]: { issue: 'https://github.com/acme/keel-inbox/issues/1', at: '2026-10-01' } };
-  await mkdir(join(w.nested, '.keel'), { recursive: true });
-  await writeFile(join(w.nested, '.keel', 'keel.json'), JSON.stringify({ name: 'Acme nested', repo: 'acme/nested', practice: '0.6.0' }));
-  await writeFile(join(w.nested, '.keel', 'sent.json'), JSON.stringify(sent));
+  const sent = { [lessonFingerprint('acme/nested', parseLessons(LESSONS_MD(shapes)).rows[0])]: { issue: 'https://github.com/acme/plates-inbox/issues/1', at: '2026-10-01' } };
+  await mkdir(join(w.nested, '.plates'), { recursive: true });
+  await writeFile(join(w.nested, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme nested', repo: 'acme/nested', practice: '0.6.0' }));
+  await writeFile(join(w.nested, '.plates', 'sent.json'), JSON.stringify(sent));
   await mkdir(join(w.nested, 'docs'), { recursive: true });
   await writeFile(join(w.nested, 'docs', 'lessons.md'), LESSONS_MD(shapes));
 
@@ -517,11 +517,11 @@ test('unsent lessons: one item per project with the send command; a mark holds w
   assert.ok(it, 'listed');
   assert.equal(it.count, 2, 'rows 2 and 3; row 1 is in sent.json');
   assert.equal(it.detail, '#2, #3 of 3 in docs/lessons.md');
-  assert.deepEqual(it.commands, [`cd ${w.nested} && npx -y github:dalmaer/keel lessons --dry-run`, `cd ${w.nested} && npx -y github:dalmaer/keel lessons --yes`]);
-  assert.match(keel(w, []).out, /lessons\s+2 lessons not yet sent home[\s\S]*?\$ cd .* && npx -y github:dalmaer\/keel lessons --yes/);
-  assert.ok(!project(d, 'acme/keel').items.some(i => i.kind === 'lessons'), 'keel itself: home sends nothing');
+  assert.deepEqual(it.commands, [`cd ${w.nested} && npx -y github:dalmaer/plates lessons --dry-run`, `cd ${w.nested} && npx -y github:dalmaer/plates lessons --yes`]);
+  assert.match(plates(w, []).out, /lessons\s+2 lessons not yet sent home[\s\S]*?\$ cd .* && npx -y github:dalmaer\/plates lessons --yes/);
+  assert.ok(!project(d, 'acme/plates').items.some(i => i.kind === 'lessons'), 'plates itself: home sends nothing');
 
-  assert.equal(keel(w, ['mark', it.id, 'park', '--reason', 'after the trip', '--until', '2999-01-01']).code, 0);
+  assert.equal(plates(w, ['mark', it.id, 'park', '--reason', 'after the trip', '--until', '2999-01-01']).code, 0);
   await writeFile(join(w.nested, 'docs', 'lessons.md'), LESSONS_MD([...shapes, 'An Acme net has a hole.']));
   const again = json(w, ['--all']);
   const back = item(again, 'acme/nested', 'unsent-lessons:acme/nested');
@@ -531,20 +531,20 @@ test('unsent lessons: one item per project with the send command; a mark holds w
 
   // Every row sent: nothing listed.
   const all = parseLessons(LESSONS_MD([...shapes, 'An Acme net has a hole.'])).rows.map(r => lessonFingerprint('acme/nested', r));
-  await writeFile(join(w.nested, '.keel', 'sent.json'), JSON.stringify(Object.fromEntries(all.map(f => [f, { issue: 'x', at: 'y' }]))));
+  await writeFile(join(w.nested, '.plates', 'sent.json'), JSON.stringify(Object.fromEntries(all.map(f => [f, { issue: 'x', at: 'y' }]))));
   assert.ok(!item(json(w, ['--all']), 'acme/nested', 'unsent-lessons:acme/nested'));
 });
 
-test('the health proposal is read from the configured health dir (.keel/keel.json `health`)', async t => {
+test('the health proposal is read from the configured health dir (.plates/plates.json `health`)', async t => {
   const w = await world(t);
-  const cfg = join(w.home, '.keel', 'keel.json');
-  await writeFile(cfg, JSON.stringify({ ...JSON.parse(await readFile(cfg, 'utf8')), health: '.keel/health' }));
-  await mkdir(join(w.home, '.keel', 'health'), { recursive: true });
-  await writeFile(join(w.home, '.keel/health/2026-10-03.md'), '# Health\n\n## Proposal\n\n**`lint`** (outside) — fix the Acme lint.\n');
+  const cfg = join(w.home, '.plates', 'plates.json');
+  await writeFile(cfg, JSON.stringify({ ...JSON.parse(await readFile(cfg, 'utf8')), health: '.plates/health' }));
+  await mkdir(join(w.home, '.plates', 'health'), { recursive: true });
+  await writeFile(join(w.home, '.plates/health/2026-10-03.md'), '# Health\n\n## Proposal\n\n**`lint`** (outside) — fix the Acme lint.\n');
   const d = json(w);
-  assert.match(item(d, 'acme/keel', 'health:lint').title, /2026-10-03/);
-  assert.deepEqual(item(d, 'acme/keel', 'health:lint').commands, [`less ${join(w.home, '.keel/health/2026-10-03.md')}`]);
-  assert.ok(!item(d, 'acme/keel', 'health:phases_without_issue'), 'docs/health is not read when another dir is configured');
+  assert.match(item(d, 'acme/plates', 'health:lint').title, /2026-10-03/);
+  assert.deepEqual(item(d, 'acme/plates', 'health:lint').commands, [`less ${join(w.home, '.plates/health/2026-10-03.md')}`]);
+  assert.ok(!item(d, 'acme/plates', 'health:phases_without_issue'), 'docs/health is not read when another dir is configured');
 });
 
 // ---- GitHub reads: kept 10 minutes, and the reviews never under the quota floor ----------------
@@ -568,7 +568,7 @@ test('loose-ends keeps its GitHub reads 10 minutes (--fresh reads again) and say
   assert.deepEqual({ reviews: await asked(w, 'reviews'), prs: await asked(w, 'pr list'), repos: await asked(w, 'repo list') }, n, 'nothing read again inside 10 minutes');
   assert.ok(item(again, 'acme/app', 'review:https://github.com/acme/app/pull/1'), 'the kept read still lists it');
   assert.deepEqual([again.github.cost, again.github.readAt], [0, first.github.readAt]);
-  assert.match(keel(w, []).out, /^GitHub: read (just now|\d+ min ago), 0 points this run, 4000 left until \d\d:\d\d \(--fresh reads again\)\.$/m);
+  assert.match(plates(w, []).out, /^GitHub: read (just now|\d+ min ago), 0 points this run, 4000 left until \d\d:\d\d \(--fresh reads again\)\.$/m);
   json(w, ['--fresh']);
   assert.equal(await asked(w, 'reviews'), n.reviews * 2);
   assert.equal(await asked(w, 'pr list'), n.prs * 2);

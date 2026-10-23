@@ -37,7 +37,7 @@ test('pick: the job tied to the worst measure, rotation when none is outside, an
 
   // The command line, against a stub gh.
   const none = await stubGh(t, ['keel-night/2026-10-05']);
-  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: none }));
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: none }));
   assert.equal(p.job, 'test-time');
   assert.equal(p.by, 'measure');
   assert.match(p.why, /slow_tests is outside on the newest health page \(3 against ≤ 0\)/);
@@ -45,29 +45,29 @@ test('pick: the job tied to the worst measure, rotation when none is outside, an
   assert.equal(p.health, 'docs/health/2026-10-05.md');
   // An open PR on the job's prefix: no climb tonight. (Mutation: pick ignoring it fails here.)
   const open = await stubGh(t, ['keel-climb/test-time/2026-10-04']);
-  const w = climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: open });
+  const w = climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: open });
   assert.equal(w.status, 0, w.stderr);
   assert.equal(json(w).job, null);
   assert.deepEqual(json(w).waiting, ['test-time']);
   // gh unreadable: exit 2, never a guess that nothing is open.
-  const down = climb(dir, ['pick', '--json'], { KEEL_GH: await stubGh(t, null) });
+  const down = climb(dir, ['pick', '--json'], { PLATES_GH: await stubGh(t, null) });
   assert.equal(down.status, 2);
   assert.match(json(down).error, /pick never guesses that none are open/);
   // Weekly: Mondays (UTC) only, unless forced (a dispatch).
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'], schedule: 'weekly' } }));
-  assert.match(json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: none })).reason, /not tonight: climb is weekly/);
-  assert.equal(json(climb(dir, ['pick', '--date', '2026-10-05', '--json'], { KEEL_GH: none })).job, 'test-time');
-  assert.equal(json(climb(dir, ['pick', '--date', '2026-10-06', '--force', '--json'], { KEEL_GH: none })).job, 'test-time');
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'], schedule: 'weekly' } }));
+  assert.match(json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: none })).reason, /not tonight: climb is weekly/);
+  assert.equal(json(climb(dir, ['pick', '--date', '2026-10-05', '--json'], { PLATES_GH: none })).job, 'test-time');
+  assert.equal(json(climb(dir, ['pick', '--date', '2026-10-06', '--force', '--json'], { PLATES_GH: none })).job, 'test-time');
 });
 
-test('rotation: a night that keeps nothing is remembered by its record (the keel-climb artifact), so the next night moves on; .keel/climb.json never has to reach main (ledger#92)', async t => {
+test('rotation: a night that keeps nothing is remembered by its record (the plates-climb artifact), so the next night moves on; .plates/climb.json never has to reach main (ledger#92)', async t => {
   const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' } });
   const gh = await stubGh(t, []);
-  const pickWith = (args = []) => json(climb(dir, ['pick', '--date', '2026-10-07', ...args, '--json'], { KEEL_GH: gh }));
+  const pickWith = (args = []) => json(climb(dir, ['pick', '--date', '2026-10-07', ...args, '--json'], { PLATES_GH: gh }));
   assert.equal(pickWith().job, 'test-time', 'no memory: the first job');
   // The state on main says build-time ran on the 5th (its PR merged); the 6th was test-time and kept nothing.
-  await write(dir, { '.keel/climb.json': JSON.stringify({ last: { job: 'build-time', date: '2026-10-05', kept: 1 } }) });
-  assert.equal(pickWith().job, 'test-time', '.keel/climb.json alone: after build-time');
+  await write(dir, { '.plates/climb.json': JSON.stringify({ last: { job: 'build-time', date: '2026-10-05', kept: 1 } }) });
+  assert.equal(pickWith().job, 'test-time', '.plates/climb.json alone: after build-time');
   const record = join(dir, '..', `${dir.split('/').pop()}-night.json`);
   t.after(() => rm(record, { force: true }));
   await writeFile(record, JSON.stringify({ job: 'test-time', date: '2026-10-06', base: 'x', tried: [] }));
@@ -81,24 +81,24 @@ test('rotation: a night that keeps nothing is remembered by its record (the keel
   assert.equal(pickWith(['--last-night', record]).job, 'test-time');
   assert.equal(pickWith(['--last-night', join(dir, 'no-such.json')]).job, 'test-time');
 
-  // The workflow: the record, fetched read-only from the newest keel-climb artifact, reaches pick.
-  const bin = await mkdtemp(join(tmpdir(), 'keel-climb-artifacts-'));
+  // The workflow: the record, fetched read-only from the newest plates-climb artifact, reaches pick.
+  const bin = await mkdtemp(join(tmpdir(), 'plates-climb-artifacts-'));
   t.after(() => rm(bin, { recursive: true, force: true }));
   await mkdir(join(bin, 'record'));
   await writeFile(join(bin, 'record/night.json'), JSON.stringify({ job: 'test-time', date: '2026-10-06' }));
   assert.equal(run('zip', ['-q', '-j', join(bin, 'night.zip'), join(bin, 'record/night.json')]).status, 0);
-  await writeFile(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> "${bin}/calls"\ncase "$2" in\n  *artifacts\\?name=keel-climb*) echo 7 ;;\n  */artifacts/7/zip) cat "${bin}/night.zip" ;;\n  *) exit 1 ;;\nesac\n`, { mode: 0o755 });
+  await writeFile(join(bin, 'gh'), `#!/bin/sh\necho "$@" >> "${bin}/calls"\ncase "$2" in\n  *artifacts\\?name=plates-climb*) echo 7 ;;\n  */artifacts/7/zip) cat "${bin}/night.zip" ;;\n  *) exit 1 ;;\nesac\n`, { mode: 0o755 });
   const temp = join(bin, 'runner');
   await mkdir(temp);
-  const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', BASE: 'main', KEEL_GH: gh, EVENT: 'schedule' };
+  const env = { PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', BASE: 'main', PLATES_GH: gh, EVENT: 'schedule' };
   const read = await step(t, dir, "Read the last night's record", env);
   assert.equal(read.status, 0, read.out);
   assert.match(read.out, /the last night's record: artifact 7/);
-  assert.match(await readFile(join(bin, 'calls'), 'utf8'), /^api repos\/acme\/anvils\/actions\/artifacts\?name=keel-climb&per_page=100 --jq .*select\(\.workflow_run\.head_branch == "main"\)/m);
+  assert.match(await readFile(join(bin, 'calls'), 'utf8'), /^api repos\/acme\/anvils\/actions\/artifacts\?name=plates-climb&per_page=100 --jq .*select\(\.workflow_run\.head_branch == "main"\)/m);
   const picked = await step(t, dir, "Pick tonight's job", env);
   assert.equal(picked.status, 0, picked.out);
   assert.equal(picked.outputs.job, 'build-time', 'the workflow passes the record to pick');
-  // No record to read: a plain line, green, and pick reads .keel/climb.json alone.
+  // No record to read: a plain line, green, and pick reads .plates/climb.json alone.
   await writeFile(join(bin, 'gh'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   await rm(join(temp, 'last-night'), { recursive: true, force: true });
   const none = await step(t, dir, "Read the last night's record", env);
@@ -115,7 +115,7 @@ test('config: a bad climb is an error naming each key; the defaults fill the res
   const bad = climb(dir, ['config', '--json']);
   assert.equal(bad.status, 2);
   for (const m of [/unknown job "acme-time"/, /budget\.minutes must be a whole number from 5 to 180/, /margin must be a fraction from 0\.01 to 0\.5/, /schedule must be "nightly" or "weekly"/, /unknown key acme/]) assert.match(json(bad).error, m);
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'] } }));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'] } }));
   assert.deepEqual(json(climb(dir, ['config', '--json'])), { on: true, jobs: ['test-time'], minutes: 45, schedule: 'nightly', margin: 0.05, attempts: 10, testCommand: 'npm test' });
 });
 
@@ -123,10 +123,10 @@ test('off: with no climb key the workflow does nothing; with no secret the run e
   const off = await acme(t, { climb: null });
   const o = await step(t, off, 'Is climb on?');
   assert.equal(o.status, 0, o.out);
-  assert.match(o.out, /climb is off: \.keel\/keel\.json has no "climb", so this run does nothing\./);
+  assert.match(o.out, /climb is off: \.plates\/plates\.json has no "climb", so this run does nothing\./);
   assert.equal(o.outputs.on, 'false');
   assert.deepEqual(json(climb(off, ['config', '--json'])), { on: false });
-  const p = climb(off, ['pick', '--json'], { KEEL_GH: await stubGh(t, null) });
+  const p = climb(off, ['pick', '--json'], { PLATES_GH: await stubGh(t, null) });
   assert.equal(p.status, 0, 'climb off never asks gh');
   assert.match(json(p).reason, /climb is off/);
 
@@ -177,10 +177,10 @@ test('pick: hygiene goes ahead of every other job when the ledger names a flaky 
 
   // The command line, from the health page the night writes.
   await write(dir, { 'docs/health/2026-10-05.md': page([['slow_tests', 9, '≤ 0', 'outside'], ['flaky_tests', 1, '≤ 0', 'outside'], ['build_time', 4000, '≤ 1000', 'outside']]) });
-  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, []) }));
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, []) }));
   assert.equal(p.job, 'hygiene', JSON.stringify(p));
   assert.equal(p.branch, 'keel-climb/hygiene/2026-10-06');
-  assert.equal(p.command, 'the test ledger (.keel/test-runs)');
+  assert.equal(p.command, 'the test ledger (.plates/test-runs)');
   // A build_time with no bound (recorded only) is a dash on the page: never a reason to climb.
   assert.deepEqual(m.healthRows(page([['build_time', 4000, '—', 'ok']])), []);
 });
@@ -197,16 +197,16 @@ test('retirement: a job whose last three PRs were closed unmerged is skipped by 
 
   // pick, against gh's closed list: test-time is skipped, the rotation goes on. (Mutation: ignoring three closed PRs fails here.)
   const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' }, files: { 'docs/health/2026-10-05.md': page([['slow_tests', 3, '≤ 0', 'outside']]) } });
-  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], three) }));
+  const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, [], three) }));
   assert.equal(p.job, 'build-time', JSON.stringify(p));
   assert.deepEqual(p.retiring, [{ job: 'test-time', prs: [3, 2, 1] }]);
   // The owner removes build-time too, or both retire: nothing runs, and pick says why.
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'] } }));
-  const none = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], three) }));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', climb: { jobs: ['test-time'] } }));
+  const none = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, [], three) }));
   assert.equal(none.job, null);
   assert.match(none.reason, /test-time \(retiring: its last three PRs were closed unmerged\)/);
   // Reopened: the PR is open, so the job waits for the person, and is not retired.
-  const reopened = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, ['keel-climb/test-time/2026-10-03'], three.slice(0, 2)) }));
+  const reopened = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, ['keel-climb/test-time/2026-10-03'], three.slice(0, 2)) }));
   assert.deepEqual([reopened.job, reopened.waiting, reopened.retiring], [null, ['test-time'], []]);
 
   // gh's every-state list: the newest three by creation, counting closed-unmerged only.
@@ -217,11 +217,11 @@ test('retirement: a job whose last three PRs were closed unmerged is skipped by 
   // pick asks for every state: a newest PR that is open (build-time's only job here) is not three closed in a row.
   // (Mutation: pick reading --state closed sees only the three closed and retires the job.)
   const withOpen = [st(1, 'CLOSED'), st(2, 'CLOSED'), st(3, 'CLOSED'), { ...st(4, 'OPEN'), headRefName: 'keel-climb/test-time/2026-10-04' }];
-  const mixed = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { KEEL_GH: await stubGh(t, [], withOpen) }));
+  const mixed = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, [], withOpen) }));
   assert.deepEqual(mixed.retiring, [], JSON.stringify(mixed));
 });
 
-test('agent ran: an agent that errored before its budget ends the run red, saying why from the result alone; a budget timeout is not red', async t => {
+test('agent ran: an agent that errored before its budget ends the run red, saying why from the result alone; a budget timeout requires valid evidence', async t => {
   const dir = await acme(t);
   const m = await load(dir);
   // Pure.
@@ -229,10 +229,10 @@ test('agent ran: an agent that errored before its budget ends the run red, sayin
   const red = m.agentVerdict({ outcome: 'success', result: early, elapsedSec: 5, minutes: 45 });
   assert.equal(red.ok, false);
   assert.match(red.line, /^Claude did not start: is_error after 1 turn in 2 s \(success\), before its 45-minute budget; the secret was refused: check CLAUDE_CODE_OAUTH_TOKEN/);
-  assert.match(red.line, /It said: "Invalid API key · Please run \/login"$/);
+  assert.doesNotMatch(red.line, /It said:/, "provider text is not copied into retained receipts");
   assert.match(m.agentVerdict({ outcome: 'failure', result: { ...early, result: 'model: claude-acme-9 not_found_error' }, elapsedSec: 5, minutes: 45 }).line, /the model was refused/);
-  assert.match(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 3, minutes: 45 }).line, /^Claude did not start: the agent step ended failure after 3 s, before its 45-minute budget, with no result/);
-  assert.equal(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 45 * 60, minutes: 45 }).ok, true, 'the budget ran out: judged, not red');
+  assert.match(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 3, minutes: 45 }).line, /^blocked: Claude execution evidence has no valid result; the step ended failure after 3 s/);
+  assert.equal(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 45 * 60, minutes: 45 }).ok, false, 'missing execution evidence is blocked even after the budget');
   assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: false, num_turns: 40, duration_ms: 900_000 }, elapsedSec: 900, minutes: 45 }).ok, true);
   assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: true, num_turns: 80, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 45 }).ok, true, 'out of turns: judged');
   assert.equal(m.errorText({ result: 'x'.repeat(400) }).length, m.ERROR_CHARS);
@@ -241,18 +241,18 @@ test('agent ran: an agent that errored before its budget ends the run red, sayin
   t.after(() => rm(file, { force: true }));
   await writeFile(file, execution(early));
   const now = Math.floor(Date.now() / 1000);
-  // The step runs the copy of keel's scripts the workflow kept before the agent ran (PR #59), in $RUNNER_TEMP/keel.
-  const kept = await mkdtemp(join(tmpdir(), 'keel-kept-'));
+  // The step runs the copy of plates's scripts the workflow kept before the agent ran (PR #59), in $RUNNER_TEMP/plates.
+  const kept = await mkdtemp(join(tmpdir(), 'plates-kept-'));
   t.after(() => rm(kept, { recursive: true, force: true }));
-  await cp(join(dir, 'scripts/keel'), join(kept, 'keel/scripts/keel'), { recursive: true });
+  await cp(join(dir, 'scripts/plates'), join(kept, 'plates/scripts/plates'), { recursive: true });
   const s = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 5), RUNNER_TEMP: kept });
   assert.equal(s.status, 1, s.out);
   assert.match(s.out, /^::error::Claude did not start: is_error after 1 turn in 2 s/m);
   assert.doesNotMatch(s.out, /acme private session text/, 'never the session\'s messages');
-  // The budget ran out: not red.
+  // Missing execution evidence stays blocked when the budget runs out.
   const timeout = await step(t, dir, 'Did the agent run?', { OUTCOME: 'failure', EXECUTION: join(dir, 'none.json'), MINUTES: '45', STARTED: String(now - 45 * 60), RUNNER_TEMP: kept });
-  assert.equal(timeout.status, 0, timeout.out);
-  assert.match(timeout.out, /ran out its budget/);
+  assert.equal(timeout.status, 1, timeout.out);
+  assert.match(timeout.out, /execution evidence is missing/);
   // A good run: not red.
   await writeFile(file, execution({ is_error: false, num_turns: 30, duration_ms: 600_000, result: 'done' }));
   const fine = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 600), RUNNER_TEMP: kept });

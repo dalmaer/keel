@@ -3,7 +3,7 @@
 // pr-body.mjs (Summary: finding → what was done; Evidence: the record count
 // before and after; Merge danger; the owner's checklist), and the night's
 // Tend line, which names each finding the pass left. A synthetic Acme made
-// by keel init, a stub gh and a stub keel; nothing reads the live world.
+// by plates init, a stub gh and a stub plates; nothing reads the live world.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm, mkdir, realpath } from 'node:fs/promises';
@@ -12,30 +12,30 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { ENV } from './helpers/improve.mjs';
-import { improve } from '../practices/night/files/scripts/keel/improve.mjs';
-import { tendLine } from '../practices/night/files/scripts/keel/lib.mjs';
-import { tendReportOf, tendImpact, tendRetiring } from '../scripts/keel/tend.mjs'; // keel's rendered copy, beside the night's lib.mjs and pr-body.mjs
-import { prBody } from '../practices/night/files/scripts/keel/pr-body.mjs';
+import { improve } from '../practices/night/files/scripts/plates/improve.mjs';
+import { tendLine } from '../practices/night/files/scripts/plates/lib.mjs';
+import { tendReportOf, tendImpact, tendRetiring } from '../scripts/plates/tend.mjs'; // plates's rendered copy, beside the night's lib.mjs and pr-body.mjs
+import { prBody } from '../practices/night/files/scripts/plates/pr-body.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const git = (cwd, args) => {
   const r = run('git', args, { cwd });
   assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`);
   return r.stdout.trim();
 };
-const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/keel/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, KEEL_CLI: join(dir, 'no-such-keel'), ...env } });
+const climb = (dir, args, env = {}) => run(process.execPath, [join(dir, 'scripts/plates/climb.mjs'), ...args], { cwd: dir, env: { ...process.env, PLATES_CLI: join(dir, 'no-such-plates'), ...env } });
 const json = r => { try { return JSON.parse(r.stdout); } catch { assert.fail(`not JSON (exit ${r.status}): ${r.stdout}${r.stderr}`); } };
 
 /** Acme, inited with climb and tend on, with a stale roadmap (a finding tend may resolve) and a built phase whose proof is lost. */
 async function acme(t) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-tend-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-tend-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const dir = join(base, 'acme');
-  const r = run(process.execPath, [join(KEEL, 'bin/keel.mjs'), 'init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme', '--with', 'climb'], { cwd: base });
+  const r = run(process.execPath, [join(PLATES, 'bin/plates.mjs'), 'init', dir, '--description', 'Acme sells anvils.', '--name', 'Acme', '--with', 'climb'], { cwd: base });
   assert.equal(r.status, 0, r.stderr + r.stdout);
-  const config = JSON.parse(await readFile(join(dir, '.keel/keel.json'), 'utf8'));
-  await writeFile(join(dir, '.keel/keel.json'), `${JSON.stringify({ ...config, repo: 'acme/acme', check: 'node -e "process.exit(0)"', tend: { budget: { minutes: 30 } } }, null, 2)}\n`);
+  const config = JSON.parse(await readFile(join(dir, '.plates/plates.json'), 'utf8'));
+  await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ ...config, repo: 'acme/acme', check: 'node -e "process.exit(0)"', tend: { budget: { minutes: 30 } } }, null, 2)}\n`);
   await mkdir(join(dir, 'docs/evidence'), { recursive: true });
   await writeFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), '# Acme orders\n\nOrdered one anvil; it arrived.\n');
   await writeFile(join(dir, 'docs/phases/01-acme-orders.md'), ['---', 'status: built', 'since: 2026-10-01', 'goal: G0', 'depends: [0]', 'note: "Acme orders work."', 'evidence: ["evidence/2026-10-01-acme-orders.md"]', '---', '',
@@ -49,7 +49,7 @@ async function acme(t) {
 
 /** A stub gh: open PRs' heads, and the closed list. */
 async function stubGh(t, open = [], closed = []) {
-  const d = await mkdtemp(join(tmpdir(), 'keel-tend-gh-'));
+  const d = await mkdtemp(join(tmpdir(), 'plates-tend-gh-'));
   t.after(() => rm(d, { recursive: true, force: true }));
   await writeFile(join(d, 'gh'), `#!/bin/sh\nif [ "$1 $2 $3 $4" = "pr list --state closed" ]; then echo '${JSON.stringify(closed)}'; exit 0; fi\nif [ "$1 $2" = "pr list" ]; then echo '${JSON.stringify(open.map(h => ({ headRefName: h })))}'; exit 0; fi\nexit 1\n`, { mode: 0o755 });
   return join(d, 'gh');
@@ -57,19 +57,19 @@ async function stubGh(t, open = [], closed = []) {
 
 test('tend-pick: a pass on keel-tend/<date>; an open tend PR waits; three closed unmerged and tend proposes its own retirement', async t => {
   const dir = await acme(t);
-  const p = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { KEEL_GH: await stubGh(t) }));
+  const p = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { PLATES_GH: await stubGh(t) }));
   assert.deepEqual(p, { run: true, date: '2026-10-12', branch: 'keel-tend/2026-10-12', minutes: 30, schedule: 'weekly' });
-  const waits = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { KEEL_GH: await stubGh(t, ['keel-climb/test-time/2026-10-11', 'keel-tend/2026-10-05']) }));
+  const waits = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { PLATES_GH: await stubGh(t, ['keel-climb/test-time/2026-10-11', 'keel-tend/2026-10-05']) }));
   assert.equal(waits.run, false);
   assert.match(waits.reason, /the last tend PR \(keel-tend\/2026-10-05\) is still open/);
   const pr = (n, merged = false) => ({ headRefName: `keel-tend/2026-09-${10 + n}`, number: n, createdAt: `2026-09-${10 + n}T09:42:00Z`, mergedAt: merged ? 'x' : null });
   assert.deepEqual(tendRetiring([pr(1), pr(2), pr(3)]), [3, 2, 1]);
   assert.equal(tendRetiring([pr(1), pr(2, true), pr(3)]), null);
-  const retired = json(climb(dir, ['tend-pick', '--json'], { KEEL_GH: await stubGh(t, [], [pr(1), pr(2), pr(3)]) }));
+  const retired = json(climb(dir, ['tend-pick', '--json'], { PLATES_GH: await stubGh(t, [], [pr(1), pr(2), pr(3)]) }));
   assert.equal(retired.run, false);
   assert.match(retired.reason, /^tend proposes its own retirement: its last 3 keel-tend\/ PRs \(#3, #2, #1\) were closed unmerged/);
   // gh that cannot answer: tend-pick never guesses.
-  const blind = climb(dir, ['tend-pick', '--json'], { KEEL_GH: join(dir, 'no-gh') });
+  const blind = climb(dir, ['tend-pick', '--json'], { PLATES_GH: join(dir, 'no-gh') });
   assert.equal(blind.status, 2);
 });
 
@@ -99,7 +99,7 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   const r = json(climb(dir, ['tend-report', '--body', body, '--json']));
   assert.equal(r.commits, 2, 'the agent\'s fix, and the judge\'s page of proposals');
   assert.equal(r.page, 'docs/tend/2026-10-12.md');
-  assert.match(git(dir, ['log', '-1', '--format=%s']), /^keel tend: 2026-10-12, 1 proposal for the owner$/);
+  assert.match(git(dir, ['log', '-1', '--format=%s']), /^plates tend: 2026-10-12, 1 proposal for the owner$/);
   assert.match(await readFile(join(dir, 'docs/tend/2026-10-12.md'), 'utf8'), /^- \[ \] `proofs_hold:1`: phase 1 .*\n {2}Proposed: Step phase 1 back to partial/m);
   assert.deepEqual(r.resolved, ['roadmap_stale']);
   assert.equal(r.before, before);
@@ -119,7 +119,7 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   assert.match(text, /^- \[ \] `proofs_hold:1`: Step phase 1 back to partial/m);
   assert.match(text, /```keel-impact\n\{"version":1,"phases":\[\],"decisions":\[\],"supersedes":\[\],"evidence":\[\],"reconciliation":"none"/);
   // The pass's record carries what the night's line needs.
-  const pass = JSON.parse(await readFile(join(dir, '.keel/tend/pass.json'), 'utf8'));
+  const pass = JSON.parse(await readFile(join(dir, '.plates/tend/pass.json'), 'utf8'));
   assert.deepEqual([pass.resolved, pass.proposed.map(p => p.finding), pass.unresolved.map(u => u.id)], [['roadmap_stale'], ['proofs_hold:1'], others]);
 });
 
@@ -140,7 +140,7 @@ test('a pass that only proposes still reaches the owner: the judge commits its p
   assert.match(json(early).error, /docs\/tend\/2026-10-12\.md is not committed as the pass's notes say: climb\.mjs tend-page runs before the guard/);
   const page = json(climb(dir, ['tend-page', '--base', base, '--date', '2026-10-12', '--json']));
   assert.deepEqual(page, { page: 'docs/tend/2026-10-12.md', committed: true, proposed: 1 });
-  assert.match(git(dir, ['log', '-1', '--format=%B']), /^keel tend: 2026-10-12, 1 proposal for the owner\n\nTend: proofs_hold:1/);
+  assert.match(git(dir, ['log', '-1', '--format=%B']), /^plates tend: 2026-10-12, 1 proposal for the owner\n\nTend: proofs_hold:1/);
   // The guard and the gate run over the page (ledger#94: the pushed tree is the gated tree).
   const g = json(climb(dir, ['guard', '--job', 'tend', '--base', base, '--json']));
   assert.equal(g.ok, true, JSON.stringify(g));
@@ -191,7 +191,7 @@ test('the PR body: a phase edit is declared in the keel-impact block; a pass wit
   assert.equal(tendImpact(['docs/phases/02-acme.md']).reconciliation, 'updated');
   assert.equal(tendImpact(['README.md']).reconciliation, 'none');
   const worksheet = { count: 2, findings: [{ id: 'lint:phase:docs/phases/02-acme.md', what: 'phase in docs/phases/02-acme.md' }, { id: 'drift:AGENTS.md', what: 'AGENTS.md changed' }], measures: [{ id: 'lint', state: 'outside', value: 1 }, { id: 'drift', state: 'outside', value: 1 }], reconciliation: { state: 'n/a', why: 'off', findings: [] } };
-  const pass = { date: '2026-10-12', started: '2026-10-12T09:42:00Z', worksheet, notes: [{ finding: 'drift:AGENTS.md', kind: 'proposed', text: 'Keep it: eject (keel doctor --fix AGENTS.md eject).' }], gate: 'ok' };
+  const pass = { date: '2026-10-12', started: '2026-10-12T09:42:00Z', worksheet, notes: [{ finding: 'drift:AGENTS.md', kind: 'proposed', text: 'Keep it: eject (plates doctor --fix AGENTS.md eject).' }], gate: 'ok' };
   const none = tendReportOf(pass, { commits: [], now: new Date('2026-10-12T10:00:00Z') });
   assert.equal(none.input, null);
   assert.match(none.line, /^Tend 2026-10-12: resolved 0 of 2 findings \(record count 2 → \?\); 1 proposed for the owner; 1 unresolved: lint:phase:docs\/phases\/02-acme\.md; 18 min$/);
@@ -208,31 +208,31 @@ test('the health page\'s Tend line: what the newest pass resolved, its PR, and e
   assert.equal(tendLine({ tend: {} }, pass), 'Tend: 2026-10-12: resolved 1 of 3, 1 proposed for the owner, PR #12; unresolved: `c` (tried: Read it; out of budget.).');
   assert.equal(tendLine({}, pass), null, 'tend off');
   assert.equal(tendLine({ tend: {} }, undefined), null, 'never ran');
-  assert.match(tendLine({ tend: {} }, 'unreadable'), /^Tend: the newest record \(\.keel\/tend\/pass\.json\) is unreadable/);
+  assert.match(tendLine({ tend: {} }, 'unreadable'), /^Tend: the newest record \(\.plates\/tend\/pass\.json\) is unreadable/);
   assert.match(tendLine({ tend: {} }, { ...pass, line: undefined, gate: null }), /^Tend: 2026-10-12: 3 findings on the worksheet; the pass did not finish \(the tend guard or the gate did not pass\)/);
   assert.match(tendLine({ tend: {} }, { ...pass, unresolved: [{ id: 'c' }], pr: undefined, resolved: [] }), /nothing to merge; unresolved: `c` \(not tried\)\.$/);
-  // On the page, from the record the night fetched into .keel/tend.
-  const dir = await realpath(await mkdtemp(join(tmpdir(), 'keel-tend-page-')));
+  // On the page, from the record the night fetched into .plates/tend.
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'plates-tend-page-')));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel/tend'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], tend: {} }));
-  await writeFile(join(dir, '.keel/tend/pass.json'), JSON.stringify(pass));
+  await mkdir(join(dir, '.plates/tend'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'], tend: {} }));
+  await writeFile(join(dir, '.plates/tend/pass.json'), JSON.stringify(pass));
   const r = await improve({ root: dir, report: true, date: '2026-10-13' }, { env: ENV, measures: [] });
   assert.equal(r.data.tend, tendLine({ tend: {} }, pass));
   assert.match(await readFile(join(dir, 'docs/health/2026-10-13.md'), 'utf8'), /^Ratchet: no bound moved\.\n\nTend: 2026-10-12: resolved 1 of 3/m);
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'] }));
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', practices: ['base', 'night', 'climb'] }));
   const off = await improve({ root: dir, report: true, date: '2026-10-14' }, { env: ENV, measures: [] });
   assert.equal(off.data.tend, null);
   assert.doesNotMatch(await readFile(join(dir, 'docs/health/2026-10-14.md'), 'utf8'), /Tend:/);
 });
 
 test('the tend brief says what tend may do, may only propose, and may never do, in the second person', async () => {
-  const brief = await readFile(join(KEEL, 'practices/climb/files/.agents/climb/TEND.md'), 'utf8');
+  const brief = await readFile(join(PLATES, 'practices/climb/files/.agents/climb/TEND.md'), 'utf8');
   for (const h of ['## You may\n', '## You may only propose\n', '## You may never\n']) assert.ok(brief.includes(h), h);
   const never = brief.slice(brief.indexOf('## You may never'), brief.indexOf('## How you work'));
   for (const re of [/docs\/evidence\//, /`built`, `lived-in` or `accepted`/, /acceptance box/, /delete a file, a branch, a PR or data/, /merge/]) assert.match(never, re);
   assert.match(brief, /`Tend: <finding id>`/, 'every change cites its finding');
-  assert.ok(pathToFileURL(join(KEEL, 'practices/climb/files/scripts/keel/tend.mjs')));
+  assert.ok(pathToFileURL(join(PLATES, 'practices/climb/files/scripts/plates/tend.mjs')));
 });
 
 test('the page\'s date is a day and the run\'s: a record dated "../evidence/x" or another day writes nothing (ledger#94)', async t => {
@@ -241,7 +241,7 @@ test('the page\'s date is a day and the run\'s: a record dated "../evidence/x" o
   git(dir, ['switch', '-q', '-c', 'keel-tend/2026-10-12']);
   json(climb(dir, ['tend-input', '--record', '--date', '2026-10-12', '--json']));
   assert.equal(climb(dir, ['tend-note', '--finding', 'proofs_hold:1', '--propose', 'Step phase 1 back to partial.']).status, 0);
-  const passFile = join(dir, '.keel/tend/pass.json');
+  const passFile = join(dir, '.plates/tend/pass.json');
   const pass = JSON.parse(await readFile(passFile, 'utf8'));
   const evidence = await readFile(join(dir, 'docs/evidence/2026-10-01-acme-orders.md'), 'utf8');
   for (const [date, re] of [['../evidence/2026-10-01-acme-orders', /names its date "\.\.\/evidence\/2026-10-01-acme-orders", which is not a day/], ['2026-10-13', /names its date 2026-10-13, not the run's 2026-10-12 \(--date\)/], ['2026-02-30', /not a day/]]) {
@@ -266,14 +266,14 @@ test('the judge\'s page commit resolves nothing: a proposed loose end (an owner\
   const base = git(dir, ['rev-parse', 'HEAD']);
   git(dir, ['switch', '-q', '-c', 'keel-tend/2026-10-12']);
   json(climb(dir, ['tend-input', '--record', '--date', '2026-10-12', '--json']));
-  // A loose end on the worksheet (keel's, as tend-input lists it): closing an abandoned PR is the owner's.
-  const passFile = join(dir, '.keel/tend/pass.json');
+  // A loose end on the worksheet (plates's, as tend-input lists it): closing an abandoned PR is the owner's.
+  const passFile = join(dir, '.plates/tend/pass.json');
   const pass = JSON.parse(await readFile(passFile, 'utf8'));
   pass.worksheet.findings.push({ id: 'loose:pr:7', measure: 'loose-ends', what: 'pr: #7 acme-old → close it: abandoned (gh pr close 7)' });
   await writeFile(passFile, JSON.stringify(pass));
   assert.equal(climb(dir, ['tend-note', '--finding', 'loose:pr:7', '--propose', 'Close #7: abandoned since September.']).status, 0);
   assert.equal(json(climb(dir, ['tend-page', '--base', base, '--date', '2026-10-12', '--json'])).committed, true);
-  assert.match(git(dir, ['log', '-1', '--format=%B']), /\nTend: loose:pr:7\nkeel-tend-page: 2026-10-12$/);
+  assert.match(git(dir, ['log', '-1', '--format=%B']), /\nTend: loose:pr:7\nplates-tend-page: 2026-10-12$/);
   assert.equal(json(climb(dir, ['guard', '--job', 'tend', '--base', base, '--json'])).ok, true);
   // Mutation: counting the page commit's citations reports loose:pr:7 resolved and drops the proposal.
   const r = json(climb(dir, ['tend-report', '--base', base, '--date', '2026-10-12', '--json']));
@@ -282,10 +282,10 @@ test('the judge\'s page commit resolves nothing: a proposed loose end (an owner\
   assert.deepEqual(r.proposed.map(p => p.finding), ['loose:pr:7']);
   assert.match(r.line, /: resolved 0 of \d+ findings? .*; 1 proposed for the owner;/);
   // The agent cannot pass a fix off as the page: a commit with the page's subject and trailer that changes more cites as any.
-  const { tendCommits } = await import(pathToFileURL(join(dir, 'scripts/keel/tend.mjs')).href);
+  const { tendCommits } = await import(pathToFileURL(join(dir, 'scripts/plates/tend.mjs')).href);
   git(dir, ['switch', '-q', '-c', 'forged', base]);
   await writeFile(join(dir, 'README.md'), '# Acme\n');
   git(dir, ['add', '-A']);
-  git(dir, ['commit', '-q', '-m', 'keel tend: 2026-10-12, 1 proposal for the owner\n\nTend: loose:pr:7\nkeel-tend-page: 2026-10-12']);
+  git(dir, ['commit', '-q', '-m', 'plates tend: 2026-10-12, 1 proposal for the owner\n\nTend: loose:pr:7\nplates-tend-page: 2026-10-12']);
   assert.deepEqual(tendCommits(dir, base).map(c => [c.cites, c.page ?? false]), [[['loose:pr:7'], false]]);
 });

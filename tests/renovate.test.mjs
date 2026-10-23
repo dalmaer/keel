@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const config = async () => JSON.parse(await readFile(join(KEEL, 'practices/renovate/files/renovate.json'), 'utf8'));
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const config = async () => JSON.parse(await readFile(join(PLATES, 'practices/renovate/files/renovate.json'), 'utf8'));
 
 test('vendored git submodules are watched, and wait for a person in the weekly lane', async () => {
   const c = await config();
@@ -23,16 +23,16 @@ test('vendored git submodules are watched, and wait for a person in the weekly l
 
 // Phase 29: two rules isocan carried are facts about a project, so the file
 // takes them from the project: its own workspace packages are disabled, and
-// `timezone` in .keel/keel.json is Renovate's. Fixtures are synthetic (Acme).
+// `timezone` in .plates/plates.json is Renovate's. Fixtures are synthetic (Acme).
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { load, plan, config as readConfig, fill, shapeRenovate, withProject, packagePatterns, PROJECT } from '../lib/practices.mjs';
 
-async function acme(t, { pkg, keel = {}, packages = {} }) {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-renovate-'));
+async function acme(t, { pkg, plates = {}, packages = {} }) {
+  const dir = await mkdtemp(join(tmpdir(), 'plates-renovate-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await mkdir(join(dir, '.keel'), { recursive: true });
-  await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'acme', tagline: 'Acme.', practices: ['base', 'renovate'], ...keel }));
+  await mkdir(join(dir, '.plates'), { recursive: true });
+  await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'acme', tagline: 'Acme.', practices: ['base', 'renovate'], ...plates }));
   if (pkg) await writeFile(join(dir, 'package.json'), JSON.stringify(pkg));
   for (const [path, name] of Object.entries(packages)) {
     await mkdir(join(dir, path), { recursive: true });
@@ -44,7 +44,7 @@ const rendered = async dir => {
   const entries = await plan(dir, await readConfig(dir), await load(), null);
   return entries.find(e => e.path === 'renovate.json').content;
 };
-const TEMPLATE = () => readFile(join(KEEL, 'practices/renovate/files/renovate.json'), 'utf8');
+const TEMPLATE = () => readFile(join(PLATES, 'practices/renovate/files/renovate.json'), 'utf8');
 
 test('a project with workspaces renders a first rule disabling them; one without renders the template byte for byte', async t => {
   const ws = await acme(t, {
@@ -68,15 +68,15 @@ test('a project with workspaces renders a first rule disabling them; one without
   assert.equal(await rendered(none), await TEMPLATE(), 'no package.json at all: the same');
 });
 
-test('timezone in .keel/keel.json is Renovate\'s, beside the schedule; a bad one is refused', async t => {
-  const dir = await acme(t, { pkg: { name: 'acme' }, keel: { timezone: 'America/Denver' } });
+test('timezone in .plates/plates.json is Renovate\'s, beside the schedule; a bad one is refused', async t => {
+  const dir = await acme(t, { pkg: { name: 'acme' }, plates: { timezone: 'America/Denver' } });
   const text = await rendered(dir);
   const c = JSON.parse(text);
   assert.equal(c.timezone, 'America/Denver');
   assert.deepEqual(Object.keys(c).slice(Object.keys(c).indexOf('timezone'), Object.keys(c).indexOf('timezone') + 2), ['timezone', 'schedule']);
   assert.ok(!c.packageRules.some(r => r.enabled === false), 'a timezone adds no workspace rule');
   assert.throws(() => shapeRenovate(text, { timezone: 'Denver time; rm -rf' }), /"timezone" must be an IANA timezone name/);
-  // The facts never reach .keel/keel.json: they ride on a non-enumerable key.
+  // The facts never reach .plates/plates.json: they ride on a non-enumerable key.
   const cfg = await withProject(dir, { name: 'acme' });
   assert.deepEqual(cfg[PROJECT], { workspaces: [] });
   assert.equal(JSON.stringify(cfg), '{"name":"acme"}');

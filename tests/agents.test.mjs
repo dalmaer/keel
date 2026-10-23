@@ -1,6 +1,6 @@
-// Agents are providers (keel phase 45): which agent runs each pass, the
+// Agents are providers (plates phase 45): which agent runs each pass, the
 // adapter each provider is, and the rules that hold for both. The config is
-// .keel/keel.json "agents" and an "agent" on crossReview, climb and tend; the
+// .plates/plates.json "agents" and an "agent" on crossReview, climb and tend; the
 // adapters are lib.mjs AGENTS. Synthetic Acme fixtures; no model, no network.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,27 +12,27 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { load } from '../lib/practices.mjs';
-import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors, agentGitArgs, gateEnv, AGENT_GIT_DIR, coAuthorsOf, commitAuthorOf, pushAuthorsOf, pushReviewerOf } from '../practices/night/files/scripts/keel/lib.mjs';
+import { AGENTS, AGENT_PASSES, DEFAULT_AGENT, agentOf, agentsProblems, passAgentProblems, codexVerdict, stepUse, BUDGET_STEPS, authorOf, reviewerOf, crossReviewerProblems, prefixAuthors, agentGitArgs, gateEnv, AGENT_GIT_DIR, coAuthorsOf, commitAuthorOf, pushAuthorsOf, pushReviewerOf } from '../practices/night/files/scripts/plates/lib.mjs';
 
-const KEEL = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const NIGHT = join(KEEL, 'practices/night/files/scripts/keel');
-const CROSS = join(KEEL, 'practices/cross-review/files');
-const CLIMB = join(KEEL, 'practices/climb/files');
-const WORKFLOW = { crossReview: 'keel-cross-review.yml', climb: 'keel-climb.yml', tend: 'keel-tend.yml' };
+const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const NIGHT = join(PLATES, 'practices/night/files/scripts/plates');
+const CROSS = join(PLATES, 'practices/cross-review/files');
+const CLIMB = join(PLATES, 'practices/climb/files');
+const WORKFLOW = { crossReview: 'plates-cross-review.yml', climb: 'plates-climb.yml', tend: 'plates-tend.yml' };
 // crossReview's prefix here is no provider's branch, so its "agent" decides (the fallback); per-PR choice is tested below.
 const ON = { crossReview: { for: ['acme/'] }, climb: { jobs: ['test-time'] }, tend: {} };
 
-/** The three scripts as a project has them: in scripts/keel beside the night's lib.mjs. */
+/** The three scripts as a project has them: in scripts/plates beside the night's lib.mjs. */
 let loaded = null;
 const scripts = () => loaded ??= (async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-scripts-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agents-scripts-'));
   process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
-  const keel = join(dir, 'scripts/keel');
-  await mkdir(keel, { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
-  await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
-  for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
-  const at = f => import(pathToFileURL(join(keel, f)).href);
+  const plates = join(dir, 'scripts/plates');
+  await mkdir(plates, { recursive: true });
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+  await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
+  for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
+  const at = f => import(pathToFileURL(join(plates, f)).href);
   return { cross: await at('cross-review.mjs'), climb: await at('climb.mjs'), tend: await at('tend.mjs') };
 })();
 
@@ -89,8 +89,8 @@ test('config: an agent not listed in "agents", an unknown provider and a malform
 });
 
 // Phase 47 changed this on purpose: phase 45 refused Codex on climb and tend
-// (its sandbox keeps .git read-only); since the spike (keel run 37716223683)
-// it commits to .keel/agent-git, so "agent": "codex" is valid on both, when listed.
+// (its sandbox keeps .git read-only); since the spike (plates run 37716223683)
+// it commits to .plates/agent-git, so "agent": "codex" is valid on both, when listed.
 test('config: Codex reviews, and runs a climb night and a tend pass (phase 47: it commits to its own git dir); listed, like any provider', async () => {
   const codex = { agents: { claude: {}, codex: {} } };
   assert.deepEqual(passAgentProblems({ ...codex, crossReview: { for: ['claude/'], agent: 'codex' } }, 'crossReview'), []);
@@ -125,18 +125,18 @@ test('config: each pass\'s own validator holds the agent rules, and the scripts 
   assert.throws(() => tend.tendConfigOf({ tend: { agent: 'codex' } }), e => e.exitCode === 2 && /"tend"\.agent is codex, which "agents" does not list/.test(e.message));
   assert.throws(() => tend.tendConfigOf({ agents: { acme: {} }, tend: {} }), e => /unknown provider "acme"/.test(e.message));
   // The command line, in an Acme project.
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-acme-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agents-acme-'));
   try {
-    await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(dir, 'scripts/keel/cross-review.mjs'));
-    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/keel/lib.mjs'));
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', crossReview: { for: ['codex/'], agent: 'gemini' } }));
-    const r = run(process.execPath, [join(dir, 'scripts/keel/cross-review.mjs'), 'config', '--json'], { cwd: dir });
+    await mkdir(join(dir, 'scripts/plates'), { recursive: true });
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(dir, 'scripts/plates/cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/plates/lib.mjs'));
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', crossReview: { for: ['codex/'], agent: 'gemini' } }));
+    const r = run(process.execPath, [join(dir, 'scripts/plates/cross-review.mjs'), 'config', '--json'], { cwd: dir });
     assert.equal(r.status, 2, r.stdout);
     assert.match(JSON.parse(r.stdout).error, /"crossReview"\.agent must be one of claude, codex \(got "gemini"\)/);
-    await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', agents: { codex: {} }, crossReview: { for: ['claude/'], agent: 'codex' } }));
-    const ok = run(process.execPath, [join(dir, 'scripts/keel/cross-review.mjs'), 'config', '--json'], { cwd: dir });
+    await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', agents: { codex: {} }, crossReview: { for: ['claude/'], agent: 'codex' } }));
+    const ok = run(process.execPath, [join(dir, 'scripts/plates/cross-review.mjs'), 'config', '--json'], { cwd: dir });
     assert.equal(ok.status, 0, ok.stdout + ok.stderr);
     assert.deepEqual(JSON.parse(ok.stdout), { on: true, for: ['claude/'], minutes: 15, agent: 'codex', agents: ['codex'] });
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -183,7 +183,7 @@ test('adapters: each provider\'s step is its own action at its major, with its r
 // The Claude steps as they were before phase 45, byte for byte. Cross-review's
 // step differs only in places a phase decided: it runs when the config names
 // claude (the default), and its tools no longer include the inline-comment
-// tool (findings are JSON, posted by keel's step) (phase 45); the bots it
+// tool (findings are JSON, posted by plates's step) (phase 45); the bots it
 // allows (duo#84); and it is handed the review job's read-only token as
 // github_token, so the action never trades OIDC for its app's token (phase 46).
 const CLAUDE_BEFORE = {
@@ -211,7 +211,7 @@ const CLAUDE_BEFORE = {
           github_token: \${{ github.token }}
           prompt: \${{ steps.brief.outputs.prompt }}
           claude_args: |
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"`,
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/plates/climb.mjs *),Bash(node scripts/loop.mjs list*),Bash(node scripts/loop.mjs propose *),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *),Bash(git switch *),Bash(git worktree *)"`,
   tend: `      - name: Tend
         id: tend
         if: steps.pick.outputs.run == 'yes'
@@ -224,7 +224,7 @@ const CLAUDE_BEFORE = {
           github_token: \${{ github.token }}
           prompt: \${{ steps.brief.outputs.prompt }}
           claude_args: |
-            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/keel/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"`,
+            --allowedTools "Read,Edit,Write,Glob,Grep,Bash(node scripts/plates/climb.mjs *),Bash(node scripts/roadmap.mjs*),Bash(npm test*),Bash(npm run *),Bash(git status*),Bash(git diff*),Bash(git log*),Bash(git show*),Bash(git add *),Bash(git commit *)"`,
 };
 
 test('the default: a project naming no agent runs Claude, and Claude\'s step passes the action exactly what it did before phase 45', async () => {
@@ -246,25 +246,25 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
           # own, the fallback); the action allows no bot unless named. The
           # adapters' logins only (lib.mjs AGENTS login), never "*".
           allowed_bots: claude[bot]\n`)
-    // keel#65: the push's diff is in a folder of its own under the runner's temp, which Claude may read, and nothing else there.
+    // plates#65: the push's diff is in a folder of its own under the runner's temp, which Claude may read, and nothing else there.
     .replace('          claude_args: |\n', `          # The push's diff is in a folder of its own under the runner's temp
-          # (keel#65): Claude may read that folder, and only it, beyond the checkout.
+          # (plates#65): Claude may read that folder, and only it, beyond the checkout.
           claude_args: |\n`)
-    .replace(/(--allowedTools "[^"]*")$/, '$1\n            --add-dir ${{ runner.temp }}/keel-diff');
+    .replace(/(--allowedTools "[^"]*")$/, '$1\n            --add-dir ${{ runner.temp }}/plates-diff');
   assert.equal(review, expected);
   // Phase 47: climb and tend have one step per provider; Codex's gets OPENAI_API_KEY alone (the adapters test).
   for (const key of ['climb', 'tend']) assert.equal(agentSteps(w[key].text, 'codex').length, 1);
 
   // Cross-review with no "agent": the first step says claude, the config says claude, and only Claude's step runs.
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-default-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agents-default-'));
   try {
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    await mkdir(join(dir, 'scripts/keel'), { recursive: true });
-    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(dir, 'scripts/keel/cross-review.mjs'));
-    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/keel/lib.mjs'));
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    await mkdir(join(dir, 'scripts/plates'), { recursive: true });
+    await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(dir, 'scripts/plates/cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/plates/lib.mjs'));
     const on = runBlocks(w.crossReview.text).find(b => b.step === 'Is cross-review on?');
     const step = async config => {
-      await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', ...config }));
+      await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', ...config }));
       const out = join(dir, 'out');
       await writeFile(out, '');
       const r = run('bash', ['-e', '-c', on.script], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out } });
@@ -278,7 +278,7 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
     for (const agents of [{ claud: {} }, { 'x"; rm -rf /': {}, codex: {} }]) {
       const bad = await step({ agents, crossReview: { for: ['claude/'] } });
       assert.equal(bad.status, 1, JSON.stringify(agents));
-      assert.match(bad.stdout, /^::error::cross-review: \.keel\/keel\.json: "agents" names an unknown provider/m);
+      assert.match(bad.stdout, /^::error::cross-review: \.plates\/plates\.json: "agents" names an unknown provider/m);
       assert.deepEqual(bad.outputs, {}, 'no output: the secret gate and everything after it never run');
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -302,7 +302,7 @@ test('did the agent run: a Codex step that failed, or ended with no final messag
   const stopped = codexVerdict({ outcome: 'failure', message: 'acme private review text', elapsedSec: 60, minutes: 15 });
   assert.equal(stopped.ok, false);
   assert.match(stopped.line, /^Codex stopped with an error/);
-  assert.doesNotMatch(stopped.line, /acme private review text/, 'never the agent\'s words: keel\'s logs are public');
+  assert.doesNotMatch(stopped.line, /acme private review text/, 'never the agent\'s words: plates\'s logs are public');
   assert.deepEqual(codexVerdict({ outcome: 'failure', message: null, elapsedSec: 15 * 60 - 30, minutes: 15 }).ok, true, 'the budget ran out: not red');
   assert.equal(codexVerdict({ outcome: 'cancelled', message: null, elapsedSec: 15 * 60, minutes: 15 }).timedOut, true);
   const fine = codexVerdict({ outcome: 'success', message: 'Checked the lid.\n```json\n[]\n```', elapsedSec: 300, minutes: 15 });
@@ -312,12 +312,12 @@ test('did the agent run: a Codex step that failed, or ended with no final messag
   // The workflow's step, with each provider's output, as a project runs it: Codex red is exit 1 and one ::error:: line.
   const w = await workflows();
   const block = runBlocks(w.crossReview.text).find(b => b.step === 'Did the agent run?');
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-ran-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agents-ran-'));
   try {
-    const keel = join(dir, 'keel/scripts/keel');
-    await mkdir(keel, { recursive: true });
-    await cp(join(CROSS, 'scripts/keel/cross-review.mjs'), join(keel, 'cross-review.mjs'));
-    await cp(join(NIGHT, 'lib.mjs'), join(keel, 'lib.mjs'));
+    const plates = join(dir, 'plates/scripts/plates');
+    await mkdir(plates, { recursive: true });
+    await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
+    await cp(join(NIGHT, 'lib.mjs'), join(plates, 'lib.mjs'));
     const now = Math.floor(Date.now() / 1000);
     await writeFile(join(dir, 'output'), '');
     const step = env => run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'output'), MINUTES: '15', STARTED: String(now - 20), EXECUTION: '', ...env } });
@@ -346,7 +346,7 @@ test('the Budget line finds the agent step whichever provider ran it: both carry
   const w = await workflows();
   for (const provider of Object.keys(AGENTS)) {
     const [s] = agentSteps(w.crossReview.text, provider);
-    assert.match(s, new RegExp(`^ {6}- name: ${BUDGET_STEPS['keel-cross-review.yml'].agent}\\n`), `${provider}'s review step is named as the Budget map says`);
+    assert.match(s, new RegExp(`^ {6}- name: ${BUDGET_STEPS['plates-cross-review.yml'].agent}\\n`), `${provider}'s review step is named as the Budget map says`);
   }
   const t = (h, m) => `2026-10-07T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00Z`;
   const jobs = ({ claude, codex, check = 'success' }) => [{ steps: [
@@ -462,13 +462,13 @@ test('phase 60: who wrote a push is its commits\' authors and Co-authored-by tra
   const codexConnector = { ...person, message: 'acme: x\n\nCo-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>' };
   assert.deepEqual(coAuthorsOf(claudeTrailer.message), [{ name: 'Claude Opus 5.5', email: 'noreply@anthropic.com' }]);
   assert.deepEqual([person, claudeTrailer, claudeApp, codex, codexConnector].map(c => commitAuthorOf(c)), [[], ['claude'], ['claude'], ['codex'], ['codex']]);
-  // A person named Claude, at their own address, is a person: a name is never evidence, only an email the provider's commits carry (keel#65).
+  // A person named Claude, at their own address, is a person: a name is never evidence, only an email the provider's commits carry (plates#65).
   assert.deepEqual(commitAuthorOf({ name: 'Claude Dupont', email: 'claude@acme.test', message: 'acme: fix' }), []);
   assert.deepEqual(commitAuthorOf({ name: 'Claude', email: 'claude@acme.test', message: 'acme: fix' }), []);
   assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-authored-by: Claude <claude@acme.test>' }), [], 'a trailer naming a person called Claude');
   assert.deepEqual(commitAuthorOf({ name: 'Codex', email: 'codex@acme.test', message: 'acme: fix' }), []);
-  // Only the trailer block counts, as git reads one: a Co-authored-by line quoted in the body is prose (keel#65).
-  const quoted = { ...person, message: 'acme: document the trailer\n\nClaude Code adds a line like this:\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nwhich keel reads as Claude\'s.\n\nSigned-off-by: Acme Owner <owner@acme.test>' };
+  // Only the trailer block counts, as git reads one: a Co-authored-by line quoted in the body is prose (plates#65).
+  const quoted = { ...person, message: 'acme: document the trailer\n\nClaude Code adds a line like this:\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nwhich plates reads as Claude\'s.\n\nSigned-off-by: Acme Owner <owner@acme.test>' };
   assert.deepEqual([coAuthorsOf(quoted.message), commitAuthorOf(quoted)], [[], []]);
   assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nnot a trailer line' }), [], 'a last paragraph that is not all trailers is no trailer block');
   assert.deepEqual(commitAuthorOf({ ...person, message: 'acme: fix\n\nReviewed-by: Acme Owner <owner@acme.test>\nCo-authored-by: Claude Opus 5.5 <noreply@anthropic.com>' }), ['claude']);
@@ -572,9 +572,9 @@ test('a budget timeout never swallows a short budget: on a one-minute budget a f
   // Claude, in climb.mjs and cross-review.mjs's copy alike.
   for (const [where, v] of [['climb.mjs', climb.agentVerdict], ['cross-review.mjs', cross.agentVerdict]]) {
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 5, minutes: 1 }).ok, false, `${where}: 5 s of a 1-minute budget`);
-    assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 58, minutes: 1 }).timedOut, true, `${where}: 58 s`);
+    assert.equal(v({ outcome: 'failure', result: { is_error: false }, elapsedSec: 58, minutes: 1 }).timedOut, true, `${where}: 58 s`);
     assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 0, minutes: 1 }).ok, false, `${where}: 0 s`);
-    assert.equal(v({ outcome: 'failure', result: null, elapsedSec: 15 * 60 - 30, minutes: 15 }).timedOut, true, `${where}: 15 min`);
+    assert.equal(v({ outcome: 'failure', result: { is_error: false }, elapsedSec: 15 * 60 - 30, minutes: 15 }).timedOut, true, `${where}: 15 min`);
   }
 });
 
@@ -582,15 +582,15 @@ test('a budget timeout never swallows a short budget: on a one-minute budget a f
 
 test('phase 47: climb and tend read which provider runs them, ask for its secret alone, and judge Codex by its final message', async () => {
   const w = await workflows();
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agents-climb-'));
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agents-climb-'));
   try {
-    await mkdir(join(dir, '.keel'), { recursive: true });
-    const keel = join(dir, 'scripts/keel');
-    await mkdir(keel, { recursive: true });
-    for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(keel, f));
-    for (const f of ['climb.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/keel', f), join(keel, f));
-    // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/keel ($RUNNER_TEMP is dir here).
-    await cp(keel, join(dir, 'keel/scripts/keel'), { recursive: true });
+    await mkdir(join(dir, '.plates'), { recursive: true });
+    const plates = join(dir, 'scripts/plates');
+    await mkdir(plates, { recursive: true });
+    for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+    for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
+    // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/plates ($RUNNER_TEMP is dir here).
+    await cp(plates, join(dir, 'plates/scripts/plates'), { recursive: true });
     const now = Math.floor(Date.now() / 1000);
     for (const key of ['climb', 'tend']) {
       const blocks = runBlocks(w[key].text);
@@ -601,7 +601,7 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
         const r = run('bash', ['-e', '-c', block(name)], { cwd: dir, env: { ...process.env, GITHUB_OUTPUT: out, RUNNER_TEMP: dir, ...env } });
         return { ...r, outputs: Object.fromEntries((await readFile(out, 'utf8')).split('\n').filter(l => l.includes('=')).map(l => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])) };
       };
-      const on = async pass => { await writeFile(join(dir, '.keel/keel.json'), JSON.stringify({ name: 'Acme', agents: { claude: {}, codex: {} }, [key]: pass })); return (await outputs(`Is ${key} on?`)).outputs; };
+      const on = async pass => { await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', agents: { claude: {}, codex: {} }, [key]: pass })); return (await outputs(`Is ${key} on?`)).outputs; };
       assert.deepEqual(await on(ON[key]), { on: 'true', agent: 'claude' }, `${key}: no agent is claude`);
       assert.deepEqual(await on({ ...ON[key], agent: 'codex' }), { on: 'true', agent: 'codex' });
       assert.equal((await on({ ...ON[key], agent: 'x\nenabled=true' })).agent, 'invalid', 'an agent is never an output line of its own');
@@ -619,7 +619,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       const ran = env => outputs('Did the agent run?', { MINUTES: '30', STARTED: String(now - 20), EXECUTION: '', ...env });
       const red = await ran({ AGENT: 'codex', OUTCOME: 'failure' });
       assert.equal(red.status, 1, red.stdout + red.stderr);
-      assert.match(red.stdout, /^::error::Codex did not start: the agent step ended failure after \d+ s, before its 30-minute budget, with no final message; check OPENAI_API_KEY/);
+      assert.match(red.stdout, /^::error::blocked: Codex final execution evidence is missing; execution cannot be verified/);
+      assert.doesNotMatch(red.stdout, /did not start|OPENAI_API_KEY/, 'missing evidence does not establish a credential failure');
       await writeFile(join(dir, 'codex-final-message.md'), 'Kept one change.\n');
       const ok = await ran({ AGENT: 'codex', OUTCOME: 'success' });
       assert.equal(ok.status, 0, ok.stdout + ok.stderr);
@@ -627,26 +628,27 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       assert.doesNotMatch(ok.stdout, /Kept one change/, 'never the agent\'s words');
       const claude = await ran({ AGENT: 'claude', OUTCOME: 'failure' });
       assert.equal(claude.status, 1);
-      assert.match(claude.stdout, /^::error::Claude did not start/);
+      assert.match(claude.stdout, /^::error::blocked: Claude execution evidence is missing/);
+      assert.doesNotMatch(claude.stdout, /did not start|secret/, 'missing evidence does not establish that the agent never ran');
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('phase 47: KEEL_AGENT_GIT points the checkout\'s git at the agent\'s git dir, only a relative path inside it that holds one; a worktree and the gate never see it', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'keel-agent-git-args-'));
+test('phase 47: PLATES_AGENT_GIT points the checkout\'s git at the agent\'s git dir, only a relative path inside it that holds one; a worktree and the gate never see it', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'plates-agent-git-args-'));
   try {
-    assert.equal(AGENT_GIT_DIR, '.keel/agent-git');
-    const env = { KEEL_AGENT_GIT: AGENT_GIT_DIR };
+    assert.equal(AGENT_GIT_DIR, '.plates/agent-git');
+    const env = { PLATES_AGENT_GIT: AGENT_GIT_DIR };
     assert.deepEqual(agentGitArgs(dir, env), [], 'no git dir there yet');
     await mkdir(join(dir, AGENT_GIT_DIR), { recursive: true });
     await writeFile(join(dir, AGENT_GIT_DIR, 'HEAD'), 'ref: refs/heads/main\n');
     assert.deepEqual(agentGitArgs(dir, env), [`--git-dir=${join(dir, AGENT_GIT_DIR)}`, `--work-tree=${dir}`]);
     assert.deepEqual(agentGitArgs(dir, {}), [], 'unset');
-    assert.deepEqual(agentGitArgs(dir, { KEEL_AGENT_GIT: join(dir, AGENT_GIT_DIR) }), [], 'absolute: a worktree would resolve it too');
-    assert.deepEqual(agentGitArgs(join(dir, '.keel'), { KEEL_AGENT_GIT: '../.keel/agent-git' }), [], 'never outside the checkout');
+    assert.deepEqual(agentGitArgs(dir, { PLATES_AGENT_GIT: join(dir, AGENT_GIT_DIR) }), [], 'absolute: a worktree would resolve it too');
+    assert.deepEqual(agentGitArgs(join(dir, '.plates'), { PLATES_AGENT_GIT: '../.plates/agent-git' }), [], 'never outside the checkout');
     assert.deepEqual(agentGitArgs(join(dir, 'elsewhere'), env), [], 'a worktree elsewhere has none');
     const gate = gateEnv({ ...env, ACME: '1' }, {});
-    assert.equal('KEEL_AGENT_GIT' in gate, false, 'the gate runs git as it always does');
+    assert.equal('PLATES_AGENT_GIT' in gate, false, 'the gate runs git as it always does');
     assert.equal(gate.ACME, '1');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

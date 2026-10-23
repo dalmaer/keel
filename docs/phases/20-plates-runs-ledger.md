@@ -1,0 +1,75 @@
+---
+status: built
+since: 2026-10-03
+goal: G2
+depends: [15, 16]
+note: "ledger runs on plates: adopted (#16), nightly health (#17), lessons table fixed (#18), Loop through plates (#19) with its first real cycle pulled, gated and drained (#23). Lived-in waits on a week of nights."
+evidence: ["evidence/2026-10-03-ledger.md"]
+---
+
+# ledger runs on plates for real, and nothing it had stops working
+
+## Done when
+
+ledger's adoption PR is merged; ledger's own CI is green on it; one real plates-night on ledger has measured it, opened its health PR and drained it; `plates fleet` shows ledger adopted and current; and ledger's CLI never synced or pushed from a plates run.
+
+## Scope
+
+**Stage A: adopt ledger.** plates needs two things it lacks:
+
+- **`setup` in `.plates/plates.json`**, the install command plates-night runs
+  before measuring. The default is `npm ci` when a lockfile exists. For
+  ledger it is `npm ci && npm ci --prefix web`, because its gate builds
+  `web/`.
+- **`env` in `.plates/plates.json`**, variables applied wherever plates runs the
+  project's gate: improve, locally and in CI, and update. For ledger,
+  `LEDGER_AUTOSYNC=0`. Without it, ledger's CLI syncs git in the background,
+  and a run with write permission could push to `main`.
+
+Then:
+
+1. Adopt a fresh clone with `--check "npm run check:all"`.
+2. Read the AGENTS.md diff for guidance that duplicates ledger's own "How
+   the work is run".
+3. Walk the night locally: setup, `improve --report`, and a drain dry run.
+4. ⚑ Open the PR.
+
+**Stage B: Loop through plates.** plates's port lacks two things ledger's
+`loop.ts` has: the telemetry context it sends to Loop, and the Loop counts
+ledger's roadmap shows. Port both, retire `loop.ts`, and run one real cycle
+with the `STITCH_API_KEY` the owner set. That is a separate PR.
+
+## Acceptance
+
+- [x] `setup` and `env` exist, are honoured by plates-night, improve and update, are shown by `plates doctor`, and are tested (a gate that needs an env var fails without it and passes with it).
+- [x] A fresh ledger clone, adopted, passes `check:all` and `plates improve`, and `git log` and `git status` in the clone show nothing the gate wrote or synced.
+- [x] The adoption PR shows additions only, apart from intended plates files. Its AGENTS.md section doesn't restate ledger's own rules.
+- [x] ⚑ The ledger PR is merged, by the owner or with their yes, and ledger's own CI is green on it.
+- [x] ⚑ The owner turns on "Allow GitHub Actions to create and approve pull requests" for ledger. One real plates-night on ledger then opens and drains its health PR.
+- [x] `plates fleet` shows ledger `adopted: yes`, current.
+- [x] Stage B: Loop's real pull, propose and render cycle runs through plates's practice on ledger, and ledger's `docs/LOOP.md` keeps its bytes (except line 1).
+
+## Proof
+
+- Automated: `node --test` on the improve, night, update, adopt and doctor
+  tests.
+- Walks: a fresh clone of ledger (the original is never written); the PR's
+  CI run; the first real night's run URL; `plates fleet`.
+- ⚑ The PR, the repo setting, and the Loop cycle.
+
+## Deliberately open
+
+- **Whether ledger's own CI should be plates's `ci` practice.** No: it stays
+  local; ledger's `test.yml` already runs the gate.
+- **Which of ledger's 17 evidence-owed phases to settle first.** The owner's
+  call, from `plates doctor`'s list.
+
+## Next action
+
+Let a week of nights run; triage the 10 new Loop findings (an agent proposes, the owner decides), starting with the one about plates.
+
+## Trajectory
+
+- **2026-10-03** — `@claude` became opt-in, and adopt now skips any block whose rule the project already states. Both were the owner's calls, made while adopting ledger.
+- **2026-10-03** — The first real night on ledger needed no person: measure, PR #17, gate, merge. The variable that stops ledger's CLI from syncing reached every step through `env`.
+- **2026-10-03** — A Loop workspace belongs to one Google account, and a key from another sees "not found", not "forbidden". Diagnosed by signing the CLI in and listing workspaces: zero for that account.

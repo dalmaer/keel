@@ -4,13 +4,13 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { run } from './helpers/run.mjs';
-import { decisionContext, refreshDecisionContext } from '../practices/reconciliation/files/scripts/keel/decision-context.mjs';
+import { decisionContext, refreshDecisionContext } from '../practices/reconciliation/files/scripts/plates/decision-context.mjs';
 
 const ref = id => `docs/decisions/${id}.md#${id}`;
 const record = (id, extra = {}) => `<a id="${id}"></a>\n# ${id}\nAcme choice ${id}.\n\`\`\`keel-decision\n${JSON.stringify({ version: 1, id, status: 'accepted', scope: ['storage', 'cache'], decided_by: 'Acme owner', decided_at: '2026-01-01', supersedes: [], superseded_by: [], ...extra })}\n\`\`\`\n`;
 const impact = refs => '```keel-impact\n' + JSON.stringify({ version: 1, decisions: refs }) + '\n```';
 const fixture = () => ({
-  '.keel/keel.json': JSON.stringify({ name: 'Acme', repo: 'acme/app' }),
+  '.plates/plates.json': JSON.stringify({ name: 'Acme', repo: 'acme/app' }),
   'docs/phases/00-acme.md': '# Acme\n## Reconciliation\n```keel-reconciliation\n' + JSON.stringify({ version: 1, decisions: [ref('old')] }) + '\n```\n',
   'docs/decisions/old.md': record('old', { superseded_by: [ref('new'), ref('proposal')] }),
   'docs/decisions/new.md': record('new', { scope: ['storage'], supersedes: [ref('old')] }),
@@ -116,6 +116,18 @@ test('revision drift is unavailable and refresh compares immutable source and re
 });
 
 test('shipped context resolver matches the canonical practice source', async () => {
-  const canonical = await readFile(new URL('../practices/reconciliation/files/scripts/keel/decision-context.mjs', import.meta.url), 'utf8');
-  assert.equal(await readFile(new URL('../scripts/keel/decision-context.mjs', import.meta.url), 'utf8'), canonical);
+  const canonical = await readFile(new URL('../practices/reconciliation/files/scripts/plates/decision-context.mjs', import.meta.url), 'utf8');
+  assert.equal(await readFile(new URL('../scripts/plates/decision-context.mjs', import.meta.url), 'utf8'), canonical);
+});
+
+test('immutable issue identity reads legacy config only when canonical config is absent', async () => {
+  const contents = fixture(), target = { issue: 'acme/app#1', issueBody: impact([ref('old')]) };
+  contents['.keel/keel.json'] = contents['.plates/plates.json']; delete contents['.plates/plates.json'];
+  assert.equal((await decisionContext({ reader: snapshot(contents), ...target })).state, 'complete');
+  contents['.plates/plates.json'] = '{invalid';
+  assert.equal((await decisionContext({ reader: snapshot(contents), ...target })).state, 'unavailable');
+  delete contents['.plates/plates.json'];
+  const reader = snapshot(contents), stat = reader.stat;
+  reader.stat = async path => { if (path === '.plates/plates.json') throw Error('canonical inventory unavailable'); return stat(path); };
+  assert.equal((await decisionContext({ reader, ...target })).state, 'unavailable');
 });

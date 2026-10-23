@@ -12,7 +12,7 @@ export function learningHarness() {
   const h = decisionHarness(),
     other = decisionHarness();
   const config = { ...h.config, decisionWrites: false, workspaceWrites: true };
-  h.source.files[".keel/keel.json"] = JSON.stringify({
+  h.source.files[".plates/plates.json"] = JSON.stringify({
     name: "Acme Studio",
     repo: "acme/studio",
     lessons: "docs/lessons.md",

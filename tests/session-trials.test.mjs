@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { run } from './helpers/run.mjs';
 import { sessionTrials, sessionTrialSummary, handoffRecommendation } from '../lib/session-trials.mjs';
-const BIN = fileURLToPath(new URL('../bin/keel.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../bin/plates.mjs', import.meta.url));
 const spec = (extra = {}) => ({ version: 1, id: 'acme', provider: 'Acme', model: 'Acme-1', cohort: 'Acme-small', baseline: { contextTokens: null, atBoundary: true, maxHandoffs: 2 }, candidate: { contextTokens: 40000, atBoundary: true, maxHandoffs: 2 }, minPairs: 3, minImprovement: 0.1, maxRuns: 10, budgetMinutes: 200, reserveMinutes: 20, automatic: false, ...extra });
 const descriptor = (id, extra = {}) => ({ id, provider: 'Acme', model: 'Acme-1', cohort: 'Acme-small', task: `Acme task ${id}`, taskClass: 'Acme-test', sourceRevision: 'acme-rev', evidence: ['evidence/acme-admission'], ...extra });
 const finish = (runId, extra = {}) => ({ runId, totalMinutes: 10, costUsd: null, costSource: null, accepted: true, verified: true, policyApplied: true, lostDecisions: 0, duplicateActions: 0, regressions: 0, rework: 0, contextPeakTokens: null, sourceRevision: 'acme-result', acceptanceEvidence: 'evidence/acme-acceptance', evidence: ['evidence/acme-full-workflow'], ...extra });
@@ -15,9 +15,9 @@ const handoff = (runId, extra = {}) => ({ id: 'handoff1', runId, goal: 'Acme goa
 async function world(t) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'acme-session-trials-')));
   t.after(() => rm(root, { recursive: true, force: true }));
-  await mkdir(join(root, '.keel')); await writeFile(join(root, '.keel', 'keel.json'), '{"name":"Acme"}');
+  await mkdir(join(root, '.plates')); await writeFile(join(root, '.plates', 'plates.json'), '{"name":"Acme"}');
   const call = (action, record, extra = {}) => sessionTrials({ root, action, record, experiment: 'acme', yes: true, ...extra });
-  return { root, call, state: join(root, '.keel/session-trials/acme/state.json') };
+  return { root, call, state: join(root, '.plates/session-trials/acme/state.json') };
 }
 async function pairs(w, adjust = () => ({}), count = 6) {
   let result;
@@ -30,7 +30,7 @@ async function pairs(w, adjust = () => ({}), count = 6) {
   return result;
 }
 function cli(root, args) {
-  const result = run(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: { ...process.env, KEEL_CLAUDE_DIR: join(root, 'synthetic-transcripts') } });
+  const result = run(process.execPath, [BIN, ...args, '--json'], { cwd: root, env: { ...process.env, PLATES_CLAUDE_DIR: join(root, 'synthetic-transcripts') } });
   return { code: result.status, data: JSON.parse(result.stdout) };
 }
 
@@ -38,7 +38,7 @@ test('preview writes nothing, absent experiments are off, and roots isolate rece
   const w = await world(t), other = await world(t);
   assert.equal((await sessionTrialSummary({ root: w.root })).enabled, false);
   assert.equal((await w.call('start', spec(), { yes: false })).preview, true);
-  assert.deepEqual(await readdir(join(w.root, '.keel')), ['keel.json']);
+  assert.deepEqual(await readdir(join(w.root, '.plates')), ['plates.json']);
   await w.call('start', spec());
   const bytes = await readFile(w.state, 'utf8');
   await w.call('begin', descriptor('r'), { yes: false });
@@ -85,7 +85,7 @@ test('missing, equal, noisy, unknown, rejected, expensive and regressed outcomes
 
 test('proven better promotes only scoped policy, running snapshots survive, adverse finish rolls back', async t => {
   const w = await world(t); await w.call('start', spec({ automatic: true }));
-  const config = await readFile(join(w.root, '.keel/keel.json'), 'utf8');
+  const config = await readFile(join(w.root, '.plates/plates.json'), 'utf8');
   const promoted = await pairs(w);
   assert.equal(promoted.audit.verdict, 'better'); assert.equal(promoted.effective, 'candidate');
   assert.equal(promoted.audit.numerator, 3); assert.equal(promoted.audit.completePairs, 3);
@@ -98,7 +98,7 @@ test('proven better promotes only scoped policy, running snapshots survive, adve
   assert.equal(rolled.effective, 'baseline'); assert.equal(rolled.transitions.length, 2);
   assert.equal(rolled.runs.at(-1).policy.contextTokens, 40000);
   assert.deepEqual(rolled.transitions[1].sourceIds, ['adverse']);
-  assert.equal(await readFile(join(w.root, '.keel/keel.json'), 'utf8'), config);
+  assert.equal(await readFile(join(w.root, '.plates/plates.json'), 'utf8'), config);
 });
 
 test('manual apply audits fresh receipts and previews; rollback is always available', async t => {
@@ -141,7 +141,7 @@ test('strict schemas, scope and measurements refuse malformed or invented data',
 
 test('symlinks, corrupt and interrupted state fail closed without reclaim or leaking records', async t => {
   const w = await world(t); await w.call('start', spec());
-  const home = join(w.root, '.keel/session-trials');
+  const home = join(w.root, '.plates/session-trials');
   await writeFile(join(home, '.lock'), 'fake-acme-lock');
   await assert.rejects(w.call('begin', descriptor('r')), /locked/);
   assert.equal(await readFile(join(home, '.lock'), 'utf8'), 'fake-acme-lock');
@@ -151,14 +151,14 @@ test('symlinks, corrupt and interrupted state fail closed without reclaim or lea
   await assert.rejects(w.call('status'), e => e.message.includes('invalid JSON') && !e.message.includes('fake-acme-private'));
   assert.equal((await sessionTrialSummary({ root: w.root })).coverage.complete, false);
   await writeFile(w.state, original);
-  await rm(w.state); await symlink(join(w.root, '.keel/keel.json'), w.state);
+  await rm(w.state); await symlink(join(w.root, '.plates/plates.json'), w.state);
   await assert.rejects(w.call('begin', descriptor('r')), /unsafe storage/);
   await rm(w.state);
   await assert.rejects(w.call('start', spec()), /already exists/);
   await assert.rejects(w.call('status'), /incomplete experiment/);
   await assert.rejects(w.call('audit', undefined, { experiment: '../acme' }), /safe experiment/);
   const other = await world(t);
-  await symlink(home, join(other.root, '.keel/session-trials'));
+  await symlink(home, join(other.root, '.plates/session-trials'));
   await assert.rejects(other.call('start', spec()), /unsafe storage/);
   const corrupted = JSON.parse(original); corrupted.events.push({ action: 'finish', record: finish('absent'), at: new Date().toISOString() });
   await writeFile(w.state, JSON.stringify(corrupted)); await assert.rejects(w.call('status'), /absent/);
@@ -202,7 +202,7 @@ test('real concurrent CLI admissions serialize without lost reservations or budg
   const results = await Promise.all(paths.map(path => new Promise((resolve, reject) => {
     const worker = new Worker(new URL('data:text/javascript,' + encodeURIComponent(workerSource)), { workerData: {
       node: process.execPath, args: [BIN, 'retro', 'sessions', 'begin', '--experiment', 'acme', '--record', path, '--yes', '--json'],
-      options: { cwd: w.root, env: { ...process.env, KEEL_CLAUDE_DIR: join(w.root, 'synthetic-transcripts') } },
+      options: { cwd: w.root, env: { ...process.env, PLATES_CLAUDE_DIR: join(w.root, 'synthetic-transcripts') } },
     } });
     workers.push(worker); worker.on('error', reject);
     worker.on('message', result => resolve({ code: result.status, data: JSON.parse(result.stdout) }));

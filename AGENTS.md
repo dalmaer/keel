@@ -1,6 +1,8 @@
-# Working on keel
+# Working on plates
 
-Keel is the mothership for projects run the isocan/ledger way. It is three things:
+Plates keeps projects moving through shared practices and bounded care. Each
+project is a plate; the workspace keeps shared access and configuration. It is
+three things:
 
 - the source of the practice;
 - the CLI that installs and updates the practice in other repos;
@@ -23,8 +25,8 @@ This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob
 | Path | What |
 | --- | --- |
 | `docs/design.md` | **The argument.** Practices, file kinds, migrations, lesson flow, night shift. Phases cite it. |
-| `docs/guide/` | Task guides; [README index](README.md#guides). For the CLI contract, run `keel --agent-help <topic>`. |
-| `docs/goals.json` | What keel is for, as outcomes. Progress is derived, never stored. |
+| `docs/guide/` | Task guides; [README index](README.md#guides). For the CLI contract, run `plates --agent-help <topic>`. |
+| `docs/goals.json` | What plates is for, as outcomes. Progress is derived, never stored. |
 | `docs/phases/` | One file per phase. **Status lives here.** [Contract](docs/phases/README.md). |
 | `docs/ROADMAP.md` | **Generated.** Never edit it. |
 | `docs/lessons.md` | The central catalogue of failure shapes, with provenance. |
@@ -32,19 +34,19 @@ This machine's shell is zsh: quote globs and `==` in commands (an unmatched glob
 | `docs/research/` | Findings that took longer to reach than to read. |
 | `docs/templates/` | Phase and evidence templates. |
 | `scripts/roadmap.mjs` | Generates and checks the roadmap; shipped by the `phases` practice. |
-| `.agents/skills/conduct/` | The conductor. Reached from Claude Code via the `.claude/skills/conduct` symlink. |
-| `.keel/keel.json` | This project's keel config. Keel's says `"keel": "self"`. |
+| `.agents/skills/spin/` | The conductor. Reached from Claude Code via the `.claude/skills/spin` symlink. |
+| `.plates/plates.json` | This project's plates config. Plates's says `"plates": "self"`. |
 
 ## How the work is run
 
-Keel runs on the practice it ships. Each rule below exists because of a
+Plates runs on the practice it ships. Each rule below exists because of a
 specific failure, recorded in [`docs/lessons.md`](docs/lessons.md).
 
-<!-- keel:begin phases -->
+<!-- plates:begin phases -->
 **Status lives in the thing it describes.** Edit the phase's front matter,
 then run `npm run roadmap`. Never hand-edit the roadmap; CI fails when it is
 stale — status written in two places drifts.
-(why: Keel lesson 2: two authoritative status copies drift.)
+(why: Plates lesson 2: two authoritative status copies drift.)
 
 **A phase ends in a testable outcome, named before it starts.** *Done when*
 is one sentence someone else could check. *Proof* is the exact commands.
@@ -53,51 +55,51 @@ is one sentence someone else could check. *Proof* is the exact commands.
 **Decisions postponed are recorded, not improvised.** *Deliberately open*
 names them. Settle one in place, dated, saying what settled it.
 (why: An unrecorded postponement becomes the next session’s accidental decision.)
-<!-- keel:end phases -->
+<!-- plates:end phases -->
 
-<!-- keel:begin evidence -->
+<!-- plates:begin evidence -->
 **`built` is not the last word.** The statuses run `planned → designed →
 partial → built → lived-in`. Built and lived-in need an evidence file. Never
 invent evidence.
-(why: Keel lesson 29: reaching the end of a run does not establish success.)
-<!-- keel:end evidence -->
+(why: Plates lesson 29: reaching the end of a run does not establish success.)
+<!-- plates:end evidence -->
 
-For keel, `lived-in` means keel was used on real projects and it held.
+For plates, `lived-in` means plates was used on real projects and it held.
 
 Date measured observations and retain the command that produced them: old
-numbers lose context as the code changes. `keel evidence rederive <phase>`
+numbers lose context as the code changes. `plates evidence rederive <phase>`
 previews explicit measurement records; `--yes` runs them under bounds and
 compares old and new values without rewriting historical evidence.
 
-<!-- keel:begin conduct -->
-**Conduct the walk.** `/conduct` (the skill in `.agents/skills/conduct`) briefs
+<!-- plates:begin conduct -->
+**Spin the next phase.** `/spin` (the skill in `.agents/skills/spin`) briefs
 a builder (a phase of a file or two it may build itself: the skill's *Small
 phases*), verifies the proof itself, writes the record and commits each phase
 to `main`, then runs a retro when the phase changed more than docs (the owner
 picks from its candidates). Builders test by file. The conductor runs `npm run check` once on
 the integrated tree — a green subset hides a red suite, and checking at every level costs more than it catches.
-(why: Keel lessons 4 and 5: a green subset hides failures, while repeated full gates waste work.)
+(why: Plates lessons 4 and 5: a green subset hides failures, while repeated full gates waste work.)
 
 **A fix is proven by its test failing without it.** A `fix:` commit
-carries a `Proven-by:` trailer from `keel prove <test> --fix <files>
+carries a `Proven-by:` trailer from `plates prove <test> --fix <files>
 --trailer`: VERIFIED, or the reason it is not.
-(why: Keel lesson 38: a check can stay green without evaluating its claim.)
+(why: Plates lesson 38: a check can stay green without evaluating its claim.)
 
 **Answer every review.** When a PR has reviews, validate each comment against
 the code first, then answer it with one of the three replies: fixed (the
 commit), tracked (the issue or version) or not valid (why), with
-`keel review <repo>#<n> --close <id> …`; never leave one unanswered. Not a
+`plates review <repo>#<n> --close <id> …`; never leave one unanswered. Not a
 gate: an open thread never blocks a merge.
 (why: An unanswered finding leaves the next reader unable to tell whether it was fixed or rejected.)
-<!-- keel:end conduct -->
+<!-- plates:end conduct -->
 
-<!-- keel:begin night -->
+<!-- plates:begin night -->
 **A hygiene note is work.** Each test run ends with the test ledger's
-hygiene block (`scripts/keel/test-ledger.mjs`): a test that was flaky on one
+hygiene block (`scripts/plates/test-ledger.mjs`): a test that was flaky on one
 clean tree, or got slower than its last runs, with the command to run it
 alone. Fix it or file it. Never rerun until green — a rerun hides the flake.
 (why: A passing retry loses the evidence of an intermittent failure.)
-<!-- keel:end night -->
+<!-- plates:end night -->
 
 **CI evidence names its source.** A configured gate may reuse CI only
 on the exact clean default-branch revision. The default freshness window is 24
@@ -107,27 +109,52 @@ Weighted Actions minutes are usage estimates, not invoices; missing history
 stays unavailable. See [the night guide](docs/guide/the-night-shift.md).
 
 
-<!-- keel:begin lessons -->
+<!-- plates:begin lessons -->
 **Lessons are shapes, not incidents.** Add a row when a bug turns out to have
 a shape, and say where it was paid for. Read the table
-(`docs/lessons.md`) and keel's lessons for this stack (`docs/keel-lessons.md`,
+(`docs/lessons.md`) and plates's lessons for this stack (`docs/plates-lessons.md`,
 generated) before adding a guard.
-(why: Keel lesson 37: guarding only one reproduction leaves the same failure possible elsewhere.)
-<!-- keel:end lessons -->
+(why: Plates lesson 37: guarding only one reproduction leaves the same failure possible elsewhere.)
+<!-- plates:end lessons -->
 
-<!-- keel:begin agents-md -->
+<!-- plates:begin agents-md -->
 **⚑ steps are asked, with the price.** Creating repos, setting secrets,
 enabling Pages, filing issues on another repo, scheduling model spend: each
 one waits for the owner's yes.
 (why: External resources and recurring spend create obligations only the owner can accept.)
 
-keel's files are listed in `.keel/lock.json`; `keel doctor` says if you
+plates's files are listed in `.plates/lock.json`; `plates doctor` says if you
 changed one. Everything else is yours.
-<!-- keel:end agents-md -->
+<!-- plates:end agents-md -->
+
+## Retained validation audits
+
+Use the source-only [validation audit entrypoint](docs/development/validation-audit.md)
+for recorded-evidence analysis. It emits actionable findings and coverage gaps;
+it never runs gates or authorizes reuse. Before the integrated checkpoint, run
+`npm run check:focused -- tests/<affected>.test.mjs` with the named phase tests.
+This source preflight always includes helper, README, guide, CLI, adoption and
+managed-skill and package capability conventions
+and roadmap/render/inbox/whitespace guards; do not omit conventions when adding
+tests, scripts or documentation. Inventory additional changed-file conventions
+from the audit and repository instructions. The source-only
+[validation planner](docs/development/validation-preflight.md) records actual
+runtime/tool and source loopback-bind availability and conservative changed-path coverage before execution;
+recheck after reconnecting or changing environments. Opt-in host admission
+coordinates only explicitly participating foreground commands; it never changes
+the configured gate or establishes completed validation. It is early feedback, never a
+replacement for the unchanged required integrated checkpoint. The phased implementation contract
+is [validation efficiency](docs/specs/validation-efficiency.md).
+
+The source-only [shadow evidence validator](docs/development/validation-evidence.md)
+checks retained artifact bytes against separate expected inputs and required
+stages. Its results never authorize reuse or replace required validation.
+Consumer producers and stage equivalence remain separately reviewed work;
+keep unsupported attempts and missing provenance as explicit gaps.
 
 ## Reconcile before calling work done
 
-With the optional reconciliation practice enabled, `keel doctor --json`
+With the optional reconciliation practice enabled, `plates doctor --json`
 checks local record references; add `--github` for fresh merge facts. The
 existing PR check and night report use the same engine. See
 [`docs/reconciliation.md`](docs/reconciliation.md) for the impact declaration
@@ -140,20 +167,20 @@ Keep implemented, merged, production-verified and lived-in distinct. A merge
 never checks acceptance. Review correction proposals against fresh source
 facts; preserve historical evidence and the scope of replaced decisions.
 
-Before briefing or resuming a builder, run `keel decision context --phase <id>
+Before briefing or resuming a builder, run `plates decision context --phase <id>
 --json` (or `--issue <owner/repo#n>`). Carry its source digest and keep accepted
 choices separate from proposals. Broken required references stop dispatch;
 `not-configured` preserves legacy behavior and is not verified coverage.
 
 For projects configured with `phases.source: "milestones"`, GitHub owns the
-plan and keel reads it. Deadlines are `due`, never `after`; issue or milestone
+plan and plates reads it. Deadlines are `due`, never `after`; issue or milestone
 closure is source planning state, never acceptance. Edit the plan in GitHub
 and preserve unavailable or incomplete reads as gaps. Loop phase-homing and
 `prove --evidence` cannot write archived local plans for this source.
 
 ## Local shaping
 
-The optional `shaping` practice reviews supplied records with `keel shape
+The optional `shaping` practice reviews supplied records with `plates shape
 check|render|plan`. See `practices/shaping/files/docs/shaping.md`. Approve the
 exact local draft preview with `--yes --digest <reviewed-digest>`; unchanged
 inputs recover the same mapping, while edited destinations refuse recovery.
@@ -161,7 +188,7 @@ Owner answers are manual attribution; proof declarations are not verification.
 
 ## Project canvas
 
-`keel canvas` projects source records onto isocan. Collect and render locally
+`plates canvas` projects source records onto isocan. Collect and render locally
 first; remote writes require an explicit destination and approval. A canvas
 never owns acceptance, merge facts or architecture. Preserve human content and
 report unavailable sources as gaps. A live pulse changes only through isocan's
@@ -169,7 +196,7 @@ conditional edit; a refusal waits for the owner, never re-base it for them. See 
 
 ## Hygiene proposals
 
-`keel improve` includes bounded worktree, draft-PR and long-file observations.
+`plates improve` includes bounded worktree, draft-PR and long-file observations.
 Incomplete coverage stays unavailable because missing evidence is not a zero.
 Worktree cleanup and draft decisions are owner actions; accepted file splits use
 the existing robot issue flow only under an approved project budget. Refresh a
@@ -177,8 +204,8 @@ proposal when its source changes; preserve recovery intents after uncertain writ
 
 ## Robot issues
 
-`keel issue new --agent` previews a rubric-shaped issue before `--yes` creates
-it. Keep its durable `.keel/robot-issues` intents when recovering interrupted
+`plates issue new --agent` previews a rubric-shaped issue before `--yes` creates
+it. Keep its durable `.plates/robot-issues` intents when recovering interrupted
 writes; an uncertain POST is never permission to create a duplicate. The robot
 extends `climb` and stays off until the owner approves a project and weekly
 `robot.budgetMinutes` allowance covering both build and other-provider review.
@@ -186,8 +213,8 @@ A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 
 ## Session handoff trials
 
-Use `keel retro sessions` for an explicitly configured handoff experiment and
-`keel improve --sessions --json` for its read-only audit. See
+Use `plates retro sessions` for an explicitly configured handoff experiment and
+`plates improve --sessions --json` for its read-only audit. See
 [the session handoff guide](docs/guide/session-handoff-trials.md). Reserve each
 run before work, follow its returned policy, keep actual builder/reviewer and
 handoff costs, and record unknown measurements as unknown. Acceptance comes
@@ -198,7 +225,7 @@ the experiment's envelope; it never enlarges a budget or changes unrelated rules
 
 ## Production errors
 
-`keel production` collects bounded, sanitized application error evidence through
+`plates production` collects bounded, sanitized application error evidence through
 existing night, plan and morning reports. Recurring signatures become repair specs
 through the existing robot policy; collection grants no agent budget or deployment
 permission. Keep unavailable coverage explicit and preserve recovery receipts.
@@ -208,25 +235,25 @@ See [the production guide](docs/guide/production-errors.md).
 
 ## Private result feedback
 
-`keel feedback capture|list|propose|resolve` binds observations to the exact
+`plates feedback capture|list|propose|resolve` binds observations to the exact
 reviewed result. Capture and resolution preview before `--yes --digest`; proposals
 never publish, accept work or start an agent. Preserve prior words and resolutions,
 verify retained result bytes and keep missing versions or routing facts as gaps.
 Raw words and snapshots stay in ignored private storage; board/canvas/night views
 receive metadata only. Keep authored input files outside Git or explicitly ignored.
 Selected outbound text has its own exact destination/body preview and uses the
-existing issue-delivery flow. See `keel --agent-help feedback` and
+existing issue-delivery flow. See `plates --agent-help feedback` and
 [the feedback guide](docs/guide/feedback.md).
 
 ## Private web workspace
 
-`keel workspace inspect|init --manifest <absolute-file> --state <absolute-dir>`
+`plates workspace inspect|init --manifest <absolute-file> --state <absolute-dir>`
 uses explicit external storage; add `--json` for agents. Inspection and init
 previews write nothing; init exits 3 until `--yes`. Runtime state must be outside
 Git working trees, application code and the manifest directory. Preserve its
 private ownership marker; mismatches are refusals, never a reason to overwrite.
 Local initialization does not establish login or verify remote privacy. See
-`keel --agent-help workspace` and [the workspace contract](docs/specs/web-workspace.md).
+`plates --agent-help workspace` and [the workspace contract](docs/specs/web-workspace.md).
 
 Hosted guided walks read authored `docs/walks/<id>.json` steps and bind private
 observations to the exact result and actual environment. A failed, blocked or
@@ -266,7 +293,7 @@ original receipts and intended vault generations after uncertainty. Credential
 forms require recorded live provider and store activation, current project access,
 policy digest and version checks. Never echo or persist a key in browser storage,
 Git, logs or exports. Metadata validation is not inference entitlement; unknown,
-expired and conflicting capacity stays unavailable. Removing Keel's copy does not
+expired and conflicting capacity stays unavailable. Removing Plates's copy does not
 revoke the provider key. See [the connections guide](docs/guide/web-connections.md).
 
 Durable routine operations retain the original request before dispatch, reserve
@@ -278,7 +305,31 @@ confirmed, and worker loss cannot release potentially running work. Source sched
 edits require their separate approved budget/overlap and write gate. See the
 [worker guide](docs/guide/web-workers.md).
 
-## Rules for keel's code
+Shared web capability coverage describes supported variants, not permission to
+execute. Keep implementation, activation, current grants and source verification
+separate; a generic destination link cannot satisfy a core operating journey.
+Validated return routes retain original receipts, never transplant them across
+projects or replay mutations after login/reconnect. Typed private editor drafts
+are separate from previews and approvals; preserve CAS/save identities and require
+fresh source validation after restore. Unsaved offline edits remain in memory.
+See [the operation experience](docs/specs/web-operation-experience.md).
+
+## Web restore boundary
+
+Before attaching restored state, stop old writers and configure a fresh recovery
+`epoch` outside that database. Keep the epoch after reconciliation and preserve
+the keys for durable ciphertext. Quarantine blocks all business routes, including
+GET receipt recovery and worker callbacks; fresh authentication and explicitly
+listed deployment/session observations remain available. An old snapshot cannot
+establish that external work never ran or that a budget is unused. Reconcile
+original intents privately before reopening; operator assertions are not backup
+or production proof. After reopening, execution also needs a feature restore
+assertion no earlier than this restore's start; disabled execution must not prevent
+current-authorized inspection of an original receipt. See the
+[recovery guide](docs/guide/web-recovery.md) and
+[fleet trial](docs/guide/web-fleet-trial.md).
+
+## Rules for plates's code
 
 - **Zero runtime dependencies, Node ≥ 24.22.1, no build step.** `node --test` for
   tests. Installing from `main` must work.
@@ -287,11 +338,11 @@ edits require their separate approved budget/overlap and write gate. See the
   `npm run check` before pushing; CI runs both. Its explicit scope is in
   `tsconfig.json`, not a claim that the whole repository is typed. External
   JSON still needs runtime validation; missing evidence is never a zero.
-- **Every command takes `--json`.** Agents drive keel and must never parse prose.
-- **A verb nobody is told about doesn't exist.** `keel --agent-help` ships with
+- **Every command takes `--json`.** Agents drive plates and must never parse prose.
+- **A verb nobody is told about doesn't exist.** `plates --agent-help` ships with
   the CLI, and a test fails when a verb is missing from it.
-- **Use the project's selected guide.** Adoption records `guide` in `.keel/keel.json`; render, doctor and update must use it instead of assuming `AGENTS.md`. Preserve existing prose and safe in-repository symlink aliases.
-- **Never overwrite a project's own work.** Managed files are keel's, seeded
+- **Use the project's selected guide.** Adoption records `guide` in `.plates/plates.json`; render, doctor and update must use it instead of assuming `AGENTS.md`. Preserve existing prose and safe in-repository symlink aliases.
+- **Never overwrite a project's own work.** Managed files are plates's, seeded
   files are the project's, and drift is signal (design §1). When in doubt, propose.
 - **Tests never read the developer's git settings.** `npm test` loads
   `tests/helpers/hermetic.mjs` first: an empty global config, no system config,
