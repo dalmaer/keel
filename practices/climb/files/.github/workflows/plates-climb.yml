@@ -464,7 +464,8 @@ jobs:
       # An agent that failed before its budget ran out (no secret, a bad
       # model: is_error after one turn) is red, and nothing is judged or
       # pushed: a run that did nothing never reports success (lesson 29). A
-      # budget timeout is not red; what it kept is judged below.
+      # budget timeout is judged only with valid execution evidence and no
+      # permission denials. Missing, invalid or oversized evidence stays blocked.
       - name: Did the agent run?
         id: execution
         if: steps.pick.outputs.job != ''

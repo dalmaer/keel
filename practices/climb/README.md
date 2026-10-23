@@ -145,9 +145,13 @@ paths. Each job uploads its handoff (`plates-climb-agent`,
 A run whose agent failed before its budget ran out (no secret, a bad
 model: an error after one turn) is red: `agent-ran`, the step after the
 agent's, reads the step's outcome and the action's execution file and
-prints only the result's error text (at most 300 characters, saying whether
-the secret or the model was refused), and nothing is judged or pushed. A
-budget timeout is not red; what was kept is judged (lesson 29).
+prints a sanitized diagnosis (never raw provider error text), and nothing is
+judged or pushed. A budget timeout can be judged only with a valid execution
+result and no permission denials. Missing, empty, invalid or oversized evidence
+stays blocked even at timeout: work may have run, but execution is unverified
+(lesson 29). Evidence is read through EOF within an 8 MiB limit; a short read
+does not end the file, and logs over the limit are explicitly reported as too
+large. Reading only the tail could discard denial evidence, so it is not used.
 
 **The tend pass** (phase 38). With `"tend": { "schedule": "weekly",
 "budget": { "minutes": 30 } }` in `.plates/plates.json` (no `tend`, no pass),

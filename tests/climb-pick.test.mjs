@@ -221,7 +221,7 @@ test('retirement: a job whose last three PRs were closed unmerged is skipped by 
   assert.deepEqual(mixed.retiring, [], JSON.stringify(mixed));
 });
 
-test('agent ran: an agent that errored before its budget ends the run red, saying why from the result alone; a budget timeout is not red', async t => {
+test('agent ran: an agent that errored before its budget ends the run red, saying why from the result alone; a budget timeout requires valid evidence', async t => {
   const dir = await acme(t);
   const m = await load(dir);
   // Pure.
@@ -231,7 +231,7 @@ test('agent ran: an agent that errored before its budget ends the run red, sayin
   assert.match(red.line, /^Claude did not start: is_error after 1 turn in 2 s \(success\), before its 45-minute budget; the secret was refused: check CLAUDE_CODE_OAUTH_TOKEN/);
   assert.doesNotMatch(red.line, /It said:/, "provider text is not copied into retained receipts");
   assert.match(m.agentVerdict({ outcome: 'failure', result: { ...early, result: 'model: claude-acme-9 not_found_error' }, elapsedSec: 5, minutes: 45 }).line, /the model was refused/);
-  assert.match(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 3, minutes: 45 }).line, /^Claude did not start: the agent step ended failure after 3 s, before its 45-minute budget, with no result/);
+  assert.match(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 3, minutes: 45 }).line, /^blocked: Claude execution evidence has no valid result; the step ended failure after 3 s/);
   assert.equal(m.agentVerdict({ outcome: 'failure', result: null, elapsedSec: 45 * 60, minutes: 45 }).ok, false, 'missing execution evidence is blocked even after the budget');
   assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: false, num_turns: 40, duration_ms: 900_000 }, elapsedSec: 900, minutes: 45 }).ok, true);
   assert.equal(m.agentVerdict({ outcome: 'success', result: { is_error: true, num_turns: 80, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 45 }).ok, true, 'out of turns: judged');
@@ -249,10 +249,10 @@ test('agent ran: an agent that errored before its budget ends the run red, sayin
   assert.equal(s.status, 1, s.out);
   assert.match(s.out, /^::error::Claude did not start: is_error after 1 turn in 2 s/m);
   assert.doesNotMatch(s.out, /acme private session text/, 'never the session\'s messages');
-  // The budget ran out: not red.
+  // Missing execution evidence stays blocked when the budget runs out.
   const timeout = await step(t, dir, 'Did the agent run?', { OUTCOME: 'failure', EXECUTION: join(dir, 'none.json'), MINUTES: '45', STARTED: String(now - 45 * 60), RUNNER_TEMP: kept });
   assert.equal(timeout.status, 1, timeout.out);
-  assert.match(timeout.out, /no result/);
+  assert.match(timeout.out, /execution evidence is missing/);
   // A good run: not red.
   await writeFile(file, execution({ is_error: false, num_turns: 30, duration_ms: 600_000, result: 'done' }));
   const fine = await step(t, dir, 'Did the agent run?', { OUTCOME: 'success', EXECUTION: file, MINUTES: '45', STARTED: String(now - 600), RUNNER_TEMP: kept });

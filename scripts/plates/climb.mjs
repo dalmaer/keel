@@ -62,8 +62,9 @@
 // `agent-ran` reads the agent step's outcome and claude-code-action's
 // execution file after the step: an agent that failed before its budget ran
 // out (no secret, a bad model: is_error after one turn) ends the run red, so a
-// run that did nothing never reports success (lesson 29); a budget timeout is
-// not red, and what was kept is judged. Phase 38's tend pass (tend.mjs) shares
+// run that did nothing never reports success (lesson 29). A budget timeout needs
+// valid execution evidence without permission denials before judging kept work.
+// Phase 38's tend pass (tend.mjs) shares
 // this script, the workflow's rights and this check. With --agent codex (phase
 // 47) the file is Codex's final message, and lib.mjs codexVerdict judges it.
 // Codex commits to .plates/agent-git (its sandbox keeps .git read-only): with
@@ -1811,12 +1812,13 @@ export function lastResult(text) {
  * Whether the agent step did its work, pure: { ok, line }. Red (ok: false)
  * when the step failed, or its result is an error, before the budget ran out:
  * an agent that never started is not a quiet night (lesson 29). Running out
- * the budget or turns still requires execution evidence without permission denials.
+ * the budget or turns still requires a valid result without permission denials.
+ * A timeout with missing/invalid evidence is blocked, even if work may have run.
  * Ran out means a failed step past the larger of the budget less a minute and
  * nine tenths of it (and past 0 s): the slack never swallows a short budget,
  * so a failure at the start of a one-minute box is red (Codex on duo#83).
  */
-export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
+export function agentVerdict({ outcome, result, elapsedSec, minutes, evidence }) {
   const secs = r => `${Number.isFinite(r) && r >= 0 ? Math.round(r / 1000) : '?'} s`;
   const denials = denialEvidence(result);
   if (denials.count) return { ok: false, state: 'blocked', denials, line: `blocked: the agent recorded ${denials.count} permission denials; nothing is judged or pushed` };
@@ -1830,7 +1832,8 @@ export function agentVerdict({ outcome, result, elapsedSec, minutes }) {
     const said = errorText(result);
     return { ok: false, line: `${head}: is_error after ${turns} turn${turns === 1 ? '' : 's'} in ${secs(result.duration_ms)}${['success', 'error_max_turns', 'error_during_execution'].includes(result.subtype) ? ` (${result.subtype})` : ''}, before its ${minutes}-minute budget; ${errorCause(said)}. Nothing is judged or pushed.` };
   }
-  return { ok: false, line: `Claude did not start: the agent step ended ${outcome || 'without an outcome'} after ${Number.isFinite(elapsedSec) ? `${Math.round(elapsedSec)} s` : 'an unknown time'}, before its ${minutes}-minute budget, with no result in the execution file; check the secret / model. Nothing is judged or pushed.` };
+  const unavailable = evidence === 'missing' ? 'is missing' : evidence === 'empty' ? 'is empty' : 'has no valid result';
+  return { ok: false, state: 'blocked', line: `blocked: Claude execution evidence ${unavailable}; the step ended ${outcome || 'without an outcome'} after ${Number.isFinite(elapsedSec) ? `${Math.round(elapsedSec)} s` : 'an unknown time'} (budget ${minutes} min). Execution cannot be verified, including at timeout. Nothing is judged or pushed.` };
 }
 
 /**
@@ -1856,29 +1859,37 @@ export function errorCause(text) {
 export async function agentRan({ outcome, file, minutes, started, agent, now = Date.now() }) {
   if (!Number.isFinite(minutes) || minutes <= 0) throw new ClimbError('agent-ran needs --minutes <the budget>');
   if (agent !== undefined && agent !== 'claude' && agent !== 'codex') throw new ClimbError(`agent-ran --agent must be claude or codex (got ${agent})`);
-  let text = null;
+  let text = null, evidence = 'missing';
   if (file) {
     let handle;
     try {
       handle = await open(file, 'r');
       // Bound memory even if the provider log grows while it is read. Oversize evidence is unavailable, not success.
       const buffer = Buffer.alloc(8 * 1024 * 1024 + 1);
-      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
-      if (bytesRead < buffer.length) text = buffer.subarray(0, bytesRead).toString('utf8');
+      let offset = 0;
+      while (offset < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, offset, buffer.length - offset, offset);
+        if (bytesRead === 0) break;
+        offset += bytesRead;
+      }
+      if (offset === buffer.length) evidence = 'oversized';
+      else { text = buffer.subarray(0, offset).toString('utf8'); evidence = text.trim() ? 'complete' : 'empty'; }
     } catch (e) { if (e.code !== 'ENOENT') throw new ClimbError('execution evidence could not be read'); }
     finally { await handle?.close(); }
   }
+  const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
+  if (evidence === 'oversized') return { ok: false, state: 'blocked', evidence, outcome: outcome ?? null, agent: agent ?? 'claude', result: null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, line: 'blocked: execution evidence exceeds the 8 MiB limit; execution cannot be verified. Nothing is judged or pushed.' };
   if (agent === 'codex') {
     // Codex writes no execution log: its outcome and its final message (the output-file) are the evidence (phase 45).
     const elapsed = Number.isFinite(started) ? now / 1000 - started : NaN;
     const verdict = codexVerdict({ outcome, message: text, elapsedSec: elapsed, minutes });
-    if (!text?.trim() && verdict.ok) Object.assign(verdict, { ok: false, timedOut: false, line: 'blocked: Codex supplied no final execution evidence; nothing is judged or pushed' });
-    return { state: verdict.ok ? 'executed' : 'blocked', outcome: outcome ?? null, agent, result: null, elapsedSec: Number.isFinite(elapsed) ? Math.round(elapsed) : null, ...verdict };
+    if (!text?.trim()) Object.assign(verdict, { ok: false, timedOut: false, line: `blocked: Codex final execution evidence is ${evidence}; execution cannot be verified. Nothing is judged or pushed.` });
+    return { state: verdict.ok ? 'executed' : 'blocked', evidence, outcome: outcome ?? null, agent, result: null, elapsedSec: Number.isFinite(elapsed) ? Math.round(elapsed) : null, ...verdict };
   }
   const result = lastResult(text);
-  const elapsedSec = Number.isFinite(started) ? now / 1000 - started : NaN;
-  const verdict = agentVerdict({ outcome, result, elapsedSec, minutes });
-  return { state: verdict.ok ? 'executed' : 'blocked', denials: denialEvidence(result), outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: Number.isSafeInteger(result.num_turns) ? result.num_turns : null, duration_ms: Number.isFinite(result.duration_ms) ? result.duration_ms : null, subtype: ['success', 'error_max_turns', 'error_during_execution'].includes(result.subtype) ? result.subtype : null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...verdict };
+  if (evidence === 'complete' && typeof result?.is_error !== 'boolean') evidence = 'no-valid-result';
+  const verdict = agentVerdict({ outcome, result, elapsedSec, minutes, evidence });
+  return { state: verdict.ok ? 'executed' : 'blocked', evidence, denials: denialEvidence(result), outcome: outcome ?? null, result: result ? { is_error: Boolean(result.is_error), num_turns: Number.isSafeInteger(result.num_turns) ? result.num_turns : null, duration_ms: Number.isFinite(result.duration_ms) ? result.duration_ms : null, subtype: ['success', 'error_max_turns', 'error_during_execution'].includes(result.subtype) ? result.subtype : null } : null, elapsedSec: Number.isFinite(elapsedSec) ? Math.round(elapsedSec) : null, ...verdict };
 }
 
 // ---- the command line ------------------------------------------------------------

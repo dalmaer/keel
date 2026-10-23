@@ -1,4 +1,7 @@
 import { test } from 'node:test';
+import fileOperations from 'node:fs/promises';
+import { syncBuiltinESMExports } from 'node:module';
+import { agentRan } from '../scripts/plates/climb.mjs';
 import assert from 'node:assert/strict';
 import { mkdtemp, readdir, rm, readFile, writeFile, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -99,4 +102,89 @@ test('failed judge guard still leaves a separate wall-cost receipt', async t => 
   const workflow = await readFile(new URL('../practices/climb/files/.github/workflows/plates-climb.yml', import.meta.url), 'utf8');
   assert.match(workflow, /- name: Record judge costs\n        if: always\(\)/);
   assert.match(workflow, /for f in body.md issue.md issue-title.txt report.json climb-durations.json/);
+});
+
+test('execution evidence reads through short reads, retaining later permission denials', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'acme-short-read-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'execution.jsonl');
+  const prefix = JSON.stringify({ type: 'result', is_error: false }) + '\n';
+  await writeFile(file, prefix + JSON.stringify({ type: 'result', is_error: false, permission_denials: [{ tool_name: 'Bash' }] }));
+  const originalOpen = fileOperations.open;
+  let reads = 0, closed = false;
+  t.mock.method(fileOperations, 'open', async (...args) => {
+    const handle = await originalOpen(...args);
+    const read = handle.read.bind(handle), close = handle.close.bind(handle);
+    handle.read = (buffer, offset, length, position) => read(buffer, offset, ++reads === 1 ? Buffer.byteLength(prefix) : length, position);
+    handle.close = async () => { closed = true; await close(); };
+    return handle;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const r = await agentRan({ outcome: 'success', file, minutes: 45 });
+  assert.equal(r.ok, false);
+  assert.equal(r.denials.count, 1);
+  assert.equal(r.evidence, 'complete');
+  assert.ok(reads >= 3, 'short read is followed by the tail and EOF');
+  assert.equal(closed, true);
+});
+
+test('execution evidence accepts the exact bound and blocks overflow for both providers', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'acme-evidence-bound-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'execution.json');
+  const result = JSON.stringify({ type: 'result', is_error: false });
+  await writeFile(file, result.padEnd(8 * 1024 * 1024, ' '));
+  assert.equal((await agentRan({ outcome: 'success', file, minutes: 45 })).ok, true);
+  await writeFile(file, result.padEnd(8 * 1024 * 1024 + 1, ' '));
+  for (const agent of ['claude', 'codex']) {
+    const r = await agentRan({ outcome: 'success', file, minutes: 45, agent });
+    assert.equal(r.ok, false);
+    assert.equal(r.state, 'blocked');
+    assert.equal(r.evidence, 'oversized');
+    assert.match(r.line, /exceeds the 8 MiB limit/);
+    assert.doesNotMatch(r.line, /did not start|secret|before its/);
+  }
+});
+
+test('missing, empty and invalid execution evidence stay neutral and blocked at timeout', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'acme-evidence-unavailable-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  for (const [name, content, evidence] of [['missing', null, 'missing'], ['empty', '  ', 'empty'], ['invalid', '{private text', 'no-valid-result']]) {
+    const file = join(dir, name);
+    if (content !== null) await writeFile(file, content);
+    const r = await agentRan({ outcome: 'failure', file, minutes: 45, started: 0, now: 2700000 });
+    assert.equal(r.ok, false);
+    assert.equal(r.state, 'blocked');
+    assert.equal(r.evidence, evidence);
+    assert.match(r.line, /Execution cannot be verified, including at timeout/);
+    assert.doesNotMatch(r.line, /did not start|before its|secret|private text/);
+  }
+  for (const name of ['missing', 'empty']) {
+    const r = await agentRan({ outcome: 'failure', file: join(dir, name), minutes: 45, started: 0, now: 2700000, agent: 'codex' });
+    assert.equal(r.ok, false);
+    assert.equal(r.timedOut, false);
+    assert.equal(r.evidence, name);
+    assert.doesNotMatch(r.line, /did not start|before its|secret/);
+  }
+});
+
+test('execution evidence read failures after partial progress are sanitized and close the handle', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'acme-evidence-error-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'private-path');
+  await writeFile(file, JSON.stringify({ type: 'result', is_error: false }));
+  const originalOpen = fileOperations.open;
+  let reads = 0, closed = false;
+  t.mock.method(fileOperations, 'open', async (...args) => {
+    const handle = await originalOpen(...args);
+    const read = handle.read.bind(handle), close = handle.close.bind(handle);
+    handle.read = (...args) => { if (++reads > 1) throw new Error('private-token-and-path'); return read(...args); };
+    handle.close = async () => { closed = true; await close(); };
+    return handle;
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  await assert.rejects(agentRan({ outcome: 'success', file, minutes: 45 }), { message: 'climb: execution evidence could not be read' });
+  assert.equal(closed, true);
 });

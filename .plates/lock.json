@@ -75,7 +75,7 @@
     },
     ".github/workflows/plates-climb.yml": {
       "practice": "climb",
-      "sha256": "dfd15956358dc54e54fa11b8c092f524d95f67fb0d705e6d0ff225ed14b2222f"
+      "sha256": "d71f7b6abd8afdf04f3deea56826f32001f9ddf60af80e8290c243a4668179d1"
     },
     ".github/workflows/plates-cross-review.yml": {
       "practice": "cross-review",
@@ -171,7 +171,7 @@
     },
     "scripts/plates/climb.mjs": {
       "practice": "climb",
-      "sha256": "bb35873490d63b6f69c5da01aa8a845bb0beadfe91f57b4f7ca43ee66b2d236d"
+      "sha256": "5d103b53837527dd5f4d5cda72cfba929f72e5f470b7d19489f23760e689ffb6"
     },
     "scripts/plates/cross-review.mjs": {
       "practice": "cross-review",
