@@ -5,8 +5,8 @@ goal: G5
 spec: 2
 depends: []
 review: wait
-note: "Implemented and verified at 0f8b157; parent approves continuing phase 111 only. PR 225 remains unmerged; no rollout or deployment approval."
-evidence: ["evidence/2026-10-22-validation-audit.md"]
+note: "Reviewed implementation merged as PR 225; intermediate main UTC fixture failure is preserved and corrected by reviewed PR 226. No consumer rollout or speedup claim."
+evidence: ["evidence/2026-10-22-validation-audit.md", "evidence/2026-10-23-validation-guardrail-merges.md"]
 ---
 
 # Recorded validation evidence produces actionable audits
@@ -28,7 +28,7 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 - [x] `tests/check-focused.test.mjs` proves mandatory convention selection and failure propagation; /spin invokes preflight before integration.
 - [x] Required integrated checks pass: `npm run check`; `npm run typecheck`.
 - [x] Exact-head review is recorded: `node bin/plates.mjs review dalmaer/plates#<PR> --gate --json` plus inspection of pinned complete review inputs.
-- [x] ⚑ by hand: parent reviews evidence before broader rollout. Approval permits phase 111 implementation only, not merge, consumer adoption or deployment.
+- [x] ⚑ by hand: parent reviews evidence before broader rollout. Parent subsequently authorized the ordered source PR merges; consumer adoption and deployment remain separate boundaries.
 
 ## Your part
 
@@ -38,7 +38,7 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 - **Choices:** Proceed with the next stage | Revise the stage
 - **Takes:** About five minutes once review and checks finish.
 - **Then:** A separate implementation PR advances the next stage; no production rollout is automatic.
-- **Ready:** yes; parent review is complete for the implementation-continuation boundary only.
+- **Ready:** yes; parent review and the subsequently authorized source merge are recorded. Consumer adoption requires its own evidence.
 
 ## Real surfaces
 
@@ -58,7 +58,7 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-None. Parent approved continuing implementation in a separate phase 111 draft PR; PR 225 remains unmerged.
+None. PR 225 and its reviewed phase 111 successor are merged. Preserve the intermediate UTC fixture failure and focused-replay omission in the subsequent evidence.
 
 ## Trajectory
 
@@ -76,3 +76,5 @@ None. Parent approved continuing implementation in a separate phase 111 draft PR
 - **2026-10-22** — Independent Claude review of complete pinned inputs found silent unknown setup completion and omitted staged whitespace. Add regression-proven corrections; keep the old head’s pass/review distinct from the corrected candidate’s required checks.
 
 - **2026-10-22** — Parent independently verified 0f8b157, its complete 23-file diff, CI and zero-finding Claude review, and accepted phase 110 as the boundary for continuing phase 111. This is implementation acceptance, not merge, deployment, consumer adoption or measured speedup.
+
+- **2026-10-23** — PR 225 merged with prior exact-head checks/review, but its main run exposed the known UTC fixture before PR 226 fixed it. A premerge focused replay was omitted; the failed run remains evidence. [Merge record](../evidence/2026-10-23-validation-guardrail-merges.md).

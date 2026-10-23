@@ -146,6 +146,12 @@ the configured gate or establishes completed validation. It is early feedback, n
 replacement for the unchanged required integrated checkpoint. The phased implementation contract
 is [validation efficiency](docs/specs/validation-efficiency.md).
 
+The source-only [shadow evidence validator](docs/development/validation-evidence.md)
+checks retained artifact bytes against separate expected inputs and required
+stages. Its results never authorize reuse or replace required validation.
+Consumer producers and stage equivalence remain separately reviewed work;
+keep unsupported attempts and missing provenance as explicit gaps.
+
 ## Reconcile before calling work done
 
 With the optional reconciliation practice enabled, `plates doctor --json`

@@ -266,6 +266,60 @@ explicit reviewed policy with coverage/invalidation tests and a real producer to
 existing validator round trip. Reuse never suppresses external health, learning
 or scheduled reporting; dependency download caches still run integrity checks.
 
+### Phase 114 independent source slice
+
+Authorized 23 October 2026 after phases 110/111 merged. This separate draft PR
+adds a source-only, read-only shadow evidence validator and bounded JSON CLI.
+It does not import into existing gate execution/reuse, create a schedule, run
+commands, adopt consumer files or change acceptance/freshness defaults. Keep
+phase 114 partial: real producer integration and per-consumer manifests wait
+for the independently implemented phase 112/113 graphs and review.
+
+The versioned contract separates three inputs: an independently supplied
+expected candidate/required-stage manifest, exact retained artifact bytes, and
+expected artifact/source identity. Never derive requirements from the artifact
+being evaluated. Compute SHA-256 over the actual bytes and compare to the
+independently supplied digest before interpreting them. A checksum proves byte
+identity, not trusted origin or truthful execution; caller-provided source
+metadata is not authentication. Output always says advisory-only and grants
+no reuse permission, even for complete coverage.
+
+Require exact repository, full head and tree, clean state, configured-gate
+identity, parent invocation, completed successful outer and child statuses,
+versioned manifest digest, nonempty unique required stage IDs/command digests,
+and immutable config/command/workflow/lock/harness/runtime/environment/selection
+digests. Bind each child to its parent, expected stage command and the same
+candidate/input/manifest/execution-source identities. Reject missing, extra or duplicate
+stages and unknown/incomplete values; never accept a false wrapper around
+partial children. Execution source (provider/repository/workflow/run/attempt) binds outer and
+children. Post-upload artifact ID, expiry and SHA-256 live in separately
+supplied download metadata: a producer cannot embed an ID assigned after
+upload into the bytes being uploaded. Preserve that external provenance and
+check its expiry without pretending the checksum authenticates it. Check
+canonical timestamps, chronology and future
+records using an explicit evaluation instant; apply the caller's explicit
+freshness contract without inventing a new default or overriding expiration.
+
+This first slice supports one complete invocation/attempt. Reject retry or
+cross-attempt aggregation rather than guessing successful sibling eligibility.
+Future retry support needs retained failed-attempt ancestry and reviewed
+invalidation/producer tests. Runtime/environment values are digest bindings to
+actual observations collected by future producers, not evidence the validator
+itself ran probes. Do not mistake structural validation for independently
+attested execution.
+
+Bounds cover canonical regular nonsymlink input paths, byte counts, record and
+stage counts, field sizes and nesting. Errors/findings contain safe codes and
+stage IDs, not arbitrary raw arguments, paths, logs or credentials. The CLI
+reads explicit files and prints JSON (with --json support), never discovers the
+host, fetches network data or runs tests. Exit 0 denotes structurally consistent
+shadow evidence, 1 denotes rejected evidence/gaps, 2 denotes invalid/unreadable
+input. All exits retain required validation. Synthetic Acme fixtures prove
+success and adversarial mutations, malformed/expired/corrupt artifacts, altered
+manifests/inputs, timestamps, duplicate or missing children and no active gate
+integration. These are correctness checks, not observed speed savings or a
+real consumer producer-to-validator round trip.
+
 ## Telemetry and later adoption (115)
 
 Collect invocation + stage spans, child CPU and wall separately, queue/setup/
