@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFile, readdir, mkdir, lstat, realpath, open, rename, rm } from 'node:fs/promises';
 import { resolve, relative, dirname, join, isAbsolute, sep } from 'node:path';
 import { hostname } from 'node:os';
+import { retainVerifications } from './verification.mjs';
 import { healthDirOf } from './lib.mjs';
 
 export const TIME_BEGIN = '<!-- keel:time-proposal:begin -->';
@@ -80,11 +81,19 @@ function managedReport(source) {
 }
 // Only hash-verified report bytes are replaceable. The proposal region and all
 // surrounding human bytes are separate and survive every refresh unchanged.
+/** Edit an existing generated body while retaining its integrity boundary and outside bytes. */
+export function rewriteHealthBody(source, transform) {
+  const current = managedReport(source);
+  if (!current) return transform(source);
+  const body = transform(current.body);
+  return source.slice(0,current.start)+`<!-- keel:health-report:begin ${reportHash(body)} -->\n${body}\n${reportEnd}`+source.slice(current.end);
+}
 export function mergeHealthPage({previous='',generated}) {
   const old=parseTimeProposal(previous),next=parseTimeProposal(generated);
   const problems=[...old.problems,...next.problems];if(problems.length)return {text:previous,problems};
   try {
     const current=managedReport(previous);
+    generated=retainVerifications(current?.body ?? '',generated);
     if(generated.includes('<!-- keel:health-report:'))throw new Error('generated report must be unwrapped');
     const outside=current?previous.slice(0,current.start)+previous.slice(current.end):previous;
     const embedded=current?proposalSection.exec(current.body)?.[0]:null;
@@ -184,9 +193,13 @@ export async function withTimeProposal({root,path,expectedInstance},callback) {
     return callback({proposal:clone(proposal),saveLifecycle});
   });
 }
-export async function writeHealthReport({root,path,generated}) {
+export async function writeHealthReport({root,path,generated,recovered=null}) {
   return locked(root,path,async file=>{
-    const previous=await readFile(file,'utf8').catch(e=>{if(e.code==='ENOENT')return '';throw e;});
+    let previous=await readFile(file,'utf8').catch(e=>{if(e.code==='ENOENT')return '';throw e;});
+    if(recovered!==null){
+      if(previous && previous!==recovered)throw new Error('local and recovered night reports differ; preserve both and reconcile before publication');
+      previous=recovered;
+    }
     const result=mergeHealthPage({previous,generated});if(result.problems.length)throw new Error(result.problems.join('; '));
     if(await safePath(root,path)!==file)throw new Error('health directory changed during report write');
     await atomic(file,result.text);return result;

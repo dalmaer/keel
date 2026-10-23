@@ -161,6 +161,11 @@ treated as yours: the next update simply takes plates's file.
 `plates fleet` shows every project at once: practice version, health, CI,
 unsent lessons, and open machine PRs.
 
+Each plate owns its nightly validation and revision-bound verification report.
+Fleet inspection compares that evidence with current default-branch facts and
+surfaces gaps without running consumer tests. See the
+[night guide](docs/guide/the-night-shift.md#each-plate-verifies-itself).
+
 ## Private workspace and web UI
 
 Plates's hosted UI is being built around a Home screen that answers three things:

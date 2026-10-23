@@ -204,3 +204,13 @@ with its plan (0 when nothing is behind) and 1 when any repo failed. With
 - [Lessons and learning](lessons-and-learning.md): sending an edit home.
 - [`docs/design.md`](../design.md), sections 1 and 3: file kinds, versions
   and migrations.
+
+## Verify coverage across projects
+
+Each project's night produces its own verification evidence. Fleet inspection
+compares that report with the project's actual default branch and revision,
+separating stale or missing coverage from negative findings. It never executes
+consumer tests. Start with `plates fleet --json`; investigate reported gaps in
+the owning project. A practice version being current does not establish current
+validation, and a merged PR does not establish acceptance. See the
+[night guide](the-night-shift.md#each-plate-verifies-itself).

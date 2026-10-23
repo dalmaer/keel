@@ -276,6 +276,8 @@ jobs:
       # turns it into the body below, so no body is built in inline JS.
       - name: Measure
         id: improve
+        env:
+          PLATES_NIGHT_RECOVERY: "1"
         run: |
           code=0
           node scripts/plates/improve.mjs --report --json --pr-input "$RUNNER_TEMP/pr.json" > "$RUNNER_TEMP/improve.json" || code=$?
@@ -335,6 +337,12 @@ jobs:
           BASE: ${{ github.event.repository.default_branch }}
           HEALTH: ${{ steps.health.outputs.dir }}
         run: |
+          # Recovery must have succeeded before any publication, including plan publication.
+          EXPECTED=$(node -e '
+            const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).nightRecovery;
+            if(!r || r.branch!==`keel-night/${process.env.DAY}` || !/^(?:[a-f0-9]{40})?$/.test(r.head) || !Number.isSafeInteger(r.attempts)) throw new Error("missing night recovery lease");
+            process.stdout.write(r.head);
+          ' "$RUNNER_TEMP/improve.json")
           published=0
           node scripts/plates/night-plan.mjs publish --date "$PLAN_DAY" || published=$?
           echo "publish=$published" >> "$GITHUB_OUTPUT"
@@ -421,9 +429,8 @@ jobs:
           git commit -q --only -m "plates night: $DAY" -- "${PATHS[@]}"
           git show --name-only --format= HEAD > "$RUNNER_TEMP/files.txt"
           node scripts/plates/pr-body.mjs --input "$RUNNER_TEMP/pr.json" --files "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/body.md"
-          # The branch is this workflow's alone; a re-run the same day replaces
-          # its own reading, so force is safe here and nowhere else.
-          git push --force origin "HEAD:refs/heads/keel-night/$DAY"
+          # Retained attempts came from exactly EXPECTED; a changed branch refuses publication.
+          git push --force-with-lease="refs/heads/keel-night/$DAY:$EXPECTED" origin "HEAD:refs/heads/keel-night/$DAY"
           PR=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
           if [ -n "$PR" ]; then
             gh pr edit "$PR" --body-file "$RUNNER_TEMP/body.md"

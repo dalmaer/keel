@@ -66,6 +66,7 @@ import { Saving } from './quota.mjs';
 // ratchet follows isocan's scripts/ratchet.mjs (Apache-2.0): bounds that only
 // report the wrong way.
 import { readCiUsage, ciOptions } from './ci.mjs';
+import { recoverNightVerification, observeVerification, verificationGit, verificationReceipt, verificationSummary, formatVerification } from './verification.mjs';
 import { reusableGate } from './gate.mjs';
 import { hygieneOptions, draftsWaiting, longFiles } from './hygiene-measures.mjs';
 import { makeHygieneProposal, formatHygieneProposal, readHygieneProposals, hygieneRobotTargetReason } from './hygiene-proposals.mjs';
@@ -1668,13 +1669,22 @@ export const strip = results => results.map(({ facts, ...r }) => ({ ...r, ...(fa
  * (roadmap, diagnose, proposals) when plates runs this; without them, only
  * what the project's own files can say.
  */
-export async function improve({ root, report = false, transcripts, prInput, date = today() }, { env = process.env, measures = MEASURES, plates, by = plates ? 'plates improve' : COMMAND, remeasure = remeasureTimeProposal } = {}) {
+export async function improve({ root, report = false, transcripts, prInput, date = today() }, { env = process.env, measures = MEASURES, plates, by = plates ? 'plates improve' : COMMAND, remeasure = remeasureTimeProposal, verificationRead, verificationSource = verificationGit } = {}) {
   const config = JSON.parse(await readFile(join(root, '.plates', 'plates.json'), 'utf8'));
   // Where the page goes, settled before anything is written: a bad `health` is a broken instrument.
   let dir = null;
   if (report) try { dir = healthDirIn(root, config); } catch (e) { throw new ImproveError(e.message, 2); }
+  const nightRecovery = report && env.PLATES_NIGHT_RECOVERY === '1' ? await recoverNightVerification({root,config,date,env}) : null;
+  const observation = await observeVerification({root,config,env,read:verificationRead,git:verificationSource});
   const stored = await readBounds(root);
   const results = await measure({ root, config, env, transcripts, date, bounds: stored ?? {}, measures, plates });
+  const verification = verificationReceipt(observation, results, await verificationSource({root,env}));
+  let fleetVerification = null;
+  if (config.plates === 'self' && plates?.fleetVerification) {
+    try { fleetVerification = await plates.fleetVerification({root,env}); }
+    catch { fleetVerification = {rows:[],gaps:['fleet verification read unavailable']}; }
+  }
+  const fleetText = fleetVerification ? '\n\nFleet verification\n\n'+fleetVerification.rows.map(r=>`- ${r.repo}: ${r.verification?.state ?? 'unavailable'}; ${r.verification?.reason ?? 'repository unavailable'}. Inspect ${r.verification?.url ?? `https://github.com/${r.repo}`} and refresh the project night; no consumer gate ran here.`).join('\n')+'\n'+fleetVerification.gaps.join('; ') : '';
   const production = await productionStatus({root,config});
   let history;
   try { history = await readTimeProposals({root,healthDir:healthDirOf(config)}); }
@@ -1706,15 +1716,15 @@ export async function improve({ root, report = false, transcripts, prInput, date
     written = healthPage(dir, date);
     night = await nightPlan(root, date, results, written);
     await mkdir(join(root, dir), { recursive: true });
-    await writeHealthReport({root,path:written,generated:page({ config, date, results, proposal, tightened, by, climb, retire, tend, budget, remeasurements, night, production })});
+    await writeHealthReport({root,path:written,recovered:nightRecovery?.report,generated:page({ config, date, results, proposal, tightened, by, climb, retire, tend, budget, remeasurements, night, production })+'\n\n## Verification\n\n'+verificationSummary(verification)+fleetText+'\n'+formatVerification(verification)+'\n'});
   }
   changedHistoricalHealthPaths.sort();
   const code = exitCode(results);
   if (prInput) await writeFile(prInput, `${JSON.stringify({...nightPr({ date, results, proposal, report: written ?? `${dir ?? HEALTH}/` }), changedHistoricalHealthPaths}, null, 2)}\n`);
   const counts = ['ok', 'outside', 'n/a', 'broken'].map(s => `${results.filter(r => r.state === s).length} ${s}`).join(', ');
   return {
-    data: { root, date, production, changedHistoricalHealthPaths, proposalCoverage: {gaps:[...history.gaps,...hygieneHistory.gaps]}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget, nightRecord: night?.record ?? null, nightPlan: night?.plan ? { shapedBy: night.plan.shapedBy, items: night.plan.items.map(i => ({ id: i.id, kind: i.kind, status: i.status })) } : night?.line ? { line: night.line } : null },
-    text: [table(results), '', counts,
+    data: { root, date, production, nightRecovery:nightRecovery ? {branch:nightRecovery.branch,head:nightRecovery.head,attempts:nightRecovery.attempts} : null, verification, fleetVerification, changedHistoricalHealthPaths, proposalCoverage: {gaps:[...history.gaps,...hygieneHistory.gaps]}, remeasurements, ok: code === 0, measures: strip(results), proposal, report: written, bounds: report ? BOUNDS : stored ? BOUNDS : null, tightened, climb, retire, tend, budget, nightRecord: night?.record ?? null, nightPlan: night?.plan ? { shapedBy: night.plan.shapedBy, items: night.plan.items.map(i => ({ id: i.id, kind: i.kind, status: i.status })) } : night?.line ? { line: night.line } : null },
+    text: [table(results), '', counts, verificationSummary(verification), fleetText,
       ...(tightened.length ? [`Ratchet: ${tightened.map(t => `${t.id} ${t.from} → ${t.to}`).join(', ')} (${BOUNDS})`] : []),
       proposal ? `Proposal (${proposal.id}): ${proposal.text}` : `Proposal: ${noProposal(results)}`,
       ...(written ? [`Wrote ${written}${report ? ` and ${BOUNDS}` : ''}${night?.record ? ` and ${night.record}` : ''}.`] : [])].join('\n'),

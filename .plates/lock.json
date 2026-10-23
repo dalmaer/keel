@@ -91,7 +91,7 @@
     },
     ".github/workflows/plates-night.yml": {
       "practice": "night",
-      "sha256": "382ebb1b5c16312467dcc2143d29a51111a6d27124c0f34106b2cd13ed13d8d8"
+      "sha256": "f6408431e3dcb0f02ac6977211eaa0c46bc0f9f93037c9c169312c42c1f22d87"
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
@@ -207,7 +207,7 @@
     },
     "scripts/plates/improve.mjs": {
       "practice": "night",
-      "sha256": "c192796d9885dff2bb4a89262ddc09f2c39783206a0738665759922dd91d872d"
+      "sha256": "98674e26ad75f14a7f116926c6682b7dcb104fe3bd0b0ce6b80baa33bce076bf"
     },
     "scripts/plates/lib.mjs": {
       "practice": "night",
@@ -219,7 +219,7 @@
     },
     "scripts/plates/morning.mjs": {
       "practice": "night",
-      "sha256": "63f90eec49244a1702e9e342cc4a352deb1bb5588bfc570352b1681d9248f630"
+      "sha256": "c77f1d0a62ce7dd78466c8892f9136b2f526ad3c2468ff37294d7e5ec98c3322"
     },
     "scripts/plates/night-plan.mjs": {
       "practice": "night",
@@ -307,11 +307,15 @@
     },
     "scripts/plates/time-proposals.mjs": {
       "practice": "night",
-      "sha256": "22dacbc49c1c4d0730a218e4a8cd04f9762f24ac8e0da1047d8e3bedd19df471"
+      "sha256": "6f7c1c4503fe2300f562361397dcc4e2a7c6df5a256319f08802f8868c52d410"
     },
     "scripts/plates/time-receipts.mjs": {
       "practice": "night",
       "sha256": "512500fbab10c3ba7b82a2a9b6acda297f8c23bb2cca79820f309fca5006f042"
+    },
+    "scripts/plates/verification.mjs": {
+      "practice": "night",
+      "sha256": "73a89a972e0c17b5a36f24bda044151b39d5d97d9acc1d7232d9cb1ac27de266"
     },
     "scripts/plates/workflows.mjs": {
       "practice": "ci",

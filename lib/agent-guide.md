@@ -685,6 +685,8 @@ plates learn distill propose --kind standardise --family "<name>" --check "<what
 
 <!-- topic: improve | is the practice working here: measures, bounds, a ratchet, one proposal -->
 
+The existing report retains bounded `plates:verification:v1` receipt comments: checked revision and dirty state, remote default branch/SHA, gate attribution, reconciliation coverage and claim findings. Same-day attempts survive refresh and morning finalization. Workflow retries recover the exact prior night branch report before measuring and publish with that SHA lease; unreadable recovery or conflicting local report content refuses publication. Missing coverage stays a gap; old claim observations never prove session inactivity. Home adds a fleet verification summary through its existing instruments; adopter nights only verify themselves. No second gate or acceptance decision is introduced.
+
 `plates improve` runs each measure and compares it with its bound. Measures
 first, a model's opinion never: every number comes from a command. It exits
 1 when a measure is outside its bound, and 2 when an instrument is broken.
@@ -1460,6 +1462,8 @@ one PR when something was kept, and never merge. ⚑ Turning it on spends model 
 owner's yes, with `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) set.
 
 <!-- topic: fleet | every project at once: behind, red, silent, or teaching something -->
+
+Fleet verification pins configuration and report reads to the observed default SHA, validates bounded versioned receipts, and reports current, behind, stale, missing, malformed or unavailable. Current observations with failures or gaps are not healthy; a later report commit is still a source mismatch. Needs you links the source and asks for project-side refresh. Fleet reads never execute consumer installs, gates or agents.
 
 `plates fleet` runs on plates only (elsewhere exit 2) and changes nothing. It
 reads `plates.json` at plates's root, `[{repo, kind, role, note}]`, and asks gh

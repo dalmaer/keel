@@ -152,6 +152,15 @@ stages. Its results never authorize reuse or replace required validation.
 Consumer producers and stage equivalence remain separately reviewed work;
 keep unsupported attempts and missing provenance as explicit gaps.
 
+## Distributed project verification
+
+Each plate owns its gate and record verification. Retain the report's source
+revision and local-versus-reused attribution; fleet inspection checks freshness
+and coverage without executing consumer gates. A missing report or unreadable
+source is a gap, and unknown session activity is never inactivity. Claim cleanup
+and acceptance are separate reviewed actions. See the
+[contract](docs/specs/plate-verification.md).
+
 ## Reconcile before calling work done
 
 With the optional reconciliation practice enabled, `plates doctor --json`

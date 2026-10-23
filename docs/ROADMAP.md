@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**51 of 116 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
+**52 of 117 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). The approved reporting workspace already uses the fixed `loop-across-projects` key and live mode (configured 14 October). Do not repeat that setup. The 19 October publication preflight stopped because the owner-only adapter rejects the owner's explicitly approved named Editor grant. Specify and review exact approved-grant matching before implementing that support; preserve the grant, writer, binding, historical cards and receipts. Do not remove access or bypass preflight. Once supported, verify one real create, a later conditional edit and a refusal after a human edit. These deployed walks remain unverified. Dedicated GitHub writer/restart proof and seven scheduled nights remain separate work. Do not ask again for the approved destination, writer or retained dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -169,7 +169,7 @@ A lesson learned in any project, or a practice improved upstream, reaches plates
 
 Without anyone remembering, each project is measured nightly, dependencies move in reviewed lanes, and anything red reaches a person.
 
-8/27 built; 16 owe a walk.
+9/28 built; 16 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -200,6 +200,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 | [89. Unchanged main reuses tested evidence](phases/89-unchanged-main-reuses-tested-evidence.md) | built | 2026-10-17 | [79](phases/79-one-gate-result-per-commit-shared-by-every-pass.md) | Implemented with 20 focused and 1,860 integrated tests passing; Plates opts in. Fresh-data work continues. |
 | [92. Feedback names the result the owner reviewed](phases/92-feedback-names-the-result-reviewed.md) | built | 2026-10-21 | [54](phases/54-the-robot-an-agent-works-the-issues-it-is-handed.md), [91](phases/91-ideas-become-plans-with-attributed-choices.md) | Private exact-result feedback, reviewed issue/shaping handoffs and metadata board proven locally and through a packed adopted project; hosted walks remain phase 98. |
 | [114. Complete consumer attestations support exact-head reuse](phases/114-complete-consumer-attestations-support-exact-head-reuse.md) | partial | 2026-10-23 | [112](phases/112-ledger-validates-core-and-web-independently.md), [113](phases/113-isocan-stalled-installation-leaves-bounded-evidence.md) | Source shadow validator has focused proof; integrated checkpoint/review and real consumer producers remain pending. No gate or reuse defaults changed. |
+| [116. Each plate verifies itself and the fleet checks coverage](phases/116-each-plate-verifies-itself-and-the-fleet-checks-coverage.md) | built | 2026-10-23 | [15](phases/15-projects-run-on-their-own.md), [26](phases/26-reconciliation.md), [70](phases/70-a-phase-being-built-is-claimed-and-plates-next.md) | Each plate owns verification; the fleet reads revision-bound evidence without rerunning project gates. |
 
 - **10 done when:** Plates and one adopted project each run `plates-night.yml` nightly for a week, each night leaving at most one open machine PR, with Renovate's lanes active and a red run reaching the owner by email.
 - **11 done when:** `plates improve` writes `docs/health/<date>.md` with deterministic measures and one proposal, changes nothing else, and its self-test fails on a fixture built to be unhealthy.
@@ -228,6 +229,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 - **89 done when:** An opted-in project reuses successful exact-revision CI gate evidence beyond 24 hours while changed, dirty, failed or unavailable evidence still causes a real gate and time-dependent night work continues.
 - **92 done when:** Feedback retains the exact reviewed result and proposes a deduplicated follow-up with fresh routing facts, without publishing private words, accepting decisions or starting work automatically.
 - **114 done when:** Consumer configured-gate reuse is accepted only from complete exact-head equivalent stage evidence and adversarial invalidation tests reject unsupported reuse.
+- **116 done when:** Each project's existing nightly report carries revision-bound verification and claim findings, and Plates identifies missing, stale or mismatched fleet evidence without executing consumer gates or changing acceptance.
 
 ## G5 — Plates knows whether it helps
 

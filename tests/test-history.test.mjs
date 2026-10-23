@@ -11,6 +11,7 @@ import { run } from './helpers/run.mjs';
 import { runBlocks } from './helpers/workflows.mjs';
 import { improve, MEASURES } from '../practices/night/files/scripts/plates/improve.mjs';
 import { parseTimeProposal, withTimeProposal } from '../practices/night/files/scripts/plates/time-proposals.mjs';
+import { recoverNightVerification } from '../practices/night/files/scripts/plates/verification.mjs';
 import { timeEvidence } from './fixtures/improve/time-evidence.mjs';
 const source = resolve('practices/night/files/scripts/plates/test-history.mjs');
 const workflow = resolve('practices/night/files/.github/workflows/plates-night.yml');
@@ -273,18 +274,20 @@ async function stagingFixture(t, production = false) {
   await writeFile(join(root, earlier), 'Acme accepted proposal; awaiting remeasurement.\n');
   await writeFile(join(root, unrelated), 'Acme owner notes.\n');
   const measures = MEASURES.filter(m => m.id === 'time_creep');
+  const env = { ...process.env, CI: 'true', PLATES_GH: join(root, 'unavailable-acme-gh') };
   if (production) {
     await mkdir(join(root, '.plates/test-runs'), { recursive: true });
     await writeFile(join(root, '.gitignore'), '.plates/test-runs/\n');
     for (const r of timeEvidence(Date.now()).runs) await writeFile(join(root, '.plates/test-runs', r.id + '.json'), JSON.stringify(r));
-    await improve({ root, report: true, date: '2026-10-08' }, { env: { CI: 'true' }, measures });
+    await improve({ root, report: true, date: '2026-10-08' }, { env, measures });
     const initial = parseTimeProposal(await readFile(join(root, earlier), 'utf8')).proposal;
     assert.ok(initial);
     await withTimeProposal({ root, path: earlier, expectedInstance: initial.instanceId }, ({ proposal, saveLifecycle }) => saveLifecycle({ ...proposal.lifecycle, state: 'accepted', decidedAt: '2026-10-08T12:00:00Z', issue: { repo: 'acme/app', number: 7, url: 'https://github.com/acme/app/issues/7' } }));
   }
   git('add', '.'); git('commit', '-qm', 'Acme initial'); const before = git('rev-parse', 'HEAD');
+  git('push', '-q', 'origin', 'main');
   let produced;
-  if (production) produced = await improve({ root, report: true, date: day }, { env: { CI: 'true' }, measures, remeasure: async () => ({ state: 'unavailable', observedAt: '2026-10-10T12:00:00Z', value: null, coverage: null, delivery: null, reasons: ['Acme awaits observations'] }) });
+  if (production) produced = await improve({ root, report: true, date: day }, { env: { ...env, PLATES_NIGHT_RECOVERY: '1' }, measures, remeasure: async () => ({ state: 'unavailable', observedAt: '2026-10-10T12:00:00Z', value: null, coverage: null, delivery: null, reasons: ['Acme awaits observations'] }) });
   else {
     await writeFile(join(root, earlier), 'Acme accepted proposal; remeasured inside.\n');
     await writeFile(join(root, today), 'Acme current report.\n');
@@ -294,7 +297,12 @@ async function stagingFixture(t, production = false) {
   await writeFile(join(root, health, 'human-draft.md'), 'Acme untracked human draft.\n');
   const temp = await project(t), commands = join(temp, 'commands'); await mkdir(commands);
   await writeFile(join(commands, 'gh'), '#!/bin/sh\nprintf "3\\n"\n'); await chmod(join(commands, 'gh'), 0o755);
-  const report = produced?.data ?? { date: day, report: today, changedHistoricalHealthPaths: [earlier] };
+  // Even malformed staging fixtures start with a real read of the local bare
+  // origin, so a missing lease cannot mask the metadata/path refusal under test.
+  const recovered = produced ? produced.data.nightRecovery : await recoverNightVerification({ root, config: { repo: 'acme/app', health }, date: day, env });
+  const nightRecovery = { branch: recovered.branch, head: recovered.head, attempts: recovered.attempts };
+  assert.deepEqual(nightRecovery, { branch: `keel-night/${day}`, head: '', attempts: 0 });
+  const report = produced?.data ?? { date: day, report: today, changedHistoricalHealthPaths: [earlier], nightRecovery };
   await writeFile(join(temp, 'improve.json'), JSON.stringify(report)); await writeFile(join(temp, 'pr.json'), '{}');
   const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === "Open the night's pull request").script;
   // GITHUB_OUTPUT as Actions provides it: the step records its default-plan write there (phase 78).
@@ -337,6 +345,7 @@ test('night historical health staging rejects unvalidated metadata and paths bef
     if (kind === 'missing-file') f.report.changedHistoricalHealthPaths = ['docs/Acme-health/2026-10-06.md'];
     await writeFile(join(f.temp, 'improve.json'), JSON.stringify(f.report));
     const result = f.execute(); assert.notEqual(result.status, 0, `${kind}: ${result.stdout}${result.stderr}`);
+    assert.doesNotMatch(result.stderr + result.stdout, /missing night recovery lease/, `${kind}: must reach the intended staging validation`);
     assert.equal(f.git('rev-parse', 'HEAD'), f.before); assert.equal(f.git('diff', '--cached', '--name-only'), f.unrelated);
   });
 });

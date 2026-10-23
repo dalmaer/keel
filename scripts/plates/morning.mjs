@@ -1,3 +1,5 @@
+import { retainedVerificationSummary } from './verification.mjs';
+import { rewriteHealthBody } from './time-proposals.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
 // The morning (plates practice `night`; managed: plates render rewrites it). When
 // the night is over, one message says what it did: the brief, in isocan's
@@ -204,10 +206,10 @@ export async function healthAround(root, config, date, { branch = null } = {}) {
     if (there.includes(name)) {
       const s = git(root, ['show', `${ref}:${file}`]);
       if (s.status !== 0) throw new MorningError(`cannot read ${file} on the branch ${branch}: git show exited ${s.status ?? s.error?.code}`);
-      return { date: name.slice(0, 10), file, rows: healthRows(s.stdout), ref: branch };
+      return { date: name.slice(0, 10), file, rows: healthRows(s.stdout), verification:retainedVerificationSummary(s.stdout), ref: branch };
     }
     const text = await localFile(root, file);
-    return text === null ? null : { date: name.slice(0, 10), file, rows: healthRows(text) };
+    return text === null ? null : { date: name.slice(0, 10), file, rows: healthRows(text), verification:retainedVerificationSummary(text) };
   };
   const day = `${date}.md`;
   return {
@@ -411,6 +413,7 @@ export function renderBrief({ plan, now = new Date(), health = {}, links = {}, v
     `# ${titleOf(plan.date)}`, '',
     `The night of ${plan.date} (UTC), ${by}: ${[count(done.length, 'done'), count(tried.length, 'tried'), count(failed.length, 'failed'), count(alone.length, 'left alone'), count(open.length, r.late ? `not finished by ${r.readyBy}` : 'still going')].join(', ')}.`, '',
     ...(linkLine ? [linkLine, ''] : []),
+    ...((health.after ?? health.before)?.verification ? ['## Retained verification', '', (health.after ?? health.before).verification, ''] : []),
     ...section('## Done', done, i => itemLine(i, health)),
     ...section('## Tried', tried, i => itemLine(i, health)),
     ...section('## Failed, and why', failed, i => itemLine(i, health, i.result?.note ? [] : ['no reason was recorded'])),
@@ -558,7 +561,7 @@ export async function finalize({ root, date, prInput }) {
   const page = `${dir}/${night}.md`;
   const text = await localFile(root, page);
   if (text !== null) {
-    try { written.push(await safeWrite(root, page, withPlanSection(text, planSection(found.plan, { record: recordOf(night) })))); }
+    try { written.push(await safeWrite(root, page, rewriteHealthBody(text, body => withPlanSection(body, planSection(found.plan, { record: recordOf(night) }))))); }
     catch (e) { throw e instanceof NightPlanError ? new MorningError(e.message) : e; }
   }
   if (prInput) await writeFile(prInput, `${JSON.stringify(finalPr(found.plan, page), null, 2)}\n`);

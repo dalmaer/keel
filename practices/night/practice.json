@@ -6,6 +6,7 @@
     { "name": "VERCEL_API_TOKEN", "optional": true, "when": "production-vercel", "why": "OPTIONAL: only configured Vercel production collection uses it, as step-scoped VERCEL_TOKEN; off and other-provider projects need none", "workflow": ".github/workflows/plates-night.yml" }
   ],
   "files": [
+    { "path": "scripts/plates/verification.mjs", "from": "scripts/plates/verification.mjs", "kind": "managed" },
     { "path": "scripts/plates/planning-config.mjs", "from": "scripts/plates/planning-config.mjs", "kind": "managed" },
     { "path": ".github/workflows/plates-night.yml", "from": ".github/workflows/plates-night.yml", "kind": "managed" },
     { "path": ".github/workflows/plates-morning.yml", "from": ".github/workflows/plates-morning.yml", "kind": "managed" },
