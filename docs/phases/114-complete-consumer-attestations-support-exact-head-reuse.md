@@ -5,8 +5,8 @@ goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Source shadow foundation merged and main checks passed; next source-only Ledger collector preserves explicit coverage gaps. Real producers/equivalence and reuse adoption remain pending."
-evidence: ["evidence/2026-10-23-validation-evidence-foundation.md"]
+note: "Source shadow foundation merged; Ledger collector focused and retained-run proof preserves explicit gaps. Exact-head review/integration and complete producers/equivalence remain separate."
+evidence: ["evidence/2026-10-23-validation-evidence-foundation.md", "evidence/2026-10-23-ledger-retained-evidence.md"]
 ---
 
 # Complete consumer attestations support exact-head reuse
@@ -39,7 +39,7 @@ See the [collector contract](../specs/validation-efficiency.md#phase-114-ledger-
 
 ## Acceptance
 
-- [ ] Ledger retained-evidence ingestion preserves archive/provenance and coverage gaps: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs`.
+- [x] Ledger retained-evidence ingestion preserves archive/provenance and coverage gaps: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs`.
 
 - [x] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
 
@@ -78,9 +78,11 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Implement and review the source-only Ledger retained-evidence collector, walk existing run 39892488810 without executing suites, and preserve local-only/private-data gaps. Real producers, complete equivalence, existing-validator integration and reuse adoption remain subsequent work; this phase stays partial.
+Complete exact-head source integration and review of the advisory Ledger collector; its focused and recorded-run proof is retained. Then consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
 
 ## Trajectory
 
 - **2026-10-23** — The parent authorized independent schema/validator work while consumer stages remain in flight. Keep phase 114 partial and preserve dependency requirements for real equivalence/adoption; shadow coverage is not gate authority. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
 - **2026-10-23** — GitHub artifact identity and expiry are assigned after upload, so producer bytes cannot embed them. Bind execution source inside records and validate separate download metadata/hash outside the bytes; checksum identity still does not authenticate origin. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
+
+- **2026-10-23** — A real retained-run walk exposed raw-plus-JSON source-byte transformation after the focused source-size control passed. Preserve the failed walk, use fixed plain-raw transport, and reject altered hashes without refreshing expected bindings. All seven source bindings and both archives then verified, while 69 explicit legacy gaps remain. [Evidence](../evidence/2026-10-23-ledger-retained-evidence.md).

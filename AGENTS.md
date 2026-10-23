@@ -150,7 +150,11 @@ The source-only [shadow evidence validator](docs/development/validation-evidence
 checks retained artifact bytes against separate expected inputs and required
 stages. Its results never authorize reuse or replace required validation.
 Consumer producers and stage equivalence remain separately reviewed work;
-keep unsupported attempts and missing provenance as explicit gaps.
+keep unsupported attempts and missing provenance as explicit gaps. The source-only
+[Ledger collector](docs/development/ledger-evidence.md) reads one explicit completed run
+against a versioned coverage profile. Retain its gaps and separate cache/harness
+bindings; its child telemetry never establishes a complete configured gate.
+It changes neither nightly manifest scope nor reuse policy.
 
 ## Reconcile before calling work done
 
