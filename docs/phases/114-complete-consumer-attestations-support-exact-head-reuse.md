@@ -20,7 +20,19 @@ Consumer configured-gate reuse is accepted only from complete exact-head equival
 [Validation efficiency spec](../specs/validation-efficiency.md), phase 114.
 Only source and existing manifest-managed consumers. No deployment or schedule.
 
+## Independent source slice — authorized 23 October 2026
+
+The parent explicitly authorized source schema/validator work in parallel with
+phases 112/113. Their dependency remains binding for complete consumer evidence
+and adoption; it does not block this isolated advisory foundation. Preserve
+this phase as partial until real producers and all acceptance are verified.
+No source gate, freshness policy or acceptance default changes in this slice.
+The current gate validator remains untouched. See the source-slice contract in
+[the spec](../specs/validation-efficiency.md#phase-114-independent-source-slice).
+
 ## Acceptance
+
+- [ ] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
 
 - [ ] Focused negative controls prove the phase contract: `node --import ./tests/helpers/hermetic.mjs --test tests/gate-reuse.test.mjs`.
 - [ ] Required integrated checks pass: `npm run check`; `npm run typecheck`.
@@ -43,7 +55,9 @@ Only source and existing manifest-managed consumers. No deployment or schedule.
 
 ## Proof
 
-`node --import ./tests/helpers/hermetic.mjs --test tests/gate-reuse.test.mjs; producer and consumer equivalence tests in each consumer.`
+Source slice: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs`. Run required changed-file conventions using `npm run check:focused -- tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs` before the unchanged integrated checkpoint.
+
+Complete phase: the source proof plus real producer and consumer equivalence tests in each consumer. Those later contracts wait for phases 112/113; synthetic fixtures do not satisfy them.
 
 Source required integrated checkpoint: `npm run check`; `npm run typecheck`.
 Run focused checks first; do not repeat full suites during builder iteration.
@@ -55,4 +69,4 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Inventory all local and CI stages before designing any attestation producer.
+Implement the authorized source-only shadow contract and adversarial validator tests first. Consumer producers, real stage equivalence, existing-validator integration and reuse adoption remain blocked on completed phases 112/113 and explicit review.
