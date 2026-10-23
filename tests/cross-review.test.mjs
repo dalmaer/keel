@@ -48,7 +48,7 @@ async function load(t, { climb = false } = {}) {
   const dir = await acme(t);
   if (climb) {
     for (const f of ['test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
-    for (const f of ['climb.mjs', 'tend.mjs']) await cp(join(dirname(CLIMB), f), join(dir, 'scripts/plates', f));
+    for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(dirname(CLIMB), f), join(dir, 'scripts/plates', f));
   }
   const at = f => import(pathToFileURL(join(dir, 'scripts/plates', f)).href);
   return climb ? { m: await at('cross-review.mjs'), climb: await at('climb.mjs') } : at('cross-review.mjs');
@@ -335,17 +335,15 @@ test('agent ran: red with only the error line when the agent failed before its b
   assert.ok(text.indexOf('- name: Did the agent run?') < text.indexOf('- name: Post the summary'));
 });
 
-test("agent ran: cross-review.mjs's copy of the check is climb.mjs's, function for function", async t => {
+test("agent ran: shared result parsing stays aligned; climb additionally requires denial-free execution evidence", async t => {
   const { m, climb } = await load(t, { climb: true });
-  for (const f of ['lastResult', 'agentVerdict', 'errorText', 'errorCause']) assert.equal(m[f].toString(), climb[f].toString(), `${f} drifted from climb.mjs`);
+  for (const f of ['lastResult', 'errorText', 'errorCause']) assert.equal(m[f].toString(), climb[f].toString(), `${f} drifted from climb.mjs`);
   assert.equal(m.ERROR_CHARS, climb.ERROR_CHARS);
   // And by behaviour, on the cases phase 35 named.
   const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success', result: 'model: claude-acme-9 not_found_error' };
   for (const c of [
-    { outcome: 'success', result: early, elapsedSec: 5, minutes: 15 },
     { outcome: 'failure', result: null, elapsedSec: 3, minutes: 15 },
-    { outcome: 'failure', result: null, elapsedSec: 15 * 60, minutes: 15 },
-    { outcome: 'success', result: { is_error: true, num_turns: 80, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 15 },
+    { outcome: 'success', result: { is_error: true, num_turns: 80, duration_ms: 900000, subtype: 'error_max_turns' }, elapsedSec: 900, minutes: 15 },
   ]) assert.deepEqual(m.agentVerdict(c), climb.agentVerdict(c));
 });
 

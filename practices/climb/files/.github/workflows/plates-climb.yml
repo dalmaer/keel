@@ -90,6 +90,11 @@ jobs:
       job: ${{ steps.pick.outputs.job }}
       branch: ${{ steps.pick.outputs.branch }}
       day: ${{ steps.pick.outputs.day }}
+      started: ${{ steps.clock.outputs.started }}
+      baseline_started: ${{ steps.baseline.outputs.started }}
+      baseline_ended: ${{ steps.baseline.outputs.ended }}
+      agent_seconds: ${{ steps.execution.outputs.seconds }}
+      execution: ${{ steps.execution.outputs.state || steps.preflight.outputs.state }}
       # Tonight's plan (phase 76): whether pick ran one, and whether it has an item to tick.
       plan_used: ${{ steps.pick.outputs.plan_used }}
       plan_ticks: ${{ steps.pick.outputs.plan_ticks }}
@@ -112,6 +117,9 @@ jobs:
             const agent = named === undefined ? "claude" : /^[a-z]+$/.test(String(named)) ? String(named) : "invalid";
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `on=${on}\nagent=${agent}\n`);
           '
+      - name: Start the runner clock
+        id: clock
+        run: echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
       - name: Configured?
         id: configured
         if: steps.on.outputs.on == 'true'
@@ -312,7 +320,17 @@ jobs:
 
       # The baseline opens the night's record (.plates/climb/night.json), on the
       # night's own branch, before the agent changes anything.
+      - name: Check runner capabilities before baseline
+        id: preflight
+        if: steps.pick.outputs.job != ''
+        run: |
+          status=0
+          node --input-type=module -e 'import { preflight } from "./scripts/plates/climb-execution.mjs"; const r = await preflight(process.cwd()); console.log(JSON.stringify(r)); process.exitCode = r.ok ? 0 : 1' > "$RUNNER_TEMP/climb-preflight.json" || status=$?
+          node -e 'const fs=require("fs"), r=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${r.state}\n`); console.log(r.line)' "$RUNNER_TEMP/climb-preflight.json"
+          exit "$status"
+
       - name: Baseline
+        id: baseline
         if: steps.pick.outputs.job != ''
         env:
           JOB: ${{ steps.pick.outputs.job }}
@@ -321,7 +339,11 @@ jobs:
           git config user.name "plates-climb"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -q -c "$BRANCH"
-          node scripts/plates/climb.mjs measure "$JOB" --baseline
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
+          status=0
+          node scripts/plates/climb.mjs measure "$JOB" --baseline || status=$?
+          echo "ended=$(date +%s)" >> "$GITHUB_OUTPUT"
+          exit "$status"
 
       # A loop night pulls Loop first where plates-loop.yml is not installed
       # (pull --no-prove: the agent proposes, not a model in the pull);
@@ -444,6 +466,7 @@ jobs:
       # pushed: a run that did nothing never reports success (lesson 29). A
       # budget timeout is not red; what it kept is judged below.
       - name: Did the agent run?
+        id: execution
         if: steps.pick.outputs.job != ''
         env:
           AGENT: ${{ steps.on.outputs.agent }}
@@ -452,11 +475,18 @@ jobs:
           MINUTES: ${{ steps.pick.outputs.minutes }}
           STARTED: ${{ steps.brief.outputs.started }}
         run: |
+          status=0
           if [ "$AGENT" = codex ]; then
-            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --agent codex --outcome "$OUTCOME" --file "$RUNNER_TEMP/codex-final-message.md" --minutes "$MINUTES" --started "$STARTED" --json > "$RUNNER_TEMP/climb-execution.json" || status=$?
           else
-            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED"
+            node "$RUNNER_TEMP/plates/scripts/plates/climb.mjs" agent-ran --outcome "$OUTCOME" --file "${EXECUTION:-$RUNNER_TEMP/claude-execution-output.json}" --minutes "$MINUTES" --started "$STARTED" --json > "$RUNNER_TEMP/climb-execution.json" || status=$?
           fi
+          node -e '
+            const fs=require("fs"), r=JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${r.ok ? "executed" : "blocked"}\nseconds=${r.elapsedSec ?? ""}\n`);
+            console.log(`${r.ok ? "" : "::error::"}${r.line || "blocked: missing execution evidence"}`);
+          ' "$RUNNER_TEMP/climb-execution.json"
+          exit "$status"
 
 
       # Never trust the git dir Codex could write (phase 47): its config,
@@ -528,6 +558,23 @@ jobs:
       # to the branch's head), with the night's record and the test ledger;
       # never its working tree. Kept or not, the record goes on, so the
       # night's history keeps a night whose agent failed.
+      - name: Record execution costs
+        if: always() && steps.pick.outputs.job != ''
+        env:
+          START: ${{ steps.clock.outputs.started }}
+          BASELINE_START: ${{ steps.baseline.outputs.started }}
+          BASELINE_END: ${{ steps.baseline.outputs.ended }}
+          AGENT_SECONDS: ${{ steps.execution.outputs.seconds }}
+          BRIEF_STARTED: ${{ steps.brief.outputs.started }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const e = process.env;
+            // The archived helper predates the agent; preflight failure has not run an agent.
+            const { durations } = await import(e.BRIEF_STARTED ? e.RUNNER_TEMP + "/plates/scripts/plates/climb-execution.mjs" : "./scripts/plates/climb-execution.mjs");
+            writeFileSync(e.RUNNER_TEMP + "/climb-durations.json", JSON.stringify(durations({ started:e.START, baselineStarted:e.BASELINE_START, baselineEnded:e.BASELINE_END, agentSeconds:e.AGENT_SECONDS })));
+          '
+
       - name: Hand the night on
         if: always() && steps.pick.outputs.job != ''
         env:
@@ -536,6 +583,9 @@ jobs:
         run: |
           out="$RUNNER_TEMP/handoff"
           mkdir -p "$out/record" "$out/test-runs"
+          for f in climb-preflight.json climb-execution.json climb-durations.json; do
+            if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
+          done
           # Codex's commits are in its git dir, handed on above as objects; .git holds Claude's.
           if [ "$AGENT" != codex ] && git rev-parse -q --verify "refs/heads/$BRANCH" > /dev/null && [ "$(git rev-parse "refs/heads/$BRANCH")" != "$GITHUB_SHA" ]; then
             git bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
@@ -573,11 +623,17 @@ jobs:
       kept: ${{ steps.judge.outputs.kept }}
       line: ${{ steps.judge.outputs.line }}
       issue: ${{ steps.judge.outputs.issue }}
+      state: ${{ steps.judge.outputs.state }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
+      - name: Start the judge clock
+        id: judge_clock
+        run: |
+          cp scripts/plates/climb-execution.mjs "$RUNNER_TEMP/climb-judge-execution.mjs"
+          echo "started=$(date +%s)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -676,6 +732,11 @@ jobs:
       - name: Judge the night
         id: judge
         env:
+          PLATES_CLIMB_JUDGE_STARTED: ${{ steps.judge_clock.outputs.started }}
+          PLATES_CLIMB_STARTED: ${{ needs.agent.outputs.started }}
+          PLATES_CLIMB_BASELINE_STARTED: ${{ needs.agent.outputs.baseline_started }}
+          PLATES_CLIMB_BASELINE_ENDED: ${{ needs.agent.outputs.baseline_ended }}
+          PLATES_CLIMB_AGENT_SECONDS: ${{ needs.agent.outputs.agent_seconds }}
           VALIDATED: ${{ steps.take.outputs.validated }}
           HELD: ${{ steps.take.outputs.held }}
         run: |
@@ -689,8 +750,8 @@ jobs:
             const r = JSON.parse(fs.readFileSync(file, "utf8"));
             // A hygiene night that proved nothing: the issue to file, its title in a file (never an output to escape).
             if (r.issue) fs.writeFileSync(title, r.issue.title);
-            fs.appendFileSync(out, `kept=${r.kept}\nline=${r.line}\nissue=${r.issue ? "yes" : ""}\n`);
-            fs.appendFileSync(summary, `${r.line}\n`);
+            fs.appendFileSync(out, `state=${r.state}\nkept=${r.kept}\nline=${r.line}\nissue=${r.issue ? "yes" : ""}\n`);
+            fs.appendFileSync(summary, `${r.line}\nExecution: ${r.state}; wall seconds (CPU unavailable): ${JSON.stringify(r.durations)}\n`);
             console.log(r.line);
           ' "$RUNNER_TEMP/report.json" "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY" "$RUNNER_TEMP/issue-title.txt"
 
@@ -698,6 +759,22 @@ jobs:
       # the issue, the record. Kept or not, the record goes on. The bundle is
       # the commit named before any of the agent's code ran, never the
       # branch as the guard, compare and report left it (#68).
+      - name: Record judge costs
+        if: always()
+        env:
+          START: ${{ needs.agent.outputs.started }}
+          BASELINE_START: ${{ needs.agent.outputs.baseline_started }}
+          BASELINE_END: ${{ needs.agent.outputs.baseline_ended }}
+          AGENT_SECONDS: ${{ needs.agent.outputs.agent_seconds }}
+          JUDGE_START: ${{ steps.judge_clock.outputs.started }}
+        run: |
+          node --input-type=module -e '
+            import { writeFileSync } from "node:fs";
+            const e = process.env;
+            const { durations } = await import(e.RUNNER_TEMP + "/climb-judge-execution.mjs");
+            writeFileSync(e.RUNNER_TEMP + "/climb-durations.json", JSON.stringify(durations({ started:e.START, baselineStarted:e.BASELINE_START, baselineEnded:e.BASELINE_END, agentSeconds:e.AGENT_SECONDS, judgeStarted:e.JUDGE_START })));
+          '
+
       - name: Hand the judged night on
         if: always()
         env:
@@ -711,7 +788,7 @@ jobs:
             g update-ref "refs/heads/$BRANCH" "$VALIDATED"
             g bundle create "$out/night.bundle" "$GITHUB_SHA..refs/heads/$BRANCH"
           fi
-          for f in body.md issue.md issue-title.txt; do
+          for f in body.md issue.md issue-title.txt report.json climb-durations.json; do
             if [ -f "$RUNNER_TEMP/$f" ]; then cp "$RUNNER_TEMP/$f" "$out/"; fi
           done
           if [ -d .plates/climb ]; then cp -R .plates/climb/. "$out/record/"; fi
@@ -898,6 +975,8 @@ jobs:
         if: always() && needs.agent.outputs.plan_ticks == 'true'
         env:
           DAY: ${{ needs.agent.outputs.day }}
+          EXECUTION: ${{ needs.agent.outputs.execution }}
+          COMPLETION: ${{ needs.judge.outputs.state }}
           JUDGED: ${{ needs.judge.result }}
           LINE: ${{ needs.judge.outputs.line }}
           OPENED: ${{ steps.open.outcome }}
@@ -911,7 +990,12 @@ jobs:
             const [pick, out] = process.argv.slice(1);
             const { plan } = JSON.parse(readFileSync(pick, "utf8"));
             const e = process.env;
-            const failed = e.JUDGED !== "success" ? `the climb did not finish: its judge ended ${e.JUDGED || "unrun"}` : e.OPENED === "failure" ? "the judge kept a change, and its pull request could not be opened" : `no pull request: ${e.LINE || "the night kept nothing"}`;
-            writeFileSync(out, JSON.stringify(passTicks({ item: plan.item, admitted: plan.admitted, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN })));
+            const failed = e.EXECUTION === "blocked" ? "blocked: runner preflight or execution evidence refused the climb; inspect the retained sanitized receipt" : ["no-candidate", "incomplete"].includes(e.COMPLETION) ? `${e.COMPLETION}: ${e.LINE || "the agent produced no judged attempt"}` : e.JUDGED !== "success" ? `the climb did not finish: its judge ended ${e.JUDGED || "unrun"}` : e.OPENED === "failure" ? "the judge kept a change, and its pull request could not be opened" : `no pull request: ${e.LINE || "the night kept nothing"}`;
+            const ticks = passTicks({ item: plan.item, admitted: plan.admitted, others: plan.skipped, prUrl: e.PR ? `${e.GITHUB_SERVER_URL || "https://github.com"}/${e.REPO}/pull/${e.PR}` : null, done: e.LINE, failed, runUrl: e.RUN });
+            if (!e.PR && e.JUDGED === "success" && e.COMPLETION === "no-improvement" && e.OPENED !== "failure" && e.EXECUTION === "executed") {
+              const last = ticks.at(-1);
+              if (last?.id === plan.item && last.status === "failed") { last.status = "done"; last.note = passTicks({ item: plan.item, failed: `no-improvement: ${e.LINE}` }).at(-1).note; }
+            }
+            writeFileSync(out, JSON.stringify(ticks));
           ' "$RUNNER_TEMP/plan/pick.json" "$RUNNER_TEMP/plan-ticks.json"
           node scripts/plates/night-plan.mjs record --date "$DAY" --ticks "$RUNNER_TEMP/plan-ticks.json"

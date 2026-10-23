@@ -1165,7 +1165,7 @@ test('lesson 29: plates-climb.yml and plates-tend.yml end red when the agent fai
       ['the check swallowed', t.replace(check, check.replace('        run: |', '        continue-on-error: true\n        run: |'))],
       ['another step\'s outcome', t.replace(`steps.${opts.id}.outcome`, 'steps.brief.outcome')],
       ['no execution file', t.replace(`EXECUTION: \${{ steps.${opts.id}.outputs.execution_file }}`, 'EXECUTION: none')],
-      ['its exit ignored', t.replace(/--started "\$STARTED"\n/, '--started "$STARTED" || true\n')],
+      ['its exit ignored', t.replace(check, check.includes('exit "$status"') ? check.replace('exit "$status"', 'exit 0 || true') : check.replace(/--started "\$STARTED"\n/, '--started "$STARTED" || true\n'))],
       ['the agent step has no id', t.replace(`\n        id: ${opts.id}\n`, '\n')],
     ]) {
       assert.notEqual(text, t, `${name} ${why}: the mutation did not apply`);
