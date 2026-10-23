@@ -5,7 +5,7 @@ goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Source shadow validator has focused proof; integrated checkpoint/review and real consumer producers remain pending. No gate or reuse defaults changed."
+note: "Source shadow foundation merged and main checks passed; next source-only Ledger collector preserves explicit coverage gaps. Real producers/equivalence and reuse adoption remain pending."
 evidence: ["evidence/2026-10-23-validation-evidence-foundation.md"]
 ---
 
@@ -30,7 +30,16 @@ No source gate, freshness policy or acceptance default changes in this slice.
 The current gate validator remains untouched. See the source-slice contract in
 [the spec](../specs/validation-efficiency.md#phase-114-independent-source-slice).
 
+## Ledger collector slice — authorized 23 October 2026
+
+The shadow foundation merged as PR 228 and main 1407926 passed its complete
+gate/typecheck. This next slice only ingests existing Ledger jobs/artifacts
+against a reviewed versioned coverage manifest. It grants no reuse authority.
+See the [collector contract](../specs/validation-efficiency.md#phase-114-ledger-retained-evidence-collector-slice).
+
 ## Acceptance
+
+- [ ] Ledger retained-evidence ingestion preserves archive/provenance and coverage gaps: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs`.
 
 - [x] Source shadow contract rejects incomplete/mismatched evidence without execution or reuse authority: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs`.
 
@@ -55,7 +64,7 @@ The current gate validator remains untouched. See the source-slice contract in
 
 ## Proof
 
-Source slice: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs`. Run required changed-file conventions using `npm run check:focused -- tests/validation-evidence.test.mjs tests/gate-reuse.test.mjs` before the unchanged integrated checkpoint.
+Source collector slice: `node --import ./tests/helpers/hermetic.mjs --test tests/validation-ledger.test.mjs tests/validation-audit.test.mjs tests/validation-evidence.test.mjs`. Run required changed-file conventions using `npm run check:focused -- tests/validation-ledger.test.mjs tests/validation-audit.test.mjs tests/validation-evidence.test.mjs` before the unchanged integrated checkpoint. Existing gate-reuse compatibility remains covered at integration; no active gate code changes.
 
 Complete phase: the source proof plus real producer and consumer equivalence tests in each consumer. Those later contracts wait for phases 112/113; synthetic fixtures do not satisfy them.
 
@@ -69,7 +78,7 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Complete the source slice’s independent review and unchanged integrated checkpoint after the reserved consumer heavy slots, then open the separate draft PR. Consumer producers, real stage equivalence, existing-validator integration and reuse adoption remain pending completed phases 112/113 and explicit review.
+Implement and review the source-only Ledger retained-evidence collector, walk existing run 39892488810 without executing suites, and preserve local-only/private-data gaps. Real producers, complete equivalence, existing-validator integration and reuse adoption remain subsequent work; this phase stays partial.
 
 ## Trajectory
 
