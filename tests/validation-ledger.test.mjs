@@ -108,6 +108,96 @@ test('cache and harness retain separate joint values and separate legacy project
   assert.equal(missing.inputs.harness, null); assert.equal(missing.inputs.cache, null);
 });
 
+test('joint digest bindings reject nonstrings without replacing cache or harness', () => {
+  const valid = Object.fromEntries(JOINT_INPUT_KEYS.map((key, i) => [key, (i + 1).toString(16).repeat(64)]));
+  for (const key of JOINT_INPUT_KEYS) {
+    for (const value of [[valid[key]], [[valid[key]]], { value: valid[key] }, 42, true, false, null]) {
+      const bridge = bridgeLedgerInputs({ inputs: { ...valid, [key]: value } });
+      assert.equal(bridge.inputs[key], null, `${key} must remain unknown for ${JSON.stringify(value)}`);
+      assert.ok(!(key in bridge.projections.auditSchema1));
+      assert.ok(!(key in bridge.projections.shadowSchema1));
+      for (const other of JOINT_INPUT_KEYS.filter(k => k !== key)) assert.equal(bridge.inputs[other], valid[other]);
+    }
+  }
+});
+
+test('legacy hashes and private data identities require strings without coercion', () => {
+  const short = '123456789012';
+  for (const value of [[short], [[short]], { value: short }, 123456789012, true, false, null]) {
+    const bridge = bridgeLedgerInputs({ commandHash: value, config: value });
+    assert.deepEqual(bridge.legacy, {});
+  }
+  for (const value of [[head], [[head]], { value: head }, 42, true, false, null]) {
+    const bridge = bridgeLedgerInputs({ privateData: { revision: value, tree: value } });
+    assert.deepEqual(bridge.privateData, { revision: null, tree: null });
+  }
+  const valid = bridgeLedgerInputs({ commandHash: short, config: short, privateData: { revision: head, tree } });
+  assert.deepEqual(valid.legacy, { commandHash: short, config: short });
+  assert.deepEqual(valid.privateData, { revision: head, tree });
+});
+
+test('collector boundary rejects coerced strings and preserves audit compatibility', async () => {
+  const f = fixture(), fullHash = 'c'.repeat(64), shortHash = 'd'.repeat(12);
+  f.files[0][0].body = JSON.stringify(child('.', 0, {
+    inputs: Object.fromEntries(JOINT_INPUT_KEYS.map(key => [key, [fullHash]])),
+    commandHash: [shortHash], config: 123456789012,
+    privateData: { revision: [head], tree: [[tree]] }, node: ['v26.12.1'],
+    setting: { env: { LEDGE_CLOCK_SHIFT_DAYS: { name: 'LEDGE_CLOCK_SHIFT_DAYS', set: true, hash: [shortHash] } } },
+  }));
+  f.pack(0);
+  const r = await f.collect();
+  assert.doesNotThrow(() => auditValidation(fleet, r.auditInput), 'malformed retained bindings must not break the unchanged nightly analyzer');
+  const observed = r.children[0];
+  assert.ok(Object.values(observed.bridge.inputs).every(value => value === null));
+  assert.deepEqual(observed.bridge.projections.auditSchema1, {}); assert.deepEqual(observed.bridge.projections.shadowSchema1, {});
+  assert.deepEqual(observed.bridge.legacy, {}); assert.deepEqual(observed.bridge.privateData, { revision: null, tree: null });
+  assert.equal(observed.runtimeVersion, null); assert.equal(observed.clockObservation.representation, 'unknown'); assert.equal(observed.clockObservation.valueHash12, null);
+  assert.equal(observed.clockShiftDays, null);
+  for (const key of JOINT_INPUT_KEYS) assert.ok(codes(r).includes(`input_${key}_unobserved`));
+  assert.equal(r.configuredGateComplete, false); assert.equal(r.reuseAuthorized, false);
+});
+
+test('profile string identities and tokens reject nonstrings before API reads', async () => {
+  const boundaries = [
+    [['repo'], 'invalid_profile'], [['baseline'], 'invalid_profile'], [['workflowName'], 'invalid_profile'],
+    [['sources', 0, 'sha256'], 'invalid_sources'],
+    [['lanes', 0, 'id'], 'invalid_lanes'], [['lanes', 0, 'artifact'], 'invalid_lanes'], [['lanes', 0, 'job'], 'invalid_lanes'],
+    [['configured', 'stages', 0, 'id'], 'invalid_stages'], [['configured', 'stages', 0, 'hosted', 'job'], 'invalid_stages'],
+    [['hosted', 'jobs', 0], 'invalid_hosted_profile'], [['hosted', 'extraStages', 0, 'id'], 'invalid_hosted_profile'],
+  ];
+  for (const [path, code] of boundaries) {
+    for (const shape of [value => [value], value => [[value]], value => ({ value }), () => 42, () => true, () => null]) {
+      const f = fixture(), owner = path.slice(0, -1).reduce((value, key) => value[key], f.profile), key = path.at(-1);
+      owner[key] = shape(owner[key]);
+      await assert.rejects(f.collect(), { code }, `${path.join('.')} must reject a nonstring at its own boundary`);
+      assert.equal(f.calls.length, 0);
+    }
+  }
+});
+
+test('provider identities and artifact digests never coerce arrays into strings', async () => {
+  const f = fixture(); f.routes['repos/acme/anvil/actions/runs/7'].head_sha = [head];
+  await assert.rejects(f.collect(), { code: 'run_identity_unusable' }); assert.equal(f.calls.length, 1); assert.equal(f.downloads.length, 0);
+  const g = fixture(); g.routes[`repos/acme/anvil/git/commits/${head}`].tree.sha = [tree];
+  const mismatch = await g.collect(); assert.equal(mismatch.identity.tree, null); assert.ok(codes(mismatch).includes('head_tree_mismatch'));
+  for (const shape of [value => [value], value => [[value]], value => ({ value }), () => 42, () => true, () => null]) {
+    const h = fixture(); h.artifacts[0].digest = shape(h.artifacts[0].digest);
+    const r = await h.collect(); assert.ok(codes(r).includes('artifact_digest_unavailable')); assert.equal(h.downloads.length, 1);
+  }
+});
+
+test('runtime and redacted clock hashes retain malformed JSON values as unknown', async () => {
+  for (const shape of [value => [value], value => [[value]], value => ({ value }), () => 123456789012, () => true, () => null]) {
+    const f = fixture(); f.files[0][0].body = JSON.stringify(child('.', 0, {
+      node: shape('v26.12.1'),
+      setting: { env: { LEDGE_CLOCK_SHIFT_DAYS: { name: 'LEDGE_CLOCK_SHIFT_DAYS', set: true, hash: shape('123456789012') } } },
+    })); f.pack(0);
+    const r = await f.collect(); assert.equal(r.children[0].runtimeVersion, null); assert.equal(r.children[0].clockObservation.valueHash12, null);
+    assert.equal(r.children[0].clockObservation.representation, 'unknown'); assert.ok(codes(r).includes('child_clock_unobserved'));
+    assert.doesNotThrow(() => auditValidation(fleet, r.auditInput));
+  }
+});
+
 test('large immutable source bytes bypass reporter JSON limits but retain exact hashes and byte caps', async () => {
   const f = fixture(), path = `repos/${repo}/contents/scripts/plates/test-ledger.mjs?ref=${head}`;
   assert.ok(f.routes[path].length > 86_442);

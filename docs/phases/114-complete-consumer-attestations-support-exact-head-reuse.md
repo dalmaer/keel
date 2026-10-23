@@ -5,7 +5,7 @@ goal: G4
 spec: 2
 depends: [112, 113]
 review: wait
-note: "Source shadow foundation merged; Ledger collector focused and retained-run proof preserves explicit gaps. Exact-head review/integration and complete producers/equivalence remain separate."
+note: "Fresh complete local review found a collector type-coercion defect; focused correction preserves unknowns. Corrected-head gates/review and complete producers/equivalence remain separate."
 evidence: ["evidence/2026-10-23-validation-evidence-foundation.md", "evidence/2026-10-23-ledger-retained-evidence.md"]
 ---
 
@@ -78,7 +78,7 @@ consumer adoption wait for the preceding review; no policy is weakened here.
 
 ## Next action
 
-Complete exact-head source integration and review of the advisory Ledger collector; its focused and recorded-run proof is retained. Then consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
+Complete corrected-head source integration, CI and independent correction review after the fresh full local review found non-string digest coercion. Preserve prior gate/review attempts separately. Then consolidate actual consumer acceptance, authenticated producer/input lineage and complete equivalence in separately reviewed work before any validator/reuse adoption. This phase stays partial.
 
 ## Trajectory
 
@@ -86,3 +86,5 @@ Complete exact-head source integration and review of the advisory Ledger collect
 - **2026-10-23** — GitHub artifact identity and expiry are assigned after upload, so producer bytes cannot embed them. Bind execution source inside records and validate separate download metadata/hash outside the bytes; checksum identity still does not authenticate origin. [Evidence](../evidence/2026-10-23-validation-evidence-foundation.md).
 
 - **2026-10-23** — A real retained-run walk exposed raw-plus-JSON source-byte transformation after the focused source-size control passed. Preserve the failed walk, use fixed plain-raw transport, and reject altered hashes without refreshing expected bindings. All seven source bindings and both archives then verified, while 69 explicit legacy gaps remain. [Evidence](../evidence/2026-10-23-ledger-retained-evidence.md).
+
+- **2026-10-23** — A fresh local review covered all 1,255 diff lines and required lessons/spec/phase context, exposing a non-string regex coercion defect missed by the partial hosted reviews. Preserve that finding and prove the typed-boundary correction fails without its fix; no passing prior-head gate is carried to the changed candidate. [Evidence](../evidence/2026-10-23-ledger-retained-evidence.md#fresh-complete-local-review-and-boundary-correction).
