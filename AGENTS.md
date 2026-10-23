@@ -127,6 +127,20 @@ plates's files are listed in `.plates/lock.json`; `plates doctor` says if you
 changed one. Everything else is yours.
 <!-- plates:end agents-md -->
 
+## Retained validation audits
+
+Use the source-only [validation audit entrypoint](docs/development/validation-audit.md)
+for recorded-evidence analysis. It emits actionable findings and coverage gaps;
+it never runs gates or authorizes reuse. Before the integrated checkpoint, run
+`npm run check:focused -- tests/<affected>.test.mjs` with the named phase tests.
+This source preflight always includes helper, README, guide, CLI, adoption and
+managed-skill and package capability conventions
+and roadmap/render/inbox/whitespace guards; do not omit conventions when adding
+tests, scripts or documentation. Inventory additional changed-file conventions
+from the audit and repository instructions. It is early feedback, never a
+replacement for the unchanged required integrated checkpoint. The phased implementation contract
+is [validation efficiency](docs/specs/validation-efficiency.md).
+
 ## Reconcile before calling work done
 
 With the optional reconciliation practice enabled, `plates doctor --json`
