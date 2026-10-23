@@ -619,7 +619,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       const ran = env => outputs('Did the agent run?', { MINUTES: '30', STARTED: String(now - 20), EXECUTION: '', ...env });
       const red = await ran({ AGENT: 'codex', OUTCOME: 'failure' });
       assert.equal(red.status, 1, red.stdout + red.stderr);
-      assert.match(red.stdout, /^::error::Codex did not start: the agent step ended failure after \d+ s, before its 30-minute budget, with no final message; check OPENAI_API_KEY/);
+      assert.match(red.stdout, /^::error::blocked: Codex final execution evidence is missing; execution cannot be verified/);
+      assert.doesNotMatch(red.stdout, /did not start|OPENAI_API_KEY/, 'missing evidence does not establish a credential failure');
       await writeFile(join(dir, 'codex-final-message.md'), 'Kept one change.\n');
       const ok = await ran({ AGENT: 'codex', OUTCOME: 'success' });
       assert.equal(ok.status, 0, ok.stdout + ok.stderr);
@@ -627,7 +628,8 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
       assert.doesNotMatch(ok.stdout, /Kept one change/, 'never the agent\'s words');
       const claude = await ran({ AGENT: 'claude', OUTCOME: 'failure' });
       assert.equal(claude.status, 1);
-      assert.match(claude.stdout, /^::error::Claude did not start/);
+      assert.match(claude.stdout, /^::error::blocked: Claude execution evidence is missing/);
+      assert.doesNotMatch(claude.stdout, /did not start|secret/, 'missing evidence does not establish that the agent never ran');
     }
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
