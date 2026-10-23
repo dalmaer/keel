@@ -13,8 +13,12 @@ import { PLATES, git, write, commit, acme, climb, json, load, stubGh, page, step
 
 test('tend input: one worksheet of every record measure, reconciliation and loose ends; a source that could not run is n/a with why, never empty', async t => {
   const dir = await tendAcme(t);
+  // This worksheet fixture predates the stuck-phase threshold; freeze the
+  // actual child clock so a calendar rollover cannot add unrelated findings.
+  const preload = pathToFileURL(join(PLATES, 'tests/helpers/night-box-preload.mjs')).href;
+  const input = (args, env = {}) => climb(dir, args, { ...env, PLATES_BOX_NOW: '2026-10-10T12:00:00Z', NODE_OPTIONS: `--import=${preload}` });
   const NO_PLATES = { PLATES_CLI: join(dir, 'no-such-plates') };
-  const w = json(climb(dir, ['tend-input', '--json'], NO_PLATES));
+  const w = json(input(['tend-input', '--json'], NO_PLATES));
   assert.deepEqual(w.measures.map(m => m.id), ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders', 'drift', 'lint']);
   const proofs = w.measures.find(m => m.id === 'proofs_hold');
   assert.equal(proofs.value, 1, JSON.stringify(proofs));
@@ -34,7 +38,7 @@ test('tend input: one worksheet of every record measure, reconciliation and loos
   // The night's row rides beside each measure; loose ends from plates when it is there.
   await write(dir, { 'docs/health/2026-10-05.md': page([['proofs_hold', 2, '≤ 0', 'outside'], ['lint', 0, '≤ 0', 'ok']]) });
   const PLATES_STUB = { PLATES_CLI: await stubPlates(t, { dir, items: [{ id: 'ab12', kind: 'branch', fingerprint: 'branch:acme-old', title: 'acme-old', move: 'delete it: merged', commands: ['git branch -d acme-old'] }] }) };
-  const w2 = json(climb(dir, ['tend-input', '--json'], PLATES_STUB));
+  const w2 = json(input(['tend-input', '--json'], PLATES_STUB));
   assert.equal(w2.health, 'docs/health/2026-10-05.md');
   assert.deepEqual(w2.measures.find(m => m.id === 'proofs_hold').night, { value: 2, state: 'outside', detail: 'detail' });
   assert.deepEqual(w2.looseEnds.findings, [{ id: 'loose:branch:acme-old', measure: 'loose-ends', what: 'branch: acme-old → delete it: merged (git branch -d acme-old)' }]);
@@ -42,21 +46,21 @@ test('tend input: one worksheet of every record measure, reconciliation and loos
   // plates#22: a loose end's command named the runner's checkout path; the PR is read on GitHub, so paths are the repo's.
   const real = await realpath(dir);
   const PATHS = { PLATES_CLI: await stubPlates(t, { dir: real, items: [{ id: 'cd34', kind: 'phase', fingerprint: 'phase:7', title: 'phase 7: Acme orders', move: 'the owner\'s step', commands: [`less ${real}/docs/phases/07-acme-orders.md`] }] }) };
-  const wPaths = json(climb(dir, ['tend-input', '--json'], PATHS));
+  const wPaths = json(input(['tend-input', '--json'], PATHS));
   assert.deepEqual(wPaths.looseEnds.findings.map(f => f.what), ["phase: phase 7: Acme orders → the owner's step (less docs/phases/07-acme-orders.md)"]);
   // An instrument that cannot run: the phases measures are n/a, saying why, never 0.
   await rm(join(dir, 'scripts/roadmap.mjs'));
-  const w3 = json(climb(dir, ['tend-input', '--json'], NO_PLATES));
+  const w3 = json(input(['tend-input', '--json'], NO_PLATES));
   for (const id of ['proofs_hold', 'roadmap_stale', 'phases_stuck', 'evidence_placeholders']) {
     const m = w3.measures.find(x => x.id === id);
     assert.deepEqual([m.state, m.value], ['n/a', null], id);
     assert.match(m.why, /^could not run: scripts\/roadmap\.mjs is missing/, id);
   }
   // plates's loose-ends printing nothing usable is n/a too.
-  const garbled = json(climb(dir, ['tend-input', '--json'], { PLATES_CLI: await stubPlates(t, { raw: 'not json' }) }));
+  const garbled = json(input(['tend-input', '--json'], { PLATES_CLI: await stubPlates(t, { raw: 'not json' }) }));
   assert.match(garbled.looseEnds.why, /printed no JSON/);
   // The text form names each source.
-  const text = climb(dir, ['tend-input'], NO_PLATES).stdout;
+  const text = input(['tend-input'], NO_PLATES).stdout;
   assert.match(text, /^ {2}loose-ends: n\/a: plates is not installed here/m);
 });
 
