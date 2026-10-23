@@ -185,3 +185,15 @@ test('migration catalogue matches the shared approval parser without enabling we
   assert.equal(parseRenameArgs(['acme', '--json']).yes, false);
   for (const args of [['--yes'], ['--digest', digest], ['--yes', '--yes', '--digest', digest], ['--yes', '--digest', digest.toUpperCase()], ['acme', 'other']]) assert.throws(() => parseRenameArgs(args));
 });
+
+test('the reviewed adoption handoff stays source-bound without enabling a capability', async t => {
+  const directory = await copyBoundary(t);
+  const path = join(directory, 'lib/adopt.mjs');
+  const before = await readFile(path, 'utf8');
+  const after = before.replace("status: 'not-checked'", "status: 'registered'");
+  assert.notEqual(after, before, 'the mutation must falsely claim enrollment');
+  await writeFile(path, after);
+  const result = await auditOperationCoverage({ root: directory, registeredKeys: keys });
+  assert.equal(result.ok, false);
+  assert.ok(result.findings.some(item => item.code === 'parser_source_changed' && item.path === 'lib/adopt.mjs'));
+});

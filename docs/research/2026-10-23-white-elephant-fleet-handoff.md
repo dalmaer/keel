@@ -92,3 +92,19 @@ preflight and full gate remain pending the parent’s shared validation slot. Th
 is not claimed: another task owns the exclusive heavy slot until the parent
 coordinates this correction’s checkpoint. A proposed manifest is not merged
 central membership; no merge or deployment is performed by this step.
+
+
+## First convention preflight — 23 October 2026, 17:09 UTC
+
+The first frozen candidate passed 111 of 115 source-convention tests and failed
+four. The guide guard correctly refused to present a source-only script as a
+shipped consumer command; its executable example moved into the development
+procedure, with a link retained in the consumer guide. The capability guard
+correctly detected the changed `lib/adopt.mjs` source pin; the adoption diff was
+reviewed as output-only (no new CLI forms, options or capability treatment), and
+only that source hash was refreshed. A negative test changes the new status
+into a false registration claim and verifies that coverage still fails closed.
+No allowlist, hash comparison or consumer-command check was disabled. The
+33.9-second failed attempt remains retained; typecheck and full gate did not
+start after that failure. The corrected candidate needs fresh independent
+review and validation before publication.

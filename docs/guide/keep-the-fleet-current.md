@@ -213,11 +213,9 @@ approval, add the verified repository identity with the appropriate existing
 `kind` and `role: "managed"` policy in a separate reviewed change. Adoption
 itself never writes the registry.
 
-From the Plates source checkout, verify the exact proposed or merged manifest:
-
-```sh
-node scripts/check-fleet-registration.mjs --manifest /absolute/path/to/plates/plates.json --repo acme/studio --json
-```
+Use the [source checkout completion procedure](../development/fleet-registration.md)
+to verify the exact proposed or merged manifest. The checker is deliberately not
+an installed consumer command.
 
 This is a source-only completion check, not an installed CLI verb. It uses the
 same manifest parser as `plates fleet`, requires the root `plates.json` beside a
