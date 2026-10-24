@@ -330,3 +330,23 @@ the compatibility projection; the explicit evaluation history retains promotion.
 This changes no human acceptance or production claim. Pending rollback likewise
 remains proposed until the distinct rollback history event. No live controller
 promotion was reachable or activated by this unreleased implementation.
+
+## Repair identity clarification — 24 October 2026
+
+A repair reference is a work link, not rollback approval authority. Bind its stable
+identity separately from mutable source observations: issue repository/ref plus
+provider issue ID, or phase repository/ref plus exact repository-relative filename.
+A missing, renamed or replaced identity refuses; ordinary edits, comments and
+closure do not invalidate the link. Preserve request-time and observation-time
+state/content digests as separate historical observations. Closure is never
+acceptance. All exact package/review/policy/merge checks remain unchanged.
+
+Use a strict repair observation with fields kind, repository, ref, identity,
+identityDigest, state and sourceDigest. identity is {issueId,path}, with positive
+issueId and null path for an issue, or null issueId and relative phase path for a
+phase. identityDigest hashes {kind,repository,ref,identity}. sourceDigest binds the
+fresh source bytes/state (and provider updatedAt where available) independently.
+Request records retain repairDigest=identityDigest plus repairObservation;
+observed-rollback records retain a new repairObservation with the same identity
+as the request. Strict replay checks that relationship without equating source
+hashes or treating later phase/issue state as acceptance.
