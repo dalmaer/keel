@@ -302,7 +302,7 @@ the gate's line and rows of before and after ("Evidence: none recorded."
 when there are none; the section is never dropped); **Merge danger**, a
 two-way door (a revert restores everything) or a one-way door (something
 leaves the repo), with the blast radius in Real surfaces terms (phase 32;
-none is "this repo's … only"). Notes follow, and the keel-impact block
+none is "this repo's … only"). Notes follow, and the plates-impact block
 stays last. The night writes its input with `improve.mjs --pr-input` and
 the commit's files: two-way, data files only. `plates update` and `plates
 fleet update` use it too: the changed files, the gate and the practice

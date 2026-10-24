@@ -32,7 +32,7 @@ fill the real owner/date and link reciprocal, scope-specific replacements.
 ## Evidence receipt
 
 In the evidence section referenced by an implementation/production/use
-entry, use a `keel-proof` JSON fence. Fill these fields from the actual run:
+entry, use a `plates-proof` JSON fence. Fill these fields from the actual run:
 `version: 1`, `kind`, `acceptance` (existing stable ID), `sha` (full tested
 revision), `environment`, `observed_at` (timestamp with zone), `observer`,
 `claim`, and `result`. Only `result: "pass"` supports a positive claim.

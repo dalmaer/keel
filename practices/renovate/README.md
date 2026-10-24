@@ -64,7 +64,7 @@ practice came from, where each keeps a version of its own:
   phase 29 both render from the project, so isocan can take plates's file with
   `timezone` set and lose no rule; taking it is isocan's call.
 
-Generated PRs carry a `keel-impact` declaration through Renovate's `prBodyNotes`
+Generated PRs carry a `plates-impact` declaration through Renovate's `prBodyNotes`
 ([configuration reference](https://docs.renovatebot.com/configuration-options/#prbodynotes)).
 Dependency pins and lockfiles declare no record impact; a change to actual
 phase/decision records still fails the optional reconciliation diff check until

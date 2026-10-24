@@ -32,3 +32,16 @@ const a=process.argv.slice(2); const path=a.find(x=>x.includes('issues?'));const
   else {const bad=await call(mutant);assert.equal(surface==='morning'?bad.length:bad.next, surface==='morning'?0:null);}
  }
 });
+
+test('night-plan keeps the current label observation when the legacy duplicate conflicts',async t=>{
+ const dir=await mkdtemp(join(tmpdir(),'acme-label-priority-'));t.after(()=>rm(dir,{recursive:true,force:true}));
+ await mkdir(join(dir,'scripts/plates'),{recursive:true});
+ for(const [practice,file] of [['night','names.mjs'],['climb','robot-policy.mjs'],['climb','robot-rubric.mjs']])await cp(new URL(`../practices/${practice}/files/scripts/plates/${file}`,import.meta.url),join(dir,'scripts/plates',file));
+ const {robotInput}=await labelMutant(new URL('../practices/night/files/scripts/plates/night-plan.mjs',import.meta.url),'label:keel:agent','unrelated',['robotInput']);
+ const gh=join(dir,'gh'),current={number:7,title:'Acme current',body:rubric,createdAt:'2026-10-24T00:00:00Z'},legacy={...current,title:'Acme stale',body:'stale malformed rubric'};
+ await writeFile(gh,`#!${process.execPath}
+const a=process.argv.slice(2);console.log(JSON.stringify(a[a.indexOf('--label')+1]==='plates:agent'?${JSON.stringify([current])}:${JSON.stringify([legacy])}));
+`,{mode:0o755});
+ const result=await robotInput(dir,{repo:'acme/anvils',robot:{on:true,budgetMinutes:60}},{...process.env,PLATES_GH:gh});
+ assert.deepEqual(result.next,{number:7,title:'Acme current'});
+});

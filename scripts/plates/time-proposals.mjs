@@ -85,7 +85,7 @@ function managedReport(source) {
   if (!/^[a-f0-9]{64}$/.test(region.begin.payload) || !region.body.startsWith('\n') || !region.body.endsWith('\n')) throw new Error('health report has invalid managed markers');
   const body = region.body.slice(1,-1);
   if (reportHash(body) !== region.begin.payload) throw new Error('health report managed-region drift; human edits preserved, no report written');
-  return {start:region.start,end:region.end,body};
+  return {start:region.start,end:region.end,body,begin:region.begin,close:region.close};
 }
 // Only hash-verified report bytes are replaceable. The proposal region and all
 // surrounding human bytes are separate and survive every refresh unchanged.
@@ -94,7 +94,9 @@ export function rewriteHealthBody(source, transform) {
   const current = managedReport(source);
   if (!current) return transform(source);
   const body = transform(current.body);
-  return source.slice(0,current.start)+`${markerComment(reportBeginId, reportHash(body))}\n${body}\n${reportEnd}`+source.slice(current.end);
+  // A section edit owns the body and its digest, not the existing wrapper name.
+  const begin = current.begin.raw.replace(current.begin.payload, reportHash(body));
+  return source.slice(0,current.start)+`${begin}\n${body}\n${current.close.raw}`+source.slice(current.end);
 }
 export function mergeHealthPage({previous='',generated}) {
   const old=parseTimeProposal(previous),next=parseTimeProposal(generated);

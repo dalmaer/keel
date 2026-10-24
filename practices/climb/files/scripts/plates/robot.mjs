@@ -241,7 +241,9 @@ async function admitRobot({ root, repo, config, event, eventName, has, now = new
   } else if (eventName === 'schedule' || eventName === 'workflow_dispatch') {
     const listed=[];
     for(const label of labelNames('label:keel:agent')) listed.push(...await robotPages(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}&sort=created&direction=asc`));
-    issues=[...new Map(listed.filter(i=>!i.pull_request).map(i=>[i.number,i])).values()].sort((a,b)=>String(a.created_at??'').localeCompare(String(b.created_at??''))||a.number-b.number);
+    const byNumber = new Map();
+    for (const issue of listed) if (!issue.pull_request && !byNumber.has(issue.number)) byNumber.set(issue.number, issue);
+    issues=[...byNumber.values()].sort((a,b)=>String(a.created_at??'').localeCompare(String(b.created_at??''))||a.number-b.number);
   } else if ((eventName === 'issues' && ['labeled', 'reopened'].includes(event.action)) || (eventName === 'issue_comment' && event.action === 'created')) {
     if (event.issue?.pull_request || !robotId(event.issue?.number)) return blocked('not an issue event');
     if (eventName === 'issues' && event.action === 'labeled' && !matchesLabel(event.label,'label:keel:agent')) return blocked('not the robot label');

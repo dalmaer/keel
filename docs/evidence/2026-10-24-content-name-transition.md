@@ -1,0 +1,65 @@
+# Phase 126: content names and repository-bound label selection
+
+Date: 2026-10-24. Initial observations used `b435d2bad7fd33f81df619fe9bff70f8b5147743`, including reviewed phase 127 merge `48ec9e2f`. Integration commit `b7598f07` then incorporated phase 125 merge `230d0562`; its branch/concurrency rows are dual, and its reviewed invalid-plan protection remains in place. Initial proof below retains its original source scope.
+
+## Implemented source
+
+The canonical name table supplies marker, fence and artifact identities to CLI and managed runtime consumers. New content uses explicit dual rows. Historical fence readers retain both names permanently; conflicting spellings of the same family anywhere in one body refuse, while separate families remain independent. Marker readers prefer current names without rewriting the original body or silently joining mismatched boundaries. Artifact selection prefers present current evidence, even when it subsequently fails validation; corruption is not absence.
+
+Label readers accept both exact names permanently. Writers select the current name only from committed, repository-ID-bound rename/readback evidence plus a fresh complete provider label inventory. Conflicts, uncommitted receipts, stale observations or a current label without its receipt refuse. A fresh repository with neither name may select the legacy name only through a caller's existing creation authority; robot issue publication does not gain creation authority. Phase 128 owns approved label renames and receipt publication. Generic label writers remain held.
+
+Reconciliation's standalone installation includes the canonical runtime library with its original ownership; climb/reconciliation source doorways are libraries, not new command entrypoints. A project keeping its own night runtime retains that responsibility. The held inventory-only morning marker and plural time-proposals artifact have no discovered active writer; they are not silently activated or claimed migrated.
+
+## Independently observed checks
+
+`PATH=/opt/homebrew/bin:$PATH TZ=UTC node --import ./tests/helpers/hermetic.mjs --test tests/names.test.mjs tests/names-content.test.mjs tests/names-labels.test.mjs tests/names-label-consumers.test.mjs tests/names-review-markers.test.mjs tests/reconciliation.test.mjs tests/robot-runtime.test.mjs tests/robot-issue.test.mjs tests/review.test.mjs tests/gate-reuse.test.mjs tests/climb.test.mjs tests/canvas-snapshot.test.mjs` exited 0: 252 passed, no failures or skips. Log: `/tmp/plates126-conductor-integrated-proof.log`.
+
+An earlier independent boundary proof passed 29 tests before integration. Builder focused groups overlap and are not a total; `/tmp/plates126-builder-handoff.md` retains commands, failures and corrections. In particular, a newly introduced label stub initially mishandled leading-slash paths; that failed run remains recorded separately from its corrected run.
+
+Mutation audit: [168 literal green/red pairs](2026-10-24-content-name-mutations.json) cover 84 reader/family roles in both directions. Each counted baseline exits 0 and each removed-alias mutant fails the same acceptance assertion. The conductor checked source, effective-test and log hashes plus actual mutation-load evidence for all 168 pairs, and independently re-executed four header baseline/red checks. The initial 144 pairs left four orchestration gaps; 24 additional pairs cover repository-alias discovery, publication/triage guards, composite authorization and delivery continuation/identity. Setup/fixture failures are excluded from accepted counts and preserved. Catalog-only time-proposal selection and held entries have explicit exclusions; no undiscovered downloader is claimed. The complete runners, fixtures, traces and original/corrected logs are retained in a private immutable archive whose SHA-256 is in the JSON record. Green metamorphic tests alone were not counted as literal failing tests.
+
+`npm run typecheck` exited 0 against the integrated source (`/tmp/plates126-typecheck-conductor.log`). The full gate is `npm run check`, run after this record is finalized; its result belongs in the commit. No integrated full-gate result is claimed here.
+
+## Integrated-gate findings and corrections
+
+The first full gate at the initial source exited 1: 3,024 tests, 2,976 passed, 44 failed, four skipped (`/tmp/plates126-check-conductor.log`). The failures exposed incomplete copied-runtime fixtures, old marker assertions, missing complete provider facts in label fixtures, and two stale compatibility replacement hashes. These are retained failed observations, not successful retries or flaky-test claims. Historical source pins remain unchanged; only the verified replacement identities are updated.
+
+The prior guide explicitly promised single-file reconciliation copying. Docs-only commit `8bba9ea3` settled the changed packaging before its proof changed: the standalone runtime travels with its canonical names sibling, requires no Plates CLI or third-party runtime dependency, and does not activate night. The standalone test retains its behavior assertions. This is an explicit contract change, not a claim that the old single-file promise still holds.
+
+A conductor review also found last-wins deduplication in two dual-label queues. A later legacy response could replace the preferred current observation. The correction keeps the first observation by stable issue number; conflicting current/legacy fixtures exercise both night planning and robot admission. Final source proof and gate remain required after integration.
+
+## Final integrated observations
+
+The conductor reran the exact named acceptance command on the final integrated runtime: 255 tests passed, zero failures or skips, exit 0 (`/tmp/plates126-final-conductor-proof.log`). Typecheck exited 0 (`/tmp/plates126-final-typecheck.log`). These observations are separate from the original 252-test source and from overlapping builder groups.
+
+The integration section of the mutation JSON preserves 116 refreshed green/red pairs and 52 prior pairs with unchanged direct consumer/fixture hashes, phase-126 table rows and helper bytes. The conductor checked all current source, test, log and mutation-load hashes, including copied canonical-library bytes, and independently reran three baseline/red pairs across review headers, artifact history and shared robot review. Two fixture hashes changed with the new priority test and were refreshed rather than counted unchanged. The original and integrated archives remain separate.
+
+Both duplicate-priority fixes are independently VERIFIED by `plates prove` against `b7598f07`: `tests/names-label-consumers.test.mjs --name 'night-plan keeps the current label observation'` with the two night-plan source/rendered files, and `tests/robot-runtime.test.mjs --name 'scheduled robot queue keeps current duplicate ordering'` with the two robot source/rendered files. Exact tool trailers and logs are retained in the integrated evidence; no hand-authored verification claim substitutes for those runs.
+
+The operational focused batch's three remaining provider-fixture failures remain recorded as 131/134, exit 1. Corrected targeted checks passed four cases (Loop publication, uncertain recovery and two priority cases), then the unchanged whole-night case passed. The final full gate remains a separate check. Initial process-visibility failure in the signal probe is retained separately from its process-visible passing observation.
+
+Current authoring guides, the conduct skill and Plates's own seeded PR/reconciliation templates now instruct new records to use the table's current fence names. Existing historical records are unchanged; the guide explicitly preserves the old exact aliases. Existing capability fingerprints were audited and refreshed without adding CLI arguments, entrypoints or hosted permission.
+
+## Source and authority audit
+
+Changed capability fingerprints cover existing consumer source. Two new names-module doorways are library-only classifications, with no new arguments or entrypoints. The publisher source closure includes the canonical names helper. Historical evidence and private database migrations are not rewritten. Hosted cookie, operation-marker and RPC writers remain held; the six reviewed hosted environment reader rows remain dual.
+
+## Unverified real surfaces and owner walk
+
+No live issue/PR-body rewrite, label rename, workflow dispatch or fleet acceptance is claimed. Phase 128 must publish its confirmed label receipt at the exact source revision consumed by CI before dispatch; a local uncommitted receipt does not activate a writer. Phase 129 observes actual workflow uploads/checks and current/legacy records in Plates first, then the approved fleet order. Saved owner searches require owner attention. Merging source does not establish production verification or lived-in acceptance.
+
+## Finalize preservation correction
+
+A subsequent full gate retained in `/tmp/plates126-final-check.log` exited 1: 3,088 tests, 3,076 passed, eight failed, four skipped. Five failures exposed a conductor fingerprint-refresh error: `package.json` requires the existing normalized release-version digest, not a raw file hash. Two documentation guards rejected a generic unlisted old-name token and a product-name literal in a project template. Those inputs were corrected without changing their guards. All 46 affected source-coverage, validation-planning and practice tests then passed (`/tmp/plates126-final8-guards.log`).
+
+The remaining failure was a real integration regression against #218: section-only finalization changed an existing legacy report wrapper outside the plan section. The shared section writer now preserves the existing wrapper names and changes only the owned body and its digest; fresh full reports still write current names. The original exact-byte assertion now covers unwrapped, legacy-wrapped and current-wrapped reports, including repeat identity. The conductor's `plates prove tests/morning.test.mjs --name 'finalize keeps the sections it did not write' --fix practices/night/files/scripts/plates/time-proposals.mjs scripts/plates/time-proposals.mjs --base b7598f07 --trailer` returned VERIFIED; its actual trailer is retained in the JSON.
+
+Fourteen literal mutation pairs were independently hash/assertion/load checked after this correction: ten replace earlier observations of the changed consumer, and four add direct finalize boundary coverage. The current inventory is **172 pairs across 86 reader/family roles**, not a sum of historical reruns. Earlier observations and both failed gates remain in separate immutable private archives. The named phase proof now includes the morning suite so #218's preservation boundary stays explicit.
+
+The conductor reran the expanded exact phase proof after the correction: **275 tests passed**, zero failures or skips, exit 0 (`/tmp/plates126-final8-conductor-proof.log`). Typecheck also exited 0 (`/tmp/plates126-final8-typecheck.log`). The complete gate follows this finalized record; its result is recorded in the commit.
+
+## Unrelated budget-test observation
+
+That full gate exited 1: **3,088 tests, 3,083 passed, one failed, four skipped** (`/tmp/plates126-final8-check.log`). The unchanged competing-writers test in `tests/validation-budget.test.mjs` inspected a state inode while an admitted writer atomically replaced it; the production reader intentionally refused the now-unlinked inode with `unsafe_input_file`. One isolated diagnostic passed (`/tmp/plates126-budget-isolated-diagnosis.log`), which does not erase the failed observation. The test synchronization is being corrected in a separate hygiene change. Phase 126 must pass a new full gate after that correction is integrated; no passing full gate is claimed here.
+
+The correction was subsequently integrated from separately reviewed [PR 261](https://github.com/dalmaer/plates/pull/261), commit `807d9c6d38f024be9b8f576ec43546884086a904`. It waits for both wrappers to settle and asserts exactly one execution and matching completion receipt; a real-writer regression proves the detached-inode refusal and subsequent settled read. Production code is unchanged. The conductor observed 29 budget tests passing, typecheck exit 0 and the hygiene branch's full gate exit 0 (3,022 tests, 3,018 passed, four skipped). Claude reviewed that exact commit with no findings. These are hygiene-branch observations, not a substitute for phase 126's next integrated gate. Original failure and diagnostic logs are retained under `.plates/name-transition/phase126-budget-failure-2026-10-24/` in the private reporting checkout. Other concurrent startup observations remain outside that narrow test fix.

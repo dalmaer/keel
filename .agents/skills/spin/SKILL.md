@@ -252,7 +252,7 @@ conductor edits documents (except in a small phase it built itself).
 
 ## 3. Record
 
-With reconciliation enabled, include one `keel-impact` JSON fence in the PR
+With reconciliation enabled, include one `plates-impact` JSON fence in the PR
 body naming affected phases, decisions, superseded plans and evidence. Check
 the actual diff. Update those records and their next action in the same PR,
 or give per-record reasons for leaving them unchanged; no impact needs a

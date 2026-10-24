@@ -7,7 +7,7 @@ Opt in with `plates adopt --with reconciliation` or `plates init <dir> --descrip
 Origin: the phase 26 reconciliation design in this repository, informed by Ledger delivery/record drift. No upstream code copied.
 
 The shipped [template](files/docs/templates/reconciliation.md) includes full
-`keel-proof` and `keel-decision` JSON examples using synthetic Acme. Receipts
+`plates-proof` and `plates-decision` JSON examples using synthetic Acme. Receipts
 name the tested SHA, claim, acceptance ID, environment, timestamp, observer
 and result; production additionally identifies the deployment. Placeholder
 receipts deliberately cannot pass as proof. Research/design decisions require

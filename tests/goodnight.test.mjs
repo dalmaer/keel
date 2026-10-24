@@ -424,6 +424,8 @@ function issuesApi() {
   const rows = [], calls = [];
   const github = async req => {
     calls.push(req);
+    if(req.method==='GET'&&req.path==='/repos/acme/anvils')return {status:200,data:{id:7,full_name:'acme/anvils'}};
+    if(req.method==='GET'&&req.path==='/repos/acme/anvils/labels?per_page=100&page=1')return {status:200,data:[{id:11,name:'keel:agent'}]};
     if (req.method === 'POST') {
       const n = rows.length + 7;
       const row = { number: n, html_url: `https://github.com/acme/anvils/issues/${n}`, url: `https://api.github.com/repos/acme/anvils/issues/${n}`, state: 'open', body: req.body.body, title: req.body.title, labels: req.body.labels.map(name => ({ name })) };

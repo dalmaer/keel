@@ -123,7 +123,7 @@ test('current threshold and source-derived sections reject fabricated candidate 
 });
 test('uncertain empty recovery preserves intent and never retries a POST',async t=>{
   const f=await fixture(t);let posts=0;
-  const github=async r=>{if(r.path.includes('/contents/'))return f.github(r);if(r.method==='POST'){posts++;throw Error('Acme transport uncertain');}return {status:200,data:[]};};
+  const github=async r=>{if(r.path.includes('/contents/')||r.path===`/repos/${repo}`||r.path.includes('/labels?'))return f.github(r);if(r.method==='POST'){posts++;throw Error('Acme transport uncertain');}return {status:200,data:[]};};
   const first=await decideHygieneProposal({...f.args,github});assert.equal(first.state,'pending');
   const second=await decideHygieneProposal({...f.args,github});assert.equal(second.state,'pending');assert.equal(posts,1);
 });

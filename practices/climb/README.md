@@ -195,7 +195,7 @@ findings under `.agents/climb/TEND.md`, and a person merges one PR on
   and refuses a page `tend-page` did not commit; the PR body through `pr-body.mjs` (Summary: finding → what was done;
   Evidence: the record count before and after; Merge danger: a two-way
   door over records and docs; Notes: the owner's checklist and what is
-  unresolved; the keel-impact block naming any phase it edits) and the
+  unresolved; the plates-impact block naming any phase it edits) and the
   pass's line, which the night's health page carries as its Tend line.
 
 A pass that only proposed opens a PR carrying its page of proposals; a

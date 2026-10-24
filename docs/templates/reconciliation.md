@@ -4,7 +4,7 @@ Put this section in a phase, with stable IDs on its existing acceptance boxes.
 
 ## Reconciliation
 
-```keel-reconciliation
+```plates-reconciliation
 {"version":1,"prs":[],"decisions":[],"implementation":[],"production":[],"use":[],"next":{"kind":"acceptance","ref":"replace-with-existing-acceptance-id"}}
 ```
 
@@ -14,7 +14,7 @@ Declare actual paths and anchored references. Use `reconciliation: "updated"`
 when records changed; give per-record reasons for unchanged records. For a
 change without record impact, supply a specific reason:
 
-```keel-impact
+```plates-impact
 {"version":1,"phases":[],"decisions":[],"supersedes":[],"evidence":[],"reconciliation":"none","reason":"Replace with why this diff has no record impact."}
 ```
 
@@ -25,14 +25,14 @@ research/design section, use an explicit `<a id="store-choice"></a>` anchor.
 A proposed successor does not supersede an accepted choice. On acceptance,
 fill the real owner/date and link reciprocal, scope-specific replacements.
 
-```keel-decision
+```plates-decision
 {"version":1,"id":"store-choice","status":"proposed","scope":["storage"],"supersedes":[],"superseded_by":[]}
 ```
 
 ## Evidence receipt
 
 In the evidence section referenced by an implementation/production/use
-entry, use a `keel-proof` JSON fence. Fill these fields from the actual run:
+entry, use a `plates-proof` JSON fence. Fill these fields from the actual run:
 `version: 1`, `kind`, `acceptance` (existing stable ID), `sha` (full tested
 revision), `environment`, `observed_at` (timestamp with zone), `observer`,
 `claim`, and `result`. Only `result: "pass"` supports a positive claim.
@@ -46,7 +46,7 @@ Copy the shape, then replace every value from an actual observation. The SHA
 below is deliberately invalid as a receipt until replaced. Merely copying this
 example cannot establish production proof or acceptance.
 
-```keel-proof
+```plates-proof
 {
   "version": 1,
   "kind": "production",
@@ -77,7 +77,7 @@ for a research/design decision):
 <a id="acme-store"></a>
 ## Acme original storage choice
 
-```keel-decision
+```plates-decision
 {"version":1,"id":"acme-store","status":"accepted","scope":["authored-data","cache"],"decided_by":"Acme reviewer (example)","decided_at":"2026-01-01","supersedes":[],"superseded_by":["docs/decisions/store.md#acme-authored-data"]}
 ```
 
@@ -86,7 +86,7 @@ In `docs/decisions/store.md`, put the successor beside its actual reasoning:
 <a id="acme-authored-data"></a>
 ## Acme authored-data replacement
 
-```keel-decision
+```plates-decision
 {"version":1,"id":"acme-authored-data","status":"accepted","scope":["authored-data"],"decided_by":"Acme reviewer (example)","decided_at":"2026-01-02","supersedes":["docs/design.md#acme-store"],"superseded_by":[]}
 ```
 

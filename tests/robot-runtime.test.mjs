@@ -1308,3 +1308,20 @@ test('robot label admission scheduled query and provenance detect both one-name 
   }
  }
 });
+
+test('scheduled robot queue keeps current duplicate ordering before legacy observations',async t=>{
+ const root=await project(t),a=api(),reads=[],queries=[];
+ const github=async request=>{
+  const path=request.path;
+  if(path.includes('/issues?')) {
+   const label=new URL('https://acme.invalid'+path).searchParams.get('labels');queries.push(label);
+   return {status:200,data:label==='plates:agent'?[{...a.issue,created_at:'2026-10-01T00:00:00Z'},{...a.issue,number:2,created_at:'2026-10-02T00:00:00Z'}]:[{...a.issue,created_at:'2026-10-03T00:00:00Z'}]};
+  }
+  if(/\/issues\/[12]$/.test(path))reads.push(Number(path.split('/').at(-1)));
+  if(path.endsWith('/issues/2'))return {status:404};
+  return a.github(request);
+ };
+ const result=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github});
+ assert.equal(result.state,'ready',JSON.stringify(result));assert.equal(result.issueNumber,1);
+ assert.deepEqual(queries,['plates:agent','keel:agent']);assert.equal(reads[0],1,'current creation date owns queue position');
+});

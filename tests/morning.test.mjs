@@ -592,13 +592,13 @@ test('finalize keeps the sections it did not write', async t => {
   const suffix = '\n\nProduction monitoring: Acme traffic remains observed.  \n### Production detail\nOwner appendix without a level-two heading.\n\n';
   const oldBody = prefix + trimGenerated(planSection(asRecorded(), { record: `docs/night/${NIGHT}.json` })) + suffix;
   const digest = body => createHash('sha256').update(body).digest('hex');
-  const wrap = body => `Owner preface\n<!-- keel:health-report:begin ${digest(body)} -->\n${body}\n<!-- keel:health-report:end -->\nOwner afterword.  \n\n\n`;
-  for (const wrapped of [false, true]) {
-    await writeFile(path, wrapped ? wrap(oldBody) : oldBody);
+  const wrap = (body, name) => `Owner preface\n<!-- ${name}:health-report:begin ${digest(body)} -->\n${body}\n<!-- ${name}:health-report:end -->\nOwner afterword.  \n\n\n`;
+  for (const wrapped of [false, 'keel', 'plates']) {
+    await writeFile(path, wrapped ? wrap(oldBody, wrapped) : oldBody);
     await finalize({ root: p.root, date: NIGHT });
     const record = JSON.parse(await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8'));
     const expectedBody = prefix + trimGenerated(planSection(record, { record: `docs/night/${NIGHT}.json` })) + suffix;
-    const expected = wrapped ? wrap(expectedBody) : expectedBody;
+    const expected = wrapped ? wrap(expectedBody, wrapped) : expectedBody;
     assert.equal(await readFile(path, 'utf8'), expected, `exact outside bytes, wrapped=${wrapped}`);
     assert.equal(record.items.find(item => item.id === 'perf-bundle').status, 'done');
     await finalize({ root: p.root, date: NIGHT });

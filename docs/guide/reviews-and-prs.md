@@ -32,7 +32,7 @@ and with no model, in this order:
   release. The blast radius is named in the phase spec's Real surfaces
   terms ("this repo only", "every adopted project", "the fleet over time").
 
-Notes follow, and with reconciliation on, a `keel-impact` block comes last,
+Notes follow, and with reconciliation on, a `plates-impact` block comes last,
 naming the phases and decisions the change affects. **A merge never ticks
 acceptance**: merged, production-verified and lived-in are different
 claims, and the PR says which records it touched rather than letting the
@@ -313,7 +313,7 @@ that hides it.
 - [`docs/research/2026-10-06-answering-reviews.md`](../research/2026-10-06-answering-reviews.md)
   and [`docs/research/2026-10-06-pr-and-retro.md`](../research/2026-10-06-pr-and-retro.md):
   the designs.
-- [`docs/reconciliation.md`](../reconciliation.md): the `keel-impact` block.
+- [`docs/reconciliation.md`](../reconciliation.md): the `plates-impact` block.
 
 ### Robot pull requests
 
