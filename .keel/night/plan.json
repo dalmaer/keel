@@ -50,8 +50,11 @@
       "budget": {
         "minutes": 45
       },
-      "status": "planned",
-      "result": null
+      "status": "failed",
+      "result": {
+        "note": "blocked: runner preflight or execution evidence refused the climb; inspect the retained sanitized receipt",
+        "link": "https://github.com/dalmaer/plates/actions/runs/40085801711"
+      }
     },
     {
       "id": "robot-60",
