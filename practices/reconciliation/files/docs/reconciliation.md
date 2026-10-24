@@ -82,9 +82,11 @@ The installed `decision-context.mjs` exports `decisionContext({root, phase,
 issue, issueBody})`, `refreshDecisionContext({root, bundle, issueBody})`,
 `decisionBrief(bundle)` and `decisionExitCode(bundle)`. Refresh returns
 `{bundle, changed, allowed}`. Issue callers must supply a fresh body; missing
-input fails closed. The standalone `reconcile.mjs` has no new imports.
+input fails closed. The standalone reconciliation runtime includes `reconcile.mjs`
+and its managed `names.mjs` sibling. Copy both when running it outside an adopted
+project. It requires no installed Plates CLI or third-party runtime dependencies.
 
-Climb imports only the two managed runtime scripts through its `runtimeFiles`
-declaration. This preserves their source owner without enabling reconciliation's
+Climb imports the managed runtime scripts and their canonical names library
+through its `runtimeFiles` declaration. This preserves their source owner without enabling reconciliation's
 workflows, templates, secrets or checks. Reconciliation remains explicitly opt-in.
 Local practice overrides and ejected files remain project-owned.
