@@ -238,6 +238,14 @@ records, original verdicts and settlement history. Comparisons retain failures,
 unknown costs and missing coverage; scripted trials never establish agent efficacy
 or activate a candidate. See [the record guide](docs/guide/harness-evaluations.md).
 
+`plates retro evaluations corpus inspect|export` reads the versioned historical
+development catalog or previews a selected case’s private external export. Export
+requires exact `--yes --digest`; existing or partial destinations refuse overwrite.
+Keep curator provenance and evaluator materials out of builder delivery. Folder
+separation is not isolation: use the existing isolated executor with its explicit
+input inventory. All six initial cases are development cases; held-out coverage
+is zero, and scripted historical replays do not measure agent improvement.
+
 ## Session handoff trials
 
 Use `plates retro sessions` for an explicitly configured handoff experiment and

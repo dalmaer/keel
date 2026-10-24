@@ -1,0 +1,22 @@
+{
+  "absent-path-and-parent": [
+    "For the first run, pass an absent state-directory path beneath an existing canonical parent; the wrapper creates that directory privately.",
+    "For initial use, choose a new coordinator directory that does not exist under a canonical parent directory that already exists."
+  ],
+  "no-precreation": [
+    "Do not pre-create the state directory.",
+    "Let the wrapper create the private state directory; do not create it yourself."
+  ],
+  "ambiguous-state-refusal": [
+    "An existing directory without `state.json`, even an empty one, is refused because missing metadata may conceal lost active ownership.",
+    "If a state directory already exists without `state.json`, leave it intact and expect refusal, including when it is empty."
+  ],
+  "concurrent-initialization": [
+    "First-time concurrent initialization can also refuse the losing caller.",
+    "If initialization races, the other caller may be refused."
+  ],
+  "inspect-without-reset": [
+    "Stop and inspect the original path and any participating processes before an operator chooses a recovery action; the wrapper never resets, deletes or repairs it.",
+    "Inspect the original directory and participating processes before any recovery decision; never reset, delete or repair the directory automatically."
+  ]
+}

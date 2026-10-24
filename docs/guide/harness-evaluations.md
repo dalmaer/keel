@@ -253,3 +253,37 @@ name the broader measured coverage. Earlier read-only preview calls, human revie
 waiting, and arbitrary stalls in host filesystem/kernel I/O are not billed agent
 work or claimed hard wall-time coverage. No provider currency entitlement is
 implemented. Whole-plan reservation is conservative; unknown usage is not refunded.
+
+
+### Historical development corpus
+
+`plates retro evaluations corpus inspect --json` lists six pinned historical
+cases; all six are development cases and held-out inventory is zero. The shipped
+catalog and protected probes work from an installed package. Export requires a
+local repository containing the pinned historical objects; it never fetches.
+
+```sh
+plates retro evaluations corpus export --case package-entry --repository /absolute/source-repository --destination /absolute/private-parent/package-entry --json
+plates retro evaluations corpus export --case package-entry --repository /absolute/source-repository --destination /absolute/private-parent/package-entry --yes --digest DIGEST_FROM_PREVIEW --json
+```
+
+The parent must already be canonical, private and owned by the caller, outside
+Git. Preview is read-only and exits 3. Approval binds deterministic case/material
+bytes, exact curated source hashes, every output hash, and destination parent
+identity. Exclusive destination creation refuses concurrent, existing or partial
+exports. Preserve partial output for inspection; it is never reset or overwritten.
+
+`inventory.json` names the only files eligible for builder delivery, their hashes,
+writable paths, protected probes and configuration overlays. `builder/` contains
+those files, `evaluator/` contains schema-2 case/material records, and `curator/`
+contains historical corrected-witness provenance. Directory separation is not
+isolation: use only the explicit delivery inventory with the existing container
+adapter. Do not pass curator data or acceptance material as configuration context.
+Export neither creates a comparison nor dispatches work. The caller must author
+and approve its configuration/comparison through the existing harness workflow.
+
+Canvas recovery uses the actual supplied-card `canvasLive`/`canvasSync` surface;
+snapshot/history collection, rendering and recovery export are excluded. Coordinator
+guidance is a procedure task: existing empty state must remain refused. Historical
+corrected witnesses demonstrate scripted machinery only, not agent improvement,
+live provider activation, unseen generalization or production acceptance.
