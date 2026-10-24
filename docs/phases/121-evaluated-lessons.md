@@ -53,7 +53,8 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Complete review; retain the independent branch while phase 119 awaits its owner decision.
+Retain the independent branch while phase 119 awaits its owner decision. Review
+and CI passed on the recorded head; revalidate current head checks before landing.
 
 ## Trajectory
 

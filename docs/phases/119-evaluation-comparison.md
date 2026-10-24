@@ -5,7 +5,7 @@ goal: G5
 spec: 2
 depends: [118]
 review: wait
-note: "Offline comparison and original-operation recovery proved; live provider adapter, enforced spend and approved screening remain pending."
+note: "Owner review-limit decision required for the remaining cancellation finding; offline proof is retained and live provider/spend work remains pending."
 evidence: ["evidence/2026-10-23-evaluation-comparison.md"]
 ---
 
@@ -62,7 +62,9 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-The offline runner and report are implemented. Select an isolation-capable live
+Resolve PR #249's three-round review hold with the owner before further fixes or
+merge. The remaining cancellation-intent crash finding is recorded in the evidence;
+no dependent PR may land it indirectly. After that decision, select an isolation-capable live
 provider/runtime and implement its enforced spending gateway before preparing
 the exact owner-approved screening quote. This is an implementation gap as well
 as an approval boundary, so this phase is not marked `owes: walk`.

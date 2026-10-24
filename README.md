@@ -543,9 +543,12 @@ coverage remains zero. Phase 121 adds selected-source verification and immutable
 lesson/proposal versions through `plates learn evaluate`; plan binding verifies
 actual material bytes without running a trial. Phase 122 registers frozen screening
 criteria and binds terminal trials to immutable reports before recording evaluated
-results. Unknown costs and offline scripted execution remain inconclusive. See the
-[learning guide](docs/guide/lessons-and-learning.md). Live provider execution, enforced spend and measured
-lesson promotion remain unimplemented; offline outcomes do not establish agent improvement. No paid
-evaluations are approved. The
+results. Phase 123 adds read-only review packages, explicit local package records,
+unmeasured follow-up observations and dormant exact-review/merge verification.
+Unknown costs and offline scripted execution remain inconclusive. See the
+[learning guide](docs/guide/lessons-and-learning.md). Live provider execution, enforced
+spend, per-case environment mapping and verified installed delivery remain missing;
+real supported screening and promotion are unavailable. No approver policy is
+activated and no paid evaluations are approved. The
 [capability map](docs/research/2026-10-23-evaluation-capabilities.md) separates
 existing mechanisms from the proposed extensions.

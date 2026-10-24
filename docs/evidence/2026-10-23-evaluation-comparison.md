@@ -207,3 +207,16 @@ unchanged first-result digest:
 `a2c14e7a01a31eff35eac3ad9378ab226234654ed5dec1f03a58a325341ac0b9`.
 The final `npm run check` runs after this record; its exact result belongs in the
 correction commit body. No scripted observation becomes paid-agent efficacy.
+
+## Owner review hold — observed 24 October 2026
+
+Fresh plates review of PR [249](https://github.com/dalmaer/plates/pull/249) confirms
+head 3d9a85e1ceba40353cd33cf564956c9383606b1b, three finding-bearing rounds and the
+remaining [cancellation-intent finding](https://github.com/dalmaer/plates/pull/249#discussion_r4366151137).
+A crash after cancel-intent but before cancel.json can leave admission open.
+The finding was validated and classified as an approval-boundary concern.
+The owner has not selected a continuation; no further phase 119 runtime fix or
+merge is performed. Dependent PRs must not merge it indirectly. Exact-head CI
+success is separate from this unresolved review outcome and live-provider gaps.
+Command: plates review dalmaer/plates#249 --reviewer 'github-actions[bot]' --json.
+Retained final read: /tmp/plates-final-119-review.json.

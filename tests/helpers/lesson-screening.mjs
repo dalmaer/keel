@@ -10,8 +10,8 @@ import { storeImmutable } from '../../lib/session-ledger-io.mjs';
 import { exportSource } from '../../lib/evaluation-artifacts.mjs';
 import { composeExecutionDelivery } from '../../lib/evaluation-execution-input.mjs';
 export const criteria={schemaVersion:1,targetCaseIds:['acme-case-0'],controlCaseIds:['acme-case-1'],minimumComparablePairsPerCase:5,minimumTargetNetGains:1,maxControlRegressions:0,maxAdditionalCurrencyUsd:0,maxAdditionalMedianWallMs:1000,comparability:'actual-identity-v1',missingEvidence:'inconclusive'};
-export async function screeningWorld(t,{register=true,screeningCriteria=criteria,retention}={}) {
-  const w=await evaluatedLearningWorld(t,{realDocker:true,screeningCriteria,resolvedModel:'acme-synthetic-model',...(retention?{retention}:{})});
+export async function screeningWorld(t,{register=true,screeningCriteria=criteria,retention,worldOptions={}}={}) {
+  const w=await evaluatedLearningWorld(t,{...worldOptions,realDocker:true,screeningCriteria,resolvedModel:'acme-synthetic-model',...(retention?{retention}:{})});
   const observed=(await w.call('capture',w.capture,{apply:true})).result;
   const lessonRef=ref(evaluationSection(observed.outputBytes).value.records.find(r=>r.kind==='learning-lesson'));
   const proposed=(await w.call('propose',w.proposal(lessonRef),{previous:observed,apply:true})).result;

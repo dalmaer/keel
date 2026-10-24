@@ -216,7 +216,8 @@ agent efficacy. Five pairs per case are screening, not statistical proof. Zero
 held-out cases limits generalization. Incomplete cancelled comparisons refuse
 because closed admission is not established by the current interface.
 
-Follow-up and promotion return `code: verification_interface_unavailable`. Real
+Explicit follow-up is available as an attributed local record. Promotion requires
+verified readiness; current provider and installed-routing gaps prevent it. Real
 screening still needs an isolation-capable provider adapter, an enforced spending
 gateway and the owner's exact allowance; none is activated by these operations.
 See [the screening contract](../specs/lesson-screening.md).
@@ -228,3 +229,45 @@ without fresh provider calls. Keep uncertain lock and pending files for operator
 inspection; do not delete them to retry. Cooperating CLI writers share a lock,
 but ordinary editors do not participate in kernel compare-and-swap. Inbox views
 remain separately rebuildable with explicit `plates learn render`.
+
+
+## Review packages and explicit follow-up
+
+`plates learn evaluate package <slug> --manifest <file> --state <directory> --json`
+reads an evaluated proposal and verifies its retained report and material binding.
+It returns deterministic public JSON, Markdown, payload digest and artifact
+`{path,byteDigest,byteLength}`. It writes nothing. Private report inventories,
+source bodies, material contents and host paths are excluded. An inconclusive
+package is useful evidence; it does not establish readiness.
+
+Through `decide`, `record-package` takes `{proposalRef,evaluationRef}` and records
+the internally derived content identity under the existing preview/digest gate.
+The original report must still verify on duplicate-operation recovery. A second
+operation cannot append the same package content. `ready` takes
+`{proposalRef,packageRef}`; current missing provider and installed invocation
+support remain explicit blockers. No caller readiness flag is accepted.
+
+`promote`, `request-rollback` and `observe-rollback` use the strict
+[promotion contract](../specs/lesson-promotion.md). GitHub approval policy is read
+from the current default branch and must already exist at the exact candidate
+base. The verifier reads complete bounded review/tree/blob observations; only
+exact two-parent merge inclusion is supported. These commands never create a PR,
+merge, install instructions or establish production outcomes. No real policy is
+configured by this feature. The legacy inbox remains `proposed` for a promoted
+lesson and a pending rollback; explicit promotion history never sets `accepted`.
+Rollback repair links retain stable issue IDs or phase filenames separately from
+current state. Comments, edits or closure update the observation; they do not
+invalidate the link or establish acceptance. Missing or replaced identities refuse.
+
+`follow-up` takes `{proposalRef,decisionRef,window,selections,commentary,relation}`
+in the ordinary request envelope, previewing before `--yes --digest`. Empty
+selections permit an attributed observation. Coverage remains `unmeasured`;
+`eligibleExposure`, `recurrenceRate`, `costChange`, `latencyChange` and `helpChange`
+are null. Selected verified identities are not complete exposure. A relation
+references an existing record, never creates one.
+
+Explicit revision after readiness, promotion or rollback requires `followUpRef`
+for that exact proposal and a changed hypothesis or candidate. It starts a new
+proposed version without transferred support, retaining installation/rollback
+history. Revision does not remove the old rule. Rejected and superseded records
+cannot be reopened through this route.

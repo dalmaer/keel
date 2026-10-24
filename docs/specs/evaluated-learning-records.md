@@ -517,7 +517,7 @@ candidate against a frozen comparison under its exact identity. Later evaluated/
 promoted history cannot be rewritten or bypassed through revision.
 
 Compatibility projections: observed=untriaged; proposed/evaluated/ready-for-review
-=proposed; promoted=accepted; rejected=declined; superseded=linked;
+=proposed; promoted=proposed; rejected=declined; superseded=linked;
 rolled-back=proposed with an explicit rollback banner. Names for later states
 are reserved: phase 121 cannot create them and refuses unsupported schema/history
 rather than pretending their evidence has been validated.
