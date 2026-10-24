@@ -414,7 +414,8 @@ cleanup and acceptance remain separate from detection.
 
 Phases 117–123 specify task-level baseline/candidate evaluation and review lessons
 promoted through evidence. These extend the experiment ledger, bounded execution,
-learn inbox and reviewed delivery; they are not implemented by this design.
+learn inbox and reviewed delivery. Phase 117 implements the local record
+foundation; execution, comparison and measured promotion remain designed.
 Builders submit artifacts to independently controlled acceptance, comparisons keep
 all attempts and unknown costs, and no result activates a production rule.
 See [harness evaluation](specs/harness-regression-evaluation.md),

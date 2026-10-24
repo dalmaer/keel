@@ -1,0 +1,61 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, readFile, readdir, lstat, realpath } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+const root = process.argv[2];
+const { acmeEvaluationPlan } = await import(pathToFileURL(join(root, 'tests/helpers/evaluation-plan.mjs')));
+const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-phase117-owner-')));
+const inputs = join(base, 'inputs'), state = join(base, 'state'), other = join(base, 'other-state');
+await mkdir(inputs, {mode:0o700});
+const manifest=join(inputs,'workspace.json'), bundle=join(inputs,'bundle.json');
+const original=JSON.stringify(acmeEvaluationPlan(),null,2)+'\n';
+await writeFile(manifest,JSON.stringify({version:1,id:'acme-workspace',name:'Acme',repo:'Acme/private',projects:[{id:'acme',repo:'Acme/widget'}]}),{mode:0o600});
+await writeFile(bundle, original,{mode:0o600});
+const log=[];
+function run(args,code=0){
+ const a=[join(root,'bin/plates.mjs'),...args,'--json'];
+ const res=spawnSync(process.execPath,a,{cwd:root,encoding:'utf8',timeout:20000});
+ const row={args,exit:res.status,stdout:res.stdout,stderr:res.stderr};log.push(row);
+ assert.equal(res.status,code,JSON.stringify(row));
+ const data=JSON.parse(res.stdout);return data;
+}
+async function tree(dir){const out=[];async function walk(d){for(const name of (await readdir(d)).sort()){const p=join(d,name),s=await lstat(p);if(s.isDirectory())await walk(p);else out.push([p.slice(dir.length),s.mode,createHash('sha256').update(await readFile(p)).digest('hex')]);}}await walk(dir);return JSON.stringify(out);}
+const flags=s=>['--manifest',manifest,'--state',s];
+try {
+ run(['workspace','init',...flags(state),'--yes']);
+ const before=await tree(state);
+ run(['retro','evaluations','plan',...flags(state),'--bundle',bundle]);
+ assert.equal(await tree(state),before,'plan writes nothing');
+ const preview=run(['retro','evaluations','freeze',...flags(state),'--bundle',bundle],3);
+ assert.equal(await tree(state),before,'freeze preview writes nothing');
+ const digest=preview.digest;assert.match(digest,/^[a-f0-9]{64}$/);
+ await writeFile(bundle,original+'\n');
+ run(['retro','evaluations','freeze',...flags(state),'--bundle',bundle,'--yes','--digest',digest],2);
+ assert.equal(await tree(state),before,'stale byte approval writes nothing');
+ await writeFile(bundle,original);
+ run(['workspace','init',...flags(other),'--yes']);
+ const otherBefore=await tree(other);
+ run(['retro','evaluations','freeze',...flags(other),'--bundle',bundle,'--yes','--digest',digest],2);
+ assert.equal(await tree(other),otherBefore,'cross destination approval writes nothing');
+ const applied=run(['retro','evaluations','freeze',...flags(state),'--bundle',bundle,'--yes','--digest',digest]);
+ const frozen=await tree(state);
+ run(['retro','evaluations','freeze',...flags(state),'--bundle',bundle,'--yes','--digest',digest]);
+ assert.equal(await tree(state),frozen,'retry preserves original bytes');
+ run(['retro','evaluations','inspect',...flags(state),'--experiment','acme-comparison']);
+ run(['retro','evaluations','run',...flags(state),'--experiment','acme-comparison'],2);
+ assert.equal(await tree(state),frozen,'unsupported run does not execute or mutate');
+ const marker=join(state,'workspace.json'), markerBytes=await readFile(marker);
+ await writeFile(marker,JSON.stringify({version:1,id:'foreign',repo:'Acme/foreign'}));
+ run(['retro','evaluations','inspect',...flags(state),'--experiment','acme-comparison'],2);
+ await writeFile(marker,markerBytes);
+ const receipt=join(state,'session-trials','acme-comparison','state.json'), receiptBytes=await readFile(receipt);
+ await writeFile(receipt,receiptBytes.toString().replace('acme-comparison','tampered-comparison'));
+ run(['retro','evaluations','inspect',...flags(state),'--experiment','acme-comparison'],2);
+ await writeFile(receipt,receiptBytes);
+ assert.equal(await tree(state),frozen,'probes restored only synthetic fixture bytes');
+ await writeFile(join(base,'walk.json'),JSON.stringify({base,root,at:new Date().toISOString(),passed:true,applied,log},null,2));
+ console.log(JSON.stringify({base,receipt,passed:true,operations:log.length}));
+} catch(error) {await writeFile(join(base,'walk-failure.json'),JSON.stringify({error:error.message,log},null,2));console.error(base);throw error;}

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseRenameArgs } from '../lib/rename.mjs';
 import { verbs } from '../lib/cli.mjs';
+import cliData from '../lib/web/capability-cli-data.mjs';
 import { capabilityCatalogue } from '../lib/web/capability-registry.mjs';
 import { auditOperationCoverage, reviewedOperationSources } from '../lib/web/capability-source-inventory.mjs';
 import { parseArgs } from '../lib/goodnight.mjs';
@@ -184,4 +185,14 @@ test('migration catalogue matches the shared approval parser without enabling we
   assert.deepEqual(parseRenameArgs(['acme', '--yes', '--digest', digest]), {root: 'acme', yes: true, digest});
   assert.equal(parseRenameArgs(['acme', '--json']).yes, false);
   for (const args of [['--yes'], ['--digest', digest], ['--yes', '--yes', '--digest', digest], ['--yes', '--digest', digest.toUpperCase()], ['acme', 'other']]) assert.throws(() => parseRenameArgs(args));
+});
+
+test('harness evaluation forms describe only local records and never enable hosted execution', () => {
+  const row = catalogue(enabled).rows.find(row => row.id === 'cli.retro');
+  const forms = row.cli[0].forms.filter(form => form.subcommand?.startsWith('evaluations '));
+  assert.deepEqual(forms.map(form => form.subcommand), ['evaluations plan', 'evaluations freeze', 'evaluations inspect']);
+  assert.ok(cliData.find(entry => entry.command === 'retro').forms.filter(form => form.subcommand?.startsWith('evaluations ')).every(form => form.parserSource === 'lib/evaluation-ledger.mjs'));
+  assert.ok(forms.every(form => form.arguments.every(arg => ['limited', 'presentation-only'].includes(arg.treatment))));
+  const paths = reviewedOperationSources().files.map(file => file.path);
+  for (const path of ['lib/evaluation-ledger.mjs', 'lib/evaluation-records.mjs', 'lib/session-ledger-io.mjs']) assert.ok(paths.includes(path));
 });

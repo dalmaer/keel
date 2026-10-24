@@ -221,7 +221,7 @@ test('each kind of drift fails (mutations of the guide text, in memory)', async 
   const missing = (said, known = ctx.known) => unguided(said, known).filter(n => !before.includes(n));
   // A verb missing from every guide: drop every mention of plates retro.
   const noRetro = docs.map(d => ({ ...d, text: d.text.replaceAll('plates retro', 'plates status') }));
-  assert.deepEqual(missing(run(noRetro).said), ['retro', 'retro capture', 'retro sessions']);
+  assert.deepEqual(missing(run(noRetro).said), ['retro', 'retro capture', 'retro evaluations', 'retro sessions']);
   // A subcommand missing: no guide names plates loose-ends mark.
   const noMark = docs.map(d => ({ ...d, text: d.text.replaceAll('plates loose-ends mark', 'plates loose-ends') }));
   assert.deepEqual(missing(run(noMark).said), ['loose-ends mark']);

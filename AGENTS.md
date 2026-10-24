@@ -220,6 +220,14 @@ extends `climb` and stays off until the owner approves a project and weekly
 `robot.budgetMinutes` allowance covering both build and other-provider review.
 A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 
+## Harness evaluation records
+
+`plates retro evaluations plan|freeze|inspect` validates and freezes explicit
+inputs in an initialized private external workspace. Freeze needs the exact
+preview digest; it neither reserves spend nor starts a trial. Keep private
+acceptance material out of builder context and retain original receipts after
+uncertainty. See [the record guide](docs/guide/harness-evaluations.md).
+
 ## Session handoff trials
 
 Use `plates retro sessions` for an explicitly configured handoff experiment and

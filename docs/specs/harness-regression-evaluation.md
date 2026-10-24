@@ -1,7 +1,8 @@
 # Harness regression evaluation
 
-Design, 23 October 2026. Proposed behavior; no evaluation has been executed or
-funded by this specification. Source baseline:
+Design, 23 October 2026. Phase 117 implements local plan/freeze/inspect records;
+execution, independent scoring and comparison remain designed. No agent evaluation
+has been executed or funded by this specification. Source baseline:
 `8f218d7e138edda2c86fc5055c97a59b9df8427a`.
 See the [capability map](../research/2026-10-23-evaluation-capabilities.md),
 [research decisions](../research/2026-10-23-evaluation-patterns.md) and
@@ -43,9 +44,9 @@ instruction edits remain intact: the trusted controller applies the reviewed
 candidate overlay outside the task's authority. `prove` and validation planning
 supply useful checks, not independent acceptance by themselves.
 
-Proposed CLI surface is `plates retro evaluations <operation> --json`. It is
-not an existing command. Implement plan, freeze, run, inspect, resume, cancel, compare
-and rescore under retro, with agent-help coverage. Plan/inspect/compare are
+The CLI surface is `plates retro evaluations <operation> --json`. Phase 117
+implements plan, freeze and inspect; run, resume, cancel, compare and rescore
+remain planned and refuse invocation. Each shipped operation has agent help. Plan/inspect/compare are
 read-only. Run/resume/rescore preview the exact input digest, missing slots,
 authority, maximum additional spend and environment; execution requires `--yes
 --digest <preview>`. Resume approval cannot enlarge the frozen ceiling.
