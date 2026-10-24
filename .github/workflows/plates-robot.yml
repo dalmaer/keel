@@ -68,8 +68,10 @@ jobs:
             import {writeFileSync,rmSync} from "node:fs";
             const selected=readApiNightPlan({root:process.cwd(),repo:process.env.REPO,date:new Date().toISOString().slice(0,10)});
             const path=process.env.RUNNER_TEMP+"/night-plan/branch.json";
-            if(selected.plan) writeFileSync(path,JSON.stringify(selected.plan)); else rmSync(path,{force:true});
+            rmSync(path,{force:true});
             console.log(JSON.stringify({branch:selected.branch,skipped:selected.skipped,sources:selected.sources}));
+            if(selected.refused.length) throw new Error(selected.refused.join("; "));
+            if(selected.plan) writeFileSync(path,JSON.stringify(selected.plan));
           '
 
       - name: Admit one issue from trusted policy

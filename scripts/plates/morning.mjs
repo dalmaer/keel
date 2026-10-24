@@ -106,8 +106,12 @@ function remoteFile(root, branch, path) {
   const ref = `refs/remotes/origin/${branch}`;
   const f = git(root, ['fetch', '-q', '--no-tags', 'origin', `+refs/heads/${branch}:${ref}`]);
   if (f.status !== 0) throw new MorningError(`cannot fetch the branch ${branch} from origin: git fetch exited ${f.status ?? f.error?.code}`);
+  const tree = git(root, ['ls-tree', '-z', ref, '--', path]);
+  if (tree.status !== 0) throw new MorningError(`cannot inspect ${branch}:${path}: git ls-tree failed`);
+  if (!tree.stdout) return null;
   const s = git(root, ['show', `${ref}:${path}`]);
-  return s.status === 0 ? s.stdout : null;
+  if (s.status !== 0) throw new MorningError(`cannot read ${branch}:${path}: git show exited ${s.status ?? s.error?.code}`);
+  return s.stdout;
 }
 
 async function localFile(root, path) {
@@ -155,6 +159,8 @@ export async function finalPlan({ root, date }) {
   }
   await at(record, () => localFile(root, record));
   await at(PLAN, () => localFile(root, PLAN));
+  const refused = places.filter(p => p.state.startsWith('refused:'));
+  if (refused.length) throw new MorningError(refused.map(p => `${p.from} ${p.state}`).join('; '));
   const plans = places.filter(p => p.plan && planLocations().some(l => l.branch === p.branch));
   const winner = plans[0];
   for (const skipped of plans.slice(1)) { skipped.state = `skipped: ${winner.branch} wins for ${date}`; delete skipped.plan; }

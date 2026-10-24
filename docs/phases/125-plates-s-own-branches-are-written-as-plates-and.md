@@ -76,3 +76,5 @@ Complete exact-head review and the required integrated gate, then obtain the own
 - **2026-10-24** — First canonical plan creation must lease an absent ref with an empty expected SHA, not literal null. A real bare-origin regression now exercises legacy plan adoption and late ticks while retaining the original legacy bytes.
 - **2026-10-24** — The claim-token inventory row is private Git-directory ownership state, not a remote branch. Its stable identity is retained and its held writer belongs to phase 128's owner-machine boundary.
 - **2026-10-24** — Current retry eligibility uses a separate exact source closure; historical retry pins remain unchanged. Neither closure is approval to dispatch or install renamed concurrency groups.
+
+- **2026-10-24** — Review exposed that an invalid legacy plan could authorize a canonical default. Selection now carries refusal and source provenance through publication, retry and morning recovery; missing files require successful tree evidence. The review correction has a VERIFIED red/green proof and retained two-direction mutation observations. See the phase evidence.

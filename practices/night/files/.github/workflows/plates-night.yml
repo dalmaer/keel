@@ -169,16 +169,23 @@ jobs:
           DAY=$(date -u +%F)
           code=0
           ARGS=()
+          rm -f "$RUNNER_TEMP/branch-plan.json" "$RUNNER_TEMP/branch-unread.txt"
           if node --input-type=module -e '
             import {readRemoteNightPlan} from "./scripts/plates/night-plan.mjs";
             import {writeFileSync} from "node:fs";
             const selected=readRemoteNightPlan({root:process.cwd(),date:process.argv[1]});
-            if(selected.plan) writeFileSync(process.argv[2],JSON.stringify(selected.plan));
             console.log(JSON.stringify({branch:selected.branch,skipped:selected.skipped,sources:selected.sources}));
-          ' "$DAY" "$RUNNER_TEMP/branch-plan.json"; then
+            if(selected.refused.length) {
+              writeFileSync(process.argv[3],selected.refused.join("; "));
+              process.exit(2);
+            }
+            if(selected.plan) writeFileSync(process.argv[2],JSON.stringify(selected.plan));
+          ' "$DAY" "$RUNNER_TEMP/branch-plan.json" "$RUNNER_TEMP/branch-unread.txt"; then
             if [ -f "$RUNNER_TEMP/branch-plan.json" ]; then ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json"); fi
           else
-            ARGS=(--branch-unread "dual plan read failed")
+            why="dual plan read failed"
+            if [ -f "$RUNNER_TEMP/branch-unread.txt" ]; then why=$(cat "$RUNNER_TEMP/branch-unread.txt"); fi
+            ARGS=(--branch-unread "$why")
             code=2
           fi
           node scripts/plates/night-plan.mjs tonight --date "$DAY" "${ARGS[@]}" || code=$?

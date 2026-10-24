@@ -75,7 +75,7 @@
     },
     ".github/workflows/plates-climb.yml": {
       "practice": "climb",
-      "sha256": "e423150f47bd33734de90433b9bcc2dde2e919d8de3816ec1b518823cdc5d5fe"
+      "sha256": "aa76fd3838d224d331cfd2dc27aa22ca931a1cdcb184e4c928c02007bc8ded8d"
     },
     ".github/workflows/plates-cross-review.yml": {
       "practice": "cross-review",
@@ -91,7 +91,7 @@
     },
     ".github/workflows/plates-night.yml": {
       "practice": "night",
-      "sha256": "181ecdb88479a5d49ccc4f2ecb8e95b5c13e278a41fb0883382e5af84555e45a"
+      "sha256": "f2b4fc50c6c3c7fad279ec0d3ccd147b661a3fbef78a9d368055d1c1e3631f1d"
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
@@ -99,7 +99,7 @@
     },
     ".github/workflows/plates-robot.yml": {
       "practice": "climb",
-      "sha256": "6bc6389a65197d4ecb422e4098badb0eafacbe0c15ef427c6815f5e1c0f20af1"
+      "sha256": "0fe07f65e2b6de0f44148395d9852acbca6547b2a16192c23f251c08a18d20f0"
     },
     ".github/workflows/plates-tend.yml": {
       "practice": "climb",
@@ -219,7 +219,7 @@
     },
     "scripts/plates/morning.mjs": {
       "practice": "night",
-      "sha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc"
+      "sha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d"
     },
     "scripts/plates/names.mjs": {
       "practice": "night",
@@ -227,7 +227,7 @@
     },
     "scripts/plates/night-plan.mjs": {
       "practice": "night",
-      "sha256": "fc48f6a6913776a23ad18b2f641ffc72d9fdf6cc5f82c2a83e266bb2179a3268"
+      "sha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e"
     },
     "scripts/plates/persona.mjs": {
       "practice": "personas",

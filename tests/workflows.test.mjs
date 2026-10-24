@@ -868,7 +868,7 @@ test('the night plans before anything runs: tonight\'s plan from plates-night-pl
   assert.equal(unfetched.status, 0, 'the step goes on: the measure still runs');
   assert.equal(unfetched.outputs.code, '2', unfetched.out);
   assert.match(unfetched.out, /git fetch.*128|cannot.*fetch/i);
-  assert.match(unfetched.out, /could not be read \(dual plan read failed\)/);
+  assert.match(unfetched.out, /could not be read \(plates-night-plan:.*unavailable:.*git fetch exited 128/);
   assert.doesNotMatch(unfetched.out, /holds no \.keel\/night\/plan\.json/);
   assert.equal(unfetched.plan.shapedBy, 'default');
   // The branch cannot be read: red at the verdict, and the night still has its default plan.
