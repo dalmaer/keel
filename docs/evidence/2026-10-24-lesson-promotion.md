@@ -143,3 +143,37 @@ Log: /tmp/plates-phase123-check.log. Runtime hashes still matched the builder
 freeze after the gate; subsequent edits record these results and phase checkboxes.
 Typecheck independently exited 0. Exact-head CI and review remain separate; this
 checkpoint establishes neither merge nor production acceptance.
+
+## Review correction — 24 October 2026
+
+PR254's [first review finding](https://github.com/dalmaer/plates/pull/254#discussion_r4366543376)
+identified an ambiguous legacy projection: promoted became accepted even though
+its authority establishes reviewed source inclusion. The conductor confirmed
+that inbox consumers read that status. Contracts were corrected before code:
+promoted and pending rollback remain proposed, with explicit promotion history
+preserved. No live promotion was reachable or activated in this unreleased slice.
+The regression proof must exercise serialization and actual legacy inbox consumers,
+not only a table lookup, and fail without the correction.
+
+The builder's named lifecycle test failed before the one-line correction and
+passed afterward; the actual legacy parser/renderer reports accepted0/proposed1
+for promoted and pending-rollback histories while preserving their explicit state.
+The conductor independently ran:
+
+    PATH=/opt/homebrew/bin:$PATH TZ=UTC node bin/plates.mjs prove tests/lesson-promotion.test.mjs --name 'Acme PURE lifecycle' --fix lib/evaluated-lessons.mjs --base 85036429 --trailer
+
+Exit0, VERIFIED: red without the fix, green with it. The old mapping failed
+“source inclusion must not become legacy acceptance.” Retained logs:
+/tmp/plates-phase123-projection-before.log, /tmp/plates-phase123-projection-after.log
+and /tmp/plates-phase123-projection-prove.log. Typecheck and record consistency
+checks exited0; the source-capability fingerprint check passed1/1. This is synthetic
+state/consumer proof, not a live promotion claim. The reviewed runtime change
+requires a new integrated gate; the earlier successful gate is retained above.
+
+The review-corrected integrated gate exited0: 3,065 passed, zero failed, 11
+opt-in skips, all nine stall-injection suites and roadmap/render/inbox checks.
+Log: /tmp/plates-phase123-projection-check.log. No flaky or slower test was reported.
+This supersedes the earlier runtime gate for the corrected projection, while
+preserving that earlier observation and the review finding. The actual Docker
+package walk remains its original dated source observation; the later correction
+is separately proven through the affected synthetic serialization/consumer path.

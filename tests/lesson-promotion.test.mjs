@@ -1,9 +1,10 @@
+import {parseProposal,inboxText} from '../lib/learn.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,unlink} from 'node:fs/promises';
 import {join} from 'node:path';
 import {promotionWorld} from './helpers/lesson-promotion.mjs';
-import {ref,evaluationSection,seal,validateHistory} from '../lib/evaluated-lessons.mjs';
+import {ref,evaluationSection,seal,validateHistory,serializeEvaluation,replay} from '../lib/evaluated-lessons.mjs';
 import {validatePromotionRecord,validateInverse} from '../lib/evaluated-learning-promotion-records.mjs';
 import {fingerprint,byteDigest} from '../lib/evaluation-records.mjs';
 import {artifactFor} from '../lib/evaluated-learning-package.mjs';
@@ -52,9 +53,26 @@ test('Acme PURE lifecycle supports reviewed inclusion, pending rollback, observe
   const p=append('record-package','learning-review-package',{proposalRef:active,evaluationRef,payloadDigest:artifact.payloadDigest,artifact:artifact.artifact,readiness:{eligible:true,gaps:[]},verificationDigest:'a'.repeat(64)});
   const ready=append('ready','learning-readiness',{proposalRef:active,packageRef:ref(p),evaluationRef,verificationDigest:'b'.repeat(64)},'ready-for-review');
   const observation=(action,digest,artifact,base)=>{const head='1'.repeat(40),merge='2'.repeat(40),approval={schemaVersion:1,provider:'github',ownerApproverIds:[7]},policy={sourceSha:merge,blobOid:'3'.repeat(40),byteDigest:'4'.repeat(64),digest:fingerprint(approval),approval};return {schemaVersion:1,method:'github-learning-merge-v1',action,payloadDigest:digest,repository:{id:42,fullName:'Acme/widget',defaultBranch:'main',defaultSha:merge},policy,basePolicy:{...policy,sourceSha:base},review:{id:11,reviewerId:7,reviewerType:'User',authorId:8,state:'APPROVED',head,submittedAt:'2026-10-24T00:00:00Z',bodySha256:byteDigest(`plates-learning-approval-v1 ${action} sha256:${digest}`)},merge:{prNumber:1,baseRef:'main',baseSha:base,headSha:head,mergeSha:merge,parentShas:[base,head],baseTree:'5'.repeat(40),headTree:'6'.repeat(40),mergeTree:'6'.repeat(40),mergedAt:'2026-10-24T01:00:00Z',differenceDigest:'7'.repeat(64)},artifact,changesDigest:'8'.repeat(64),observationDigest:'9'.repeat(64),limitations:['Acme pure schema fixture; not source verification.']};};
+  const assertLegacyProposed=()=>{
+    // Pure synthetic history through the real serializer, legacy parser and
+    // inbox renderer. No controller authorization or production acceptance.
+    const prefix=evaluationSection(w.applied.outputBytes).prefix;
+    const serialized=serializeEvaluation(prefix,h),parsed=parseProposal(serialized);
+    assert.equal(parsed.meta.status,'proposed','source inclusion must not become legacy acceptance');
+    assert.equal(replay(parsed.evaluation).state,'promoted');
+    assert.deepEqual(parsed.evaluation,h,'explicit promotion and pending rollback history survives');
+    const rendered=inboxText([{...parsed,slug:'acme-promoted',date:'2026-10-24'}]);
+    assert.equal(rendered.counts.accepted,0);
+    assert.equal(rendered.counts.proposed,1);
+    assert.deepEqual(rendered.waiting.map(p=>p.slug),['acme-promoted']);
+    assert.match(rendered.text,/\| accepted \| 0 \|/);
+    assert.match(rendered.text,/\| proposed \| 1 \|/);
+  };
   const promoted=append('promote','learning-promotion',{proposalRef:active,readinessRef:ref(ready),observation:observation('promote',artifact.payloadDigest,artifact.artifact,w.sha)},'promoted');
+  assertLegacyProposed();
   const proposal=h.records.find(r=>r.kind==='learning-proposal'),repairRef={kind:'phase',ref:'1'},inverse={schemaVersion:1,kind:'learning-inverse-package',originalPackageDigest:p.data.payloadDigest,promotionRef:ref(promoted),baseRevision:promoted.data.observation.merge.mergeSha,repairRef,changes:proposal.data.candidate.patch.changes.map(c=>({path:c.path,beforeDigest:c.after.contentSha256,afterDigest:c.gitBase?.contentSha256??null}))},inverseArtifact=artifactFor(inverse);
   const pending=append('request-rollback','learning-rollback-request',{proposalRef:active,promotionRef:ref(promoted),repairRef,repairDigest:'a'.repeat(64),payload:inverse,payloadDigest:inverseArtifact.payloadDigest,artifact:inverseArtifact.artifact});assert.equal(state,'promoted');
+  assertLegacyProposed();
   const bad=structuredClone(h),badRecord=bad.records.at(-1);badRecord.data.payload.originalPackageDigest='0'.repeat(64);const resealedArtifact=artifactFor(badRecord.data.payload);badRecord.data.payloadDigest=resealedArtifact.payloadDigest;badRecord.data.artifact=resealedArtifact.artifact;bad.records[bad.records.length-1]=seal(body(badRecord));bad.events[bad.events.length-1]=seal({...body(bad.events.at(-1)),recordRefs:[ref(bad.records.at(-1))]});assert.throws(()=>validateHistory(bad),/inverse_original_mapping_mismatch/);
   const rolled=append('observe-rollback','learning-rollback',{proposalRef:active,rollbackRequestRef:ref(pending),observation:observation('rollback',inverseArtifact.payloadDigest,inverseArtifact.artifact,inverse.baseRevision)},'rolled-back');
   const follow=append('follow-up','learning-follow-up',{proposalRef:active,decisionRef:ref(rolled),window:w.followup.window,sourceRefs:[],commentary:w.followup.commentary,relation:{recordRef:ref(promoted),relation:'related'},coverage:'unmeasured',eligibleExposure:null,recurrenceRate:null,costChange:null,latencyChange:null,helpChange:null,sourceCoverage:{selected:0,distinctVerifiedIncidents:0,unknownIncidentSources:0}});
