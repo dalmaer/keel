@@ -510,3 +510,24 @@ Phase 120 uses phase 119's implemented offline record interfaces; it needs none
 of the missing live-provider/spending activation. Its independent preparation may
 continue while phase 119 waits for the owner on review-limit cancellation repair.
 A dependent branch must not merge phase 119 indirectly or bypass that decision.
+
+### Recovery-case surface clarification — 23 October 2026
+
+The recovery case calls the actual historical `canvasLive` and `canvasSync` APIs
+with caller-supplied cards and an external-service replica. This is the surface
+used by the original regression at `d57d44ec`; its source is `lib/canvas-sync.mjs`,
+not the snapshot-producing `sync` wrapper. Retain both live-disable and live-key
+removal, interruption between durable binding/journal writes, retry, retirement,
+new publication beside the old card, and preservation of the person's edits.
+Only `lib/canvas-sync.mjs` is writable for this task.
+
+Snapshot collection/rendering, history collection and recovery-state export are
+excluded from this case and must be listed as coverage limits. They are not
+replaced with stub modules. The excluded snapshot path alone has a four-module
+lower bound of 298,134 bytes at the starting revision, over the 262,144-byte
+delivery limit; the measured literal-import inventory is 47 files/1,311,759 bytes.
+`node /tmp/plates-phase120-closure-proof.mjs` independently confirmed exporter
+refusal (exit 0 for the negative proof), retained in
+`/tmp/plates-phase120-conductor-closure.log`. The direct-card module is 74,108
+bytes before probes; its complete exercised closure and broken/corrected behavior
+still require proof before claiming the case runnable. No limit is enlarged.

@@ -55,3 +55,7 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 Implement the bounded corpus inspection/export contract and six independently
 checked historical cases. Keep held-out coverage zero and the dependent branch
 unmerged until phase 119’s owner review decision is resolved.
+
+## Trajectory
+
+- **2026-10-23** — The broad canvas snapshot dependency chain exceeds delivery bounds. Scope the recovery case to the actual caller-supplied-card APIs used by its original regression; preserve crash/retry and human-edit assertions, disclose excluded snapshot/export coverage, and prove the exercised closure before calling it runnable.
