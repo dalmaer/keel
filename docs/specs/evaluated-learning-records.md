@@ -47,6 +47,7 @@ Every request has EXACT fields:
 {
   schemaVersion: 1,
   operationId: <UUID>,
+  decisionTarget: {kind:"phase", ref:<existing local phase ID>},
   expected: {fileDigest: <SHA256 or null for create>, generation: <integer >= 0>},
   actor: <nonempty attributed actor>,
   at: <canonical ISO UTC timestamp>,
@@ -467,7 +468,7 @@ Events have EXACT fields:
 ```
 {schemaVersion:1,kind:"learning-event",id,sequence,operationId,
  requestDigest,previousDigest,action,from,to,actor,at,reason,
- sourceDigest,decisionContextDigest,recordRefs,evidenceRefs,
+ sourceDigest,decisionTarget,decisionContextDigest,recordRefs,evidenceRefs,
  duplicateSearchDigest,subjectRef,replacementRef,digest}
 ```
 
@@ -524,7 +525,7 @@ rather than pretending their evidence has been validated.
 ## Atomic/CAS, previews, limits and recovery
 
 Preview returns `{action,preview:true,operationId,requestDigest,currentDigest,
-expectedGeneration,destination,sourceDigest,decisionContextDigest,duplicateSearchDigest,
+expectedGeneration,destination,sourceDigest,decisionTarget,decisionContextDigest,duplicateSearchDigest,
 outputDigest,outputBytes,candidatePreview,changes,limitations,digest}`. This is a proposal, not a
 verification receipt callers can replay as proof. `digest` binds all fields
 except itself. `candidatePreview` is null except propose/revise, where it is a sorted array
@@ -659,3 +660,19 @@ source-privacy checks must be demonstrated against existing interfaces. The
 overlay-only candidate binding above is the phase-121 positive contract: implement
 and prove it using actual Git objects and frozen material/configuration records.
 Other candidate shapes remain explicit unsupported cases, not fabricated links.
+
+## Project decision target — 24 October 2026
+
+Each request explicitly identifies its existing local phase in `decisionTarget`.
+Capture and later mutations read that phase's decision context, never the Plates
+implementation phase number. Retain the target alongside its digest in each
+event and preview. Required broken references refuse; `not-configured` remains
+a visible legacy-coverage limitation. The target stays fixed through one record's
+history, including proposal revisions. A different target needs an explicitly
+related/superseding record rather than silently transplanting decisions.
+
+For proposal and plan binding, the actual frozen comparison's `authority` must
+equal that target. This reads existing task authority; it creates none. This
+initial slice supports local phase targets only. Issue-based targets require a
+fresh issue-body context adapter and are explicitly unsupported until implemented.
+The controlled Acme walk uses a real fixture phase, not a fabricated phase 121.
