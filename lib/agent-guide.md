@@ -1957,17 +1957,24 @@ worksheet above remains read-only. See `plates --agent-help canvas` for publishi
 
 ### Bounded session trials (explicit records)
 
-`plates retro evaluations plan|freeze|inspect --manifest <absolute-file>
---state <absolute-dir> [--bundle <file>] [--experiment <id>] [--json]` freezes
+`plates retro evaluations plan|freeze|inspect|run --manifest <absolute-file>
+--state <absolute-dir> [--bundle <file>] [--experiment <id>] [--execution <absolute-json>] [--json]` freezes
 schema-2 harness input records in an already initialized external workspace.
 Plan reads only. Freeze preview exits 3 and exposes `digest`; approve with
 `--yes --digest <digest>`. Inspect takes `--experiment`; plan/freeze take
 `--bundle`. The manifest must authorize the comparison repository. Exact input
 bytes, canonical input path and destination bind approval; retries at the same
 path retain the original receipt. A moved bundle refuses recovery under that ID;
-inspect the original instead. No model, runner, reservation or acceptance occurs. Run, resume,
-cancel, compare and rescore refuse. Declared image hashes do not verify image
-availability. See the source guide `docs/guide/harness-evaluations.md` for the
+inspect the original instead. Plan/freeze never execute or reserve. Run takes
+`--experiment` and `--execution`; preview exits 3, approval requires the exact
+`--yes --digest`. The offline scripted-node-v1 adapter reserves host capacity
+through the existing validation coordinator, receives a bounded regular-file
+submission, confirms termination, and checks behavior in fresh Docker containers.
+Only `pinned-image-tools` authority is supported: all binaries in the approved
+image, no network or host mounts. The host owns acceptance. Original operation
+identities survive uncertainty; retries never redispatch. Unknown cost is null.
+No paid model or production activation occurs. Resume/cancel/compare/rescore
+refuse. Run checks local pinned-image availability; it never downloads an image. See the source guide `docs/guide/harness-evaluations.md` for the
 synthetic Acme bundle and exact invocation.
 
 `plates retro sessions <status|start|begin|finish|handoff|audit|apply|rollback>

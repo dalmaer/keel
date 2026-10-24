@@ -190,7 +190,7 @@ test('migration catalogue matches the shared approval parser without enabling we
 test('harness evaluation forms describe only local records and never enable hosted execution', () => {
   const row = catalogue(enabled).rows.find(row => row.id === 'cli.retro');
   const forms = row.cli[0].forms.filter(form => form.subcommand?.startsWith('evaluations '));
-  assert.deepEqual(forms.map(form => form.subcommand), ['evaluations plan', 'evaluations freeze', 'evaluations inspect']);
+  assert.deepEqual(forms.map(form => form.subcommand), ['evaluations plan', 'evaluations freeze', 'evaluations inspect', 'evaluations run']);
   assert.ok(cliData.find(entry => entry.command === 'retro').forms.filter(form => form.subcommand?.startsWith('evaluations ')).every(form => form.parserSource === 'lib/evaluation-ledger.mjs'));
   assert.ok(forms.every(form => form.arguments.every(arg => ['limited', 'presentation-only'].includes(arg.treatment))));
   const paths = reviewedOperationSources().files.map(file => file.path);

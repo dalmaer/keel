@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**53 of 131 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
+**54 of 131 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). The approved reporting workspace already uses the fixed `loop-across-projects` key and live mode (configured 14 October). Do not repeat that setup. The 19 October publication preflight stopped because the owner-only adapter rejects the owner's explicitly approved named Editor grant. Specify and review exact approved-grant matching before implementing that support; preserve the grant, writer, binding, historical cards and receipts. Do not remove access or bypass preflight. Once supported, verify one real create, a later conditional edit and a refusal after a human edit. These deployed walks remain unverified. Dedicated GitHub writer/restart proof and seven scheduled nights remain separate work. Do not ask again for the approved destination, writer or retained dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -255,7 +255,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Plates can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-5/14 built; 3 owe a walk.
+6/14 built; 3 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -270,7 +270,7 @@ Plates can show, with numbers across the fleet, whether projects it manages ship
 | [111. Focused feedback starts with capability and resource checks](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | built | 2026-10-23 | [110](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | Exact-head checks and independent/parent review completed; PR 226 merged, final main green. Defaults unchanged; no measured pipeline speedup. |
 | [115. Measured shadow selection preserves full validation](phases/115-measured-shadow-selection-preserves-full-validation.md) | designed | 2026-10-22 | [111](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md), [114](phases/114-complete-consumer-attestations-support-exact-head-reuse.md) | Staged implementation from the migration audit; required gate policy unchanged. |
 | [117. Freeze harness evaluation inputs and extend the experiment ledger](phases/117-evaluation-records.md) | built | 2026-10-23 | [72](phases/72-session-handoffs-improve-through-bounded.md), [111](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | Local plan/freeze/inspect records validated and walked; no execution, budget reservation or task acceptance. |
-| [118. Evaluate one historical artifact behind an independent boundary](phases/118-evaluation-isolation.md) | designed | 2026-10-23 | [117](phases/117-evaluation-records.md) | Specified only; production implementation and paid evaluation have not started. |
+| [118. Evaluate one historical artifact behind an independent boundary](phases/118-evaluation-isolation.md) | built | 2026-10-23 | [117](phases/117-evaluation-records.md) | Offline isolated execution, historical compatibility verdicts and adversarial boundary proved; no paid agent efficacy claim. |
 | [119. Compare paired harness trials and resume interrupted comparisons](phases/119-evaluation-comparison.md) | designed | 2026-10-23 | [118](phases/118-evaluation-isolation.md) | Specified only; production implementation and paid evaluation have not started. |
 | [120. Freeze six historically grounded development cases](phases/120-evaluation-corpus.md) | designed | 2026-10-23 | [119](phases/119-evaluation-comparison.md) | Specified only; production implementation and paid evaluation have not started. |
 

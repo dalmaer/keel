@@ -380,7 +380,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Delivery](docs/guide/delivery.md) | two changes in a row should publish once, and deploys should follow tested commits, not `main` |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
-| [Harness evaluation records](docs/guide/harness-evaluations.md) | you want to freeze explicit evaluation inputs in private external storage |
+| [Harness evaluation records](docs/guide/harness-evaluations.md) | you want to freeze evaluation inputs and run an isolated offline trial |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 | [Model choice and project planning](docs/guide/web-model-routing.md) | you want to review a private model policy, approve exact project text and bounded cost, or follow an original attempt and saved-summary continuation |
@@ -532,7 +532,8 @@ The [harness evaluation design](docs/specs/harness-regression-evaluation.md) and
 [measured review-learning design](docs/specs/review-learning-evaluation.md) specify
 paired task trials, independent acceptance and reviewed lesson promotion.
 [Phases 117–123](docs/ROADMAP.md) track implementation. Phase 117 provides local
-plan/freeze/inspect records; execution and measured promotion remain planned,
-and no paid evaluations are approved. The
+plan/freeze/inspect records. Phase 118 adds an explicit offline Docker run with
+shared host admission and independent artifact acceptance; comparison and
+measured promotion remain planned, and no paid evaluations are approved. The
 [capability map](docs/research/2026-10-23-evaluation-capabilities.md) separates
 existing mechanisms from the proposed extensions.
