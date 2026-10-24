@@ -1,3 +1,4 @@
+import { writeName, branchSuffix, robotIssueOf } from './names.mjs';
 // The tool pin includes the old product name twice.
 if (process.env.KEEL_CANVAS_KEEL_VERSION !== undefined) process.env.PLATES_CANVAS_PLATES_VERSION ??= process.env.KEEL_CANVAS_KEEL_VERSION;
 
@@ -1162,7 +1163,7 @@ export function climbLine(config, night) {
 }
 
 /** A climb job's PR branch prefix. */
-export const CLIMB_PREFIX = 'keel-climb/';
+export const CLIMB_PREFIX = writeName('git ref:keel-climb/');
 /** Closed-unmerged PRs in a row that make a climb job propose its own retirement (phase 36). */
 export const RETIRE_AFTER = 3;
 
@@ -1181,7 +1182,7 @@ const closedUnmerged = p => (p.state === undefined ? !p.mergedAt : String(p.stat
 export function climbRetiring(prs, jobs) {
   const out = [];
   for (const job of jobs) {
-    const mine = prs.filter(p => typeof p?.headRefName === 'string' && p.headRefName.startsWith(`${CLIMB_PREFIX}${job}/`))
+    const mine = prs.filter(p => typeof p?.headRefName === 'string' && branchSuffix(p.headRefName, 'git ref:keel-climb/')?.startsWith(`${job}/`))
       .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))
       .slice(0, RETIRE_AFTER);
     if (mine.length === RETIRE_AFTER && mine.every(closedUnmerged)) out.push({ job, prs: mine.map(p => p.number) });
@@ -1547,7 +1548,7 @@ function robotReview(pr, review) {
   const {version,repo,issueNumber,instanceId,author,headSha,cursor} = mark ?? {};
   const current = pr.repository?.nameWithOwner, verified = robotReviewRepositories.get(pr);
   const sameRepo = value => value === current || (verified?.current === current && verified.names.has(value));
-  if (version !== 1 || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || repo.split('/').some(part => part === '.' || part === '..') || !Number.isSafeInteger(pr.number) || pr.number < 1 || !Number.isSafeInteger(issueNumber) || issueNumber < 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId ?? '') || !Number.isSafeInteger(cursor) || cursor < 0 || author !== envelope[4] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(headSha ?? '') || pr.headRefName !== `keel/robot-${issueNumber}` || !sameRepo(repo) || pr.headRepository?.nameWithOwner !== current || pr.url !== `https://github.com/${current}/pull/${pr.number}`) return null;
+  if (version !== 1 || !/^[\w.-]+\/[\w.-]+$/.test(repo ?? '') || repo.split('/').some(part => part === '.' || part === '..') || !Number.isSafeInteger(pr.number) || pr.number < 1 || !Number.isSafeInteger(issueNumber) || issueNumber < 1 || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId ?? '') || !Number.isSafeInteger(cursor) || cursor < 0 || author !== envelope[4] || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(headSha ?? '') || robotIssueOf(pr.headRefName) !== issueNumber || !sameRepo(repo) || pr.headRepository?.nameWithOwner !== current || pr.url !== `https://github.com/${current}/pull/${pr.number}`) return null;
   if (marks[0][1] !== JSON.stringify({version,repo,issueNumber,instanceId,author,headSha,cursor})) return null;
   if (headSha !== envelope[1]) {
     // A later review must have its own immutable bot receipt. A short window

@@ -30,6 +30,7 @@ async function acme(t, { crossReview = ON, files = {} } = {}) {
   await mkdir(join(dir, '.plates'), { recursive: true });
   await cp(SCRIPT, join(dir, 'scripts/plates/cross-review.mjs'));
   await cp(LIB, join(dir, 'scripts/plates/lib.mjs'));
+  await cp(join(dirname(LIB), 'names.mjs'), join(dir, 'scripts/plates/names.mjs'));
   await cp(join(PRACTICE, '.agents/cross-review/REVIEW.md'), join(dir, '.agents/cross-review/REVIEW.md'));
   await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ name: 'Acme', repo: 'acme/anvils', ...(crossReview === null ? {} : { crossReview }) }, null, 2)}\n`);
   for (const [p, text] of Object.entries(files)) {
@@ -306,7 +307,7 @@ test('agent ran: red with only the error line when the agent failed before its b
   // The workflow runs its copy from $RUNNER_TEMP/plates, taken from the default branch before the PR's head.
   const temp = join(dir, 'runner');
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
   const file = join(temp, 'execution.json');
   const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success', result: 'Invalid API key · Please run /login' };
   await writeFile(file, execution(early));
@@ -674,7 +675,7 @@ test('phase 46: Claude, holding the review job\'s read-only token, reads the dif
   assert.equal(brief.status, 0, brief.out);
   assert.doesNotMatch(brief.out, /could not be read/);
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
 
   // Claude's run, synthetic: its two Bash tools as the action runs them (GH_TOKEN is the github_token it was handed), then its final message.
   const tool = args => run('gh', args, { cwd: dir, env: { ...process.env, PATH: path, GH_TOKEN: 'acme-read' } });
@@ -708,7 +709,7 @@ test('phase 46: the publish job posts exactly what summary builds from the artif
   const pr = prJson();
   const temp = join(dir, 'runner');
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
   await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
   await writeFile(join(temp, 'pr.diff'), DIFF);
   // The agent's working tree and anything else in the runner's temp never leave the review job.
@@ -998,7 +999,7 @@ test('phase 60 publisher: after a push the publish job checks out nothing and ru
   assert.equal(good.status, 0, good.out);
   assert.equal(good.outputs.dir, join(temp, 'publisher/scripts/plates'));
   assert.equal(await readFile(join(good.outputs.dir, 'cross-review.mjs'), 'utf8'), platesBytes);
-  assert.deepEqual(good.calls.map(c => c.replace(/^api -H Accept: application\/vnd\.github\.raw /, '')), [`repos/acme/anvils/contents/scripts/plates/cross-review.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/lib.mjs?ref=${a}`]);
+  assert.deepEqual(good.calls.map(c => c.replace(/^api -H Accept: application\/vnd\.github\.raw /, '')), [`repos/acme/anvils/contents/scripts/plates/cross-review.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/lib.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/names.mjs?ref=${a}`]);
   // At M, and at N after it, the script is not plates's: red, no folder handed on, so the post never runs M's script.
   for (const sha of [m, n]) {
     const r = await fetches(sha);
@@ -1246,7 +1247,7 @@ async function trustedLayout(t, layout) {
     await rename(join(dir, 'scripts/plates'), join(dir, 'scripts/keel'));
     await rename(join(dir, '.plates'), join(dir, '.keel'));
     await rename(join(dir, '.keel/plates.json'), join(dir, '.keel/keel.json'));
-    for (const file of ['cross-review.mjs', 'lib.mjs']) {
+    for (const file of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) {
       const path = join(dir, 'scripts/keel', file);
       const source = await readFile(path, 'utf8');
       await writeFile(path, source.replaceAll('.plates/plates.json', '.keel/keel.json').replaceAll('PLATES_NOW', 'KEEL_NOW').replaceAll('PLATES_GH', 'KEEL_GH'));
@@ -1269,7 +1270,7 @@ for (const layout of ['keel', 'plates']) test(`rename compatibility: ${layout} t
   assert.equal(which.outputs.review, 'true');
   const brief = await step(t, dir, 'Brief', { ...env, AGENT: 'claude' });
   assert.equal(brief.status, 0, brief.out);
-  for (const file of ['cross-review.mjs', 'lib.mjs']) {
+  for (const file of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) {
     assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'), 'trusted pair is copied without rewriting its bytes');
     // The PR checkout replaces the working tree after the brief. Its modules
     // must never judge the agent or run in the writing job.
@@ -1345,7 +1346,7 @@ for (const layout of ['keel', 'plates']) test(`complete PR diff: HTTP 406 uses e
     const prompt = await readFile(join(temp, 'prompt.md'), 'utf8');
     assert.ok(prompt.includes(join(temp, 'plates-diff/pr.diff')));
     assert.doesNotMatch(prompt, /`gh pr diff 7`/);
-    for (const file of ['cross-review.mjs', 'lib.mjs']) assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'));
+    for (const file of ['cross-review.mjs', 'names.mjs', 'lib.mjs']) assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'));
   }
 });
 

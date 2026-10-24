@@ -29,6 +29,7 @@ async function mutant(t, from, to) {
   assert.ok(text.includes(from), `the mutation's target is still in the source: ${from}`);
   const dir = await scratch(t, 'plates-pr-body-mutant-');
   await copyFile(join(DIR, 'lib.mjs'), join(dir, 'lib.mjs'));
+  await copyFile(join(DIR, 'names.mjs'), join(dir, 'names.mjs'));
   await writeFile(join(dir, 'pr-body.mjs'), text.replace(from, to));
   return import(pathToFileURL(join(dir, 'pr-body.mjs')).href);
 }

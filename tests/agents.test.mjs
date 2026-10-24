@@ -29,7 +29,7 @@ const scripts = () => loaded ??= (async () => {
   process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
   const plates = join(dir, 'scripts/plates');
   await mkdir(plates, { recursive: true });
-  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+  for (const f of ['names.mjs', 'lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
   await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
   for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
   const at = f => import(pathToFileURL(join(plates, f)).href);
@@ -131,6 +131,7 @@ test('config: each pass\'s own validator holds the agent rules, and the scripts 
     await mkdir(join(dir, '.plates'), { recursive: true });
     await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(dir, 'scripts/plates/cross-review.mjs'));
     await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/plates/lib.mjs'));
+    await cp(join(NIGHT, 'names.mjs'), join(dir, 'scripts/plates/names.mjs'));
     await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', crossReview: { for: ['codex/'], agent: 'gemini' } }));
     const r = run(process.execPath, [join(dir, 'scripts/plates/cross-review.mjs'), 'config', '--json'], { cwd: dir });
     assert.equal(r.status, 2, r.stdout);
@@ -262,6 +263,7 @@ test('the default: a project naming no agent runs Claude, and Claude\'s step pas
     await mkdir(join(dir, 'scripts/plates'), { recursive: true });
     await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(dir, 'scripts/plates/cross-review.mjs'));
     await cp(join(NIGHT, 'lib.mjs'), join(dir, 'scripts/plates/lib.mjs'));
+    await cp(join(NIGHT, 'names.mjs'), join(dir, 'scripts/plates/names.mjs'));
     const on = runBlocks(w.crossReview.text).find(b => b.step === 'Is cross-review on?');
     const step = async config => {
       await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', ...config }));
@@ -318,6 +320,7 @@ test('did the agent run: a Codex step that failed, or ended with no final messag
     await mkdir(plates, { recursive: true });
     await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
     await cp(join(NIGHT, 'lib.mjs'), join(plates, 'lib.mjs'));
+    await cp(join(NIGHT, 'names.mjs'), join(plates, 'names.mjs'));
     const now = Math.floor(Date.now() / 1000);
     await writeFile(join(dir, 'output'), '');
     const step = env => run('bash', ['-e', '-c', block.script], { cwd: dir, env: { ...process.env, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, 'output'), MINUTES: '15', STARTED: String(now - 20), EXECUTION: '', ...env } });
@@ -587,7 +590,7 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
     await mkdir(join(dir, '.plates'), { recursive: true });
     const plates = join(dir, 'scripts/plates');
     await mkdir(plates, { recursive: true });
-    for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+    for (const f of ['names.mjs', 'lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
     for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
     // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/plates ($RUNNER_TEMP is dir here).
     await cp(plates, join(dir, 'plates/scripts/plates'), { recursive: true });

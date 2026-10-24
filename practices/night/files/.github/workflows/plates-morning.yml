@@ -60,7 +60,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: keel-morning
+  group: plates-morning
   cancel-in-progress: false
 
 permissions: {}
@@ -121,7 +121,12 @@ jobs:
       - name: Open the night's final pull request
         run: |
           case "$DAY" in [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;; *) echo "::error::No night was decided (day: $DAY)."; exit 1 ;; esac
-          BRANCH="keel-night/$DAY-final"
+          NIGHT=$(node --input-type=module -e '
+            import {resolveNightBranch} from "./scripts/plates/verification.mjs";
+            const r=await resolveNightBranch({root:process.cwd(),date:process.env.DAY,includeFinal:true});
+            process.stdout.write(r.branch);
+          ')
+          BRANCH="$NIGHT-final"
           HEALTH=$(node --input-type=module -e '
             import { readFileSync } from "node:fs";
             import { healthDirIn } from "./scripts/plates/lib.mjs";
@@ -133,9 +138,9 @@ jobs:
             git fetch -q --no-tags origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
             START="refs/remotes/origin/$BRANCH"
             OWN=1
-          elif [ ! -f "$HEALTH/$DAY.md" ] && git ls-remote --exit-code --heads origin "keel-night/$DAY" > /dev/null; then
-            git fetch -q --no-tags origin "+refs/heads/keel-night/$DAY:refs/remotes/origin/keel-night/$DAY"
-            START="refs/remotes/origin/keel-night/$DAY"
+          elif [ ! -f "$HEALTH/$DAY.md" ] && git ls-remote --exit-code --heads origin "$NIGHT" > /dev/null; then
+            git fetch -q --no-tags origin "+refs/heads/$NIGHT:refs/remotes/origin/$NIGHT"
+            START="refs/remotes/origin/$NIGHT"
           fi
           git checkout -q -B "$BRANCH" "$START"
           node scripts/plates/morning.mjs finalize --date "$DAY" --pr-input "$RUNNER_TEMP/pr.json"
@@ -158,7 +163,7 @@ jobs:
             git commit -q --only -m "plates night: $DAY, as it finished" -- "${PATHS[@]}"
             # The branch is this workflow's alone; a rerun the same night
             # replaces its own commit, so force is safe here and nowhere else.
-            git push --force origin "HEAD:refs/heads/keel-night/$DAY-final"
+            git push --force origin "HEAD:refs/heads/$BRANCH"
           fi
           git show --name-only --format= HEAD > "$RUNNER_TEMP/files.txt"
           node scripts/plates/pr-body.mjs --input "$RUNNER_TEMP/pr.json" --files "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/body.md"

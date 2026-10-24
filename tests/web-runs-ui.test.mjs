@@ -128,3 +128,10 @@ test('Routines uses canonical Plates branding and All plates scope without chang
   assert.match(html, /action="\/routines"/);
   assert.doesNotMatch(html, />Fleet|· Keel|assets\/keel/);
 });
+
+test('run detail exposes inspection for either failed night workflow without retrying',()=>{
+ for(const name of ['plates','keel']) {
+  const html=runDetailView({project,item:{...item,routineId:`.github/workflows/${name}-night.yml`},readAt:'2026-10-21T11:00:00Z',coverage:{gaps:[]},stages:[],comments:[]},access);
+  assert.match(html,/Inspect retry eligibility/);assert.match(html, /href="\/projects\/studio\/night-retries\?run=71&amp;attempt=2"/);
+ }
+});

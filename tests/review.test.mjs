@@ -1045,11 +1045,11 @@ test('agent issue canonical rubric identity survives reordered keys in manual an
 test('verified robot top-level reviews remain actionable across heads and prose', () => {
   const head='a'.repeat(40), old='b'.repeat(40), bot={__typename:'Bot',login:'github-actions'};
   const conn=nodes=>({nodes,pageInfo:{hasNextPage:false}});
-  for (const author of ['claude','codex']) {
+  for (const name of ['plates','keel']) for (const author of ['claude','codex']) {
     const reviewer=author==='claude'?'codex':'claude';
     const mark={version:1,repo:'acme/app',issueNumber:7,instanceId:'issue-7',author,headSha:old,cursor:0};
     const review={id:'PRR_acme',databaseId:12,author:bot,commit:{oid:old},submittedAt:'2026-10-01T00:00:00Z',url:'https://github.com/acme/app/pull/8#pullrequestreview-12',body:`<!-- keel:robot-review ${old} ${reviewer} -->\nReviewed by ${reviewer}; built by ${author}.\n\n[P1] acme.js:9 loses a correction.`};
-    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:'keel/robot-7',headRefOid:head,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
+    const pr={number:8,url:'https://github.com/acme/app/pull/8',author:bot,headRefName:`${name}/robot-7`,headRefOid:head,repository:{nameWithOwner:'acme/app'},headRepository:{nameWithOwner:'acme/app'},body:`<!-- keel:robot-delivery ${JSON.stringify(mark)} -->`,reviewThreads:conn([]),comments:conn([]),reviews:conn([review])};
     const entries=reviewComments(pr);
     assert.equal(entries.length,1,'verified robot review must not be dropped as the PR author own review');
     assert.equal(reviewComments({...pr,headRefOid:'c'.repeat(40)})[0].answered,false);

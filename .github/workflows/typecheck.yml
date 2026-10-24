@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.event_name == 'workflow_dispatch' && inputs.keel_operation != '' && format('keel-web-typecheck-{0}', inputs.keel_operation) || format('typecheck-{0}', github.ref) }}
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.keel_operation != '' && format('plates-web-typecheck-{0}', inputs.keel_operation) || format('typecheck-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || inputs.keel_operation == '' }}
 
 jobs:

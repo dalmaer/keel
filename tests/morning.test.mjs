@@ -11,6 +11,7 @@ import { observation, results } from './helpers/verification.mjs';
 // gh is a stub at the boundary and origin is a local bare repo. Nothing here
 // reads the live world.
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -57,7 +58,7 @@ const asRecorded = () => {
   const p = finished();
   return { ...p, items: p.items.map(i => (i.kind === 'build' ? { ...i, status: 'planned', result: null } : i)) };
 };
-const page = (date, bundle) => `# Acme Anvils health, ${date}\n\n| Measure | Value | Bound | State | Detail |\n| --- | --- | --- | --- | --- |\n| \`bundle_bytes\` — the entry chunk | ${bundle} | ≤ 747000 | ${bundle > 747000 ? 'outside' : 'ok'} | |\n| \`slow_tests\` — tests over a second | 4 | ≤ 5 | ok | |\n\n## Tonight's plan\n\nWhat the night recorded.\n\n## Proposal\n\nNone.\n`;
+const page = (date, bundle) => `# Acme Anvils health, ${date}\n\n| Measure | Value | Bound | State | Detail |\n| --- | --- | --- | --- | --- |\n| \`bundle_bytes\` — the entry chunk | ${bundle} | ≤ 747000 | ${bundle > 747000 ? 'outside' : 'ok'} | |\n| \`slow_tests\` — tests over a second | 4 | ≤ 5 | ok | |\n\n${planSection(asRecorded(), { record: `docs/night/${date}.json` }).join('\n')}\n## Proposal\n\nNone.\n`;
 const HEALTH = { before: { date: NIGHT, file: `docs/health/${NIGHT}.md`, rows: [{ id: 'bundle_bytes', value: 760000 }, { id: 'slow_tests', value: 4 }] }, after: { date: '2026-10-06', file: 'docs/health/2026-10-06.md', rows: [{ id: 'bundle_bytes', value: 741000 }] } };
 const LINKS = { canvas: 'https://canvas.acme.test/p/prj_acme', health: `https://github.com/acme/anvils/blob/HEAD/docs/health/${NIGHT}.md` };
 const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils', morning: { assignee: 'acme-owner' }, canvas: { provider: 'isocan', home: 'https://canvas.acme.test', canvasId: 'prj_acme', projectKey: 'acme' } };
@@ -65,7 +66,7 @@ const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils',
 /**
  * A project with an origin: its default branch holds the night's record as
  * the night wrote it (builds planned) and the night's health page; the plan
- * branch keel-night-plan holds the builds' ticks; the next night's page is
+ * branch plates-night-plan holds the builds' ticks; the next night's page is
  * the "after". gh is a stub with a state file.
  */
 async function project(t, { config = CONFIG, issues = [], failCreate = false, branch = finished() } = {}) {
@@ -84,16 +85,16 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
+  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'names.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {
-    git(root, 'checkout', '-q', '--orphan', 'keel-night-plan');
+    git(root, 'checkout', '-q', '--orphan', 'plates-night-plan');
     git(root, 'rm', '-q', '-rf', '--cached', '.');
-    await mkdir(join(root, '.keel/night'), { recursive: true });
+    await mkdir(join(root, '.plates/night'), { recursive: true });
     await writeFile(join(root, REMOTE_PLAN), `${JSON.stringify(branch, null, 2)}\n`);
     git(root, 'add', '-f', REMOTE_PLAN); git(root, 'commit', '-q', '-m', 'Acme: the plan, ticked');
-    git(root, 'push', '-q', 'origin', 'keel-night-plan');
+    git(root, 'push', '-q', 'origin', 'plates-night-plan');
     git(root, 'checkout', '-q', '-f', 'main');
     await rm(join(root, '.plates/night'), { recursive: true, force: true });
   }
@@ -196,7 +197,10 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   const found = await finalPlan({ root: p.root, date: NIGHT });
   assert.equal(found.from, `docs/night/${NIGHT}.json`);
   assert.deepEqual(found.sources.map(s => [s.from, s.state]), [
-    ['keel-night-plan:.keel/night/plan.json', 'read'],
+    ['plates-night-plan:.plates/night/plan.json', 'read'],
+    ['keel-night-plan:.keel/night/plan.json', 'absent'],
+    [`plates-night/${NIGHT}-final:docs/night/${NIGHT}.json`, 'absent'],
+    [`plates-night/${NIGHT}:docs/night/${NIGHT}.json`, 'absent'],
     [`keel-night/${NIGHT}-final:docs/night/${NIGHT}.json`, 'absent'],
     [`keel-night/${NIGHT}:docs/night/${NIGHT}.json`, 'absent'],
     [`docs/night/${NIGHT}.json`, 'read'],
@@ -231,7 +235,7 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   // No plan for the night: exit 2, naming where it looked.
   const none = plates(['morning', '--date', '2026-09-01', '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(none.code, 2);
-  assert.match(none.json().error, /^no plan for the night of 2026-09-01: keel-night-plan:\.keel\/night\/plan\.json another night \(2026-10-05\)/);
+  assert.match(none.json().error, /^no plan for the night of 2026-09-01: plates-night-plan:\.plates\/night\/plan\.json another night \(2026-10-05\)/);
   assert.equal(plates(['morning', '--date', '5/10/2026', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
   assert.equal(plates(['morning', '--send', '--card', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
   assert.equal(plates(['morning', '--yes', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
@@ -324,7 +328,7 @@ test('plates#137: finalization puts a later build outcome in the night\'s record
   const pageAfter = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
   assert.equal(parseVerifications(pageAfter)[0].attempt,receipt.attempt,'shipped finalization preserves verification bytes');
   assert.match(pageAfter, new RegExp(`\\| perf-bundle: Entry chunk back under 747 kB \\| build \\| climb:perf \\| \`bundle_bytes\` ≤ 747000 \\| done \\| Split the vendor chunk — ${PR.replaceAll('/', '\\/').replaceAll('.', '\\.')} \\|`), 'the page holds the later outcome');
-  assert.doesNotMatch(pageAfter, /What the night recorded\./, 'the old section is replaced');
+  assert.notEqual(pageAfter, pageBefore, 'the recorded plan outcomes are updated');
   assert.equal(pageAfter.split('## Tonight\'s plan')[0], pageBefore.split('## Tonight\'s plan')[0], 'what came before it is kept');
   assert.equal(pageAfter.split('## Proposal')[1], pageBefore.split('## Proposal')[1], 'and what came after it');
   assert.equal(withPlanSection(pageAfter, planSection(record, { record: `docs/night/${NIGHT}.json` })), pageAfter, 'finalizing again changes nothing');
@@ -528,7 +532,7 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   assert.equal(b.next[0], line, 'production first, under Your next');
   assert.match(b.markdown, new RegExp(`## Your next\\n\\n- ${line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
   assert.equal(renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS, verify: { failed: [], unread: null } }).markdown, renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS }).markdown, 'nothing failed: the brief is as before');
-  assert.match(renderBrief({ plan: finished(), now: AFTER, verify: { failed: [], unread: 'git ls-remote exited 128' } }).next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: git ls-remote exited 128\. Whether production passed is unknown\.$/);
+  assert.match(renderBrief({ plan: finished(), now: AFTER, verify: { failed: [], unread: 'git ls-remote exited 128' } }).next[0], /^The verify record \(plates-verify:verify\.json\) could not be read: git ls-remote exited 128\. Whether production passed is unknown\.$/);
 
   // End to end: with delivery on, the brief reads origin's keel-verify branch.
   const p = await project(t, { config: { ...CONFIG, practices: ['night', 'delivery'] } });
@@ -547,7 +551,7 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   const bad = write(['hash-object', '-w', '--stdin'], '{"results": "Acme"}');
   const badTree = write(['mktree'], `100644 blob ${bad}\tverify.json\n`);
   write(['push', '-q', '--force', 'origin', `${write(['commit-tree', badTree, '-m', 'not a record'])}:refs/heads/keel-verify`]);
-  assert.match(plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
+  assert.match(plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().next[0], /^The verify record \(plates-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
 });
 
 // PR #182 review: a preview's pass counted as production having passed since.
@@ -563,4 +567,49 @@ test('in the brief, "passed since" is the same site\'s pass only, and a preview\
   assert.equal(f.passedSince, true);
   [f] = verifyFailuresFor([r(preview, false, '2026-10-04T20:00:00Z')], NIGHT, { production: prod });
   assert.equal(verifyLine(f), `The preview ${preview} failed its verify for \`a1b2c3d\` at 2026-10-04T20:00:00Z: GET /: expected 200, got 500.`);
+});
+
+
+test('finalize keeps the sections it did not write', async t => {
+  const p = await project(t);
+  const { finalize } = await import('../lib/morning.mjs');
+  const path = join(p.root, `docs/health/${NIGHT}.md`);
+  const trimGenerated = lines => lines.join('\n').replace(/\n+$/, '');
+  const prefix = '# Acme health\n\nOwner notes keep trailing spaces.  \n\n';
+  const suffix = '\n\nProduction monitoring: Acme traffic remains observed.  \n### Production detail\nOwner appendix without a level-two heading.\n\n';
+  const oldBody = prefix + trimGenerated(planSection(asRecorded(), { record: `docs/night/${NIGHT}.json` })) + suffix;
+  const digest = body => createHash('sha256').update(body).digest('hex');
+  const wrap = body => `Owner preface\n<!-- keel:health-report:begin ${digest(body)} -->\n${body}\n<!-- keel:health-report:end -->\nOwner afterword.  \n\n\n`;
+  for (const wrapped of [false, true]) {
+    await writeFile(path, wrapped ? wrap(oldBody) : oldBody);
+    await finalize({ root: p.root, date: NIGHT });
+    const record = JSON.parse(await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8'));
+    const expectedBody = prefix + trimGenerated(planSection(record, { record: `docs/night/${NIGHT}.json` })) + suffix;
+    const expected = wrapped ? wrap(expectedBody) : expectedBody;
+    assert.equal(await readFile(path, 'utf8'), expected, `exact outside bytes, wrapped=${wrapped}`);
+    assert.equal(record.items.find(item => item.id === 'perf-bundle').status, 'done');
+    await finalize({ root: p.root, date: NIGHT });
+    assert.equal(await readFile(path, 'utf8'), expected, 'repeat finalization is byte-identical');
+  }
+  assert.deepEqual(await p.calls(), [], 'local finalize makes no gh calls');
+});
+
+test('plan replacement preserves unknown suffixes and newline bytes and refuses unknown ownership', () => {
+  const before = planSection(asRecorded());
+  const after = planSection(finished());
+  for (const eol of ['\n', '\r\n']) for (const ending of ['', eol, eol + eol + eol]) {
+    const prefix = `# Acme${eol}${eol}Before.  ${eol}${eol}`;
+    const old = before.join(eol).replace(/[\r\n]+$/, '');
+    const next = after.join(eol).replace(/[\r\n]+$/, '');
+    for (const outside of ['', 'Production monitoring: owner text.  ', '### Owner subsection', '## Owner section', '<!-- keel:health-report:end -->', '| Owner | unrelated | table |']) {
+      const suffix = (outside ? eol + eol + outside : '') + ending;
+      const source = prefix + old + suffix;
+      assert.equal(withPlanSection(source, after), prefix + next + suffix);
+      assert.equal(withPlanSection(prefix + next + suffix, after), prefix + next + suffix);
+    }
+  }
+  const source = '# Acme\n\nPreserve all existing ending bytes.  \n\n\n';
+  assert.ok(withPlanSection(source, after).startsWith(source));
+  assert.throws(() => withPlanSection("## Tonight's plan\n\nOwner-authored prose.\n", after), /plan.*boundar|plan.*structure/i);
+  assert.throws(() => withPlanSection(before.join('\n') + '\n' + before.join('\n'), after), /ambiguous/i);
 });

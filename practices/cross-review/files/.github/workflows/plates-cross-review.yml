@@ -76,7 +76,7 @@ on:
 # daily run) share one group: pushes that land during a review coalesce into
 # the one pending run, which reviews everything since the last review.
 concurrency:
-  group: keel-cross-review-${{ (github.event_name == 'push' || github.event_name == 'schedule') && 'after-push' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
+  group: plates-cross-review-${{ (github.event_name == 'push' || github.event_name == 'schedule') && 'after-push' || ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.draft == false) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/review') && contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) && github.event.comment.user.type != 'Bot' && !endsWith(github.event.comment.user.login, '[bot]'))) && (github.event.pull_request.number || github.event.issue.number) || format('run-{0}', github.run_id) }}
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.
@@ -338,6 +338,9 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/plates/scripts/plates"
           cp "$review_scripts/cross-review.mjs" "$review_scripts/lib.mjs" "$RUNNER_TEMP/plates/scripts/plates/"
+          # Historical trusted pairs have no names dependency. Current pairs do;
+          # copying from that same trusted checkout preserves the source boundary.
+          if [ -f "$review_scripts/names.mjs" ]; then cp "$review_scripts/names.mjs" "$RUNNER_TEMP/plates/scripts/plates/"; fi
           eof="PLATES_EOF_$(date +%s%N)"
           {
             echo "prompt<<$eof"
@@ -499,15 +502,16 @@ jobs:
           mkdir -p "$out"
           gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/plates/cross-review.mjs?ref=$SHA" > "$out/cross-review.mjs"
           gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/plates/lib.mjs?ref=$SHA" > "$out/lib.mjs"
+          gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/plates/names.mjs?ref=$SHA" > "$out/names.mjs"
           node -e '
             const fs = require("fs"), { createHash } = require("crypto");
-            const [cross, lib] = process.argv.slice(1).map(f => createHash("sha256").update(fs.readFileSync(f)).digest("hex"));
+            const [cross, lib, names] = process.argv.slice(1).map(f => createHash("sha256").update(fs.readFileSync(f)).digest("hex"));
             const want = String(process.env.PLATES_PUBLISHER ?? "").trim().split(/\s+/);
-            if (want.length !== 2 || want.some(w => !/^[0-9a-f]{64}$/.test(w)) || cross !== want[0] || lib !== want[1]) {
+            if (want.length !== 3 || want.some(w => !/^[0-9a-f]{64}$/.test(w)) || cross !== want[0] || lib !== want[1] || names !== want[2]) {
               console.log(`::error::scripts/plates/cross-review.mjs and lib.mjs at the run commit are not the ones plates rendered this workflow with (plates render writes their sha256 into PLATES_PUBLISHER), so this job runs neither. Nothing is posted. Run plates render (or plates update), or put back the files plates wrote.`);
               process.exit(1);
             }
-          ' "$out/cross-review.mjs" "$out/lib.mjs"
+          ' "$out/cross-review.mjs" "$out/lib.mjs" "$out/names.mjs"
           echo "dir=$out" >> "$GITHUB_OUTPUT"
 
       # A pull request: the default branch. After a push, no checkout: the

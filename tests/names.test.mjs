@@ -154,22 +154,27 @@ test('a keel name the table does not list fails, naming where', async t => {
   }
 });
 
-test('name lookups are explicit, held initially, and state transitions are read/write contracts', () => {
+test('name lookups preserve phase125 branches and reviewed phase127 env compatibility', () => {
   assert.equal(new Set(NAMES.map(row => row.id)).size, NAMES.length);
-  const surfaces = new Set(['git ref','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const surfaces = new Set(['git ref','local Git path','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const hostedEnv = new Set(['web:KEEL_WEB_ORIGIN', 'web:KEEL_WEB_OPERATION', 'web:KEEL_WEB_CONFIG', 'web:KEEL_CONNECTION_ENCRYPTION_KEY', 'web:KEEL_GITHUB_CLIENT_SECRET', 'web:KEEL_SESSION_ENCRYPTION_KEY']);
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    assert.ok(['held', 'dual', 'retired'].includes(row.state));
+    const dual = row.phase === 125 || hostedEnv.has(row.id);
+    assert.equal(row.state, dual ? 'dual' : 'held', row.id);
     assert.equal(nameRow(row.id), row);
-    assert.equal(writeName(row.id), row.state === 'held' ? row.keel : row.plates);
-    assert.deepEqual(readNames(row.id), row.state === 'held' ? [row.keel] : row.state === 'dual' ? [row.plates, row.keel] : [row.plates]);
+    assert.equal(writeName(row.id), dual ? row.plates : row.keel);
+    assert.deepEqual(readNames(row.id), dual ? [row.plates, row.keel] : [row.keel]);
     for (const state of ['dual', 'retired']) {
       const rows = [{ ...row, state }];
       assert.equal(writeName(row.id, rows), row.plates);
       assert.deepEqual(readNames(row.id, rows), state === 'dual' ? [row.plates, row.keel] : [row.plates]);
     }
   }
+  const token = nameRow('git ref:keel-claims/phase-');
+  assert.deepEqual([token.surface, token.phase, token.state, token.keel, token.plates],
+    ['local Git path', 128, 'held', 'keel-claims/phase-', 'plates-claims/phase-']);
   for (const lookup of [nameRow, writeName, readNames]) assert.throws(() => lookup('unknown'), /Unknown name identity/);
   assert.throws(() => writeName('acme', [{ id: 'acme', state: 'unexpected' }]), /Invalid name state/);
 });

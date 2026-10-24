@@ -1,3 +1,4 @@
+import { writeName, inBranchQueue } from './names.mjs';
 // plates tend (plates practice `climb`; managed: plates render rewrites it). The
 // third pass beside measure and climb: once a week an agent resolves the
 // night's record findings (lost proofs, reconciliation's proposals, stale
@@ -29,7 +30,7 @@ import { pathToFileURL } from 'node:url';
 import { gateEnv, healthDirOf, cells, passAgentProblems, agentGitArgs } from './lib.mjs';
 import { prBody } from './pr-body.mjs';
 
-export const TEND_PREFIX = 'keel-tend/';
+export const TEND_PREFIX = writeName('git ref:keel-tend/');
 export const TEND_DIR = '.plates/tend';
 export const PASS = `${TEND_DIR}/pass.json`;
 export const TEND_DEFAULTS = Object.freeze({ minutes: 30, schedule: 'weekly' });
@@ -302,7 +303,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
 /** Whether the last TEND_RETIRE_AFTER keel-tend/ PRs (newest by createdAt) were all closed unmerged: their numbers, or null. */
 export function tendRetiring(prs) {
-  const mine = prs.filter(p => typeof p?.headRefName === 'string' && p.headRefName.startsWith(TEND_PREFIX))
+  const mine = prs.filter(p => typeof p?.headRefName === 'string' && inBranchQueue(p.headRefName, TEND_PREFIX))
     .sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))).slice(0, TEND_RETIRE_AFTER);
   return mine.length === TEND_RETIRE_AFTER && mine.every(p => !p.mergedAt) ? mine.map(p => p.number) : null;
 }
@@ -322,7 +323,7 @@ function ghList(root, env, state, fields) {
 export async function tendPick({ root, config, env = process.env, date = today() }) {
   const t = tendConfigOf(config);
   if (!t) return { run: false, date, reason: 'tend is off: .plates/plates.json has no "tend"' };
-  const open = ghList(root, env, 'open', 'headRefName').map(p => p?.headRefName).filter(h => typeof h === 'string' && h.startsWith(TEND_PREFIX));
+  const open = ghList(root, env, 'open', 'headRefName').map(p => p?.headRefName).filter(h => typeof h === 'string' && inBranchQueue(h, TEND_PREFIX));
   if (open.length) return { run: false, date, reason: `the last tend PR (${open[0]}) is still open: a person reads it before the next pass` };
   const retiring = tendRetiring(ghList(root, env, 'closed', 'headRefName,number,createdAt,mergedAt'));
   if (retiring) return { run: false, date, retiring, reason: `tend proposes its own retirement: its last ${TEND_RETIRE_AFTER} ${TEND_PREFIX} PRs (${retiring.map(n => `#${n}`).join(', ')}) were closed unmerged. Remove "tend" from .plates/plates.json, or reopen one` };

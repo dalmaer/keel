@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ${{ format('keel-web-update-{0}', inputs.keel_operation) }}
+  group: ${{ format('plates-web-update-{0}', inputs.keel_operation) }}
   cancel-in-progress: false
 jobs:
   web-worker:

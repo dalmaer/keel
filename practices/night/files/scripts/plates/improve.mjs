@@ -1,3 +1,4 @@
+import { writeName, inBranchQueue } from './names.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
 import { milestoneSource, readMilestones, milestoneSummary } from './milestones.mjs';
 import { Saving } from './quota.mjs';
@@ -108,7 +109,7 @@ export { REVIEW_DAYS, REVIEW_PRS, REVIEW_PAGES };
  * own (`renovate` local in .plates/plates.json) may group differently: its
  * renovate/ count is reported as information, not judged.
  */
-export const MACHINE_BOUNDS = Object.freeze({ 'keel/': 1, 'keel-night/': 1, 'keel-loop/': 1, 'renovate/': 4 });
+export const MACHINE_BOUNDS = Object.freeze({ [writeName('git ref:keel/')]: 1, [writeName('git ref:keel-night/')]: 1, [writeName('git ref:keel-loop/')]: 1, 'renovate/': 4 });
 export const MACHINE_PREFIXES = Object.keys(MACHINE_BOUNDS);
 export const CHECK = 'npm run check';
 export const LESSONS = 'docs/lessons.md';
@@ -1216,7 +1217,7 @@ export const MEASURES = [
       const ready = await ghReady(ctx);
       if (ready.na) return { na: ready.na };
       const prs = ghJson(ctx, ready.gh, ['pr', 'list', '--repo', ctx.config.repo, '--state', 'open', '--json', 'headRefName', '--limit', '100']);
-      const queues = Object.fromEntries(MACHINE_PREFIXES.map(p => [p, prs.filter(x => String(x?.headRefName ?? '').startsWith(p)).length]));
+      const queues = Object.fromEntries(MACHINE_PREFIXES.map(p => [p, prs.filter(x => inBranchQueue(x?.headRefName, p)).length]));
       const info = Object.hasOwn(ctx.config.local ?? {}, 'renovate') ? ['renovate/'] : [];
       // The fullest queue relative to its own bound; ties by order.
       const judged = MACHINE_PREFIXES.filter(p => !info.includes(p));

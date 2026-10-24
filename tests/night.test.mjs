@@ -248,7 +248,7 @@ test('one source: plates\'s verbs are the night practice\'s shipped modules, and
   assert.equal(night.plan, drainSrc.plan);
   assert.equal(improve.MEASURES, improveSrc.MEASURES, 'plates improve measures with the shipped measures');
   // plates's own rendered copies are byte-identical, and a changed one is caught.
-  for (const f of ['improve.mjs', 'drain.mjs', 'lib.mjs']) {
+  for (const f of ['improve.mjs', 'drain.mjs', 'names.mjs', 'lib.mjs']) {
     assert.equal(await readFile(join(PLATES, 'scripts', 'plates', f), 'utf8'), await readFile(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', f), 'utf8'), f);
   }
   const dir = join(await scratch(t), 'acme');
