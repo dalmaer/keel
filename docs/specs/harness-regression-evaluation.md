@@ -1,7 +1,8 @@
 # Harness regression evaluation
 
-Design, 23 October 2026. Proposed behavior; no evaluation has been executed or
-funded by this specification. Source baseline:
+Design, 23 October 2026. Phase 117 implements local plan/freeze/inspect records;
+execution, independent scoring and comparison remain designed. No agent evaluation
+has been executed or funded by this specification. Source baseline:
 `8f218d7e138edda2c86fc5055c97a59b9df8427a`.
 See the [capability map](../research/2026-10-23-evaluation-capabilities.md),
 [research decisions](../research/2026-10-23-evaluation-patterns.md) and
@@ -43,13 +44,27 @@ instruction edits remain intact: the trusted controller applies the reviewed
 candidate overlay outside the task's authority. `prove` and validation planning
 supply useful checks, not independent acceptance by themselves.
 
-Proposed CLI surface is `plates retro evaluations <operation> --json`. It is
-not an existing command. Implement plan, run, inspect, resume, cancel, compare
-and rescore under retro, with agent-help coverage. Plan/inspect/compare are
+The CLI surface is `plates retro evaluations <operation> --json`. Phase 117
+implements plan, freeze and inspect; run, resume, cancel, compare and rescore
+remain planned and refuse invocation. Each shipped operation has agent help. Plan/inspect/compare are
 read-only. Run/resume/rescore preview the exact input digest, missing slots,
 authority, maximum additional spend and environment; execution requires `--yes
 --digest <preview>`. Resume approval cannot enlarge the frozen ceiling.
 No scheduler, hosted worker activation or fleet dispatch is part of the MVP.
+
+**Phase 117 boundary, settled 23 October 2026:** `plan` validates a supplied
+case/configuration/comparison bundle without writes. `freeze` previews that exact
+bundle and destination; `--yes --digest <preview>` records the frozen plan in an
+already initialized explicit private workspace. `inspect` reads and validates
+that frozen plan. Freezing never reserves execution budget, starts a trial or
+claims acceptance. Freeze approval also pins the canonical bundle path; moving
+identical bytes does not authorize recovery at a different path. Inspect preserves
+access to the original receipt. The record guard rejects byte-identical acceptance
+material in context, not semantic or reformatted copies; it is not the independent
+isolation boundary required in phase 118. Run/resume/cancel/compare/rescore remain unavailable until
+their later phases; unsupported operations must refuse rather than simulate
+execution. This local freeze operation lets the record foundation be proven
+without borrowing the future execution command's authority.
 
 ## Data contracts
 

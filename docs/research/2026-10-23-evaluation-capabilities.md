@@ -47,3 +47,13 @@ status and live activation are separate. No agent evaluation ran for this work.
 [Harness evaluation](../specs/harness-regression-evaluation.md),
 [measured review learning](../specs/review-learning-evaluation.md), and
 [source decisions](2026-10-23-evaluation-patterns.md) define the extensions.
+
+## Implementation follow-up: phase 117
+
+The original table above remains the inspection at its named baseline. Phase 117
+adds local `retro evaluations plan|freeze|inspect`, strict schema-2 definitions,
+external workspace ownership and shared session-ledger I/O. Its
+[evidence](../evidence/2026-10-23-evaluation-records.md) establishes record mechanics
+only. Agent execution, independent task acceptance, paired outcome comparison and
+measured lesson promotion remain future work; no provider availability or spend
+is inferred from a declared configuration.
