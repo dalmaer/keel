@@ -219,7 +219,7 @@
     },
     "scripts/plates/morning.mjs": {
       "practice": "night",
-      "sha256": "2da17e9cb97a0e44f309cd25a2278b63523d0a89998f97aca1b5bf7595ad2127"
+      "sha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
     },
     "scripts/plates/names.mjs": {
       "practice": "night",

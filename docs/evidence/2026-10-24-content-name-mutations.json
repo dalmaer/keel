@@ -32165,5 +32165,882 @@
     "currentPairs": 172,
     "readerFamilyPairs": 86,
     "counting": "Ten earlier pairs superseded, four new pairs; 172 current pairs, not the sum of historical reruns."
+  },
+  "review1Correction": {
+    "baseRevision": "0b3a33c92ec498b79027b6d0da083efaece7509a",
+    "finding": "https://github.com/dalmaer/plates/pull/262#discussion_r4368081498",
+    "currentPairs": 172,
+    "refreshedPairs": 6,
+    "newPairs": 0,
+    "sameShapeAudit": [
+      {
+        "caller": "morning.send",
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "result": "Only formerly optional implicit checkout identity among label-selection writers; fixed."
+      },
+      {
+        "caller": "ensureRobotIssue",
+        "path": "lib/robot-issue.mjs",
+        "result": "Canonicalizes explicit repo and preview rejects missing/invalid target before mutation; pins targetRepo. No implicit gh checkout fallback."
+      },
+      {
+        "caller": "pushPost",
+        "path": "practices/cross-review/files/scripts/plates/cross-review.mjs",
+        "result": "CLI requires --repo; every receipt/label/issue/comment API uses that explicit repo. Preexisting API paths never inferred checkout."
+      },
+      {
+        "caller": "repositoryLabelSelection / repositoryLabelWriter",
+        "path": "practices/night/files/scripts/plates/names.mjs",
+        "result": "Provider-bound identity/receipt guard kept intact; no discovery or unsafe legacy bypass added."
+      }
+    ],
+    "proofs": [
+      {
+        "key": "089-morning-labelQuery-plates",
+        "testFile": "tests/names-label-consumers.test.mjs",
+        "title": "morning label query catches both single-name removals",
+        "reader": "morning.labelQuery",
+        "type": "label",
+        "family": "label:keel:morning",
+        "alias": "plates",
+        "replacements": [],
+        "sourceTestHash": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^morning\\ label\\ query\\ catches\\ both\\ single\\-name\\ removals$",
+              "tests/names-label-consumers.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 0.724,
+            "log": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.baseline.log",
+            "logHash": "420a1707e459c5e79605182c2dc225e818b7f0fae2733a6ad870e807c7e07f6c",
+            "trace": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/names-label-consumers.test.mjs",
+                "before": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+                "after": "7aef3e4cd97ad24a9eb2b4cd8dca685a609d0e4bb6b4dca8b704cc749cdc54af",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^morning\\ label\\ query\\ catches\\ both\\ single\\-name\\ removals$",
+              "tests/names-label-consumers.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 0.512,
+            "log": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.red.log",
+            "logHash": "fa9d4464e14ad1674bb236c4617e88c92bc2e81a71a1dd1c480fc649945dced1",
+            "trace": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/names-label-consumers.test.mjs",
+                "before": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+                "after": "7aef3e4cd97ad24a9eb2b4cd8dca685a609d0e4bb6b4dca8b704cc749cdc54af",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "088cafa91af8c0310c857edf76bf1ffc0dc90a04980ddb321a5e630f90da7ad2",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "data:canonical-names",
+                "before": "c022437f32d580cdefc787c78c3f5040619523928a93cc8d07d9a7b19aa939f3",
+                "after": "59223af691a9cf33b569fd3d142f49b5095f87f98140690cbb2042be5045b8df",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 14
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/089-morning-labelQuery-plates.result.json",
+        "priorManifest": "/tmp/plates126-red-audit/089-morning-labelQuery-plates.json",
+        "effectiveTestBaseSha256": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+        "effectiveTestCurrentSha256": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030"
+      },
+      {
+        "key": "090-morning-labelQuery-keel",
+        "testFile": "tests/names-label-consumers.test.mjs",
+        "title": "morning label query catches both single-name removals",
+        "reader": "morning.labelQuery",
+        "type": "label",
+        "family": "label:keel:morning",
+        "alias": "keel",
+        "replacements": [],
+        "sourceTestHash": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^morning\\ label\\ query\\ catches\\ both\\ single\\-name\\ removals$",
+              "tests/names-label-consumers.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 0.766,
+            "log": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.baseline.log",
+            "logHash": "4f65e3056413bc5086e90e6eb276f80ee83a65f8074dbea7e2fd7dda37cd6c2f",
+            "trace": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/names-label-consumers.test.mjs",
+                "before": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+                "after": "c9275dbbc4f99a7a15c7de4867f3d559b7676be0a2366dc9ec3a241a9e394d3a",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^morning\\ label\\ query\\ catches\\ both\\ single\\-name\\ removals$",
+              "tests/names-label-consumers.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 0.508,
+            "log": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.red.log",
+            "logHash": "9f10442eee3ac9846bb7f0b94014a00d8221cb07d9dbbb150b51f3d2d5927e86",
+            "trace": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/names-label-consumers.test.mjs",
+                "before": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+                "after": "c9275dbbc4f99a7a15c7de4867f3d559b7676be0a2366dc9ec3a241a9e394d3a",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "cd5f0505f03c6d81df1a717cb73a7a16f96e37fab70c2a540fd48c6b589864ef",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "data:canonical-names",
+                "before": "c022437f32d580cdefc787c78c3f5040619523928a93cc8d07d9a7b19aa939f3",
+                "after": "46d10a7f47cfaa37e96a350ecbd7e0ef9808198b2002d55c95b77c5524178532",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 14
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/090-morning-labelQuery-keel.result.json",
+        "priorManifest": "/tmp/plates126-red-audit/090-morning-labelQuery-keel.json",
+        "effectiveTestBaseSha256": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+        "effectiveTestCurrentSha256": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030"
+      },
+      {
+        "key": "finalize-end-keel",
+        "testFile": "tests/morning.test.mjs",
+        "title": "finalize keeps the sections it did not write",
+        "reader": "finalize/rewriteHealthBody",
+        "type": "marker",
+        "family": "marker:keel:health-report:end",
+        "alias": "keel",
+        "replacements": [
+          [
+            "[false, 'keel', 'plates']",
+            "[\"keel\"]"
+          ],
+          [
+            "await finalize({ root: p.root, date: NIGHT });",
+            "await assert.doesNotReject(() => finalize({ root: p.root, date: NIGHT }));"
+          ]
+        ],
+        "sourceTestHash": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-end-keel.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-end-keel.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 0.987,
+            "log": "/tmp/plates126-review1-red-audit/finalize-end-keel.baseline.log",
+            "logHash": "c3dc0077a649c9fb54ebbe0d22acbbb438056ab9f6f78b33e642594ff013ede9",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-end-keel.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "06657ad341178e57a603aa6541dec0d03799f0aeaeea752e51497619acb6d90b",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-end-keel.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-end-keel.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 1.088,
+            "log": "/tmp/plates126-review1-red-audit/finalize-end-keel.red.log",
+            "logHash": "aa3925c1d5a80a70eb7664934f4f596fcde428db051ee6ff5ec301ccc66e6825",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-end-keel.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "06657ad341178e57a603aa6541dec0d03799f0aeaeea752e51497619acb6d90b",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "c161b4a0657ae77d5359be47ebb94df878c5a41ff7940d30c566358defea3500",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "c161b4a0657ae77d5359be47ebb94df878c5a41ff7940d30c566358defea3500",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 12
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/finalize-end-keel.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/finalize-end-keel.result.json",
+        "priorManifest": "/tmp/plates126-final8-red-audit/finalize-end-keel.json",
+        "effectiveTestBaseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+        "effectiveTestCurrentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+      },
+      {
+        "key": "finalize-begin-plates",
+        "testFile": "tests/morning.test.mjs",
+        "title": "finalize keeps the sections it did not write",
+        "reader": "finalize/rewriteHealthBody",
+        "type": "marker",
+        "family": "marker:keel:health-report:begin",
+        "alias": "plates",
+        "replacements": [
+          [
+            "[false, 'keel', 'plates']",
+            "[\"plates\"]"
+          ],
+          [
+            "await finalize({ root: p.root, date: NIGHT });",
+            "await assert.doesNotReject(() => finalize({ root: p.root, date: NIGHT }));"
+          ]
+        ],
+        "sourceTestHash": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-begin-plates.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-begin-plates.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 1.0,
+            "log": "/tmp/plates126-review1-red-audit/finalize-begin-plates.baseline.log",
+            "logHash": "02017402e708fd2df2406a364ad78980ee29e7f0ca29a929a6d15a0f7157befd",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-begin-plates.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "9db37b7bb1e55a9f7b870664f6330da93f92044782f60c8f659d4023aa9bfde6",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-begin-plates.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-begin-plates.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 1.084,
+            "log": "/tmp/plates126-review1-red-audit/finalize-begin-plates.red.log",
+            "logHash": "39b0351d39dc2bf1c9b4eb09a5330ef1b8c665fd116b5580f85a3ab7ca546fd8",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-begin-plates.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "9db37b7bb1e55a9f7b870664f6330da93f92044782f60c8f659d4023aa9bfde6",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "80f5ec244fcbbc5cbe52e52fbe6452e18079299a5a23ccd6c7db9bacad1f1557",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "80f5ec244fcbbc5cbe52e52fbe6452e18079299a5a23ccd6c7db9bacad1f1557",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 12
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/finalize-begin-plates.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/finalize-begin-plates.result.json",
+        "priorManifest": "/tmp/plates126-final8-red-audit/finalize-begin-plates.json",
+        "effectiveTestBaseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+        "effectiveTestCurrentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+      },
+      {
+        "key": "finalize-begin-keel",
+        "testFile": "tests/morning.test.mjs",
+        "title": "finalize keeps the sections it did not write",
+        "reader": "finalize/rewriteHealthBody",
+        "type": "marker",
+        "family": "marker:keel:health-report:begin",
+        "alias": "keel",
+        "replacements": [
+          [
+            "[false, 'keel', 'plates']",
+            "[\"keel\"]"
+          ],
+          [
+            "await finalize({ root: p.root, date: NIGHT });",
+            "await assert.doesNotReject(() => finalize({ root: p.root, date: NIGHT }));"
+          ]
+        ],
+        "sourceTestHash": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-begin-keel.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-begin-keel.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 1.066,
+            "log": "/tmp/plates126-review1-red-audit/finalize-begin-keel.baseline.log",
+            "logHash": "b22e00e52a89ebe91574b85700e9379caa124025386470c5b540da671e715e5c",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-begin-keel.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "06657ad341178e57a603aa6541dec0d03799f0aeaeea752e51497619acb6d90b",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-begin-keel.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "keel",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-begin-keel.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 0.919,
+            "log": "/tmp/plates126-review1-red-audit/finalize-begin-keel.red.log",
+            "logHash": "194702a9d6b0eac5b39c4ee727e29778efa2a03882014ebfdba5663884957884",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-begin-keel.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "06657ad341178e57a603aa6541dec0d03799f0aeaeea752e51497619acb6d90b",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "e92e42c665eab5bd9363e579f2368905d95428c2faaa6c610efc44d2d1067cea",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "e92e42c665eab5bd9363e579f2368905d95428c2faaa6c610efc44d2d1067cea",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 12
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/finalize-begin-keel.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/finalize-begin-keel.result.json",
+        "priorManifest": "/tmp/plates126-final8-red-audit/finalize-begin-keel.json",
+        "effectiveTestBaseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+        "effectiveTestCurrentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+      },
+      {
+        "key": "finalize-end-plates",
+        "testFile": "tests/morning.test.mjs",
+        "title": "finalize keeps the sections it did not write",
+        "reader": "finalize/rewriteHealthBody",
+        "type": "marker",
+        "family": "marker:keel:health-report:end",
+        "alias": "plates",
+        "replacements": [
+          [
+            "[false, 'keel', 'plates']",
+            "[\"plates\"]"
+          ],
+          [
+            "await finalize({ root: p.root, date: NIGHT });",
+            "await assert.doesNotReject(() => finalize({ root: p.root, date: NIGHT }));"
+          ]
+        ],
+        "sourceTestHash": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+        "runs": [
+          {
+            "mode": "baseline",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-end-plates.json",
+              "AUDIT_MODE": "baseline",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-end-plates.baseline.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 0,
+            "seconds": 1.023,
+            "log": "/tmp/plates126-review1-red-audit/finalize-end-plates.baseline.log",
+            "logHash": "9328f87541e44f0a63e2fb1a9bc8f0152fea6ba9f068dc9562c4749c42c9b82c",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-end-plates.baseline.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "9db37b7bb1e55a9f7b870664f6330da93f92044782f60c8f659d4023aa9bfde6",
+                "kind": "test-case-isolation"
+              }
+            ],
+            "assertionFailure": false,
+            "errors": [],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": null
+          },
+          {
+            "mode": "red",
+            "command": [
+              "/opt/homebrew/bin/node",
+              "--import",
+              "/tmp/plates126-review1-red-audit/hooks.mjs",
+              "--import",
+              "./tests/helpers/hermetic.mjs",
+              "--test",
+              "--test-reporter=tap",
+              "--test-name-pattern=^finalize\\ keeps\\ the\\ sections\\ it\\ did\\ not\\ write$",
+              "tests/morning.test.mjs"
+            ],
+            "environment": {
+              "AUDIT_CASE": "/tmp/plates126-review1-red-audit/finalize-end-plates.json",
+              "AUDIT_MODE": "red",
+              "AUDIT_ALIAS": "plates",
+              "AUDIT_TRACE": "/tmp/plates126-review1-red-audit/finalize-end-plates.red.loads.jsonl",
+              "npm_config_cache": "/tmp/plates126-npm-cache"
+            },
+            "cwd": "/Users/dionalmaer/.codex/worktrees/names-content/plates",
+            "exitCode": 1,
+            "seconds": 0.923,
+            "log": "/tmp/plates126-review1-red-audit/finalize-end-plates.red.log",
+            "logHash": "f692f37953d7a4735f9a5a6128301cf4a361d6e2f6aef1dcecef1baf6c1b149b",
+            "trace": "/tmp/plates126-review1-red-audit/finalize-end-plates.red.loads.jsonl",
+            "loads": [
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/tests/morning.test.mjs",
+                "before": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+                "after": "9db37b7bb1e55a9f7b870664f6330da93f92044782f60c8f659d4023aa9bfde6",
+                "kind": "test-case-isolation"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "5b97916a933483417f2305b4c8cd543f550ba490fc2ed61f2d76889e69be599d",
+                "kind": "single-name-removal"
+              },
+              {
+                "url": "file:///Users/dionalmaer/.codex/worktrees/names-content/plates/practices/night/files/scripts/plates/names.mjs",
+                "before": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+                "after": "5b97916a933483417f2305b4c8cd543f550ba490fc2ed61f2d76889e69be599d",
+                "kind": "single-name-removal"
+              }
+            ],
+            "assertionFailure": true,
+            "errors": [
+              [
+                "ERR_ASSERTION",
+                ""
+              ],
+              [
+                "",
+                "AssertionError"
+              ]
+            ],
+            "selectedTests": [],
+            "verifiedTestCount": [
+              "1"
+            ],
+            "assertionLine": 12
+          }
+        ],
+        "status": "green/red",
+        "manifest": "/tmp/plates126-review1-red-audit/finalize-end-plates.json",
+        "resultFile": "/tmp/plates126-review1-red-audit/finalize-end-plates.result.json",
+        "priorManifest": "/tmp/plates126-final8-red-audit/finalize-end-plates.json",
+        "effectiveTestBaseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+        "effectiveTestCurrentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+      }
+    ],
+    "sourceFreeze": {
+      "practices/night/files/scripts/plates/morning.mjs": {
+        "baseSha256": "2da17e9cb97a0e44f309cd25a2278b63523d0a89998f97aca1b5bf7595ad2127",
+        "currentSha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
+      },
+      "scripts/plates/morning.mjs": {
+        "baseSha256": "2da17e9cb97a0e44f309cd25a2278b63523d0a89998f97aca1b5bf7595ad2127",
+        "currentSha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
+      },
+      "tests/morning.test.mjs": {
+        "baseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+        "currentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+      }
+    },
+    "parentVerification": {
+      "pairs": 6,
+      "files": {
+        "practices/night/files/scripts/plates/morning.mjs": {
+          "baseSha256": "2da17e9cb97a0e44f309cd25a2278b63523d0a89998f97aca1b5bf7595ad2127",
+          "currentSha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
+        },
+        "scripts/plates/morning.mjs": {
+          "baseSha256": "2da17e9cb97a0e44f309cd25a2278b63523d0a89998f97aca1b5bf7595ad2127",
+          "currentSha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
+        },
+        "tests/morning.test.mjs": {
+          "baseSha256": "711c1d167f4d44f3519eff6682574b55cd78cbc541888c5d5c230c1352b6c223",
+          "currentSha256": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5"
+        }
+      },
+      "verified": [
+        "same acceptance command",
+        "baseline exit 0",
+        "mutant assertion exit 1",
+        "actual single-name removal",
+        "current source/test/log hashes",
+        "data module reconstructed from canonical source and unrelated baseline filter"
+      ]
+    },
+    "parentReplay": [
+      {
+        "key": "089-morning-labelQuery-plates-baseline",
+        "exit": 0,
+        "log": "/tmp/plates126-review1-parent-replay/089-morning-labelQuery-plates-baseline.log"
+      },
+      {
+        "key": "089-morning-labelQuery-plates-red",
+        "exit": 1,
+        "log": "/tmp/plates126-review1-parent-replay/089-morning-labelQuery-plates-red.log"
+      },
+      {
+        "key": "finalize-end-keel-baseline",
+        "exit": 0,
+        "log": "/tmp/plates126-review1-parent-replay/finalize-end-keel-baseline.log"
+      },
+      {
+        "key": "finalize-end-keel-red",
+        "exit": 1,
+        "log": "/tmp/plates126-review1-parent-replay/finalize-end-keel-red.log"
+      }
+    ],
+    "regressionTrailer": "Proven-by: tests/morning.test.mjs (local morning send discovers and pins checkout identity) \u2014 VERIFIED \u2014 \"{'error':'Label mutation refused: repository identity unavailable'} 1 !== 0 (local morning send discovers and pins checkout identity across queue labels deli...\"",
+    "archive": {
+      "path": "/Users/dionalmaer/code/plates/.plates/name-transition/phase126-review1-20261024/observations.tar.gz",
+      "sha256": "31caa3671dce74c3a9ac149513a15325ccf80759ca02190bc7e2598446c8757a"
+    }
   }
 }

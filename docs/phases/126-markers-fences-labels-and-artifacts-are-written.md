@@ -72,3 +72,5 @@ Publish the reviewed source, then complete phases 128–129: owner-approved labe
 - **2026-10-24** — Standalone reconciliation now means the installed runtime pair, not a single copied file; the guide and spec were corrected before changing its proof. Dual-label queues keep the first current observation when a later legacy response conflicts.
 
 - **2026-10-24** — Integration with #218 exposed a wrapper rename outside the finalized plan. Section edits preserve the existing wrapper and outside bytes; fresh full reports use current names. The expanded morning proof and four direct finalize mutations bring current fallback coverage to 172 pairs, with superseded observations retained.
+
+- **2026-10-24** — Review exposed a lost implicit local repository target in morning delivery. Resolve it once and pin the same identity for reads, receipts and writes; missing discovery refuses without weakening label evidence. The regression is independently proven and affected fallback observations refreshed.

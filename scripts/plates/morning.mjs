@@ -449,9 +449,11 @@ const dateOf = (date, now) => {
 };
 
 /** plates morning: the brief for the night `date` (default: the night that last started), written nowhere. */
-export async function brief({ root, date, env = process.env, now = new Date() }) {
+export async function brief(options) {
+  return briefWithConfig(options, await configOf(options.root));
+}
+async function briefWithConfig({ root, date, env = process.env, now = new Date() }, config) {
   const night = dateOf(date, now);
-  const config = await configOf(root);
   const found = await finalPlan({ root, date: night });
   if (!found.plan) throw new MorningError(`no plan for the night of ${night}: ${found.sources.map(s => `${s.from} ${s.state}`).join('; ')}`);
   const health = await healthAround(root, config, night, { branch: found.branch });
@@ -477,6 +479,17 @@ function gh(root, env, args, what, { input, json = false, exitCode = 1 } = {}) {
   if (r.status !== 0) throw new MorningError(`cannot ${what}: gh exited ${r.status}${(r.stderr || '').trim() ? `, ${r.stderr.trim().split('\n')[0]}` : ''}`, exitCode);
   if (!json) return r.stdout;
   try { return JSON.parse(r.stdout); } catch { throw new MorningError(`cannot ${what}: gh did not print JSON`, exitCode); }
+}
+// Preserve configured/Actions authority; only an implicit local target needs discovery.
+function sendRepository(root, config, env) {
+  const known = repoOf(config, env);
+  if (known) return known;
+  const found = gh(root, env, ['repo', 'view', '--json', 'nameWithOwner'], 'resolve checkout repository', { json: true, exitCode: 2 });
+  const repo = found?.nameWithOwner;
+  if (typeof repo !== 'string' || repo.trim() !== repo || !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9_.-]+$/.test(repo) || ['.', '..'].includes(repo.split('/')[1])) {
+    throw new MorningError('cannot resolve checkout repository: gh returned no canonical owner/repository identity', 2);
+  }
+  return repo;
 }
 // The repository the brief links into is the one its issues go to (plates#149): repoOf, the run's own in Actions.
 const repoArgs = (config, env) => { const repo = repoOf(config, env); return repo ? ['--repo', repo] : []; };
@@ -508,7 +521,9 @@ export function assigneeOf(config) {
 export async function send({ root, date, env = process.env, now = new Date() }) {
   const config = await configOf(root);
   const assignee = assigneeOf(config);
-  const b = await brief({ root, date, env, now });
+  // Pin the checkout identity once: later gh calls must not follow a changed default.
+  config.repo = sendRepository(root, config, env);
+  const b = await briefWithConfig({ root, date, env, now }, config);
   const title = titleOf(b.data.date);
   const issues = morningIssues(root, config, env);
   const same = issues.find(i => i.title === title);

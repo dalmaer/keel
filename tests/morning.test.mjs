@@ -69,7 +69,7 @@ const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils',
  * branch plates-night-plan holds the builds' ticks; the next night's page is
  * the "after". gh is a stub with a state file.
  */
-async function project(t, { config = CONFIG, issues = [], labels = [{id:71,name:'keel:morning'}], failCreate = false, branch = finished() } = {}) {
+async function project(t, { config = CONFIG, issues = [], labels = [{id:71,name:'keel:morning'}], failCreate = false, repoView = { nameWithOwner: 'acme/anvils' }, failRepoView = false, changeDefaultAfterDiscovery = false, branch = finished() } = {}) {
   const base = await mkdtemp(join(tmpdir(), 'plates-morning-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'acme'), origin = join(base, 'origin.git');
@@ -99,7 +99,7 @@ async function project(t, { config = CONFIG, issues = [], labels = [{id:71,name:
     await rm(join(root, '.plates/night'), { recursive: true, force: true });
   }
   const state = join(base, 'gh-state.json'), log = join(base, 'gh.log'), gh = join(base, 'gh');
-  await writeFile(state, JSON.stringify({ issues, labels, next: 31 }));
+  await writeFile(state, JSON.stringify({ issues, labels, next: 31, defaultRepo: 'acme/anvils' }));
   await writeFile(gh, `#!${process.execPath}
 const fs = require('node:fs');
 const a = process.argv.slice(2);
@@ -108,7 +108,13 @@ fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ a, input }) + '\\n');
 const s = JSON.parse(fs.readFileSync(${JSON.stringify(state)}, 'utf8'));
 const save = () => fs.writeFileSync(${JSON.stringify(state)}, JSON.stringify(s));
 const opt = f => a.includes(f) ? a[a.indexOf(f) + 1] : undefined;
-if (a[0] === 'issue' && a[1] === 'list') {
+if (a[0] === 'repo' && a[1] === 'view') {
+  if (${failRepoView}) { console.error('Acme discovery unavailable'); process.exit(1); }
+  if (${changeDefaultAfterDiscovery}) { s.defaultRepo = 'acme/elsewhere'; save(); }
+  console.log(JSON.stringify(${JSON.stringify(repoView)}));
+} else if (${changeDefaultAfterDiscovery} && ['issue', 'label'].includes(a[0]) && (opt('--repo') ?? s.defaultRepo) !== 'acme/anvils') {
+  console.error('Acme checkout default changed: operation targeted another repository'); process.exit(1);
+} else if (a[0] === 'issue' && a[1] === 'list') {
   if (!['plates:morning','keel:morning'].includes(opt('--label')) || opt('--state') !== 'all') { console.error('stub gh: keel:morning issues, all states'); process.exit(1); }
   console.log(JSON.stringify(s.issues.map(i => ({ number: i.number, title: i.title, state: i.state }))));
 } else if (a[0] === 'api') {
@@ -625,4 +631,47 @@ test('plan replacement preserves unknown suffixes and newline bytes and refuses 
   assert.ok(withPlanSection(source, after).startsWith(source));
   assert.throws(() => withPlanSection("## Tonight's plan\n\nOwner-authored prose.\n", after), /plan.*boundar|plan.*structure/i);
   assert.throws(() => withPlanSection(before.join('\n') + '\n' + before.join('\n'), after), /ambiguous/i);
+});
+
+
+test('local morning send discovers and pins checkout identity across queue labels delivery and closure', async t => {
+  for (const repo of [undefined, 'not a repository']) {
+    const p = await project(t, { config: { ...CONFIG, repo }, labels: [], changeDefaultAfterDiscovery: true,
+      issues: [{ number: 30, title: 'Good morning, 2026-10-04', state: 'OPEN' }] });
+    const r = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root,
+      { PLATES_GH: p.gh, GITHUB_REPOSITORY: 'acme/stray' });
+    assert.equal(r.code, 0, r.err + r.out);
+    const calls = (await p.calls()).map(c => c.a);
+    assert.deepEqual(calls[0], ['repo', 'view', '--json', 'nameWithOwner']);
+    assert.equal(calls.filter(a => a[0] === 'repo').length, 1, 'resolve once before checkout default changes');
+    assert.deepEqual(calls.slice(1).map(a => a.slice(0, 2).join(' ')), ['issue list', 'issue list',
+      'api /repos/acme/anvils', 'api /repos/acme/anvils/labels?per_page=100&page=1', 'label create', 'issue create', 'issue close']);
+    for (const a of calls.slice(1)) assert.equal(a[0] === 'api' ? a[1].split('/').slice(2,4).join('/') : a[a.indexOf('--repo')+1], 'acme/anvils');
+    assert.deepEqual(calls.filter(a => a[0] === 'issue' && a[1] === 'list').map(a => a[a.indexOf('--label')+1]), ['plates:morning', 'keel:morning']);
+    const issues = await p.issuesNow();
+    assert.equal(issues.find(i => i.number === 30).state, 'CLOSED');
+    assert.match(issues.find(i => i.number === 31).body, /https:\/\/github\.com\/acme\/anvils\/blob\//);
+  }
+});
+
+test('local morning refuses malformed or unavailable checkout discovery before any write', async t => {
+  for (const options of [{failRepoView:true}, ...[null, {}, {nameWithOwner:42}, {nameWithOwner:'acme'},
+    {nameWithOwner:'acme/anvils/extra'}, {nameWithOwner:'acme/anvils\n'}, {nameWithOwner:'../anvils'},
+    {nameWithOwner:'acme/..'}, {nameWithOwner:'bad_owner/anvils'}].map(repoView => ({repoView}))]) {
+    const p = await project(t, { config:{...CONFIG,repo:null}, ...options });
+    const r = plates(['morning','--send','--date',NIGHT,'--json'],p.root,{PLATES_GH:p.gh,GITHUB_REPOSITORY:'acme/stray'});
+    assert.notEqual(r.code,0);
+    assert.match(r.err+r.out,/checkout repository|repository identity/i);
+    assert.deepEqual((await p.calls()).map(c=>c.a),[['repo','view','--json','nameWithOwner']], 'no queue, label or issue writes after unknown discovery');
+    assert.deepEqual(await p.issuesNow(),[]);
+  }
+});
+
+test('discovered morning identity still refuses current labels without rename evidence', async t => {
+  const p = await project(t,{config:{...CONFIG,repo:null},labels:[{id:71,name:'plates:morning'}]});
+  const r=plates(['morning','--send','--date',NIGHT,'--json'],p.root,{PLATES_GH:p.gh});
+  assert.notEqual(r.code,0);
+  assert.match(r.err+r.out,/Label mutation refused/);
+  assert.ok((await p.calls()).every(c=>!['create','close'].includes(c.a[1])));
+  assert.deepEqual(await p.issuesNow(),[]);
 });
