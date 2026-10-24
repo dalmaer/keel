@@ -1,3 +1,4 @@
+import {markerDiagnostic} from './names.mjs';
 // plates's test ledger (plates practice `night`; managed: plates render rewrites
 // it). Every test run is remembered, and a flaky or slower test becomes
 // hygiene work (plates phase 33; docs/research/2026-10-06-spec-rigor.md, lever 2).
@@ -855,8 +856,8 @@ const outcomeOf = e => {
 
 /** What a test said it could not judge (`t.diagnostic('keel:inconclusive <what it measured>')`), or null. */
 export function inconclusiveOf(message) {
-  const m = /^keel:inconclusive(?:\s+([\s\S]*))?$/.exec(String(message ?? '').trim());
-  return m ? (m[1] ?? '').trim() || 'the machine kept it from judging' : null;
+  const value=markerDiagnostic(message,'marker:keel:inconclusive');
+  return value===null ? null : value || 'the machine kept it from judging';
 }
 
 /**

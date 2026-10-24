@@ -1,4 +1,6 @@
-// Read-only reconciliation. Ships standalone: no runtime dependencies or writes.
+import { normalizeFences } from './names.mjs';
+// Read-only standalone runtime: reconcile.mjs + canonical names.mjs.
+// No third-party dependencies, CLI/night activation or writes.
 // Receipts: keel-proof JSON fences, version 1, in the referenced evidence section.
 // Research/design decisions require an explicit <a id="…"></a> section anchor.
 // Impact unchanged reasons: {unchanged: {"docs/phases/01-example.md": "reason"}}.
@@ -76,7 +78,8 @@ export function markdown(text) {
     } else if (a) { pending = a[1]; continue; }
     section.lines.push(line); prose.push(line);
   }
-  return { sections, fences, prose: prose.join('\n'), unclosed: fence };
+  const normalized = normalizeFences(fence ? [...fences, fence] : fences);
+  return { sections, fences: normalized.slice(0, fences.length), prose: prose.join('\n'), unclosed: fence ? normalized.at(-1) : null };
 }
 export function jsonFence(f) {
   const v = JSON.parse(f.body);
@@ -197,11 +200,11 @@ export async function reconcile({ root, github = false, env = process.env, prFac
     try { doc = await read(path); docs.push(doc); } catch (e) { out.unknown.push(issue('record-unreadable', path, e.message)); continue; }
     const phase = /^docs\/(phases|projects)\//.test(path) && !/\/README\.md$/i.test(path);
     for (const f of [...doc.fences, ...(doc.unclosed ? [doc.unclosed] : [])]) {
-      const relevant = (f.type === 'keel-reconciliation' && phase && /^Reconciliation\b/i.test(f.section?.title || '')) || (f.type === 'keel-decision' && (path.startsWith('docs/decisions/') || f.section?.explicit));
+      const relevant = (f.identity === 'fence:keel-reconciliation' && phase && /^Reconciliation\b/i.test(f.section?.title || '')) || (f.identity === 'fence:keel-decision' && (path.startsWith('docs/decisions/') || f.section?.explicit));
       if (!relevant) continue;
       try {
         const v = jsonFence(f);
-        if (f.type === 'keel-decision') {
+        if (f.identity === 'fence:keel-decision') {
           if (!string(v.id) || !/^[\w.-]+$/.test(v.id) || !['proposed', 'accepted', 'superseded', 'withdrawn'].includes(v.status) || !strings(scopeList(v.scope)) || !strings(v.supersedes ?? []) || !strings(v.superseded_by ?? []) || (['accepted', 'superseded'].includes(v.status) && (!string(v.decided_by) || !string(v.decided_at)))) throw Error('invalid decision metadata');
           const key = `${path}#${f.section.anchor || v.id}`;
           if (decisions.has(key)) throw Error(`duplicate decision: ${key}`);
@@ -246,7 +249,7 @@ export async function reconcile({ root, github = false, env = process.env, prFac
       if (!boxes.has(entry.acceptance)) add('acceptance-id', path, `Unknown acceptance ID: ${entry.acceptance}`);
       const evidence = await reference(entry.evidence, path, 'proof-scope-mismatch');
       if (!evidence) continue;
-      const receipts = evidence.fences.filter(f => f.type === 'keel-proof' && (!evidence.section || f.section === evidence.section));
+      const receipts = evidence.fences.filter(f => f.identity === 'fence:keel-proof' && (!evidence.section || f.section === evidence.section));
       let valid = false;
       for (const fence of receipts) {
         try {
@@ -405,8 +408,10 @@ export async function checkImpact({ root, base, head, body, changedFiles }) {
   const out = result();
   const bad = (message, path = '') => out.findings.push(issue('pr-impact-missing', path, message));
   if (typeof body !== 'string' || body.length > LIMIT) { bad('Missing or oversized PR body'); return out; }
-  const fences = markdown(body).fences.filter(f => f.type === 'keel-impact');
-  if (fences.length !== 1) { bad('Exactly one keel-impact declaration is required'); return out; }
+  let fences;
+  try { fences = markdown(body).fences.filter(f => f.identity === 'fence:keel-impact'); }
+  catch (error) { bad(error.message); return out; }
+  if (fences.length !== 1) { bad('Exactly one plates-impact or keel-impact declaration is required'); return out; }
   let declaration;
   try {
     declaration = jsonFence(fences[0]);
@@ -485,7 +490,7 @@ export async function checkImpact({ root, base, head, body, changedFiles }) {
         if (stdout.trim()) throw e;
       }
       const required = new Set();
-      for (const f of [...current, ...previous].filter(f => f.type === 'keel-decision' && f.section.explicit)) {
+      for (const f of [...current, ...previous].filter(f => f.identity === 'fence:keel-decision' && f.section.explicit)) {
         if (required.has(f.section.anchor)) continue;
         required.add(f.section.anchor);
         const ref = `${path}#${f.section.anchor}`;

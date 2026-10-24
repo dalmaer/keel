@@ -443,7 +443,7 @@ test('the update PR reads in a minute: Summary as a tree, Evidence, Merge danger
   assert.match(plain, new RegExp(`^\\| plates practice \\(\\.plates/plates\\.json\\) \\| 0\\.0\\.0 \\| ${TARGET.replaceAll('.', '\\.')} \\|$`, 'm'));
   assert.match(plain, /^Two-way door: re-renders plates's own files; reverting the merge restores them\.$/m);
   assert.match(plain, /^Blast radius: adopted project\.$/m);
-  assert.ok(plain.indexOf('```keel-impact') > at[2], 'the keel-impact block comes after the three sections');
+  assert.ok(plain.indexOf('```plates-impact') > at[2], 'the plates-impact block comes after the three sections');
 
   // A migration that rewrote the project's own file: one-way, the file named, and marked in the tree.
   const dir = await oldProject(t);

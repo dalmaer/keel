@@ -112,6 +112,7 @@ test('wrapped JUnit records local start/end context; omitted start ignores the o
   const ledger = new URL('../practices/night/files/scripts/plates/test-ledger.mjs', import.meta.url).href;
   await writeFile(join(root, 'test-ledger.mjs'), await readFile(new URL(ledger), 'utf8'));
   await writeFile(join(root, 'time-receipts.mjs'), await readFile(new URL('./time-receipts.mjs', ledger), 'utf8'));
+  await writeFile(join(root, 'names.mjs'), await readFile(new URL('./names.mjs', ledger), 'utf8'));
   await writeFile(join(root, 'runner.mjs'), `import {writeFileSync} from 'node:fs'; writeFileSync('acme.xml', '<testsuites name="vitest tests"><testsuite name="acme.test.mjs"><testcase name="Acme ships" time="0.01"/></testsuite></testsuites>');`);
   await writeFile(join(root, 'producer.sh'), `plates_status=0
 rm -f acme.xml

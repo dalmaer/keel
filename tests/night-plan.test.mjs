@@ -176,6 +176,7 @@ async function acme(t, { config = {}, prs, issues, failGh = false } = {}) {
   await mkdir(join(root, '.plates'), { recursive: true });
   await mkdir(join(root, 'scripts', 'plates'), { recursive: true });
   for (const p of ['night', 'climb']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
+  await cp(join(PLATES,'practices/night/files/scripts/plates/names.mjs'),join(root,'scripts/plates/names.mjs')); // Installed runtime is canonical, not the source doorway.
   await cp(join(PLATES, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
   await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop'], climb: { jobs: ['test-time'], budget: { minutes: 40 } }, robot: { on: true, budgetMinutes: 60 }, ...config }));
   await mkdir(join(root, 'docs', 'health'), { recursive: true });
@@ -211,7 +212,7 @@ if (a[0] === 'pr' && a[1] === 'list') {
   const want = opt('--state');
   console.log(JSON.stringify(pick(s.prs.filter(p => want === 'all' || p.state === 'OPEN'), opt('--json'))));
 } else if (a[0] === 'issue' && a[1] === 'list') {
-  if (opt('--label') !== 'keel:agent' || opt('--state') !== 'open') { console.error('stub gh: open keel:agent issues only'); process.exit(1); }
+  if (!['plates:agent','keel:agent'].includes(opt('--label')) || opt('--state') !== 'open') { console.error('stub gh: open keel:agent issues only'); process.exit(1); }
   console.log(JSON.stringify(pick(s.issues, opt('--json'))));
 } else { console.error('stub gh: unknown ' + a.join(' ')); process.exit(1); }
 `, { mode: 0o755 });

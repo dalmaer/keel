@@ -425,3 +425,47 @@ test('qualified PR links with optional Markdown titles never invent a local PR',
     assert.deepEqual(Object.keys(out.snapshot.prs).sort(), ['acme/app#106']);
   }
 });
+
+test('PR impact refuses mixed aliases across headings before normalization', async t => {
+  const root = await fixture(t);
+  const data = { reconciliation: 'none', reason: 'Acme source-only change' };
+  for (const names of [['plates-impact', 'keel-impact'], ['keel-impact', 'plates-impact']]) {
+    const body = '# First\n' + fence(names[0], data) + '# Second\n' + fence(names[1], data);
+    const result = await checkImpact({ root, body, changedFiles: [] });
+    assert.ok(result.findings.some(f => /Both .* fences in one body are refused/.test(f.message)), JSON.stringify(result));
+  }
+});
+
+
+test('impact consumer requires each historical fence alias independently', async t => {
+  const {fenceMutant}=await import('./helpers/names.mjs');
+  const root=await fixture(t);
+  for(const name of ['plates-impact','keel-impact']) {
+    const body=fence(name,{reconciliation:'none',reason:'Acme source-only change'});
+    assert.deepEqual((await checkImpact({root,body,changedFiles:[]})).findings,[]);
+    const mutant=await fenceMutant(new URL('../practices/reconciliation/files/scripts/plates/reconcile.mjs',import.meta.url),'fence:keel-impact',name);
+    assert.ok((await mutant.checkImpact({root,body,changedFiles:[]})).findings.length,name);
+  }
+});
+
+
+test('reconciliation decision and proof consumers require each fence alias independently',async t=>{
+ const {fenceMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../practices/reconciliation/files/scripts/plates/reconcile.mjs',import.meta.url);
+ for(const name of ['plates','keel']) {
+  const phaseRoot=await fixture(t,{[phasePath]:phase({next:{kind:'acceptance',ref:'latency'}},'x').replace('keel-reconciliation',name+'-reconciliation')});
+  assert.ok(rules(await reconcile({root:phaseRoot})).includes('next-action-satisfied'));
+  const phaseMutant=await fenceMutant(consumer,'fence:keel-reconciliation',name+'-reconciliation');
+  assert.equal(rules(await phaseMutant.reconcile({root:phaseRoot})).includes('next-action-satisfied'),false);
+  const decisionRoot=await fixture(t,{'docs/decisions/acme.md':decision('acme',{supersedes:['docs/decisions/missing.md#missing']}).replace('keel-decision',name+'-decision')});
+  assert.ok(rules(await reconcile({root:decisionRoot})).includes('decision-reference'));
+  const decisionMutant=await fenceMutant(consumer,'fence:keel-decision',name+'-decision');
+  assert.equal(rules(await decisionMutant.reconcile({root:decisionRoot})).includes('decision-reference'),false);
+  const evidence='docs/evidence/store.md#run';
+  const receipt={kind:'production',acceptance:'latency',sha,environment:'production',deployment:'acme-release',observed_at:'2026-01-01',observer:'Acme',claim:'Budget holds',result:'pass'};
+  const proofRoot=await fixture(t,{[phasePath]:phase({production:[{acceptance:'latency',evidence}],next:{kind:'acceptance',ref:'latency'}}),'docs/evidence/store.md':'# Run\n'+fence(name+'-proof',receipt)});
+  assert.equal(rules(await reconcile({root:proofRoot})).includes('proof-scope-mismatch'),false);
+  const proofMutant=await fenceMutant(consumer,'fence:keel-proof',name+'-proof');
+  assert.ok(rules(await proofMutant.reconcile({root:proofRoot})).includes('proof-scope-mismatch'));
+ }
+});

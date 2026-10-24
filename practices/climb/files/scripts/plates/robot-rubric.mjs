@@ -1,9 +1,9 @@
+import { writeName, markerComments, markerSection } from './names.mjs';
 // Pure, shared issue rubric. Structure is not evidence that the work is safe.
 export const ROBOT_RUBRIC_LIMITS = Object.freeze({ fieldChars: 4000, itemChars: 1000, items: 16, totalChars: 16000, bodyChars: 60000 });
 const fields = ['problem', 'reproduction', 'acceptance', 'change'];
 const lists = ['prerequisites', 'ownerBlockers'];
-const begin = '<!-- keel:robot-rubric:v1 -->';
-const end = '<!-- /keel:robot-rubric:v1 -->';
+const rubricId = 'marker:keel:robot-rubric:v1', dataId = 'marker:keel:robot-data';
 const headings = { problem: 'Problem', reproduction: 'Reproduction', acceptance: 'Acceptance', change: 'One change', prerequisites: 'Prerequisites', ownerBlockers: 'Owner blockers' };
 const text = value => typeof value === 'string' && value.trim() && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(value);
 export function validateRobotRubric(value) {
@@ -36,24 +36,24 @@ export function formatRobotRubric(value) {
   if (!checked.ok) throw new Error(checked.problems.map(p => p.message).join('; '));
   return render(checked.rubric);
 }
-function render(r) {
+function render(r, wrapper = writeName(rubricId), data = writeName(dataId)) {
+  const begin = `<!-- ${wrapper} -->`, end = `<!-- /${wrapper} -->`;
   const json = JSON.stringify(r).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
-  return [begin, ...[...fields, ...lists].map(f => `### ${headings[f]}\n\n${(Array.isArray(r[f]) ? r[f].length ? r[f].map(s => `- ${escaped(s)}`).join('\n') : 'None.' : escaped(r[f]))}`), `<!-- keel:robot-data ${json} -->`, end].join('\n\n');
+  return [begin, ...[...fields, ...lists].map(f => `### ${headings[f]}\n\n${(Array.isArray(r[f]) ? r[f].length ? r[f].map(s => `- ${escaped(s)}`).join('\n') : 'None.' : escaped(r[f]))}`), `<!-- ${data} ${json} -->`, end].join('\n\n');
 }
 export function parseRobotRubric(body) {
   const fail = message => ({ ok: false, rubric: null, problems: [{ field: 'rubric', code: 'section', message }] });
   if (typeof body !== 'string' || body.length > ROBOT_RUBRIC_LIMITS.bodyChars) return fail('issue body unavailable or too large');
-  if (body.split(begin).length !== 2 || body.split(end).length !== 2 || body.split('<!-- keel:robot-data ').length !== 2) return fail('exactly one versioned robot rubric section is required');
-  const start = body.indexOf(begin), finish = body.indexOf(end) + end.length;
-  const section = body.slice(start, finish);
-  // JSON.stringify preserves U+2028/U+2029 inside strings. Accept those
-  // separators without changing canonical rendering or durable rubric identity.
-  const match = /<!-- keel:robot-data ([^\r\n]*) -->/.exec(section);
-  if (!match) return fail('rubric data is missing');
+  let section;
+  try { section = markerSection(body, rubricId); } catch (error) { return fail(error.message); }
+  if (!section) return fail('exactly one versioned robot rubric section is required');
+  const { matches } = markerComments(body, dataId);
+  if (matches.length !== 1 || matches[0].start < section.start || matches[0].end > section.end) return fail('exactly one rubric data marker inside the selected section is required');
+  const match = matches[0];
   try {
-    const checked = validateRobotRubric(JSON.parse(match[1]));
+    const checked = validateRobotRubric(JSON.parse(match.payload));
     if (!checked.ok) return checked;
-    if (formatRobotRubric(checked.rubric) !== section) return fail('rubric headings and data disagree; regenerate from the rubric file');
+    if (render(checked.rubric, section.name, match.name) !== section.text) return fail('rubric headings and data disagree; regenerate from the rubric file');
     return checked;
   } catch { return fail('rubric data is malformed'); }
 }

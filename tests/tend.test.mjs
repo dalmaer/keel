@@ -117,7 +117,7 @@ test('a tend pass: the worksheet, one cited fix, a proposal and a tried note; th
   assert.match(text, /^Two-way door: records and docs only/m);
   assert.match(text, /^Blast radius: this repo's records and docs only\.$/m);
   assert.match(text, /^- \[ \] `proofs_hold:1`: Step phase 1 back to partial/m);
-  assert.match(text, /```keel-impact\n\{"version":1,"phases":\[\],"decisions":\[\],"supersedes":\[\],"evidence":\[\],"reconciliation":"none"/);
+  assert.match(text, /```plates-impact\n\{"version":1,"phases":\[\],"decisions":\[\],"supersedes":\[\],"evidence":\[\],"reconciliation":"none"/);
   // The pass's record carries what the night's line needs.
   const pass = JSON.parse(await readFile(join(dir, '.plates/tend/pass.json'), 'utf8'));
   assert.deepEqual([pass.resolved, pass.proposed.map(p => p.finding), pass.unresolved.map(u => u.id)], [['roadmap_stale'], ['proofs_hold:1'], others]);
@@ -186,7 +186,7 @@ test('resolved by measure, not by citation: a cited finding the re-run still rep
   assert.match(blind.pass.unresolved.find(u => u.id === 'lint:phase:docs/phases/02-acme.md').tried, /its measure did not run again on the branch/);
 });
 
-test('the PR body: a phase edit is declared in the keel-impact block; a pass with no commit has no PR body', () => {
+test('the PR body: a phase edit is declared in the plates-impact block; a pass with no commit has no PR body', () => {
   assert.deepEqual(tendImpact(['docs/phases/02-acme.md', 'README.md', 'docs/ROADMAP.md']).phases, ['docs/phases/02-acme.md']);
   assert.equal(tendImpact(['docs/phases/02-acme.md']).reconciliation, 'updated');
   assert.equal(tendImpact(['README.md']).reconciliation, 'none');
@@ -288,4 +288,21 @@ test('the judge\'s page commit resolves nothing: a proposed loose end (an owner\
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-q', '-m', 'plates tend: 2026-10-12, 1 proposal for the owner\n\nTend: loose:pr:7\nplates-tend-page: 2026-10-12']);
   assert.deepEqual(tendCommits(dir, base).map(c => [c.cites, c.page ?? false]), [[['loose:pr:7'], false]]);
+});
+
+test('tend page trailer fallback requires each historical spelling independently', async t => {
+  const { acme } = await import('./helpers/climb.mjs');
+  const { artifactMutant } = await import('./helpers/names.mjs');
+  const consumer = new URL('../scripts/plates/tend.mjs', import.meta.url);
+  const { tendCommits } = await import(consumer.href);
+  for (const namespace of ['plates','keel']) {
+    const root = await acme(t), base = git(root,['rev-parse','HEAD']);
+    await mkdir(join(root,'docs/tend'),{recursive:true});
+    await writeFile(join(root,'docs/tend/2026-10-12.md'),'Acme owner proposal.\n');
+    git(root,['add','docs/tend/2026-10-12.md']);
+    git(root,['commit','-qm',`plates tend: 2026-10-12, 1 proposal for the owner\n\nTend: loose:pr:7\n${namespace}-tend-page: 2026-10-12`]);
+    assert.equal(tendCommits(root,base)[0].page,true);
+    const mutant = await artifactMutant(t,consumer,'artifact:keel-tend-page',`${namespace}-tend-page`);
+    assert.notEqual(mutant.tendCommits(root,base)[0].page,true);
+  }
 });

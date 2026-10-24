@@ -302,20 +302,9 @@ jobs:
           BASE: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p .plates/test-runs
-          if ! gh api "repos/$REPO/actions/artifacts?name=plates-test-runs&per_page=100" \
-            --jq "[.artifacts[] | select(.expired | not) | select(.workflow_run.head_branch == \"$BASE\")] | sort_by(.created_at) | reverse | .[:30][] | .id" > "$RUNNER_TEMP/ledger.txt"; then
-            echo "::warning::The test ledger's artifacts could not be listed."
-            exit 0
+          if ! node scripts/plates/test-history.mjs --repo "$REPO" --branch "$BASE" --json; then
+            echo "::warning::The test ledger could not be recovered; baseline coverage remains unavailable."
           fi
-          n=0
-          while read -r id; do
-            [ -n "$id" ] || continue
-            if gh api "repos/$REPO/actions/artifacts/$id/zip" > "$RUNNER_TEMP/ledger-$id.zip"; then
-              unzip -o -q "$RUNNER_TEMP/ledger-$id.zip" -d .plates/test-runs && n=$((n + 1))
-            fi
-          done < "$RUNNER_TEMP/ledger.txt"
-          echo "test ledger: $n artifacts read; $(find .plates/test-runs -name '*.json' | wc -l | tr -d ' ') runs"
 
       # The baseline opens the night's record (.plates/climb/night.json), on the
       # night's own branch, before the agent changes anything.

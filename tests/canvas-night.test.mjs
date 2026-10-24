@@ -89,13 +89,19 @@ function shell(yaml) {
   const block = yaml.split('      - name: Project the night onto its canvas\n')[1].split('\n      - name:')[0];
   return block.split('        run: |\n')[1].split('\n').map(l => l.startsWith('          ') ? l.slice(10) : l).join('\n');
 }
-async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {}, jobs = {}, repositories = {} } = {}) {
+async function workflow(t, { enabled = true, creds = true, missing = false, mismatch = false, fail = false, runs = [], artifacts = [], bundle, local = true, disabledShas = [], attempt = 1, priorAttempt, event = 'schedule', neverRan = {}, jobs = {}, repositories = {}, omitArtifact = null } = {}) {
   const root = await fixture(t, { ...binding, enabled, cadence: 'nightly' });
   if (local) { await mkdir(join(root, '.plates/canvas')); await writeFile(join(root, '.plates/canvas/manifest.json'), JSON.stringify(initialManifest())); }
   const bin = join(root, 'bin'); await mkdir(bin);
   // The step's recovery is the night practice's managed script, as a project has it.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['canvas-recovery.mjs', 'names.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/plates', f), await readFile(resolve('practices/night/files/scripts/plates', f), 'utf8'));
+  for (const f of ['canvas-recovery.mjs', 'lib.mjs', 'names.mjs']) await writeFile(join(root, 'scripts/plates', f), await readFile(resolve('practices/night/files/scripts/plates', f), 'utf8'));
+  if (omitArtifact) {
+    const file = join(root,'scripts/plates/names.mjs'), source = await readFile(file,'utf8');
+    const needle = 'return readNames(id, rows).map(name => name + suffix);';
+    assert.equal(source.split(needle).length,2);
+    await writeFile(file,source.replace(needle,`return readNames(id, rows).filter(name => id !== ${JSON.stringify(omitArtifact.id)} || name !== ${JSON.stringify(omitArtifact.name)}).map(name => name + suffix);`));
+  }
   const log = join(root, 'calls.jsonl');
   for (const tool of ['plates', 'isocan']) {
     if (missing && tool === 'isocan') continue;
@@ -242,7 +248,7 @@ test('a night queued behind this one is never the one recovered from (duo#90)', 
 test('a preflight failure leaves a never-ran receipt, and the next night recovers from the attempt before it (duo#90)', async t => {
   const failed = await workflow(t, { creds: false });
   assert.notEqual(failed.status, 0);
-  const receipt = JSON.parse(await readFile(join(failed.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
+  const receipt = JSON.parse(await readFile(join(failed.root, 'plates-canvas-night/never-ran.json'), 'utf8'));
   assert.deepEqual(receipt, { neverRan: true, provenance: { repo: 'Acme/app', workflow: '.github/workflows/plates-night.yml', runId: '200', attempt: 1, headSha: 'b'.repeat(40) } });
   const broken = trustedRun({ id: 150, conclusion: 'failure', head_sha: 'c'.repeat(40) }), previous = trustedRun();
   const out = await workflow(t, { runs: [broken, previous], artifacts: [artifactFor(broken), artifactFor(previous)], neverRan: { '150-1': provenanceFor(broken) }, bundle: { provenance: provenanceFor(previous) } });
@@ -285,7 +291,7 @@ test('a recovery that stops before the canvas leaves a never-ran receipt too (ca
   const out = await workflow(t, { runs: [trustedRun({ id: 150, conclusion: 'cancelled' })], artifacts: [] });
   assert.notEqual(out.status, 0);
   assert.ok(!out.calls.some(a => a[1] === 'canvas'));
-  const receipt = JSON.parse(await readFile(join(out.root, 'keel-canvas-night/never-ran.json'), 'utf8'));
+  const receipt = JSON.parse(await readFile(join(out.root, 'plates-canvas-night/never-ran.json'), 'utf8'));
   assert.equal(receipt.provenance.runId, '200');
 });
 test('a failed rerun of an old night falls back in time order: a night that ran after its first attempt comes first (duo#93)', async t => {
@@ -607,6 +613,21 @@ test('canvas recovery keeps old repository provenance only after matching numeri
   assert.equal(accepted.status,0,accepted.out);
   const wrong = await workflow(t,{runs:[prior],artifacts:[artifact],bundle:{provenance},local:false,repositories:{...repositories,'repos/Acme/old-app':{id:78,full_name:old}}});
   assert.notEqual(wrong.status,0,'an unrelated repository cannot supply recovery');
+});
+
+test('canvas recovery requires both artifact aliases for each writer family', async t => {
+  for (const family of ['night','card']) for (const namespace of ['plates','keel']) {
+    const latest = family === 'night' ? trustedRun() : cardRun();
+    const artifact = {...artifactFor(latest),name:`${namespace}-canvas-${family}-1`};
+    const options = {runs:[latest],local:false,artifacts:[artifact],bundle:{provenance:provenanceFor(latest)}};
+    const good = await workflow(t,options);
+    assert.equal(good.status,0,good.stderr);
+    assert.ok(good.ghCalls.some(args=>args.includes(artifact.name)));
+    const bad = await workflow(t,{...options,omitArtifact:{id:`artifact:keel-canvas-${family}`,name:`${namespace}-canvas-${family}`}});
+    assert.notEqual(bad.status,0,`${namespace} ${family} one-name mutation must lose recovery`);
+    assert.ok(bad.ghCalls.some(args => args[1]?.includes('/artifacts?')), 'mutant reaches artifact selection, not an import failure');
+    assert.equal(bad.ghCalls.filter(args => args[0] === 'run').length, 0, 'removed alias cannot download a journal');
+  }
 });
 
 test('canvas recovery retains either night workflow identity and its held artifact name',async t=>{

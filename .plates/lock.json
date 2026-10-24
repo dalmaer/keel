@@ -51,7 +51,7 @@
     },
     ".agents/skills/spin/SKILL.md": {
       "practice": "conduct",
-      "sha256": "5e5938f4fad00d1e670363d1e1e96f3b9476e66d9c01fafcb3061d05e66944fc"
+      "sha256": "cd50d386e96d785022dcba6a91049528ff6213874c8003a927584cdfebf66c63"
     },
     ".claude/skills/conduct": {
       "practice": "conduct",
@@ -75,11 +75,11 @@
     },
     ".github/workflows/plates-climb.yml": {
       "practice": "climb",
-      "sha256": "aa76fd3838d224d331cfd2dc27aa22ca931a1cdcb184e4c928c02007bc8ded8d"
+      "sha256": "bddabac6be866487a785867540320feeffd9a76b8ce238d8639443e81278c08e"
     },
     ".github/workflows/plates-cross-review.yml": {
       "practice": "cross-review",
-      "sha256": "4c96f7711bcd4442ca4a89c91fc0f3fa93bf5ff89bdfd8e7d9f556a2c20d5790"
+      "sha256": "66f8d8affb6cf6920d76ae460b6955456024e6b3b43e02ea28718ee9aea6b385"
     },
     ".github/workflows/plates-impact.yml": {
       "practice": "reconciliation",
@@ -87,11 +87,11 @@
     },
     ".github/workflows/plates-morning.yml": {
       "practice": "night",
-      "sha256": "12a6118763f2965166f859b1d4537683c65e81cc20afcebb15fab8fa700edcfd"
+      "sha256": "ec3a2c7b306a7944dde57b8936434a670d56fe5b9d23b64e57e24bea47565c04"
     },
     ".github/workflows/plates-night.yml": {
       "practice": "night",
-      "sha256": "f2b4fc50c6c3c7fad279ec0d3ccd147b661a3fbef78a9d368055d1c1e3631f1d"
+      "sha256": "dda6e04d83d220d6349b7104c2c42153081cff0e3dfcdf970ede41825925163f"
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
@@ -143,7 +143,7 @@
     },
     "docs/reconciliation.md": {
       "practice": "reconciliation",
-      "sha256": "3a545c58859ec0afdf49af071f8ce2357d32706728c26c6962f2475117a23df4"
+      "sha256": "83a0755f119e42ccb12daf6c852f52956fbea26c8a002099166ea3669274cb23"
     },
     "docs/templates/evidence.md": {
       "practice": "evidence",
@@ -155,15 +155,15 @@
     },
     "renovate.json": {
       "practice": "renovate",
-      "sha256": "612a023060ee1478f76eccfb2ba26e63b6422173555f5c03eab2070d8757675e"
+      "sha256": "fd83325f1ef12226434ecfa9668efaafc166ada353184071a418d145507231c2"
     },
     "scripts/plates/canvas-recovery.mjs": {
       "practice": "night",
-      "sha256": "686878380e91b40cc1aef8a58e35dd854024ab6d62a28278efe81c16c2d1ae0f"
+      "sha256": "f210f789c7fb79659eda6dabad9ab8f840a6fd83a4a28b468ecfc989fe11df58"
     },
     "scripts/plates/ci.mjs": {
       "practice": "night",
-      "sha256": "8de9e6591255ec8fe50eb93d75fbd22f4ff90191d0136d34d51c19bc702994c9"
+      "sha256": "7298c61c0bbbc2f32c4891507b6155da478e717111cf3b8c7850dc449a927c90"
     },
     "scripts/plates/climb-execution.mjs": {
       "practice": "climb",
@@ -175,11 +175,11 @@
     },
     "scripts/plates/cross-review.mjs": {
       "practice": "cross-review",
-      "sha256": "49db7b2393c065e27eabaebff611ff381c4b9082e8e1459aea869cf817444ce3"
+      "sha256": "5c77d2f851797e6251c32d6b754034be6c2290dc8ce0ad5f2c2a78a062506f43"
     },
     "scripts/plates/decision-context.mjs": {
       "practice": "reconciliation",
-      "sha256": "81fc89d4948cf60b96d5aa2e1cdfa292b226efda9e79551657e364f39cd547bb"
+      "sha256": "16d09fee3ff52e64665d57582cf3fa90a932a2b2212620ad99c27e203804c206"
     },
     "scripts/plates/distill.mjs": {
       "practice": "climb",
@@ -191,7 +191,7 @@
     },
     "scripts/plates/gate.mjs": {
       "practice": "night",
-      "sha256": "f611324e2b8836c783665d83b9be7ea3a8564293e84c34e9318c1a49ffd19ceb"
+      "sha256": "88be464ee3a5a79e6b17994b604185a2465ddce15048a09f75732b599e9d3baf"
     },
     "scripts/plates/generated.mjs": {
       "practice": "phases",
@@ -203,31 +203,31 @@
     },
     "scripts/plates/hygiene-proposals.mjs": {
       "practice": "night",
-      "sha256": "954310779300cb8f888d1af76c576a0f8eefbde54583517770074946c21fcea5"
+      "sha256": "05863d3e102e80009749b6b56a71ad58ffc526a70c27feb14c9456f2db5493ea"
     },
     "scripts/plates/improve.mjs": {
       "practice": "night",
-      "sha256": "a9256b1a8fefe7ef09bce5f9ebadc9aa32ece7dbc2e040085732c68a58a0a872"
+      "sha256": "deb7a755db6d5f1f86ded0d204d11d218edc389567d72ff7766cc3e66fbacddc"
     },
     "scripts/plates/lib.mjs": {
       "practice": "night",
-      "sha256": "849887be3f0acba1646764c097f015eb2e1edf20bee1a1f2725abd804bf95594"
+      "sha256": "9d48a2da6a12dd696786e0b327bf6630f963548a2dff110ccb4c59c39efdb0fb"
     },
     "scripts/plates/milestones.mjs": {
       "practice": "night",
-      "sha256": "e4123046692fed8e95cba14a8567fd012a7a0ffc68b920e87adaf60c2524d3b6"
+      "sha256": "33ecff9885c3cbe95ece1db2220186e61df4bc00e3f71c677b6376d715f9b2ef"
     },
     "scripts/plates/morning.mjs": {
       "practice": "night",
-      "sha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d"
+      "sha256": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7"
     },
     "scripts/plates/names.mjs": {
       "practice": "night",
-      "sha256": "11ad62c7c301e25cb848d4c7743fbc6589955a435dfcfc0974f47f6812905011"
+      "sha256": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6"
     },
     "scripts/plates/night-plan.mjs": {
       "practice": "night",
-      "sha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e"
+      "sha256": "cddec41deb4b4b3d918a2c706c57d435f6463f7085b677084fbdb1432337f10a"
     },
     "scripts/plates/persona.mjs": {
       "practice": "personas",
@@ -239,7 +239,7 @@
     },
     "scripts/plates/pr-body.mjs": {
       "practice": "night",
-      "sha256": "42d7674e9bf82aaa517aa289124e44ee3c66c5d69b9e17db30551131617d1464"
+      "sha256": "f4ba82489b7c3cde03c75c0ba18a4ee14b93fec8e2a46a8b5900662b4accf36f"
     },
     "scripts/plates/production-collectors.mjs": {
       "practice": "night",
@@ -247,7 +247,7 @@
     },
     "scripts/plates/production-night.mjs": {
       "practice": "night",
-      "sha256": "2c17678da7e1838a5871ed434083d0a50d4ab1e9a20a4e6bae6e3403f959cb67"
+      "sha256": "e496379d8d048355c0ffbd63224c0947ebc3fa25d8a84dc83b7348d4515b7b11"
     },
     "scripts/plates/production-store.mjs": {
       "practice": "night",
@@ -263,7 +263,7 @@
     },
     "scripts/plates/reconcile.mjs": {
       "practice": "reconciliation",
-      "sha256": "0cdfd407076e9975b6b5f4424b5d7e988a64b7cf94b6df7b5bc96a5ccaaf8258"
+      "sha256": "22fcb26ba51e0fae5cf306c7e3e3284d116868eb623d71ad234331b391e60a44"
     },
     "scripts/plates/robot-budget.mjs": {
       "practice": "night",
@@ -271,7 +271,7 @@
     },
     "scripts/plates/robot-delivery.mjs": {
       "practice": "night",
-      "sha256": "9b8edeb32fc0f076f77dc8f82db63ce62003e1bc245a996a7378bf57b16f6b48"
+      "sha256": "fdd3a4bfa8f2d9e487f9ddce6cdbf8411eb524062845dd0b0e7759eb1f305970"
     },
     "scripts/plates/robot-policy.mjs": {
       "practice": "climb",
@@ -279,11 +279,11 @@
     },
     "scripts/plates/robot-rubric.mjs": {
       "practice": "climb",
-      "sha256": "11dcf35f536b19d021441724e6c489fb4012dbfb672c7e54c24c4ba38a83bd12"
+      "sha256": "3e14fc202531a46f0ff407f82b77f73690e075e95d9d1af92851bb4f8f3a8449"
     },
     "scripts/plates/robot.mjs": {
       "practice": "climb",
-      "sha256": "00beaa31b593b423e4e6271231be727f7571bf654ea5cd1046d94500cabc6499"
+      "sha256": "980d2937494a2a1bad253c232a6f4bedb7d2aab8bd947f7cfbf263ae084db1f0"
     },
     "scripts/plates/stalls.mjs": {
       "practice": "night",
@@ -291,15 +291,15 @@
     },
     "scripts/plates/tend.mjs": {
       "practice": "climb",
-      "sha256": "a8243576ce83a66342c3f92864abde4dc5e745dfb929d913855733c0e8ea0b80"
+      "sha256": "68a465b77de8fe082a8a26a6b45f97a697c04430708c7a1453e0c88992dbc8f9"
     },
     "scripts/plates/test-history.mjs": {
       "practice": "night",
-      "sha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757"
+      "sha256": "56e37b25b37235c91e16b390eb05bcc5522ce695d664ba5322a59431a3943f5c"
     },
     "scripts/plates/test-ledger.mjs": {
       "practice": "night",
-      "sha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238"
+      "sha256": "90ebf8155952945bb712c29a9fa12fafe78573be34d86d4dec8176ee0cf754af"
     },
     "scripts/plates/time-measures.mjs": {
       "practice": "night",
@@ -311,7 +311,7 @@
     },
     "scripts/plates/time-proposals.mjs": {
       "practice": "night",
-      "sha256": "6f7c1c4503fe2300f562361397dcc4e2a7c6df5a256319f08802f8868c52d410"
+      "sha256": "f28201ff2c8ba3266f9a7c1af32c0e17b49267e8eea8959fd0850a6d15e28245"
     },
     "scripts/plates/time-receipts.mjs": {
       "practice": "night",

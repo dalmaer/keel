@@ -514,3 +514,32 @@ test('a clean commit changing only a code file, or an executable script, under a
     }
   }
 });
+
+test('CI gate artifact fallback requires both names independently', async t => {
+  const { artifactMutant } = await import('./helpers/names.mjs');
+  for (const namespace of ['plates', 'keel']) {
+    const a = await acme(t), data = actions([a.head()]);
+    for (const route of Object.values(data.routes)) for (const artifact of route.artifacts ?? []) artifact.name = `${namespace}-test-runs`;
+    const stub = await ghStub(t, data);
+    const input = {config:CONFIG,...a.head(),clean:true,env:stub.env};
+    assert.equal((await ciResult(input)).reused, true);
+    const mutant = await artifactMutant(t, new URL('../practices/night/files/scripts/plates/gate.mjs', import.meta.url), 'artifact:keel-test-runs', `${namespace}-test-runs`);
+    assert.equal((await mutant.ciResult(input)).reused, false, namespace);
+  }
+});
+
+
+test('gate current artifact presence wins over valid legacy evidence even if current is expired', async t => {
+  const a = await acme(t), data = actions([a.head()]);
+  const route = data.routes[`repos/${repo}/actions/runs/100/artifacts`];
+  const current = route.artifacts[0], legacy = {...current,id:10001,name:'keel-test-runs'};
+  route.artifacts = [legacy,current]; route.total_count = 2; data.zips[legacy.id] = data.zips[current.id];
+  let stub = await ghStub(t,data), input = {config:CONFIG,...a.head(),clean:true,env:stub.env};
+  assert.equal((await ciResult(input)).reused,true);
+  assert.ok((await stub.asked()).some(path=>path.endsWith('/10000/zip')));
+  assert.ok(!(await stub.asked()).some(path=>path.endsWith('/10001/zip')));
+  current.expired = true;
+  stub = await ghStub(t,data);
+  assert.equal((await ciResult({...input,env:stub.env})).reused,false);
+  assert.ok(!(await stub.asked()).some(path=>path.endsWith('/10001/zip')));
+});

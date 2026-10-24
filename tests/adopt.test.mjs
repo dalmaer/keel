@@ -627,6 +627,7 @@ test('the proposed gate runs: the ledger records the bun run, and the gate fails
   await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs'), join(dir, 'scripts', 'plates', 'test-ledger.mjs'));
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'names.mjs'), join(dir, 'scripts', 'plates', 'names.mjs'));
   const git = (...args) => run('git', ['-C', dir, ...args], { env: ENV });
   git('init', '-q', '-b', 'main');
   git('add', '-A');
@@ -782,6 +783,7 @@ test('no proposal where the night practice is not on and the ledger is not there
   await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs'), join(dir, 'scripts', 'plates', 'test-ledger.mjs'));
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'names.mjs'), join(dir, 'scripts', 'plates', 'names.mjs'));
   assert.equal((await adopt({ dir, dryRun: true }, { version: VERSION })).data.tests.proposal.to, BUN_STEP);
 });
 
@@ -790,6 +792,7 @@ test('adopted JUnit shell samples after lint immediately before the runner and t
   await mkdir(bin);
   await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'names.mjs'), join(dir, 'scripts', 'plates', 'names.mjs'));
   const source = await readFile(join(PLATES, 'practices/night/files/scripts/plates/test-ledger.mjs'), 'utf8');
   // Instrument only the sample entrypoint to observe shell ordering, without
   // inventing load or depending on clocks or machine quietness.

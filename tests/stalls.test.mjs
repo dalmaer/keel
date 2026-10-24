@@ -66,6 +66,7 @@ async function acme(t, files, config = {}) {
   const all = {
     '.plates/plates.json': `${JSON.stringify({ name: 'Acme', ...config }, null, 2)}\n`,
     'scripts/plates/time-receipts.mjs': await readFile(join(NIGHT, 'time-receipts.mjs'), 'utf8'),
+    'scripts/plates/names.mjs': await readFile(join(NIGHT, 'names.mjs'), 'utf8'),
     'scripts/plates/test-ledger.mjs': await readFile(join(NIGHT, 'test-ledger.mjs'), 'utf8'),
     'scripts/plates/stalls.mjs': await readFile(join(NIGHT, 'stalls.mjs'), 'utf8'),
     ...files,

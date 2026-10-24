@@ -29,7 +29,7 @@ const scripts = () => loaded ??= (async () => {
   process.on('exit', () => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
   const plates = join(dir, 'scripts/plates');
   await mkdir(plates, { recursive: true });
-  for (const f of ['names.mjs', 'lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs', 'names.mjs']) await cp(join(NIGHT, f), join(plates, f));
   await cp(join(CROSS, 'scripts/plates/cross-review.mjs'), join(plates, 'cross-review.mjs'));
   for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
   const at = f => import(pathToFileURL(join(plates, f)).href);
@@ -590,7 +590,7 @@ test('phase 47: climb and tend read which provider runs them, ask for its secret
     await mkdir(join(dir, '.plates'), { recursive: true });
     const plates = join(dir, 'scripts/plates');
     await mkdir(plates, { recursive: true });
-    for (const f of ['names.mjs', 'lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(plates, f));
+    for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs', 'names.mjs']) await cp(join(NIGHT, f), join(plates, f));
     for (const f of ['climb.mjs', 'climb-execution.mjs', 'tend.mjs', 'distill.mjs']) await cp(join(CLIMB, 'scripts/plates', f), join(plates, f));
     // The copy the workflow keeps before the agent runs (PR #59), in $RUNNER_TEMP/plates ($RUNNER_TEMP is dir here).
     await cp(plates, join(dir, 'plates/scripts/plates'), { recursive: true });

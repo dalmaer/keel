@@ -31,6 +31,7 @@ async function mutant(t, from, to) {
   await copyFile(join(DIR, 'lib.mjs'), join(dir, 'lib.mjs'));
   await copyFile(join(DIR, 'names.mjs'), join(dir, 'names.mjs'));
   await writeFile(join(dir, 'pr-body.mjs'), text.replace(from, to));
+  await copyFile(new URL('../practices/night/files/scripts/plates/names.mjs', import.meta.url), join(dir, 'names.mjs'));
   return import(pathToFileURL(join(dir, 'pr-body.mjs')).href);
 }
 
@@ -45,8 +46,8 @@ function bodyProblems(body) {
   if (at[1] >= 0 && !section('## Evidence')) out.push('the Evidence section is empty');
   if (at[2] >= 0 && !/^(Two|One)-way door: \S/m.test(section('## Merge danger'))) out.push('no door');
   if (at[2] >= 0 && !/^Blast radius: \S/m.test(section('## Merge danger'))) out.push('no blast radius');
-  const impact = body.indexOf('```keel-impact');
-  if (impact >= 0 && body.slice(impact).includes('\n## ')) out.push('the keel-impact block is not last');
+  const impact = body.indexOf('```plates-impact');
+  if (impact >= 0 && body.slice(impact).includes('\n## ')) out.push('the plates-impact block is not last');
   return out;
 }
 
@@ -58,7 +59,7 @@ const INPUT = () => ({
   impact: { declaration: { version: 1, reconciliation: 'none' } },
 });
 
-test('three sections in order from structured input; notes after; the keel-impact block last', () => {
+test('three sections in order from structured input; notes after; the plates-impact block last', () => {
   const body = pr.prBody(INPUT());
   assert.deepEqual(bodyProblems(body), [], body);
   assert.match(body, /```text\n├── \.github\/workflows\/\n│   └── plates-night\.yml\n├── docs\/\n│   └── goals\.json {2}\(migration 0001-milestone-to-goal\)\n├── scripts\/plates\/\n│   ├── improve\.mjs\n│   └── pr-body\.mjs\n└── AGENTS\.md\n```/);

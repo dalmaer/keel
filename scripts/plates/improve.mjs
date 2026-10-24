@@ -1,4 +1,4 @@
-import { writeName, inBranchQueue } from './names.mjs';
+import { markerComment, markerAtStart, writeName, inBranchQueue } from './names.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
 import { milestoneSource, readMilestones, milestoneSummary } from './milestones.mjs';
 import { Saving } from './quota.mjs';
@@ -367,10 +367,10 @@ export const CROSS_REVIEWER = 'claude[bot]';
  * (cross-review.mjs FINDING_MARKER; tests/improve.test.mjs holds them equal).
  */
 export const CROSS_REVIEW_POSTER = 'github-actions[bot]';
-export const CROSS_REVIEW_FINDING = '<!-- keel:cross-review finding -->';
+export const CROSS_REVIEW_FINDING = markerComment('marker:keel:cross-review', 'finding');
 /** Whether a thread's first comment is a cross-review finding: the old author's, or the workflow's with the marker. */
 const crossReviewFinding = (c, reviewer) => sameLogin(c?.author?.login, reviewer)
-  || (reviewer === CROSS_REVIEWER && sameLogin(c?.author?.login, CROSS_REVIEW_POSTER) && String(c?.body ?? '').trimStart().startsWith(CROSS_REVIEW_FINDING));
+  || (reviewer === CROSS_REVIEWER && sameLogin(c?.author?.login, CROSS_REVIEW_POSTER) && markerAtStart(c?.body, 'marker:keel:cross-review', 'finding'));
 /** cross_review_valid is n/a until this many of its comments are answered. */
 export const CROSS_REVIEW_MIN = 10;
 /**

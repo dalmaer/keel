@@ -319,7 +319,7 @@ jobs:
           # A preflight failure never reaches the canvas: it leaves a receipt
           # saying so, and the next writer recovers from the attempt before it.
           preflight_fail() {
-            node -e 'const fs = require("node:fs"); fs.mkdirSync(require("node:path").dirname(process.argv[1]), { recursive: true }); fs.writeFileSync(process.argv[1], JSON.stringify({ neverRan: true, provenance: { repo: process.env.GITHUB_REPOSITORY, workflow: ".github/workflows/plates-morning.yml", runId: String(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT), headSha: process.env.GITHUB_SHA } }))' "$RUNNER_TEMP/keel-canvas-card/never-ran.json"
+            node -e 'const fs = require("node:fs"); fs.mkdirSync(require("node:path").dirname(process.argv[1]), { recursive: true }); fs.writeFileSync(process.argv[1], JSON.stringify({ neverRan: true, provenance: { repo: process.env.GITHUB_REPOSITORY, workflow: ".github/workflows/plates-morning.yml", runId: String(process.env.GITHUB_RUN_ID), attempt: Number(process.env.GITHUB_RUN_ATTEMPT), headSha: process.env.GITHUB_SHA } }))' "$RUNNER_TEMP/plates-canvas-card/never-ran.json"
             echo "::error::$1"
             exit 1
           }
@@ -354,14 +354,14 @@ jobs:
           export PLATES_CANVAS_PERSISTENCE=artifact-v1
           export PLATES_ISOCAN="$(command -v isocan)"
           export ISOCAN_HOME="$PLATES_CANVAS_ISOCAN_HOME"
-          export PLATES_CANVAS_OUTPUT="$RUNNER_TEMP/keel-canvas-card"
+          export PLATES_CANVAS_OUTPUT="$RUNNER_TEMP/plates-canvas-card"
           plates morning --card --yes --date "$DAY" --json
 
       - name: Keep the canvas journal
         if: always() && steps.canvas.outputs.enabled == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: keel-canvas-card-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/keel-canvas-card/
+          name: plates-canvas-card-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/plates-canvas-card/
           if-no-files-found: ignore
           retention-days: 90

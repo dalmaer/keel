@@ -23,7 +23,11 @@ const fail = (why, code = 1) => { process.stderr.write(`${why}\n`); process.exit
 const pick = rows => { const f = opt('--json'); return f ? rows.map(r => Object.fromEntries(f.split(',').map(k => [k, r[k] ?? null]))) : rows; };
 const repo = opt('--repo') ?? 'acme/anvils';
 
-if (a[0] === 'issue' && a[1] === 'list') {
+if (a[0] === 'api' && a[1] === '/repos/acme/anvils') {
+  out({ id: 7, full_name: 'acme/anvils' });
+} else if (a[0] === 'api' && a[1] === '/repos/acme/anvils/labels?per_page=100&page=1') {
+  out([{ id: 11, name: 'keel:morning' }]);
+} else if (a[0] === 'issue' && a[1] === 'list') {
   const label = opt('--label'), state = opt('--state') ?? 'open';
   const rows = s.issues.filter(i => i.label === label && (state === 'all' || i.state === state.toUpperCase()));
   out(pick(rows));

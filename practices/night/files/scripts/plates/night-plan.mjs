@@ -1,4 +1,4 @@
-import { readNames, writeName, robotIssueOf } from './names.mjs';
+import { labelNames, readNames, writeName, robotIssueOf } from './names.mjs';
 // The night's plan (plates practice `night`; managed: plates render rewrites it).
 // Every night has one plan, written before anything runs, and each pass
 // ticks its item with what became of it (plates phase 73; the design is
@@ -388,7 +388,12 @@ async function robotInput(root, config, env) {
   const open = openRobotPrs(root, config, env);
   if (!policy.valid || !policy.enabled) return { policy: policy.valid ? 'off' : 'invalid', next: null, open };
   const { parseRobotRubric } = await practiceScript(root, 'scripts/plates/robot-rubric.mjs', 'the robot rubric');
-  const issues = ghJson(root, env, ['issue', 'list', ...repoArgs(config), '--state', 'open', '--label', 'keel:agent', '--limit', '100', '--json', 'number,title,body,createdAt'], 'the keel:agent issues')
+  const byNumber = new Map();
+  for (const label of labelNames('label:keel:agent')) {
+    const rows = ghJson(root, env, ['issue', 'list', ...repoArgs(config), '--state', 'open', '--label', label, '--limit', '100', '--json', 'number,title,body,createdAt'], 'the robot issues');
+    for (const issue of rows) if (!byNumber.has(issue.number)) byNumber.set(issue.number, issue);
+  }
+  const issues = [...byNumber.values()]
     .filter(i => Number.isSafeInteger(i?.number) && i.number > 0)
     .sort((a, b) => String(a.createdAt ?? '').localeCompare(String(b.createdAt ?? '')) || a.number - b.number);
   for (const issue of issues) {

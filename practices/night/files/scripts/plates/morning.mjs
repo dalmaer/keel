@@ -1,5 +1,5 @@
+import { labelNames, repositoryLabelSelection, readNames, writeName, nightBranches, finalNightBranch } from './names.mjs';
 import { planLocations } from './night-plan.mjs';
-import { readNames, writeName, nightBranches, finalNightBranch } from './names.mjs';
 import { retainedVerificationSummary } from './verification.mjs';
 import { rewriteHealthBody } from './time-proposals.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
@@ -449,9 +449,11 @@ const dateOf = (date, now) => {
 };
 
 /** plates morning: the brief for the night `date` (default: the night that last started), written nowhere. */
-export async function brief({ root, date, env = process.env, now = new Date() }) {
+export async function brief(options) {
+  return briefWithConfig(options, await configOf(options.root));
+}
+async function briefWithConfig({ root, date, env = process.env, now = new Date() }, config) {
   const night = dateOf(date, now);
-  const config = await configOf(root);
   const found = await finalPlan({ root, date: night });
   if (!found.plan) throw new MorningError(`no plan for the night of ${night}: ${found.sources.map(s => `${s.from} ${s.state}`).join('; ')}`);
   const health = await healthAround(root, config, night, { branch: found.branch });
@@ -478,13 +480,28 @@ function gh(root, env, args, what, { input, json = false, exitCode = 1 } = {}) {
   if (!json) return r.stdout;
   try { return JSON.parse(r.stdout); } catch { throw new MorningError(`cannot ${what}: gh did not print JSON`, exitCode); }
 }
+// Preserve configured/Actions authority; only an implicit local target needs discovery.
+function sendRepository(root, config, env) {
+  const known = repoOf(config, env);
+  if (known) return known;
+  const found = gh(root, env, ['repo', 'view', '--json', 'nameWithOwner'], 'resolve checkout repository', { json: true, exitCode: 2 });
+  const repo = found?.nameWithOwner;
+  if (typeof repo !== 'string' || repo.trim() !== repo || !/^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9_.-]+$/.test(repo) || ['.', '..'].includes(repo.split('/')[1])) {
+    throw new MorningError('cannot resolve checkout repository: gh returned no canonical owner/repository identity', 2);
+  }
+  return repo;
+}
 // The repository the brief links into is the one its issues go to (plates#149): repoOf, the run's own in Actions.
 const repoArgs = (config, env) => { const repo = repoOf(config, env); return repo ? ['--repo', repo] : []; };
 
 /** Every keel:morning issue, open or closed: [{ number, title, state }]. */
 export function morningIssues(root, config, env = process.env) {
-  const rows = gh(root, env, ['issue', 'list', ...repoArgs(config, env), '--label', LABEL, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${LABEL} issues`, { json: true, exitCode: 2 });
-  if (!Array.isArray(rows)) throw new MorningError(`cannot list the ${LABEL} issues: gh did not print a JSON list`);
+  const rows = [];
+  for (const label of labelNames('label:keel:morning')) {
+    const page = gh(root, env, ['issue', 'list', ...repoArgs(config, env), '--label', label, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${label} issues`, { json: true, exitCode: 2 });
+    if (!Array.isArray(page)) throw new MorningError(`cannot list the ${label} issues: gh did not print a JSON list`);
+    for (const issue of page) if (!rows.some(row => row.number === issue.number)) rows.push(issue);
+  }
   return rows.filter(i => Number.isSafeInteger(i?.number) && typeof i.title === 'string').sort((a, b) => a.number - b.number);
 }
 
@@ -504,13 +521,17 @@ export function assigneeOf(config) {
 export async function send({ root, date, env = process.env, now = new Date() }) {
   const config = await configOf(root);
   const assignee = assigneeOf(config);
-  const b = await brief({ root, date, env, now });
+  // Pin the checkout identity once: later gh calls must not follow a changed default.
+  config.repo = sendRepository(root, config, env);
+  const b = await briefWithConfig({ root, date, env, now }, config);
   const title = titleOf(b.data.date);
   const issues = morningIssues(root, config, env);
   const same = issues.find(i => i.title === title);
   if (same) return { data: { ok: true, sent: false, date: b.data.date, issue: same.number, why: 'already sent' }, text: `${title}: already sent as #${same.number}; nothing sent again.` };
-  gh(root, env, ['label', 'create', LABEL, ...repoArgs(config, env), '--force', '--color', 'FBCA04', '--description', 'plates: the morning brief'], `make the label ${LABEL}`);
-  const out = gh(root, env, ['issue', 'create', ...repoArgs(config, env), '--title', title, '--assignee', assignee, '--label', LABEL, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
+  const selected = await repositoryLabelSelection({root,repo:repoOf(config,env),id:'label:keel:morning',github:async ({path})=>({status:200,data:gh(root,env,['api',path],'read current label facts',{json:true,exitCode:2})})});
+  const label=selected.name;
+  if(!selected.exists) gh(root,env,['label','create',label,...repoArgs(config,env),'--color','FBCA04','--description','plates: the morning brief'],`make the label ${label}`);
+  const out = gh(root, env, ['issue', 'create', ...repoArgs(config, env), '--title', title, '--assignee', assignee, '--label', label, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
   const url = out.trim().split('\n').at(-1);
   const number = Number(/\/issues\/(\d+)$/.exec(url)?.[1]);
   if (!Number.isSafeInteger(number)) throw new MorningError(`opened "${title}" but gh printed no issue URL (${one(url).slice(0, 200)})`, 1);

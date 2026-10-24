@@ -45,7 +45,7 @@ test('time proposal report regenerates through shared lock, retains accepted bas
  await writeFile(join(root,path),(await readFile(join(root,path),'utf8'))+'\nAcme owner notes stay.\n');
  let calls=0;const remeasure=async ({proposal})=>{calls++;assert.equal(proposal.instanceId,initial.instanceId);return {state:'unavailable',observedAt:new Date().toISOString(),value:null,coverage:null,delivery:null,reasons:['fresh comparable observations required']};};
  r=await improve({root,report:true,date:'2026-10-10'},{env:{CI:'true'},measures:selected,remeasure});assert.equal(calls,1);assert.equal(r.data.remeasurements[0].state,'unavailable');
- const text=await readFile(join(root,path),'utf8'),after=parseTimeProposal(text).proposal;assert.match(text,/Acme owner notes stay/);assert.deepEqual(after.baseline,initial.baseline);assert.equal(after.lifecycle.state,'accepted');assert.equal(after.lifecycle.remeasurement.state,'unavailable');assert.equal(text.match(/keel:health-report:begin/g).length,1);
+ const text=await readFile(join(root,path),'utf8'),after=parseTimeProposal(text).proposal;assert.match(text,/Acme owner notes stay/);assert.deepEqual(after.baseline,initial.baseline);assert.equal(after.lifecycle.state,'accepted');assert.equal(after.lifecycle.remeasurement.state,'unavailable');assert.equal(text.match(/plates:health-report:begin/g).length,1);
 });
 test('oversized frozen candidate is omitted without truncation while another target remains selectable',async t=>{
  const root=await project(t),r=await measure({root,config:{},env:{CI:'true'},now,measures:measures.filter(m=>m.id==='time_creep'),timeEvidence:timeEvidence(now)});

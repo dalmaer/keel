@@ -140,6 +140,7 @@ test('0005, run for real: npm test in web/ records in the root\'s .plates/test-r
   await mkdir(join(dir, 'scripts', 'plates'), { recursive: true });
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'test-ledger.mjs'), join(dir, 'scripts', 'plates', 'test-ledger.mjs'));
   await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'time-receipts.mjs'), join(dir, 'scripts', 'plates', 'time-receipts.mjs'));
+  await cp(join(PLATES, 'practices', 'night', 'files', 'scripts', 'plates', 'names.mjs'), join(dir, 'scripts', 'plates', 'names.mjs'));
   for (const [path, content] of Object.entries(await edits(dir, m0005))) await writeFile(join(dir, path), content);
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main'); git('add', '-A'); git('commit', '-qm', 'acme');

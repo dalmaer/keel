@@ -47,7 +47,7 @@ export async function acme(t, { climb = { jobs: ['test-time'] }, config = {}, fi
   const dir = await mkdtemp(join(tmpdir(), 'plates-climb-acme-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   await mkdir(join(dir, 'scripts/plates'), { recursive: true });
-  for (const f of ['names.mjs', 'lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
+  for (const f of ['lib.mjs', 'test-ledger.mjs', 'time-receipts.mjs', 'pr-body.mjs', 'names.mjs']) await cp(join(NIGHT, f), join(dir, 'scripts/plates', f));
   await cp(join(dirname(CLIMB), 'climb-execution.mjs'), join(dir, 'scripts/plates/climb-execution.mjs'));
   await cp(CLIMB, join(dir, 'scripts/plates/climb.mjs'));
   await cp(join(dirname(CLIMB), 'tend.mjs'), join(dir, 'scripts/plates/tend.mjs'));

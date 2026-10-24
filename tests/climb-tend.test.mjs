@@ -259,7 +259,7 @@ test('lessons: a distill pass over the project\'s own table writes proposals, on
   assert.match(rep.stdout, /^climb lessons \d{4}-\d{2}-\d{2}: 2 proposals for the owner \(1 family, 1 reword\); the table unchanged; \d+ min$/m);
   assert.match(rep.stdout, /^\| Proposal \| Kind \| Rows \| File \|$/m);
   assert.match(rep.stdout, /^\| reword lesson 2's guard \| guard: to write \| a test that renames a widget under a warm cache \|$/m);
-  assert.match(rep.stdout, /```keel-impact\n\{"version":1,.*"reconciliation":"none"/);
+  assert.match(rep.stdout, /```plates-impact\n\{"version":1,.*"reconciliation":"none"/);
 
   // The owner accepts the family (status: accepted in its file): it is a family now, and its guard can be standardised.
   const famFile = join(dir, json(fam).file);

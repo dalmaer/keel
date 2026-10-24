@@ -71,6 +71,8 @@ async function acme(t) {
   const git = (args, cwd = root, env = {}) => { const r = run('git', args, { cwd, env: { ...process.env, ...env } }); assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`); return r.stdout.trim(); };
   for (const d of ['.plates', 'scripts/plates', 'docs/health', 'docs/loop', 'docs/phases', 'docs/reviews', '.agents/personas']) await mkdir(join(root, d), { recursive: true });
   for (const p of ['night', 'climb']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
+  // Installed runtimes use the canonical module, not a source-tree doorway.
+  await cp(join(PLATES, 'practices/night/files/scripts/plates/names.mjs'), join(root, 'scripts/plates/names.mjs'));
   await cp(join(PLATES, 'practices', 'loop', 'files', 'scripts', 'loop.mjs'), join(root, 'scripts', 'loop.mjs'));
   await writeFile(join(root, '.plates', 'plates.json'), JSON.stringify({ name: 'Acme Anvils', repo: 'acme/anvils', practices: ['base', 'night', 'climb', 'loop', 'personas'], climb: { jobs: ['test-time'], budget: { minutes: 40 } } }));
   await writeFile(join(root, 'docs/health/2026-10-01.md'), PAGE);
@@ -422,6 +424,8 @@ function issuesApi() {
   const rows = [], calls = [];
   const github = async req => {
     calls.push(req);
+    if(req.method==='GET'&&req.path==='/repos/acme/anvils')return {status:200,data:{id:7,full_name:'acme/anvils'}};
+    if(req.method==='GET'&&req.path==='/repos/acme/anvils/labels?per_page=100&page=1')return {status:200,data:[{id:11,name:'keel:agent'}]};
     if (req.method === 'POST') {
       const n = rows.length + 7;
       const row = { number: n, html_url: `https://github.com/acme/anvils/issues/${n}`, url: `https://api.github.com/repos/acme/anvils/issues/${n}`, state: 'open', body: req.body.body, title: req.body.title, labels: req.body.labels.map(name => ({ name })) };

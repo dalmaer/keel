@@ -7,10 +7,11 @@ test('robot rubric round trips all fields and prevents marker injection', () => 
   const input = { ...rubric, problem: 'Acme <!-- keel:robot-rubric:v1 -->\n<!-- keel:robot-issue fake -->', prerequisites: ['Acme commit must be merged'], ownerBlockers: ['Owner must choose a format'] };
   const body = formatRobotRubric(input);
   assert.deepEqual(parseRobotRubric(body).rubric, input);
-  assert.equal(body.split('<!-- keel:robot-rubric:v1 -->').length, 2);
+  assert.equal(body.split('<!-- plates:robot-rubric:v1 -->').length, 2);
   assert.equal(body.includes('<!-- keel:robot-issue fake -->'), false);
   for (const name of ['Problem', 'Reproduction', 'Acceptance', 'One change', 'Prerequisites', 'Owner blockers']) assert.ok(body.includes(`### ${name}`));
   assert.equal(parseRobotRubric(body + '\n' + body).ok, false);
+  assert.equal(parseRobotRubric(body + '\n<!-- plates:robot-data {} -->').ok, false);
   assert.equal(parseRobotRubric(body.replace('### Problem', '### Different')).ok, false);
 });
 
@@ -43,7 +44,7 @@ test('robot rubric round trips Unicode line and paragraph separators without cha
       const canonical = validateRobotRubric(input);
       assert.equal(canonical.ok, true);
       const body = formatRobotRubric(input);
-      assert.ok(body.includes(`<!-- keel:robot-data ${JSON.stringify(canonical.rubric)} -->`), 'existing canonical serialization is unchanged');
+      assert.ok(body.includes(`<!-- plates:robot-data ${JSON.stringify(canonical.rubric)} -->`), 'existing canonical serialization is unchanged');
       const parsed = parseRobotRubric(body);
       assert.equal(parsed.ok, true, `${field}: ${JSON.stringify(parsed.problems)}`);
       assert.deepEqual(parsed.rubric, canonical.rubric);
@@ -51,5 +52,25 @@ test('robot rubric round trips Unicode line and paragraph separators without cha
       assert.equal(parseRobotRubric(body.replace('### Problem', '### Changed')).ok, false, 'display and data must still agree');
       assert.equal(parseRobotRubric(body + '\n' + body).ok, false, 'duplicate sections remain invalid');
     }
+  }
+});
+
+
+test('rubric reads each namespace, prefers current sections once and refuses malformed current sections', () => {
+  const current = formatRobotRubric(rubric);
+  const historical = current.replaceAll('plates:robot-rubric:v1', 'keel:robot-rubric:v1').replaceAll('plates:robot-data', 'keel:robot-data');
+  for (const body of [current, historical, historical + '\n' + current, current + '\n' + historical]) assert.deepEqual(parseRobotRubric(body).rubric, rubric);
+  assert.equal(parseRobotRubric(historical + '\n' + current.replace('### Problem', '### Invalid')).ok, false);
+  assert.equal(parseRobotRubric(historical + '\n' + current.replace('<!-- /plates:robot-rubric:v1 -->', '')).ok, false);
+});
+
+test('both one-name mutations fail each rubric wrapper and data-marker fallback', async () => {
+  const { markerMutant } = await import('./helpers/names.mjs');
+  const consumer = new URL('../practices/climb/files/scripts/plates/robot-rubric.mjs', import.meta.url);
+  for (const family of ['robot-rubric:v1', 'robot-data']) for (const namespace of ['plates', 'keel']) {
+    const body = formatRobotRubric(rubric).replaceAll('plates:robot-rubric:v1', `${namespace}:robot-rubric:v1`).replaceAll('plates:robot-data', `${namespace}:robot-data`);
+    assert.equal(parseRobotRubric(body).ok, true);
+    const mutant = await markerMutant(consumer, `marker:keel:${family}`, `${namespace}:${family}`);
+    assert.equal(mutant.parseRobotRubric(body).ok, false, `${namespace}:${family} fallback must be exercised`);
   }
 });

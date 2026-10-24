@@ -154,21 +154,20 @@ test('a keel name the table does not list fails, naming where', async t => {
   }
 });
 
-test('name lookups preserve phase125 branches and reviewed phase127 env compatibility', () => {
+test('name lookups preserve implemented phase125/126 and reviewed phase127 transitions', () => {
   assert.equal(new Set(NAMES.map(row => row.id)).size, NAMES.length);
   const surfaces = new Set(['git ref','local Git path','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
   const hostedEnv = new Set(['web:KEEL_WEB_ORIGIN', 'web:KEEL_WEB_OPERATION', 'web:KEEL_WEB_CONFIG', 'web:KEEL_CONNECTION_ENCRYPTION_KEY', 'web:KEEL_GITHUB_CLIENT_SECRET', 'web:KEEL_SESSION_ENCRYPTION_KEY']);
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    const dual = row.phase === 125 || hostedEnv.has(row.id);
-    assert.equal(row.state, dual ? 'dual' : 'held', row.id);
+    assert.equal(row.state, row.phase === 125 || ['web:KEEL_WEB_ORIGIN','web:KEEL_WEB_OPERATION','web:KEEL_WEB_CONFIG','web:KEEL_CONNECTION_ENCRYPTION_KEY','web:KEEL_GITHUB_CLIENT_SECRET','web:KEEL_SESSION_ENCRYPTION_KEY'].includes(row.id) || row.phase === 126 && (row.surface === 'fence' || row.id.startsWith('marker:keel:robot-') || row.id === 'marker:keel:inconclusive' || ['marker:keel:time-proposal:begin', 'marker:keel:time-proposal:end', 'artifact:keel-time-proposal', 'marker:keel:health-report:begin', 'marker:keel:health-report:end', 'marker:keel:review-after', 'marker:keel:cross-review', 'marker:keel:review-after-pending', 'marker:keel:class', 'marker:keel:hygiene-proposal:v1', 'marker:keel:hygiene-data', 'marker:keel:robot-rubric:v1', 'marker:keel:robot-data', 'artifact:keel-test-runs', 'artifact:keel-production-', 'artifact:keel-canvas-night', 'artifact:keel-canvas-card', 'artifact:keel-tend-page'].includes(row.id)) ? 'dual' : 'held');
     assert.equal(nameRow(row.id), row);
-    assert.equal(writeName(row.id), dual ? row.plates : row.keel);
-    assert.deepEqual(readNames(row.id), dual ? [row.plates, row.keel] : [row.keel]);
+    assert.equal(writeName(row.id), row.state === 'held' ? row.keel : row.plates);
+    assert.deepEqual(readNames(row.id), row.state === 'held' ? [row.keel] : [row.plates, row.keel]);
     for (const state of ['dual', 'retired']) {
       const rows = [{ ...row, state }];
-      assert.equal(writeName(row.id, rows), row.plates);
+      assert.equal(writeName(row.id, rows), row.surface === 'label' ? row.keel : row.plates);
       assert.deepEqual(readNames(row.id, rows), state === 'dual' ? [row.plates, row.keel] : [row.plates]);
     }
   }

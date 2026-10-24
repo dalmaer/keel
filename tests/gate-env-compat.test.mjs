@@ -49,7 +49,7 @@ async function project(t) {
   // The relocated gate helper still imports its names module as a sibling.
   await cp(resolve('scripts/plates/lib.mjs'), join(root, 'gate-lib.mjs'));
   await cp(resolve('scripts/plates/names.mjs'), join(root, 'names.mjs'));
-  for (const name of ['test-ledger.mjs', 'time-receipts.mjs']) await cp(resolve('scripts/plates', name), join(root, 'scripts/plates', name));
+  for (const name of ['test-ledger.mjs', 'time-receipts.mjs', 'names.mjs']) await cp(resolve('scripts/plates', name), join(root, 'scripts/plates', name));
   git(root, 'init', '-q', '-b', 'main');git(root, 'add', '.');git(root, 'commit', '-qm', 'Acme base');
   const baseSha = git(root, 'rev-parse', 'HEAD');
   const origin = join(dir, 'origin.git');
@@ -98,7 +98,7 @@ for (const name of ['source', 'shipped']) {
       const runtime = await mkdtemp(join(tmpdir(), 'plates-source-robot-env-'));
       t.after(() => rm(runtime, { recursive: true, force: true }));
       for (const dir of ['practices/night/files/scripts/plates', 'practices/climb/files/scripts/plates', 'practices/reconciliation/files/scripts/plates']) {
-        for (const file of await readdir(dir)) if (file.endsWith('.mjs')) await cp(join(dir, file), join(runtime, file));
+        for (const file of await readdir(dir)) if (file.endsWith('.mjs') && (file !== 'names.mjs' || dir.includes('/night/'))) await cp(join(dir, file), join(runtime, file));
       }
       judge = (await import(pathToFileURL(join(runtime, 'robot.mjs')))).judgeRobot;
     }

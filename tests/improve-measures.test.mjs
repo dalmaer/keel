@@ -36,7 +36,7 @@ test('--report writes the page to .plates/plates.json `health`; an ignored healt
   const mine = run(process.execPath, ['scripts/plates/improve.mjs', '--report', '--json'], { cwd: dir, env });
   const data = JSON.parse(mine.stdout);
   assert.match(data.report, /^\.plates\/health\/\d{4}-\d{2}-\d{2}\.md$/, mine.stdout);
-  assert.match(await readFile(join(dir, data.report), 'utf8'), /^<!-- keel:health-report:begin [a-f0-9]{64} -->\n# Health — /);
+  assert.match(await readFile(join(dir, data.report), 'utf8'), /^<!-- plates:health-report:begin [a-f0-9]{64} -->\n# Health — /);
   assert.ok(!(await readdir(join(dir, 'docs'))).includes('health'), 'nothing in the default dir');
   assert.ok(!byId(data, 'lint').facts.lint.some(l => l.rule === 'health-ignored'));
   const full = plates(['improve', '--report', '--json'], dir, env).json();

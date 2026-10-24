@@ -287,3 +287,19 @@ test('milestone canvas suppresses archived goals and phases and discloses unsupp
   for (const source of ['goals', 'phases']) assert.equal(coverage(s, source).status, 'unsupported');
   assert.deepEqual(await Promise.all(['docs/goals.json', phasePath].map(p => readFile(join(root, p), 'utf8'))), before);
 });
+
+
+test('canvas indirect fence readers detect both one-name mutations',async t=>{
+ const {fenceMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../lib/canvas-snapshot.mjs',import.meta.url);
+ for(const namespace of ['plates','keel'])for(const kind of ['decision','reconciliation','proof']){
+  const named=k=>(kind===k?namespace:'keel')+'-'+k;
+  const refs=fence(named('reconciliation'),{implementation:[{acceptance:'export',evidence:'docs/evidence/acme.md#run'}],next:{kind:'none'}});
+  const root=await fixture(t,{}, {[phasePath]:phase('built','## Reconciliation\n'+refs),'docs/evidence/acme.md':'# Run\n'+fence(named('proof'),receipt()),'docs/decisions/choice.md':'# Choice\n'+fence(named('decision'),{id:'choice',status:'accepted',scope:['export'],decided_by:'Acme',decided_at:'2026-10-07',supersedes:[],superseded_by:[]})});
+  const result=m=>m.entities.filter(e=>e.kind==='decision').length;
+  const input={root,now:NOW},good=await snapshot(input);
+  if(kind==='decision')assert.equal(result(good),1);else assert.equal(good.entities.find(e=>e.kind==='phase').proofs.length,1);
+  const mutant=await fenceMutant(consumer,'fence:keel-'+kind,namespace+'-'+kind),bad=await mutant.snapshot(input);
+  if(kind==='decision')assert.equal(result(bad),0);else assert.equal((bad.entities.find(e=>e.kind==='phase').proofs??[]).length,0);
+ }
+});

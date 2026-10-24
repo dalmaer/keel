@@ -222,7 +222,19 @@ jobs:
           fi
           node "$review_scripts/cross-review.mjs" config
           if [ "$EVENT" = push ] || [ "$EVENT" = schedule ]; then
-            gh issue list --repo "$REPO" --label keel:review-after --state all --limit 60 --json number,title,body,createdAt,author > "$RUNNER_TEMP/after.json"
+            REVIEW_SCRIPTS="$review_scripts" node --input-type=module -e '
+              const {resolve}=await import("node:path");
+              const {pathToFileURL}=await import("node:url");
+              const {labelNames}=await import(pathToFileURL(resolve(process.env.REVIEW_SCRIPTS,"names.mjs")));
+              const {execFileSync}=await import("node:child_process");
+              const rows=new Map();
+              for(const label of labelNames("label:keel:review-after")) {
+                const page=JSON.parse(execFileSync("gh",["issue","list","--repo",process.env.REPO,"--label",label,"--state","all","--limit","60","--json","number,title,body,createdAt,author"],{encoding:"utf8"}));
+                if(!Array.isArray(page))throw Error("Review issue listing unavailable");
+                for(const issue of page)if(!rows.has(issue.number))rows.set(issue.number,issue);
+              }
+              console.log(JSON.stringify([...rows.values()]));
+            ' > "$RUNNER_TEMP/after.json"
             node "$review_scripts/cross-review.mjs" which-push --event "$EVENT" --before "$BEFORE" --issues "$RUNNER_TEMP/after.json" --json > "$RUNNER_TEMP/which.json"
             cp "$RUNNER_TEMP/which.json" "$RUNNER_TEMP/push.json"
           else
@@ -338,8 +350,7 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/plates/scripts/plates"
           cp "$review_scripts/cross-review.mjs" "$review_scripts/lib.mjs" "$RUNNER_TEMP/plates/scripts/plates/"
-          # Historical trusted pairs have no names dependency. Current pairs do;
-          # copying from that same trusted checkout preserves the source boundary.
+          # Historical helpers may have no names dependency; copy it only from the same trusted checkout.
           if [ -f "$review_scripts/names.mjs" ]; then cp "$review_scripts/names.mjs" "$RUNNER_TEMP/plates/scripts/plates/"; fi
           eof="PLATES_EOF_$(date +%s%N)"
           {
@@ -490,7 +501,7 @@ jobs:
       # in its diff. Inline: nothing of the repository runs before the check.
       - name: Is the publisher plates's?
         id: publisher
-        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'
+        if: (github.event_name == 'push' || github.event_name == 'schedule') && (needs.review.outputs.mode == 'push' || needs.review.outputs.mode == 'start')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -508,14 +519,14 @@ jobs:
             const [cross, lib, names] = process.argv.slice(1).map(f => createHash("sha256").update(fs.readFileSync(f)).digest("hex"));
             const want = String(process.env.PLATES_PUBLISHER ?? "").trim().split(/\s+/);
             if (want.length !== 3 || want.some(w => !/^[0-9a-f]{64}$/.test(w)) || cross !== want[0] || lib !== want[1] || names !== want[2]) {
-              console.log(`::error::scripts/plates/cross-review.mjs and lib.mjs at the run commit are not the ones plates rendered this workflow with (plates render writes their sha256 into PLATES_PUBLISHER), so this job runs neither. Nothing is posted. Run plates render (or plates update), or put back the files plates wrote.`);
+              console.log(`::error::scripts/plates/cross-review.mjs, lib.mjs and names.mjs at the run commit are not the ones plates rendered this workflow with (plates render writes their sha256 into PLATES_PUBLISHER), so this job runs none of them. Nothing is posted. Run plates render (or plates update), or put back the files plates wrote.`);
               process.exit(1);
             }
           ' "$out/cross-review.mjs" "$out/lib.mjs" "$out/names.mjs"
           echo "dir=$out" >> "$GITHUB_OUTPUT"
 
       # A pull request: the default branch. After a push, no checkout: the
-      # publisher above is all that runs. A start runs no repository code.
+      # publisher above is all that runs. A start uses the same byte-verified publisher.
       # Which of these runs is the event's (plates#65), never the review job's
       # word: on a push the review job ran the pushed code, and the default
       # branch is the pushed code.
@@ -536,7 +547,7 @@ jobs:
       # the push's before when the review job names it and GitHub puts it
       # below the run's commit (that push is reviewed next), else at the run's
       # own commit. A closed tracking issue, from the event alone: no
-      # repository code runs, nothing is spent.
+      # byte-verified helper selects the label; nothing is spent on a model.
       - name: Start the record
         if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'
         env:
@@ -546,12 +557,23 @@ jobs:
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
           STARTAT: ${{ needs.review.outputs.start }}
+          PUBLISHER: ${{ steps.publisher.outputs.dir }}
         run: |
           # A start is only for a repo with no record yet, and that is GitHub's
           # word, never the review job's (plates#65): the pushed script said
           # "start", and a script that lies would skip the publisher's check
           # and set the record past its own push.
-          had=$(gh api "repos/$REPO/issues?labels=keel:review-after&state=all&per_page=1" --jq 'length')
+          had=$(node --input-type=module -e '
+            const {labelNames}=await import(process.env.PUBLISHER+"/names.mjs");
+            const {ghCall}=await import(process.env.PUBLISHER+"/cross-review.mjs");
+            let count=0;
+            for(const name of labelNames("label:keel:review-after")) {
+              const rows=ghCall(["api",`repos/${process.env.REPO}/issues?labels=${encodeURIComponent(name)}&state=all&per_page=1`]);
+              if(!Array.isArray(rows)) throw Error("Review record listing unavailable");
+              count+=rows.length;
+            }
+            console.log(count);
+          ')
           if [ "$had" != 0 ]; then
             echo "::error::The review job asked to start the record, but $REPO already has a keel:review-after issue: nothing is started. A start is only for the first run; check the latest record."
             exit 1
@@ -561,14 +583,21 @@ jobs:
             gh api "repos/$REPO/compare/$STARTAT...$SHA" > "$RUNNER_TEMP/start-below.json"
             if node -e 'process.exit(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).status === "ahead" ? 0 : 1)' "$RUNNER_TEMP/start-below.json"; then at="$STARTAT"; fi
           fi
-          AT="$at" node -e '
+          AT="$at" node --input-type=module -e '
+            const {markerComment,remoteLabelReceipt,repositoryLabelSelection}=await import(process.env.PUBLISHER+"/names.mjs");
+            const {ghCall}=await import(process.env.PUBLISHER+"/cross-review.mjs");
+            const repo=process.env.REPO;
+            const github=async ({path})=>{try{return {status:200,data:ghCall(["api",path])};}catch(error){if(/\b404\b/.test(error.message))return {status:404};throw error;}};
+            const receipt=await remoteLabelReceipt({repo,revision:process.env.SHA,github});
+            const selected=await repositoryLabelSelection({repo,id:"label:keel:review-after",receipt,github});
+            const label=selected.name;
+            if(!selected.exists)ghCall(["api","--method","POST",`repos/${repo}/labels`,"--input","-"],{input:{name:label,color:"5319e7"}});
             const h = process.env.AT;
             if (!/^[0-9a-f]{40}$/.test(h)) { console.log("::error::No commit to start the record at."); process.exit(1); }
             const record = { from: null, to: h, alone: false, start: true, agent: null, findings: [] };
-            const body = [`<!-- keel:review-after ${JSON.stringify(record)} -->`, `**Review after the push starts here**, at \`${h.slice(0, 7)}\` (plates practice \`cross-review\`). The commits up to it are not reviewed; the next run reviews everything after it.`, ""].join("\n");
-            process.stdout.write(JSON.stringify({ title: `plates review after ${h.slice(0, 7)}`, body, labels: ["keel:review-after"] }));
+            const body = [markerComment("marker:keel:review-after",JSON.stringify(record)), `**Review after the push starts here**, at \`${h.slice(0, 7)}\` (plates practice \`cross-review\`). The commits up to it are not reviewed; the next run reviews everything after it.`, ""].join("\n");
+            process.stdout.write(JSON.stringify({ title: `plates review after ${h.slice(0, 7)}`, body, labels: [label] }));
           ' > "$RUNNER_TEMP/start.json"
-          gh api --method POST "repos/$REPO/labels" -f name=keel:review-after -f color=5319e7 > /dev/null 2>&1 || true
           gh api --method POST "repos/$REPO/issues" --input "$RUNNER_TEMP/start.json" > "$RUNNER_TEMP/started.json"
           number=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).number)' "$RUNNER_TEMP/started.json")
           gh api --method PATCH "repos/$REPO/issues/$number" -f state=closed -f state_reason=completed > /dev/null
@@ -619,6 +648,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PUBLISHER: ${{ steps.publisher.outputs.dir }}
+          SHA: ${{ github.sha }}
           AGENT: ${{ needs.review.outputs.agent }}
           AUTHOR: ${{ needs.review.outputs.author }}
           REASON: ${{ needs.review.outputs.reason }}

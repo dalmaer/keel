@@ -154,7 +154,7 @@ test('every generated prose field preserves block-looking text without opening c
   assert.ok(decode(o.content).includes(`- ${w.surfaces[0].name}: ${flat}`));
   assert.ok(decode(o.content).includes(`match: manual owner answer by ${flat} at ${a.time} (${flat}): ${flat}`));
   assert.equal(lines.filter(l=>l==='## Next action').length,1);
-  assert.equal(lines.filter(l=>l==='```keel-reconciliation').length,1);
+  assert.equal(lines.filter(l=>l==='```plates-reconciliation').length,1);
   assert.equal(lines.filter(l=>l==='```').length,1);
   assert.deepEqual(specProblems(o.path,o.content),[]);
   await writeShape(root,'idea.json',p.digest);
