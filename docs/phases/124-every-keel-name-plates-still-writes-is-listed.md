@@ -1,11 +1,11 @@
 ---
-status: planned
-since: 2026-10-23
+status: built
+since: 2026-10-24
 goal: G2
 spec: 2
 depends: [109]
-note: "Specified 2026-10-23 (docs/specs/name-transition.md): the rename held keel's remote names as durable, and the shipped templates still write them, so new projects such as dtv open keel-night/ branches. First step of the transition: the inventory and its guard."
-evidence: []
+note: "139 held identities, a canonical managed table and a closed inventory guard; existing rendered bytes remain unchanged. Source proof only; no remote transition."
+evidence: ["evidence/2026-10-24-name-inventory.md"]
 issue: 240
 ---
 
@@ -32,10 +32,10 @@ The design is [Name transition](../specs/name-transition.md), "What still says k
 
 ## Acceptance
 
-- [ ] The table holds every keel identity in shipped code, and the scan finds none outside it and the allowed list. `tests/names.test.mjs`: "every keel token in shipped code is a table row or an allowed kind"
-- [ ] A new keel token added to shipped code fails the test, naming file and line. The same test fails on a planted `keel-foo/` in a scratch copy. `tests/names.test.mjs`: "a keel name the table does not list fails, naming where"
-- [ ] `DURABLE` is derived from the table: removing a row changes the migration's holds, and the old literal regex is gone. `tests/rename.test.mjs`: "the durable holds are the name table's held and dual rows"
-- [ ] With every row `held`, renders and the night write byte-identical output to before. `npm run check` (`tests/ancestors.test.mjs`, `tests/workflows.test.mjs` unchanged)
+- [x] The table holds every keel identity in shipped code, and the scan finds none outside it and the allowed list. `tests/names.test.mjs`: "every keel token in shipped code is a table row or an allowed kind"
+- [x] A new keel token added to shipped code fails the test, naming file and line. The same test fails on a planted `keel-foo/` in a scratch copy. `tests/names.test.mjs`: "a keel name the table does not list fails, naming where"
+- [x] `DURABLE` is derived from the table: removing a row changes the migration's holds, and the old literal regex is gone. `tests/rename.test.mjs`: "the durable holds are the name table's held and dual rows"
+- [x] With every row `held`, renders and the night write byte-identical output to before. `npm run check` (`tests/ancestors.test.mjs`, `tests/workflows.test.mjs` unchanged)
 
 ## Real surfaces
 
@@ -51,4 +51,8 @@ Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/names.test.m
 
 ## Next action
 
-Generate the first table from `git grep -nE 'keel' origin/main -- lib practices bin scripts .github web`, sorted by surface, and check every row by hand against the spec's table.
+Proceed to phases 125–127 through separate claimed and reviewed PRs. Phase 125 fixes #218 first; remote activation and the ordered fleet rollout remain owner steps.
+
+## Trajectory
+
+2026-10-24 — Preserve existing owner namespace protections separately from the finite transition table: removing them would regress migration, while admitting them as scanner wildcards would hide new names. Normalize explicit source spellings rather than maintaining hundreds of line-specific exceptions.

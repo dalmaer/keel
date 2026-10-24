@@ -221,6 +221,10 @@
       "practice": "night",
       "sha256": "c77f1d0a62ce7dd78466c8892f9136b2f526ad3c2468ff37294d7e5ec98c3322"
     },
+    "scripts/plates/names.mjs": {
+      "practice": "night",
+      "sha256": "b047c0dfbb0c22611813b6129c317585f30c57b84f21050266b12618f4c15cdb"
+    },
     "scripts/plates/night-plan.mjs": {
       "practice": "night",
       "sha256": "9af4c370666037adc8040854fe8860a14b828b69872b23c7ea4d3468e3452e16"

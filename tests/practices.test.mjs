@@ -7,6 +7,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load, claims, fill, plan, config, wanted, targets } from '../lib/practices.mjs';
 import { optionalPractices } from './helpers/practices.mjs';
+import { NAMES } from '../lib/names.mjs';
 import { copyProject } from './helpers/copy-project.mjs';
 
 const PLATES = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -125,14 +126,51 @@ test('ejected legacy conductor ownership prevents installing a different default
   }
 });
 
-test('templates name the project only through {{name}}', async () => {
+function withoutCanonicalNameValue(practice, file, line) {
+  if (practice !== 'night' || file !== 'scripts/plates/names.mjs') return line;
+  // Admit only the plates field of an explicit registered inventory row. The
+  // rest of that row, adjacent prose and every other file still face the guard.
+  const match = /^\s*Object\.freeze\((\{.*\})\),?\s*$/.exec(line);
+  if (!match) return line;
+  let row;
+  try { row = JSON.parse(match[1]); } catch { return line; }
+  const canonical = NAMES.find(value => value.id === row.id);
+  if (!canonical || row.plates !== canonical.plates) return line;
+  return line.replace(/("plates"\s*:\s*)("(?:\\.|[^"\\])*")/g,
+    (field, key, value) => JSON.parse(value) === canonical.plates ? `${key}""` : field);
+}
+
+function assertTemplateProjectNames(practices) {
   // Deliberate mentions: provenance and the plates tool itself, never the project.
   const allowed = [/Plates manages this file/, /Lineage: isocan → ledger .* → cajones/, /Adapted from ritmo's/, /Plates lessons?\b/, /Plates catalogue/];
-  for (const p of (await load()).values()) for (const f of p.files.filter(f => f.template)) {
+  for (const p of practices) for (const f of p.files.filter(f => f.template)) {
     for (const line of f.template.split('\n')) {
-      if (/\bPlates\b|\bCajones\b/.test(line)) assert.ok(allowed.some(r => r.test(line)), `${p.name} ${f.from}: ${line}`);
+      const checked = withoutCanonicalNameValue(p.name, f.from, line);
+      if (/\bPlates\b|\bCajones\b/.test(checked)) assert.ok(allowed.some(r => r.test(checked)), `${p.name} ${f.from}: ${line}`);
     }
   }
+}
+
+test('templates name the project only through {{name}}', async () => {
+  assertTemplateProjectNames((await load()).values());
+});
+
+test('canonical inventory values do not exempt arbitrary project names from the template guard', () => {
+  const row = NAMES.find(value => value.id === 'web:Keel-Operation');
+  assert.equal(row.plates, 'Plates-Operation');
+  const line = value => `  Object.freeze(${JSON.stringify(value)}),`;
+  const practice = (template, from = 'scripts/plates/names.mjs', name = 'night') => [{ name, files: [{ from, template }] }];
+  assert.doesNotThrow(() => assertTemplateProjectNames(practice(line(row))));
+  for (const template of [
+    `${line(row)}\n// Plates is this project's name`,
+    `// Cajones is this project's name\n${line(row)}`,
+    `${line(row)} // Plates is this project's name`,
+    line({ ...row, note: 'Plates is this project' }),
+    line({ ...row, plates: 'Plates is this project' }),
+    line({ ...row, id: 'acme:unknown' }),
+  ]) assert.throws(() => assertTemplateProjectNames(practice(template)), /night scripts\/plates\/names\.mjs:/);
+  assert.throws(() => assertTemplateProjectNames(practice(line(row), 'scripts/plates/acme.mjs')), /night scripts\/plates\/acme\.mjs:/);
+  assert.throws(() => assertTemplateProjectNames(practice(line(row), 'scripts/plates/names.mjs', 'acme')), /acme scripts\/plates\/names\.mjs:/);
 });
 
 test('an unknown placeholder is an error; GitHub expressions are not placeholders', () => {
