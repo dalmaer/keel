@@ -66,6 +66,49 @@ their later phases; unsupported operations must refuse rather than simulate
 execution. This local freeze operation lets the record foundation be proven
 without borrowing the future execution command's authority.
 
+### Phase 118 offline execution contract (23 October 2026)
+
+The first execution adapter is explicitly offline. `run --experiment <id>
+--execution <absolute-json>` previews a single frozen pair/arm and exits 3;
+`--yes --digest <preview>` approves only those exact bytes, source export,
+private destination and resource limits. Its strict execution request identifies
+schema version, pair, arm, canonical local repository, regular source paths,
+builder argv and explicit host admission configuration. Export each source from
+the case's pinned commit; reject symlinks, submodules and Git history. The preview
+binds the delivered export and ordered context/overlays. Private provenance,
+acceptance material and other trials are never delivered. An offline scripted
+builder tests execution machinery, not model efficacy or generalization.
+
+Private acceptance material uses the versioned `stdio-v1` driver: a bounded list
+of check IDs, argv, input, expected stdout and exit code. The trusted host owns
+comparisons; expected outputs never enter a container. Each check invokes the
+submitted behavior in a fresh hardened container. Public probe programs are
+frozen input files rather than hidden tests imported into untrusted code. This
+small driver establishes the initial compatibility boundary, not support for
+all future integration oracles. Evaluator errors remain unknown.
+
+Use the existing host validation coordinator for admission, extending its lease
+shape to retain external container operation identities. Preserve foreground
+lease semantics. A container lease releases only after confirmed termination;
+a dead client or expired lease is insufficient. The explicit coordinator policy
+and managed repository identity are bound into the run preview. A private
+workspace lock alone is not host-wide admission. Reserve the frozen comparison
+allowance before its first slot and refuse unplanned, repeated or oversubscribed
+slots. No provider inference or currency entitlement is granted.
+
+Keep phase 117's original frozen receipt and attachments unchanged. Execution
+records are an extension beneath the same experiment: immutable reservation,
+slot intent, captured artifact, stage observations and artifact-bound verdict.
+Persist original unique container operation names before dispatch. Capture a
+bounded regular-file artifact only while the builder is confirmed paused, then
+confirm termination before evaluation. Changed files must be allowlisted;
+traversal, links, special files and changes to acceptance authority refuse.
+Identical retries recover original terminal evidence. Uncertain dispatch,
+termination or storage remains reserved and inspectable, never automatically
+rerun. Phase 119 adds comparison recovery; until then unsupported resume,
+cancel, compare and rescore operations explicitly refuse. Failure evidence and
+unknown costs remain visible, and no result changes a production default.
+
 ## Data contracts
 
 All records have schemaVersion, stable ID, createdAt, content digest and typed
