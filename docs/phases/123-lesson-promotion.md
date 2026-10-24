@@ -5,7 +5,7 @@ goal: G3
 spec: 2
 depends: [122]
 review: wait
-note: "Specified only; production implementation and paid evaluation have not started."
+note: "Package, approval and rollback contracts settled; build independent mechanics without live activation or bypassing the phase119 hold."
 evidence: []
 ---
 
@@ -18,6 +18,10 @@ A measured lesson produces a reviewable promotion package or evidence-backed rej
 ## Scope
 
 Implement the corresponding slice of [review-learning-evaluation](../specs/review-learning-evaluation.md).
+The [implementation contract](../specs/lesson-promotion.md) defines strict packages,
+dormant policy verification and exact-source observations. Independent mechanics
+can proceed while real screening remains unavailable; do not land phase119
+indirectly or manufacture a positive promotion walk.
 Reuse the existing experiment, learn, execution and evidence mechanisms. Do not
 introduce a second scheduler, evidence authority or automatic production default.
 
@@ -49,4 +53,6 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Implement decision-package rendering and exact-candidate checks through the existing review and delivery lanes.
+Build allowlisted packages and disabled-until-configured approval/merge verification,
+then prove the offline public CLI package and source-refusal paths. Keep genuine
+readiness and promotion open for missing delivery/provider interfaces and approval.

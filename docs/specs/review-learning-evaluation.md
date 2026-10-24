@@ -39,7 +39,8 @@ semantics. A mismatch is a validation error, never silently repaired.
 
 Proposed operations extend `plates learn`: `evaluate propose`, `evaluate plan`,
 `evaluate inspect`, `evaluate decide`, and `evaluate follow-up`, all with `--json`.
-They are not implemented commands. Initial proposal input is an explicit list of
+The phase contracts below distinguish implemented operations from reserved ones.
+Initial proposal input is an explicit list of
 selected finding refs. No automatic review ingestion or automatic agent call.
 Mutations preview exact records and digest; `--yes --digest` approves that local
 change only. Evaluation execution uses retro's separately approved plan; publishing
@@ -237,3 +238,12 @@ experiment ledger. Evaluated is distinct from supported or promoted. Independent
 offline mechanics can proceed behind the phase-119 merge hold; real measured
 screening still needs the missing live execution/spending interface and the
 owner's exact bounded allowance.
+
+## Phase 123 implementation contract — 24 October 2026
+
+[Reviewed lesson packages](lesson-promotion.md) settles allowlisted packages,
+original report verification, dormant default-branch approval policy, exact GitHub
+review/merge checks, rollback and unmeasured follow-up. Independent mechanics may
+proceed behind phase119’s merge hold and phase122’s real-screening gaps. No real
+approver policy or paid trial is activated; unsupported routing and provider
+capabilities remain explicit implementation gaps.
