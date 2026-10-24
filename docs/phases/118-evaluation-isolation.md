@@ -50,3 +50,7 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 ## Next action
 
 Implement the foreground adapter and external evaluator boundary, proving it with offline adversarial fixtures before provider execution.
+
+## Trajectory
+
+- **2026-10-23** — Real Docker proof found that `docker cp` silently omitted tmpfs files. Use an explicitly submitted, bounded regular-file envelope and independently evaluate its bytes after termination; do not claim filesystem-snapshot attestation or weaken isolation. The spec records the withdrawn transport.

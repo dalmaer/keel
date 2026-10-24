@@ -99,10 +99,25 @@ slots. No provider inference or currency entitlement is granted.
 Keep phase 117's original frozen receipt and attachments unchanged. Execution
 records are an extension beneath the same experiment: immutable reservation,
 slot intent, captured artifact, stage observations and artifact-bound verdict.
-Persist original unique container operation names before dispatch. Capture a
-bounded regular-file artifact only while the builder is confirmed paused, then
-confirm termination before evaluation. Changed files must be allowlisted;
-traversal, links, special files and changes to acceptance authority refuse.
+Persist original unique container operation names before dispatch. The offline
+builder submits one bounded JSON regular-file envelope on stdout; stderr is
+bounded diagnostic output. The envelope, not a claim about its working directory,
+is the submitted artifact. Validate its exact bytes, paths, modes, allowlisted
+changes and preserved controller-owned public files, then confirm builder
+termination before evaluation. Construct each evaluator from the pinned base
+and that validated submission. Traversal, links, special files, forged pass
+messages and changes to acceptance authority refuse. No submitted outcome field
+can create a verdict; only independently observed artifact behavior can.
+
+**Transport correction, 23 October 2026:** a real restricted-container probe
+executed an existing file but `docker cp` returned an empty archive from tmpfs.
+[Docker documents this limitation](https://docs.docker.com/reference/cli/docker/container/cp/#corner-cases).
+The initial pause/copy transport is withdrawn. An explicit immutable submission
+avoids both the unsupported capture and races with surviving builder processes;
+no writable host mounts, unbounded volumes or privileged collector are added.
+It proves the behavior of the submitted bytes, not an attested snapshot of the
+builder's final filesystem. Builder tools must serialize their chosen artifact;
+invalid/missing submission is separate from infrastructure failure.
 Identical retries recover original terminal evidence. Uncertain dispatch,
 termination or storage remains reserved and inspectable, never automatically
 rerun. Phase 119 adds comparison recovery; until then unsupported resume,
