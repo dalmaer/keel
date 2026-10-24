@@ -524,3 +524,13 @@ ported to ledger, then to duo and cajones. Plates adapts isocan's conduct skill
 and its measurement ideas under Apache-2.0, and credits them in
 [NOTICE](NOTICE) and in each adapted file's header. Plates itself is
 Apache-2.0.
+
+### Planned evaluation and learning
+
+The [harness evaluation design](docs/specs/harness-regression-evaluation.md) and
+[measured review-learning design](docs/specs/review-learning-evaluation.md) specify
+paired task trials, independent acceptance and reviewed lesson promotion.
+[Phases 117–123](docs/ROADMAP.md) track implementation; these are not active CLI
+capabilities or approved paid evaluations. The
+[capability map](docs/research/2026-10-23-evaluation-capabilities.md) separates
+existing mechanisms from the proposed extensions.

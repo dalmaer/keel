@@ -409,3 +409,18 @@ CI evidence under the existing gate policy, but remote claims and PRs still need
 fresh observations. The [contract](specs/plate-verification.md) and phase 116
 keep session activity unknown where it cannot be observed. Corrections, claim
 cleanup and acceptance remain separate from detection.
+
+## Measured harness improvement (23 October 2026, designed)
+
+Phases 117–123 specify task-level baseline/candidate evaluation and review lessons
+promoted through evidence. These extend the experiment ledger, bounded execution,
+learn inbox and reviewed delivery; they are not implemented by this design.
+Builders submit artifacts to independently controlled acceptance, comparisons keep
+all attempts and unknown costs, and no result activates a production rule.
+See [harness evaluation](specs/harness-regression-evaluation.md),
+[measured learning](specs/review-learning-evaluation.md), the
+[capability map](research/2026-10-23-evaluation-capabilities.md) and
+[source decisions](research/2026-10-23-evaluation-patterns.md).
+The first approved screening is a historical package-entry task plus an unrelated
+control, not a full-fleet benchmark. Paid execution and practical tolerances remain
+separate owner decisions.

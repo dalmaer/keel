@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**52 of 117 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
+**52 of 124 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). The approved reporting workspace already uses the fixed `loop-across-projects` key and live mode (configured 14 October). Do not repeat that setup. The 19 October publication preflight stopped because the owner-only adapter rejects the owner's explicitly approved named Editor grant. Specify and review exact approved-grant matching before implementing that support; preserve the grant, writer, binding, historical cards and receipts. Do not remove access or bypass preflight. Once supported, verify one real create, a later conditional edit and a refusal after a human edit. These deployed walks remain unverified. Dedicated GitHub writer/restart proof and seven scheduled nights remain separate work. Do not ask again for the approved destination, writer or retained dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -143,7 +143,7 @@ Existing projects come under plates without losing what is theirs, and a practic
 
 A lesson learned in any project, or a practice improved upstream, reaches plates, is decided by a person, and ships to the rest of the fleet.
 
-8/8 built.
+8/11 built.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -155,6 +155,9 @@ A lesson learned in any project, or a practice improved upstream, reaches plates
 | [30. Each project reads the lessons that apply to its stack](phases/30-each-project-reads-the-lessons-that-apply-to.md) | built | 2026-10-06 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | Built and walked: the stack vocabulary, Where column, project stacks (detection reads workspace and app-folder packages, c4edbb6) and docs/plates-lessons.md; ledger (node, web, vercel, github-actions) and isocan (node, web, gcp, github-actions) declared theirs. · [#8](https://github.com/dalmaer/plates/issues/8) |
 | [31. The lessons table is distilled into patterns, and patterns become guards](phases/31-the-lessons-table-is-distilled-into-patterns.md) | built | 2026-10-06 | [8](phases/08-learn-at-home.md), [30](phases/30-each-project-reads-the-lessons-that-apply-to.md) | Built and used: the first pass decided by the owner (10 families, 2 tags, 2 rewords, 3 standardise shipped as checks), released in v0.8.0. · [#9](https://github.com/dalmaer/plates/issues/9) |
 | [40. A phase that did real work ends with a retro, and what it finds becomes a check](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | built | 2026-10-06 | [8](phases/08-learn-at-home.md), [24](phases/24-loose-ends.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and used: retros at the end of phases 40, 39 and 35 gave six candidates; the owner picked all six; five shipped as checks or an AGENTS line and one as lesson 56. · [#18](https://github.com/dalmaer/plates/issues/18) |
+| [121. Bind selected review lessons to hypotheses and evaluation plans](phases/121-evaluated-lessons.md) | designed | 2026-10-23 | [120](phases/120-evaluation-corpus.md) | Specified only; production implementation and paid evaluation have not started. |
+| [122. Measure one real review improvement against a control](phases/122-lesson-screening.md) | designed | 2026-10-23 | [121](phases/121-evaluated-lessons.md) | Specified only; production implementation and paid evaluation have not started. |
+| [123. Prepare reviewed promotion and traceable rollback](phases/123-lesson-promotion.md) | designed | 2026-10-23 | [122](phases/122-lesson-screening.md) | Specified only; production implementation and paid evaluation have not started. |
 
 - **7 done when:** `plates lessons` in a project files each new lesson row, each drifted managed file, and each practice-shaped commit as one issue on `dalmaer/plates` labelled `lesson`, and never files the same one twice.
 - **8 done when:** `plates learn` reads open lesson issues and every pinned source, writes a proposal for each into `docs/inbox/`, and an accepted proposal lands as a central lesson, a practice change and its migration in one commit.
@@ -164,6 +167,9 @@ A lesson learned in any project, or a practice improved upstream, reaches plates
 - **30 done when:** An agent in ledger (node, vercel) and one in isocan (node, gcp) each read a `docs/plates-lessons.md` holding every universal row of plates's catalogue plus the rows tagged for their own stack, and neither holds a row tagged only for the other's.
 - **31 done when:** One distilling pass over plates's catalogue has been proposed by an agent and decided by the owner: `docs/patterns.md` holds its families, every row is tagged or deliberately universal, and at least one family's guard has been proposed as a practice check that every project runs.
 - **40 done when:** `/conduct` ends every phase whose commit changed code, tests or shipped practice files with a retro: a worksheet built by `plates retro --worksheet` from the session's transcript, and a short list of candidates in the phase report (a check, an AGENTS or skill line, or a lesson), most serious first; the owner has picked from at least two phases' retros, and at least one picked candidate shipped as a deterministic check.
+- **121 done when:** Selected real findings form deduplicated, scoped hypotheses with append-only transitions and comparison references in the existing learn records.
+- **122 done when:** One approved narrow historical lesson produces a retained baseline-candidate screening report with control outcomes and a justified promote, reject or inconclusive recommendation.
+- **123 done when:** A measured lesson produces a reviewable promotion package or evidence-backed rejection while preserving exact revision, rollback and follow-up history without self-activation.
 
 ## G4 — The night shift keeps it working
 
@@ -235,7 +241,7 @@ Without anyone remembering, each project is measured nightly, dependencies move 
 
 Plates can show, with numbers across the fleet, whether projects it manages ship more and break less, and what conducting costs.
 
-4/10 built; 3 owe a walk.
+4/14 built; 3 owe a walk.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -249,6 +255,10 @@ Plates can show, with numbers across the fleet, whether projects it manages ship
 | [110. Recorded validation evidence produces actionable audits](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | built | 2026-10-22 | — | Reviewed implementation merged as PR 225; intermediate main UTC fixture failure is preserved and corrected by reviewed PR 226. No consumer rollout or speedup claim. |
 | [111. Focused feedback starts with capability and resource checks](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | built | 2026-10-23 | [110](phases/110-recorded-validation-evidence-produces-actionable-audits.md) | Exact-head checks and independent/parent review completed; PR 226 merged, final main green. Defaults unchanged; no measured pipeline speedup. |
 | [115. Measured shadow selection preserves full validation](phases/115-measured-shadow-selection-preserves-full-validation.md) | designed | 2026-10-22 | [111](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md), [114](phases/114-complete-consumer-attestations-support-exact-head-reuse.md) | Staged implementation from the migration audit; required gate policy unchanged. |
+| [117. Freeze harness evaluation inputs and extend the experiment ledger](phases/117-evaluation-records.md) | designed | 2026-10-23 | [72](phases/72-session-handoffs-improve-through-bounded.md), [111](phases/111-focused-feedback-starts-with-capability-and-resource-checks.md) | Specified only; production implementation and paid evaluation have not started. |
+| [118. Evaluate one historical artifact behind an independent boundary](phases/118-evaluation-isolation.md) | designed | 2026-10-23 | [117](phases/117-evaluation-records.md) | Specified only; production implementation and paid evaluation have not started. |
+| [119. Compare paired harness trials and resume interrupted comparisons](phases/119-evaluation-comparison.md) | designed | 2026-10-23 | [118](phases/118-evaluation-isolation.md) | Specified only; production implementation and paid evaluation have not started. |
+| [120. Freeze six historically grounded development cases](phases/120-evaluation-corpus.md) | designed | 2026-10-23 | [119](phases/119-evaluation-comparison.md) | Specified only; production implementation and paid evaluation have not started. |
 
 - **12 done when:** `plates fleet` lists every managed project with its practice version, last health page, CI state and unsent lessons, from `plates.json` and `gh`, in under ten seconds.
 - **13 done when:** A dated research page compares the fleet before and after adoption on measures fixed in advance (red-streak length, time from lesson to guard, phases moved per week, conduct cost per phase) and says plainly what it found.
@@ -260,6 +270,10 @@ Plates can show, with numbers across the fleet, whether projects it manages ship
 - **110 done when:** A read-only local command audits retained evidence for the managed fleet, emits stable actionable findings and explicit coverage gaps, and cannot execute gates or weaken policy.
 - **111 done when:** An advisory focused-first plan fails closed for unknown/shared inputs and an opt-in resource budget preserves every required gate.
 - **115 done when:** Comparable telemetry and shadow selection expose measured costs and misses without changing mandatory gate coverage.
+- **117 done when:** A harness experiment freezes case, configuration and comparison identities in the existing private experiment ledger without changing handoff behavior.
+- **118 done when:** One historical compatibility case runs through a fresh isolated builder and independently controlled acceptance, retaining an artifact-bound verdict.
+- **119 done when:** A frozen paired comparison preserves all attempts, enforces total allowance and reports per-case outcomes, costs, uncertainty and safe recovery.
+- **120 done when:** All six historical case definitions retain source provenance, independent acceptance and explicit development versus held-out exposure.
 
 ## G6 — A change reaches production once, checked
 
