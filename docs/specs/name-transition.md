@@ -98,9 +98,14 @@ phase 124 inventory replaces them with exact rows.
 - **A label rename is a remote change, and filters and saved searches use the
   name.** GitHub keeps a renamed label on its issues, so it is renamed, not
   recreated. That happens only with the owner's yes, per repository. (128)
-- **A cookie rename logs everyone out.** The home accepts the old cookie,
-  re-issues the new one on the next response, and stops reading the old one
-  only at retirement. (127)
+- **A cookie rename can break upgrade and rollback.** Deploy an owner-approved
+  compatibility-reader release for session, login and OAuth cookies before
+  switching writers or clearing legacy cookies. Pin it as the verified rollback
+  target. Only then may the new build issue plates cookies and retire each old
+  alias on response, preserving expiry. Rollback must consume the new cookies
+  and finish in-flight login/OAuth flows; logout clears both aliases. A legacy-only
+  rollback target blocks activation. This deployment is an explicit owner step,
+  not implied by merging source. (127)
 - **A database rename breaks the build that is still deployed.** New
   `plates_*` functions arrive by migration, and the old `keel_*` names stay as
   thin forwarders until retirement. The schema itself is moved with
