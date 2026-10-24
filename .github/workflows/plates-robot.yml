@@ -1,8 +1,3 @@
-# Robot extends climb; OFF unless trusted robot.on and budgetMinutes permit it.
-# Build's three trust boundaries: read-only agent, read-only judge, trusted publisher.
-# Review follows explicitly on this same serialized workflow, never by bot-PR triggers.
-# With tonight's plan (keel-night-plan, phase 76) a scan admits only its robot
-# items, in plan order, refuses its willNotTouch, and the publisher ticks them.
 name: plates-robot
 on:
   schedule:
@@ -440,7 +435,7 @@ jobs:
           ROBOT_JUDGE_OK: ${{ needs.judge.result == 'success' }}
           ROBOT_JUDGED_HEAD: ${{ needs.judge.outputs.head }}
           ROBOT_MODEL_RAN: ${{ needs.agent.outputs.model_ran }}
-          ROBOT_JUDGE_RAN: ${{ needs.judge.outputs.judge_ran }}
+          ROBOT_JUDGE_RAN: ${{ needs.agent.outputs.judge_ran }}
           ROBOT_PREPARED: ${{ needs.agent.outputs.prepared }}
         run: node scripts/plates/robot.mjs publish --json
       # Tonight's plan, ticked where the morning reads it (phase 76): the
