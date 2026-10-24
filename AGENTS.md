@@ -253,8 +253,11 @@ changes before exact `--yes --digest` approval. Retain historical review identit
 separately from current PR head; source existence does not prove a defect. Use the
 project's actual phase decision target. Bind candidate material bytes to the frozen
 plan, keep raw source bodies private, and preserve uncertain writes for inspection.
-Legacy acceptance cannot promote a tagged record. Evaluation/promotion/follow-up
-remain unavailable until their verification interfaces are implemented. See the
+Legacy acceptance cannot promote a tagged record. Register screening criteria before
+execution; evaluating a terminal comparison retains its original report and every
+attempt. Unknown costs are not zero, and offline results cannot prove agent efficacy.
+Recover the original report operation after an interrupted inbox link; never create
+a replacement. Promotion and follow-up require their own verification interfaces. See the
 [learning guide](docs/guide/lessons-and-learning.md).
 
 ## Session handoff trials

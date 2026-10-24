@@ -84,3 +84,14 @@ this commit; subsequent record-only changes reconcile these results.
 Locally built record mechanics do not establish measured improvement. The
 provider/spend gaps remain in phase 119, and phase 122's actual screening is
 still pending. Phase 121's PR review and the dependent merge hold remain open.
+
+## Exact-head review and CI — 24 October 2026
+
+PR [251](https://github.com/dalmaer/plates/pull/251), head
+`dff88d53b527b8988693e0ad3e7e5758f49c5c6e`, received zero review findings;
+the review gate exited 0. Fresh GitHub observation shows
+[check run 40072731026](https://github.com/dalmaer/plates/actions/runs/40072731026)
+completed successfully at 2026-10-24T07:13:27Z. Typecheck, impact and review
+checks also passed. This supersedes the pending-review observation above,
+without changing acceptance or the phase-119 owner hold. The PR remains
+stacked and unmerged.

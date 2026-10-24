@@ -423,7 +423,10 @@ Phase 120 supplies six historically grounded development cases through bounded
 inspection/export, preserving provenance and separate acceptance materials.
 Phase 121 binds explicitly selected findings to immutable lesson/proposal history
 and actual frozen material plans in the existing inbox. Local preview approval
-does not execute a trial or establish promotion readiness.
+does not execute a trial or establish promotion readiness. Phase 122 binds
+predeclared screening criteria and complete execution evidence to immutable report
+receipts in the same experiment. Its evaluated state records a verified result,
+including inconclusive results; it does not imply support or production activation.
 Case scope follows the actual historical failure surface; unsupported coverage
 stays explicit. Held-out coverage is zero. The offline boundary does not establish
 model efficacy.

@@ -541,7 +541,9 @@ with separate builder inputs, evaluator data and curator provenance. Use
 require an exact approved preview and a new private destination. Held-out
 coverage remains zero. Phase 121 adds selected-source verification and immutable
 lesson/proposal versions through `plates learn evaluate`; plan binding verifies
-actual material bytes without running a trial. See the
+actual material bytes without running a trial. Phase 122 registers frozen screening
+criteria and binds terminal trials to immutable reports before recording evaluated
+results. Unknown costs and offline scripted execution remain inconclusive. See the
 [learning guide](docs/guide/lessons-and-learning.md). Live provider execution, enforced spend and measured
 lesson promotion remain unimplemented; offline outcomes do not establish agent improvement. No paid
 evaluations are approved. The

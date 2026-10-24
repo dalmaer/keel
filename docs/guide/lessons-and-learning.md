@@ -189,9 +189,37 @@ frozen comparison to derived material-overlay bytes; it does not run it. Public
 candidate materials are read from private regular files, hashed, and shown in
 the exact preview. Protected task sources, probes and acceptance inputs cannot
 be changed. Revised proposals retain old versions and do not inherit old plans.
-Decide supports rejection or supersession only. Follow-up and later measured or
-promoted states return `code: verification_interface_unavailable`. Unknown cost and
-zero held-out coverage remain explicit gaps.
+Plan also accepts `register-screening` with payload `{proposalRef,planLinkRef}`.
+Freeze explicit target/control criteria before execution, then register that plan
+against the active proposal. Nonnull criteria cannot be registered after execution
+or reservation. Existing null-criteria plans remain readable and can be imported
+retrospectively, with an inconclusive result.
+
+Decide accepts `evaluate` with payload `{proposalRef,evaluationPlanRef}`. It reads
+the authorized frozen ledger and verifies every planned terminal slot, receipt
+chain and complete delivered source/material/requirements inventory. The preview
+binds the exact private report and inbox change; it creates neither files nor locks.
+Apply acquires the inbox lock before the harness lock, rechecks the observations,
+publishes the immutable report beside the experiment, then appends its inbox ref.
+These two publications are not atomic. Recover an unlinked report with the original
+operation/request bytes; a new UUID cannot bypass it. Missing or changed original
+report bytes also prevent duplicate-operation recovery. Preserve uncertain locks
+and partial files; this operation never reclaims them automatically.
+
+The lifecycle becomes evaluated while the legacy inbox status stays proposed.
+A new revision requires a genuinely changed hypothesis or candidate and keeps
+all prior results; its new plan must use a new experiment. Screening reports keep
+all attempts, invalid outcomes, paired discordance and resource coverage. A known
+cost subtotal is not a total; missing cost and human-help coverage stay unknown.
+Offline scripted results establish machinery only and remain inconclusive about
+agent efficacy. Five pairs per case are screening, not statistical proof. Zero
+held-out cases limits generalization. Incomplete cancelled comparisons refuse
+because closed admission is not established by the current interface.
+
+Follow-up and promotion return `code: verification_interface_unavailable`. Real
+screening still needs an isolation-capable provider adapter, an enforced spending
+gateway and the owner's exact allowance; none is activated by these operations.
+See [the screening contract](../specs/lesson-screening.md).
 
 Preview exits 3 without writes. Apply rechecks the request, source observations,
 phase context and inbox inventory. The same operation/request identity returns
