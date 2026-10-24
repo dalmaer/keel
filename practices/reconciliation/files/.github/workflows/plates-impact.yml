@@ -10,7 +10,7 @@ on:
     types: [opened, synchronize, reopened, edited]
 
 concurrency:
-  group: keel-impact-${{ github.event.pull_request.number }}
+  group: plates-impact-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:

@@ -170,7 +170,7 @@ const finding = (title, decision) => `---\ntitle: ${title}\nloop: [acme]\n${deci
 
 /** Acme Anvils with night, climb (and the robot) and loop's scripts, a health page, findings, and a gh over a JSON state. */
 async function acme(t, { config = {}, prs, issues, failGh = false } = {}) {
-  const base = await realpath(await mkdtemp(join(tmpdir(), 'keel-night-plan-')));
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'plates-night-plan-')));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'anvils');
   await mkdir(join(root, '.plates'), { recursive: true });
@@ -350,17 +350,17 @@ test('the night\'s step uses tonight\'s plan from the plan branch, else the defa
   const used = tonight('--branch-plan', branch);
   assert.equal(used.status, 0, used.stderr + used.stdout);
   assert.equal(JSON.parse(used.stdout).from, 'branch');
-  assert.match(JSON.parse(used.stdout).why, /Tonight's plan \(2026-10-15\) is the one on keel-night-plan, shaped by owner/);
+  assert.match(JSON.parse(used.stdout).why, /Tonight's plan \(2026-10-15\) is the selected branch plan, shaped by owner/);
   assert.deepEqual(JSON.parse(await readFile(join(root, PLAN), 'utf8')), owner);
   // None on the branch: the default, saying so.
   const none = JSON.parse(tonight().stdout);
   assert.deepEqual([none.from, none.plan.shapedBy], ['default', 'default']);
-  assert.match(none.why, /plates's default plan: no plan on keel-night-plan/);
+  assert.match(none.why, /plates's default plan: no plan on plates-night-plan/);
   // Dated for another night: the default.
   await writeFile(branch, JSON.stringify({ ...owner, date: '2026-10-14' }));
   const old = JSON.parse(tonight('--branch-plan', branch).stdout);
   assert.equal(old.from, 'default');
-  assert.match(old.why, /the plan on keel-night-plan is dated 2026-10-14, not 2026-10-15/);
+  assert.match(old.why, /the plan on plates-night-plan is dated 2026-10-14, not 2026-10-15/);
   assert.equal(JSON.parse(await readFile(join(root, PLAN), 'utf8')).shapedBy, 'default');
   // Refused (an unknown field; six builds with the robot's open PR): the default, naming why.
   await writeFile(branch, JSON.stringify({ ...owner, mood: 'calm' }));
@@ -566,7 +566,7 @@ test('plates night is announced: both verbs are in the cold start and the guide'
 
 /**
  * A synthetic Acme project whose origin is a bare repo holding main and the
- * plan branch keel-night-plan (one file, on its own history, as /goodnight
+ * plan branch plates-night-plan (one file, on its own history, as /goodnight
  * pushes it), with the night practice's scripts in scripts/plates.
  * Returns { dir, origin, git, tip, show, temp }.
  */
@@ -586,18 +586,18 @@ async function planRemote(t, plan) {
   git(['remote', 'add', 'origin', origin]);
   git(['push', '-q', 'origin', 'HEAD:refs/heads/main']);
   if (plan) {
-    git(['checkout', '-q', '--orphan', 'keel-night-plan']);
+    git(['checkout', '-q', '--orphan', 'plates-night-plan']);
     git(['rm', '-rq', '--cached', '.']);
-    await mkdir(join(dir, '.keel/night'), { recursive: true });
-    await writeFile(join(dir, '.keel/night/plan.json'), JSON.stringify(plan));
-    git(['add', '-f', '.keel/night/plan.json']);
+    await mkdir(join(dir, '.plates/night'), { recursive: true });
+    await writeFile(join(dir, '.plates/night/plan.json'), JSON.stringify(plan));
+    git(['add', '-f', '.plates/night/plan.json']);
     git(['commit', '-q', '-m', 'acme plan']);
-    git(['push', '-q', 'origin', 'HEAD:refs/heads/keel-night-plan']);
+    git(['push', '-q', 'origin', 'HEAD:refs/heads/plates-night-plan']);
     git(['checkout', '-q', '-f', 'main']);
-    await rm(join(dir, '.keel/night'), { recursive: true, force: true });
+    await rm(join(dir, '.plates/night'), { recursive: true, force: true });
   }
   const tip = ref => git(['rev-parse', ref], origin);
-  const show = () => JSON.parse(git(['show', 'refs/heads/keel-night-plan:.keel/night/plan.json'], origin));
+  const show = () => JSON.parse(git(['show', 'refs/heads/plates-night-plan:.plates/night/plan.json'], origin));
   return { dir, origin, git, tip, show, temp };
 }
 
@@ -619,20 +619,20 @@ async function tickStep(workflow, dir, env) {
 
 test('each pass ticks its item running, then done with the PR link or failed with the reason, on the plan branch', async t => {
   const { dir, git, tip, show, temp } = await planRemote(t, plannedTonight());
-  const main = tip('refs/heads/main'), first = tip('refs/heads/keel-night-plan');
+  const main = tip('refs/heads/main'), first = tip('refs/heads/plates-night-plan');
   await mkdir(join(temp, 'plan'), { recursive: true });
   // Climb's publish job: its item ran and opened PR 21; the other climb item was skipped, saying why.
   await writeFile(join(temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [{ id: 'climb-build', note: 'climb runs one job a night, and tonight\'s plan named climb-tests first' }] } }));
   const climbTick = await tickStep('plates-climb.yml', dir, { RUNNER_TEMP: temp, DAY: NIGHT, JUDGED: 'success', OPENED: 'success', PR: '21', LINE: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster' });
   assert.equal(climbTick.status, 0, climbTick.out);
-  assert.match(climbTick.out, /ticked on keel-night-plan \([0-9a-f]{7}\): climb-build planned → skipped, climb-tests planned → running, climb-tests running → done/);
+  assert.match(climbTick.out, /ticked on plates-night-plan \([0-9a-f]{7}\): climb-build planned → skipped, climb-tests planned → running, climb-tests running → done/);
   let plan = show();
   const byId = id => plan.items.find(i => i.id === id);
   assert.deepEqual([byId('climb-tests').status, byId('climb-tests').result], ['done', { note: 'climb test-time 2026-10-15: kept 1; Acme tests 12% faster', link: 'https://github.com/acme/anvils/pull/21' }]);
   assert.deepEqual([byId('climb-build').status, byId('climb-build').result.note], ['skipped', 'climb runs one job a night, and tonight\'s plan named climb-tests first']);
   assert.deepEqual(['robot-12', 'robot-13'].map(id => byId(id).status), ['planned', 'planned'], 'only climb\'s items moved');
   // One commit on top of the shaped plan: its history keeps the owner's plan, and main never moves.
-  assert.equal(git(['rev-parse', 'refs/heads/keel-night-plan^'], join(dir, '..', 'origin.git')), first);
+  assert.equal(git(['rev-parse', 'refs/heads/plates-night-plan^'], join(dir, '..', 'origin.git')), first);
   assert.equal(tip('refs/heads/main'), main, 'the plan branch is never main');
   // The robot's publish job: its item's judge failed, so no PR; a planned issue it refused is failed with why.
   await writeFile(join(temp, 'plan/robot-plan.json'), JSON.stringify({ state: 'ready', nightPlan: { used: true, applies: true, date: NIGHT, item: 'robot-12', ticks: [{ id: 'robot-13', status: 'failed', note: 'the robot refused #13: rubric: acceptance is missing' }], willNotTouch: [] } }));
@@ -657,33 +657,33 @@ test('a pass never ticks another night\'s plan, records nothing without a plan b
   assert.deepEqual(passTicks({ item: 'robot-12', failed: 'line one\nline two', runUrl: 'https://github.com/acme/anvils/actions/runs/5' }).at(-1), { id: 'robot-12', status: 'failed', note: 'line one line two', link: 'https://github.com/acme/anvils/actions/runs/5' });
   // No plan branch: nothing recorded, never an error.
   const bare = await planRemote(t, null);
-  assert.deepEqual(await record({ root: bare.dir, date: NIGHT, ticks }), { recorded: false, why: 'no plan branch keel-night-plan: nothing to tick', ticked: [], refused: [] });
+  assert.deepEqual(await record({ root: bare.dir, date: NIGHT, ticks }), { recorded: false, why: 'no valid plan dated tonight on either plan branch', ticked: [], refused: [] });
   // Tomorrow's plan, shaped since: it is not this pass's to tick.
   const later = await planRemote(t, { ...plannedTonight(), date: '2026-10-16' });
-  const before = later.tip('refs/heads/keel-night-plan');
+  const before = later.tip('refs/heads/plates-night-plan');
   const other = await record({ root: later.dir, date: NIGHT, ticks });
   assert.equal(other.recorded, false);
-  assert.match(other.why, /dated 2026-10-16, not 2026-10-15: it is another night's/);
-  assert.equal(later.tip('refs/heads/keel-night-plan'), before);
+  assert.match(other.why, /no valid plan dated tonight/);
+  assert.equal(later.tip('refs/heads/plates-night-plan'), before);
   // A race: someone pushes the plan branch between this pass's fetch and its push. The lease refuses
   // the stale push, and the pass ticks again on top of the new tip, keeping both.
   const { dir, origin, show, temp } = await planRemote(t, plannedTonight());
   const racer = join(temp, 'racer');
-  assert.equal(run('git', ['clone', '-q', '-b', 'keel-night-plan', origin, racer]).status, 0);
+  assert.equal(run('git', ['clone', '-q', '-b', 'plates-night-plan', origin, racer]).status, 0);
   const owner = { ...plannedTonight(), leftOpen: ['the owner added this line during the race'] };
-  await writeFile(join(racer, '.keel/night/plan.json'), JSON.stringify(owner));
+  await writeFile(join(racer, '.plates/night/plan.json'), JSON.stringify(owner));
   assert.equal(run('git', ['-C', racer, 'commit', '-qam', 'acme: the owner edits the plan']).status, 0);
   const bin = join(temp, 'bin'), mark = join(temp, 'raced');
   await mkdir(bin, { recursive: true });
   const real = run('sh', ['-c', 'command -v git']).stdout.trim();
-  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/keel-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/plates-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
   const raced = await record({ root: dir, date: NIGHT, ticks, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   assert.equal(raced.recorded, true, JSON.stringify(raced));
   assert.ok(existsSync(mark), 'the race happened');
   const after = show();
   assert.deepEqual(after.leftOpen, ['the owner added this line during the race'], 'the owner\'s push is kept (mutation: a plain force push loses it)');
   assert.equal(after.items.find(i => i.id === 'climb-tests').status, 'done');
-  assert.equal(run('git', ['rev-parse', 'refs/heads/keel-night-plan^'], { cwd: origin }).stdout.trim(), run('git', ['-C', racer, 'rev-parse', 'HEAD']).stdout.trim());
+  assert.equal(run('git', ['rev-parse', 'refs/heads/plates-night-plan^'], { cwd: origin }).stdout.trim(), run('git', ['-C', racer, 'rev-parse', 'HEAD']).stdout.trim());
 });
 
 // Review of phase 74 (PR #144): a build no pass takes. Lane night only measures.
@@ -711,8 +711,8 @@ test('a night with no owner plan writes its default plan to the plan branch, and
   assert.equal(made.status, 0, made.stderr + made.stdout);
   assert.equal(JSON.parse(made.stdout).written, true);
   assert.deepEqual(fresh.show(), defaultTonight());
-  assert.equal(fresh.git(['rev-list', '--count', 'refs/heads/keel-night-plan'], fresh.origin), '1');
-  assert.equal(fresh.git(['ls-tree', '-r', '--name-only', 'refs/heads/keel-night-plan'], fresh.origin), '.keel/night/plan.json');
+  assert.equal(fresh.git(['rev-list', '--count', 'refs/heads/plates-night-plan'], fresh.origin), '1');
+  assert.equal(fresh.git(['ls-tree', '-r', '--name-only', 'refs/heads/plates-night-plan'], fresh.origin), '.plates/night/plan.json');
   // Climb's pass ticks it, exactly as it ticks an owner's plan (mutation: no publish, and there is nothing to tick).
   await mkdir(join(fresh.temp, 'plan'), { recursive: true });
   await writeFile(join(fresh.temp, 'plan/pick.json'), JSON.stringify({ job: 'test-time', plan: { used: true, date: NIGHT, item: 'climb-tests', skipped: [] } }));
@@ -720,55 +720,55 @@ test('a night with no owner plan writes its default plan to the plan branch, and
   assert.equal(climbTick.status, 0, climbTick.out);
   assert.deepEqual(fresh.show().items.find(i => i.id === 'climb-tests').status, 'done');
   // A rerun of the night: tonight's plan is there (with its ticks), so nothing is written over it.
-  const ticked = fresh.tip('refs/heads/keel-night-plan');
+  const ticked = fresh.tip('refs/heads/plates-night-plan');
   const rerun = await publishDefault({ root: fresh.dir, date: NIGHT });
-  assert.deepEqual([rerun.written, fresh.tip('refs/heads/keel-night-plan')], [false, ticked]);
+  assert.deepEqual([rerun.written, fresh.tip('refs/heads/plates-night-plan')], [false, ticked]);
   assert.match(rerun.why, /holds the plan for 2026-10-15, shaped by default: never replaced/);
 
   // The owner's plan for tonight, or a later night: never replaced.
   for (const date of [NIGHT, '2026-10-16']) {
     const owned = await planRemote(t, { ...plannedTonight(), date });
     await writePlan(owned.dir, defaultTonight());
-    const before = owned.tip('refs/heads/keel-night-plan');
+    const before = owned.tip('refs/heads/plates-night-plan');
     const r = await publishDefault({ root: owned.dir, date: NIGHT });
     assert.equal(r.written, false, date);
     assert.match(r.why, new RegExp(`holds the plan for ${date}, shaped by owner: never replaced`));
-    assert.equal(owned.tip('refs/heads/keel-night-plan'), before);
+    assert.equal(owned.tip('refs/heads/plates-night-plan'), before);
   }
   // An earlier night's plan (that night is over and in its record): tonight's default goes on top, the old one kept as its parent.
   const old = await planRemote(t, { ...plannedTonight(), date: '2026-10-14' });
   await writePlan(old.dir, defaultTonight());
-  const parent = old.tip('refs/heads/keel-night-plan');
+  const parent = old.tip('refs/heads/plates-night-plan');
   const over = await publishDefault({ root: old.dir, date: NIGHT });
   assert.equal(over.written, true, over.why);
-  assert.equal(old.tip('refs/heads/keel-night-plan^'), parent);
+  assert.equal(old.tip('refs/heads/plates-night-plan^'), parent);
   assert.equal(old.show().date, NIGHT);
   // A plan that cannot be read is left alone, never replaced.
   const unread = await planRemote(t, { ...plannedTonight(), mood: 'calm' });
   await writePlan(unread.dir, defaultTonight());
-  const kept = unread.tip('refs/heads/keel-night-plan');
+  const kept = unread.tip('refs/heads/plates-night-plan');
   assert.match((await publishDefault({ root: unread.dir, date: NIGHT })).why, /cannot be read or is refused: it is left alone/);
-  assert.equal(unread.tip('refs/heads/keel-night-plan'), kept);
+  assert.equal(unread.tip('refs/heads/plates-night-plan'), kept);
   // Only tonight's default plan is written: the owner's working plan, or another night's, never.
   const own = await planRemote(t, null);
   await writePlan(own.dir, { ...defaultTonight(), shapedBy: 'owner' });
   assert.match((await publishDefault({ root: own.dir, date: NIGHT })).why, /tonight's plan is the owner's/);
   await writePlan(own.dir, { ...defaultTonight(), date: '2026-10-14' });
   assert.match((await publishDefault({ root: own.dir, date: NIGHT })).why, /the working plan is for 2026-10-14, not 2026-10-15: never another night's/);
-  assert.equal(run('git', ['rev-parse', '--verify', '-q', 'refs/heads/keel-night-plan'], { cwd: own.origin }).status, 1, 'nothing pushed');
+  assert.equal(run('git', ['rev-parse', '--verify', '-q', 'refs/heads/plates-night-plan'], { cwd: own.origin }).status, 1, 'nothing pushed');
 
   // A race: the owner's /goodnight lands tonight's plan between the night's read and its push. The lease
   // refuses the stale push; read again, the branch holds the owner's plan, which is kept.
   const raced = await planRemote(t, { ...plannedTonight(), date: '2026-10-14' });
   await writePlan(raced.dir, defaultTonight());
   const racer = join(raced.temp, 'racer');
-  assert.equal(run('git', ['clone', '-q', '-b', 'keel-night-plan', raced.origin, racer]).status, 0);
-  await writeFile(join(racer, '.keel/night/plan.json'), JSON.stringify(plannedTonight()));
+  assert.equal(run('git', ['clone', '-q', '-b', 'plates-night-plan', raced.origin, racer]).status, 0);
+  await writeFile(join(racer, '.plates/night/plan.json'), JSON.stringify(plannedTonight()));
   assert.equal(run('git', ['-C', racer, 'commit', '-qam', 'acme: the owner shapes tonight']).status, 0);
   const bin = join(raced.temp, 'bin'), mark = join(raced.temp, 'raced');
   await mkdir(bin, { recursive: true });
   const real = run('sh', ['-c', 'command -v git']).stdout.trim();
-  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/keel-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
+  await writeFile(join(bin, 'git'), `#!/bin/sh\ncase " $* " in *" push --porcelain "*) if [ ! -f "${mark}" ]; then touch "${mark}"; "${real}" -C "${racer}" push -q origin HEAD:refs/heads/plates-night-plan || exit 7; fi;; esac\nexec "${real}" "$@"\n`, { mode: 0o755 });
   const lost = await publishDefault({ root: raced.dir, date: NIGHT, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   assert.ok(existsSync(mark), 'the race happened');
   assert.equal(lost.written, false, 'mutation: a plain force push writes over the owner\'s plan');
@@ -803,17 +803,14 @@ test('a tick carries the item as its pass admitted it, and one whose item kept i
 });
 
 
-test('renamed workflows read the durable legacy remote blob while working plans use Plates paths', async () => {
-  const { REMOTE_PLAN, PLAN_BRANCH } = await import('../lib/night-plan.mjs');
-  assert.equal(PLAN, '.plates/night/plan.json');
-  assert.equal(REMOTE_PLAN, '.keel/night/plan.json');
-  assert.equal(PLAN_BRANCH, 'keel-night-plan');
-  for (const [practice, name] of [['night', 'night'], ['climb', 'climb'], ['climb', 'robot']]) {
-    const text = await readFile(join(PLATES, `practices/${practice}/files/.github/workflows/plates-${name}.yml`), 'utf8');
-    if (name === 'night') assert(text.includes('keel-night-plan:.keel/night/plan.json'));
-    else assert(text.includes('contents/.keel/night/plan.json?ref=keel-night-plan'));
-    assert(!text.includes('contents/.plates/night/plan.json'));
-    assert(!text.includes('keel-night-plan:.plates/night/plan.json'));
+test('new plan writers use Plates and workflow readers share explicit compatibility selection', async () => {
+  const { REMOTE_PLAN, PLAN_BRANCH, planLocations } = await import('../lib/night-plan.mjs');
+  assert.equal(REMOTE_PLAN, '.plates/night/plan.json');
+  assert.equal(PLAN_BRANCH, 'plates-night-plan');
+  assert.deepEqual(planLocations(), [{branch:'plates-night-plan',path:'.plates/night/plan.json'},{branch:'keel-night-plan',path:'.keel/night/plan.json'}]);
+  for (const name of ['night','climb','robot']) {
+    const text = await readFile(join(PLATES, 'practices', name === 'night' ? 'night' : 'climb', 'files/.github/workflows', `plates-${name}.yml`), 'utf8');
+    assert(text.includes(name === 'night' ? 'readRemoteNightPlan' : 'readApiNightPlan'));
   }
 });
 

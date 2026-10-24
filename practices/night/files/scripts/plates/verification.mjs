@@ -1,3 +1,4 @@
+import { nightBranches } from './names.mjs';
 // Revision-bound observations, embedded in the existing health report. No gate execution.
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -187,13 +188,9 @@ export function retainedVerificationSummary(text) {
 export async function recoverNightVerification({root,config,date,env=process.env}) {
   const repo=config.repo ?? env.GITHUB_REPOSITORY;
   if (!REPO.test(repo ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('night recovery requires repository identity and date');
-  const branch=`keel-night/${date}`, ref=`refs/heads/${branch}`;
   const git=args=>exec(env.PLATES_GIT || 'git',args,{cwd:root,env:{...env,GIT_TERMINAL_PROMPT:'0'}});
-  const lines=(await git(['ls-remote','--refs','origin',ref])).trim().split('\n').filter(Boolean);
-  if (!lines.length) return {branch,head:'',attempts:0,report:null};
-  if (lines.length!==1) throw new Error('night recovery ref read is ambiguous');
-  const [head,name]=lines[0].split('\t');
-  if (!SHA.test(head ?? '') || name!==ref) throw new Error('night recovery ref read is malformed');
+  const {branch,head}=await resolveNightBranch({root,date,env});
+  if (!head) return {branch,head:'',attempts:0,report:null};
   await git(['fetch','--no-tags','--depth=1','origin',head]);
   const {healthDirOf}=await import('./lib.mjs');
   const path=`${healthDirOf(config)}/${date}.md`;
@@ -201,4 +198,26 @@ export async function recoverNightVerification({root,config,date,env=process.env
   const receipts=parseVerifications(report);
   if (receipts.length && assessVerification(report,{repo,branch:'recovery',sha:head}).state==='malformed') throw new Error('prior night verification malformed; preserve original branch');
   return {branch,head,attempts:receipts.length,report};
+}
+
+/** Original namespace, including a retained final PR when morning resumes.
+ * Read refs only: this does not require a health page or fetch project content. */
+export async function resolveNightBranch({root,date,env=process.env,includeFinal=false}) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('night origin requires a date');
+  const branches=nightBranches(date), found=[];
+  for (const branch of branches) {
+    let head='', present=false;
+    for (const name of [branch,...(includeFinal?[`${branch}-final`]:[])]) {
+      const ref=`refs/heads/${name}`;
+      const lines=(await exec(env.PLATES_GIT || 'git',['ls-remote','--refs','origin',ref],{cwd:root,env:{...env,GIT_TERMINAL_PROMPT:'0'}})).trim().split('\n').filter(Boolean);
+      if (!lines.length) continue;
+      if (lines.length!==1) throw new Error('night recovery ref read is ambiguous');
+      const [sha,readRef]=lines[0].split('\t');
+      if (!SHA.test(sha ?? '') || readRef!==ref) throw new Error('night recovery ref read is malformed');
+      present=true; if (name===branch) head=sha;
+    }
+    if (present) found.push({branch,head});
+  }
+  if (found.length>1) throw new Error('night recovery has two origin branches; preserve both and resolve ownership');
+  return found[0] ?? {branch:branches[0],head:''};
 }

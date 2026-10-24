@@ -264,7 +264,7 @@ test('--record adds the result to keel-verify:verify.json, newest first; a file 
   prod.serve(repo.A);
   let s = await script(dir, repo.root, [repo.C, '--within', '0', '--record']);
   assert.equal(s.code, 1, s.err + s.out);
-  assert.match(s.out, /Recorded on keel-verify/);
+  assert.match(s.out, /Recorded on plates-verify/);
   prod.serve(repo.C);
   s = await script(dir, repo.root, [repo.C, '--within', '0', '--record', '--json']);
   assert.equal(s.code, 0, s.err + s.out);

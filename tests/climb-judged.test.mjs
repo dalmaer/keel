@@ -45,7 +45,14 @@ async function quietGh(t) {
   return d;
 }
 
-const pushed = (bare, ref) => run('git', ['rev-parse', '-q', '--verify', ref], { cwd: bare }).stdout.trim();
+const pushed = (bare, ref) => {
+  const result = run('git', ['rev-parse', '-q', '--verify', ref], { cwd: bare });
+  assert.ok(result.status === 0 || result.status === 1, result.stderr);
+  if (result.status === 1) return '';
+  const sha = result.stdout.trim();
+  assert.match(sha, /^[a-f0-9]{40}$/);
+  return sha;
+};
 const bundleHead = (dir, file, ref) => git(dir, ['bundle', 'list-heads', file, ref]).split(' ')[0];
 
 /** Acme on a bare origin, its main the run's commit: { bare, base }. Each job clones its own checkout of it. */
@@ -58,7 +65,7 @@ async function origin(t) {
 
 test('#68 climb: the judge bundles the commit it named before the agent\'s code ran, never a later one; publish refuses a bundle with any other head, and rechecks the commit itself', async t => {
   const { bare, base } = await origin(t);
-  const BRANCH = `keel-climb/test-time/${DAY}`;
+  const BRANCH = `plates-climb/test-time/${DAY}`;
   const text = await readFile(WORKFLOW, 'utf8');
 
   // The agent's job: one kept change, its record, its commits as a bundle.
@@ -96,7 +103,7 @@ test('#68 climb: the judge bundles the commit it named before the agent\'s code 
   // Publish: the commit named, rechecked, pushed with the rotation's state on top; any other head, nothing pushed.
   const gh = await quietGh(t);
   const publishEnv = night => ({ RUNNER_TEMP: night, GITHUB_SHA: base, KEPT: '1', LINE: 'climb test-time: kept 1', JOB: 'test-time', DAY, BRANCH, VALIDATED: kept, BASE: 'main', GH_TOKEN: 'acme', PATH: `${gh}:${process.env.PATH}` });
-  const target = `refs/heads/keel-climb/test-time/${DAY}`;
+  const target = `refs/heads/plates-climb/test-time/${DAY}`;
   const publishWith = async (bundle, over = {}) => {
     const pub = await checkout(t, bare, 'publish');
     const pubTemp = await temp(t, 'publish-temp');
@@ -123,6 +130,8 @@ test('#68 climb: the judge bundles the commit it named before the agent\'s code 
   const ok = await publishWith(judged);
   assert.equal(ok.r.status, 0, ok.r.out);
   const tip = pushed(bare, target);
+  assert.match(tip, /^[a-f0-9]{40}$/, `published ${target}`);
+  assert.equal(pushed(bare, `refs/heads/keel-climb/test-time/${DAY}`), '', 'no legacy branch written');
   assert.equal(git(bare, ['rev-parse', `${tip}^`]), kept, 'the guarded commit, and the rotation state on it');
   assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.plates/climb.json']);
   assert.deepEqual(JSON.parse(git(bare, ['show', `${tip}:.plates/climb.json`])), { last: { job: 'test-time', date: DAY, kept: 1 } });
@@ -143,7 +152,7 @@ test('#68 climb: the judge bundles the commit it named before the agent\'s code 
 
 test('#68 tend: the judge names the pass with its page before the gate runs, bundles that alone; publish refuses another head and rechecks the record rules itself (sandbox --job tend)', async t => {
   const { bare, base } = await origin(t);
-  const BRANCH = `keel-tend/${DAY}`;
+  const BRANCH = `plates-tend/${DAY}`;
   const text = await readFile(TEND_WORKFLOW, 'utf8');
 
   const agent = await checkout(t, bare, 'agent');
@@ -175,7 +184,7 @@ test('#68 tend: the judge names the pass with its page before the gate runs, bun
   assert.equal(bundleHead(judge, judged, `refs/heads/${BRANCH}`), page, 'the bundle ends on the commit named, not the later one');
 
   const gh = await quietGh(t);
-  const target = `refs/heads/keel-tend/${DAY}`;
+  const target = `refs/heads/plates-tend/${DAY}`;
   const publishWith = async (bundle, over = {}) => {
     const pub = await checkout(t, bare, 'publish');
     const pubTemp = await temp(t, 'publish-temp');
@@ -198,6 +207,7 @@ test('#68 tend: the judge names the pass with its page before the gate runs, bun
   const ok = await publishWith(judged);
   assert.equal(ok.status, 0, ok.out);
   assert.equal(pushed(bare, target), page, 'exactly the commit the guard passed');
+  assert.equal(pushed(bare, `refs/heads/keel-tend/${DAY}`), '', 'no legacy branch written');
 
   // The record rules are publish's own: a named commit that writes evidence, or cites no finding, is refused there.
   for (const [files, message, said] of [
@@ -254,7 +264,7 @@ test('#68: climb.mjs held names the checkout\'s state as one line, and with --si
 // plates#147: willNotTouch holds for the head that is pushed, plates's own rotation commit included.
 test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a plan that will not touch .plates/climb.json gets no rotation commit; any other keeps it', async t => {
   const { bare, base } = await origin(t);
-  const BRANCH = `keel-climb/test-time/${DAY}`, target = `refs/heads/${BRANCH}`;
+  const BRANCH = `plates-climb/test-time/${DAY}`, target = `refs/heads/${BRANCH}`;
   const text = await readFile(WORKFLOW, 'utf8');
   const agent = await checkout(t, bare, 'agent');
   git(agent, ['switch', '-q', '-c', BRANCH]);
@@ -279,10 +289,13 @@ test('climb\'s publish checks the plan\'s willNotTouch on the head it pushes: a 
   assert.equal(held.status, 0, held.out);
   assert.match(held.out, /::notice::Tonight's plan will not touch \.plates\/climb\.json: no rotation commit/);
   assert.equal(pushed(bare, target), kept, 'no rotation commit on top of the kept change');
+  assert.equal(pushed(bare, `refs/heads/keel-climb/test-time/${DAY}`), '', 'no legacy branch written');
   // A willNotTouch that does not cover it: the rotation commit, as before, and the pushed head passes the check.
   const other = await publish(['lib/anvil.mjs', '.plates/climb']);
   assert.equal(other.status, 0, other.out);
   const tip = pushed(bare, target);
+  assert.match(tip, /^[a-f0-9]{40}$/, `published ${target}`);
+  assert.equal(pushed(bare, `refs/heads/keel-climb/test-time/${DAY}`), '', 'no legacy branch written');
   assert.equal(git(bare, ['rev-parse', `${tip}^`]), kept);
   assert.deepEqual(git(bare, ['diff', '--name-only', kept, tip]).split('\n'), ['.plates/climb.json']);
   // A plan that cannot be read: nothing is pushed.

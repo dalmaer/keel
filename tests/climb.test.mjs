@@ -193,7 +193,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   assert.deepEqual([before.job, before.by, before.plan], ['test-time', 'measure', undefined]);
   // The plan names build-time: that, not the health page's choice. (Mutation: pick ignoring --plan runs test-time.)
   const named = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('measure-it', 'night', { kind: 'measure', number: null }), planItem('faster-build', 'climb:build-time')]))]);
-  assert.deepEqual([named.job, named.by, named.branch], ['build-time', 'plan', 'keel-climb/build-time/2026-10-06']);
+  assert.deepEqual([named.job, named.by, named.branch], ['build-time', 'plan', 'plates-climb/build-time/2026-10-06']);
   assert.match(named.why, /tonight's plan names it: faster-build, Acme faster-build/);
   assert.deepEqual(named.plan, { used: true, date: '2026-10-06', shapedBy: 'owner', item: 'faster-build', admitted: { lane: 'climb:build-time', number: { measure: 'slow_tests', bound: 0, better: 'lower' } }, skipped: [], willNotTouch: [] });
   // Only the first climb item that may run: one not in "climb".jobs, or waiting on its open PR, is skipped, saying why.
@@ -201,7 +201,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   assert.deepEqual([second.job, second.plan.item], ['build-time', 'build-x']);
   assert.deepEqual(second.plan.skipped.map(s => s.id), ['perf-x', 'tests-x', 'build-y']);
   assert.match(second.plan.skipped[0].note, /perf is not a job "climb"\.jobs names \(test-time, build-time\)/);
-  assert.match(second.plan.skipped[1].note, /test-time waits for its open keel-climb\/test-time\/ PR/);
+  assert.match(second.plan.skipped[1].note, /test-time waits for its open plates-climb\/test-time\/ PR/);
   assert.match(second.plan.skipped[2].note, /climb runs one job a night, and tonight's plan named build-x first/);
   // A plan with no climb item: climb does not run tonight, green, saying so. (Mutation: falling back to choose runs test-time.)
   const robotOnly = await planFile(t, dir, acmePlan([planItem('robot-7', 'robot:#7')]));
@@ -215,7 +215,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   // Every climb item blocked: none runs, and each says why.
   const blocked = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')]))], open);
   assert.equal(blocked.job, null);
-  assert.match(blocked.reason, /no climb item in tonight's plan \(2026-10-06\) can run: tests-x \(test-time waits for its open keel-climb\/test-time\/ PR\)/);
+  assert.match(blocked.reason, /no climb item in tonight's plan \(2026-10-06\) can run: tests-x \(test-time waits for its open plates-climb\/test-time\/ PR\)/);
   assert.deepEqual(blocked.plan.skipped.map(s => s.id), ['tests-x']);
   // A plan for another night, or a refused one, is no plan: pick as before, saying why.
   const old = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('build-x', 'climb:build-time')], { date: '2026-10-05' }))]);
@@ -227,7 +227,7 @@ test('with a plan, pick runs the plan\'s climb item and nothing else; with no cl
   // A plan file that cannot be read: exit 2, never a guess that there is none.
   const missing = climb(dir, ['pick', '--date', '2026-10-06', '--json', '--plan', join(dir, '..', 'no-such-plan.json')], { PLATES_GH: gh });
   assert.equal(missing.status, 2);
-  assert.match(json(missing).error, /cannot read the plan on keel-night-plan.*pick never guesses there is no plan/);
+  assert.match(json(missing).error, /cannot read the plan on plates-night-plan.*pick never guesses there is no plan/);
   // Weekly, on its off day: the plan's climb items are skipped, saying why.
   await setConfig(dir, { climb: { jobs: ['test-time'], schedule: 'weekly' } });
   const weekly = pickWith(['--plan', await planFile(t, dir, acmePlan([planItem('tests-x', 'climb:test-time')]))]);

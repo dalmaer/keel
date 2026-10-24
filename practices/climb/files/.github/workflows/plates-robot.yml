@@ -17,7 +17,7 @@ on:
         required: false
         default: ""
 concurrency:
-  group: keel-robot
+  group: plates-robot
   cancel-in-progress: false
 permissions: {}
 jobs:
@@ -63,18 +63,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/night-plan"
-          code=0
-          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan" > "$RUNNER_TEMP/night-plan/branch.json" 2> "$RUNNER_TEMP/night-plan/error.txt" || code=$?
-          if [ "$code" = 0 ]; then
-            echo "tonight's plan: read from keel-night-plan"
-          elif grep -q "HTTP 404" "$RUNNER_TEMP/night-plan/error.txt"; then
-            rm -f "$RUNNER_TEMP/night-plan/branch.json"
-            echo "no plan on keel-night-plan: the robot admits as it always has"
-          else
-            rm -f "$RUNNER_TEMP/night-plan/branch.json"
-            echo "::error::The plan branch keel-night-plan could not be read (gh api exit $code: $(head -n 1 "$RUNNER_TEMP/night-plan/error.txt")); the robot never guesses there is no plan."
-            exit 1
-          fi
+          node --input-type=module -e '
+            import {readApiNightPlan} from "./scripts/plates/night-plan.mjs";
+            import {writeFileSync,rmSync} from "node:fs";
+            const selected=readApiNightPlan({root:process.cwd(),repo:process.env.REPO,date:new Date().toISOString().slice(0,10)});
+            const path=process.env.RUNNER_TEMP+"/night-plan/branch.json";
+            rmSync(path,{force:true});
+            console.log(JSON.stringify({branch:selected.branch,skipped:selected.skipped,sources:selected.sources}));
+            if(selected.refused.length) throw new Error(selected.refused.join("; "));
+            if(selected.plan) writeFileSync(path,JSON.stringify(selected.plan));
+          '
+
       - name: Admit one issue from trusted policy
         id: prepare
         env:

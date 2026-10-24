@@ -35,11 +35,11 @@ test('rollover only targets upcoming canonical UTC night with no implicit build 
 });
 test('exact canonical publication appends one commit preserving other files and history; other consumers reject its kind',async()=>{
   const h=nightPlanHarness(),p=await previewPlan(h),parent=h.branch.head;
-  assert.equal(p.kind,'night-plan');assert.equal(p.files.length,1);assert.equal(p.before,h.branch.files['.keel/night/plan.json']);
+  assert.equal(p.kind,'night-plan');assert.equal(p.files.length,1);assert.equal(p.before,h.branch.files['.plates/night/plan.json']);
   assert.match(p.commitMessage,/GitHub user 1/);assert.equal(p.canSubmit,true);
   const done=await apply(h,p);assert.equal(done.state,'committed');assert.equal(done.kind,'night-plan');assert.equal(done.receipt.execution,'not-started');
-  assert.equal(h.planState.writes.length,1);assert.equal(h.branch.files['keep.txt'],'Acme unrelated branch file');assert.equal(h.branch.files['.keel/night/plan.json'],p.content);
-  assert.equal(h.planState.commits[0].parents.nodes[0].oid,parent);assert.equal(h.planState.commits[0].before['.keel/night/plan.json'],p.before);
+  assert.equal(h.planState.writes.length,1);assert.equal(h.branch.files['keep.txt'],'Acme unrelated branch file');assert.equal(h.branch.files['.plates/night/plan.json'],p.content);
+  assert.equal(h.planState.commits[0].parents.nodes[0].oid,parent);assert.equal(h.planState.commits[0].before['.plates/night/plan.json'],p.before);
   const again=await apply(h,p);assert.equal(again.state,'committed');assert.equal(h.planState.writes.length,1);
   const legacy=createOperations(h.config,{fetcher:h.fetcher,now:()=>h.state.now});
   await assert.rejects(legacy.recover(h.access,token,h.project,p.operationId),e=>e.code==='operation_not_found');
@@ -52,19 +52,19 @@ test('public preview needs exact acknowledgement and disabled publication cannot
   await assert.rejects(disabled.apply(h.access,token,h.project,p.id),e=>e.code==='night_plan_disabled');assert.equal(h.planState.writes.length,0);
 });
 test('upcoming-date seed is explicitly empty and rollover retains complete previous plan in parent history',async()=>{
-  const h=nightPlanHarness(),before=h.branch.files['.keel/night/plan.json'];
+  const h=nightPlanHarness(),before=h.branch.files['.plates/night/plan.json'];
   const current=await h.daily.inspect(h.access,token,h.project,'2026-10-22');assert.equal(current.plan,null);assert.equal(current.capabilities.nightPlan.review,true);assert.deepEqual(current.capabilities.nightPlan.seed.items,[]);
   const p=await previewPlan(h,'2026-10-22');assert.equal(p.rollover,true);assert.match(p.consequence,/parent commit history/);
-  assert.equal((await apply(h,p)).state,'committed');assert.equal(h.planState.commits[0].before['.keel/night/plan.json'],before);
+  assert.equal((await apply(h,p)).state,'committed');assert.equal(h.planState.commits[0].before['.plates/night/plan.json'],before);
 });
 test('missing canonical branch is explicit setup and incomplete PR inventory refuses preview',async()=>{
-  const missing=nightPlanHarness();delete missing.source.branches['keel-night-plan'];const model=await missing.daily.inspect(missing.access,token,missing.project,'2026-10-21');assert.equal(model.capabilities.nightPlan.review,false);
+  const missing=nightPlanHarness();delete missing.source.branches['plates-night-plan'];const model=await missing.daily.inspect(missing.access,token,missing.project,'2026-10-21');assert.equal(model.capabilities.nightPlan.review,false);
   await assert.rejects(previewPlan(missing),e=>e.code==='night_plan_setup_required');
   const incomplete=nightPlanHarness();incomplete.planState.incomplete=true;await assert.rejects(previewPlan(incomplete),e=>e.code==='night_policy_unavailable');
   assert.equal(incomplete.planState.writes.length,0);
 });
 test('changed source, progress, open PR policy, private visibility and revoked permissions refuse before dispatch',async()=>{
-  for(const change of [h=>h.source.head='f'.repeat(40),h=>{h.branch.files['.keel/night/plan.json']=JSON.stringify({...plan(),leftOpen:['Concurrent owner']});h.branch.head='f'.repeat(40);},h=>h.source.private=true,h=>h.source.push=false,h=>h.planState.ref='REF_replaced',h=>h.planState.open=[{number:12,headRefName:'keel/robot-12',isCrossRepository:false}]]) {
+  for(const change of [h=>h.source.head='f'.repeat(40),h=>{h.branch.files['.plates/night/plan.json']=JSON.stringify({...plan(),leftOpen:['Concurrent owner']});h.branch.head='f'.repeat(40);},h=>h.source.private=true,h=>h.source.push=false,h=>h.planState.ref='REF_replaced',h=>h.planState.open=[{number:12,headRefName:'keel/robot-12',isCrossRepository:false}]]) {
     const h=nightPlanHarness(),p=await previewPlan(h);change(h);const result=await apply(h,p);assert.equal(result.state,'refused');assert.equal(h.planState.writes.length,0);
   }
   const h=nightPlanHarness(),p=await previewPlan(h);assert.equal((await apply(h,p,{reauthorize:async()=>({...h.access,contentsPermission:'read'})})).state,'refused');assert.equal(h.planState.writes.length,0);
@@ -92,7 +92,7 @@ test('unknown dispatch blocks a second project operation; concurrent same-previe
 
 test('invalid canonical JSON and coercible identifier shapes stay unavailable rather than crashing or publishing',async()=>{
   for(const raw of ['null','not JSON']) {
-    const h=nightPlanHarness();h.branch.files['.keel/night/plan.json']=raw;
+    const h=nightPlanHarness();h.branch.files['.plates/night/plan.json']=raw;
     const model=await h.daily.inspect(h.access,token,h.project,'2026-10-21');
     assert.equal(model.capabilities.nightPlan.review,false);assert.match(model.capabilities.nightPlan.reason,/invalid/);
   }
@@ -111,7 +111,7 @@ test('near-limit canonical plan preview and durable intent fit SQL004 without lo
     for(const item of large.items)item.result.note='"'.repeat(size);
   }
   const before=JSON.stringify(large,null,2)+'\n';assert.ok(Buffer.byteLength(before)>250000);
-  h.branch.files['.keel/night/plan.json']=before+' '.repeat(262144-Buffer.byteLength(before));
+  h.branch.files['.plates/night/plan.json']=before+' '.repeat(262144-Buffer.byteLength(before));
   h.source.files['docs/night/2026-10-21.json']=JSON.stringify(large);
   const current=await h.daily.inspect(h.access,token,h.project,large.date),next=structuredClone(current.plan);next.leftOpen.push('Acme final question');
   const p=await h.nightPlan.preview(h.access,token,h.project,{date:large.date,sourceDigest:current.sourceDigest,plan:next});

@@ -84,3 +84,10 @@ test('delivery and continuation readers require both aliases and select current 
   assert.equal(module[reader](current+'\n'+current),null);
  }
 });
+
+for (const name of ['plates','keel']) test(`robot delivery and continuation preserve ${name} issue head`,async()=>{
+ const current={...pr,head:{...pr.head,ref:`${name}/robot-1`}};
+ const github=async({path})=>({status:200,data:path.includes('/pulls?')?[{number:2}]:current});
+ assert.equal((await readRobotDelivery({repo,issueNumber:1,instanceId:mark.instanceId,github})).state,'open');
+ assert.equal((await robotDeliveryMetadata({repo,pr:current,github})).association.issueNumber,1);
+});

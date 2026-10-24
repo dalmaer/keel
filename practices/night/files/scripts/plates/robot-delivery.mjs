@@ -1,4 +1,4 @@
-import {writeName, markerComment, markerComments, markerLines, markerHeader} from './names.mjs';
+import { writeName, markerComment, markerComments, markerLines, markerHeader, readNames, robotIssueOf } from './names.mjs';
 // Read-only delivery facts and a bounded GitHub REST transport; no runtime import.
 import { spawnSync } from 'node:child_process';
 export const robotRepo = value => typeof value === 'string' && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value) && !value.split('/').some(x => x === '.' || x === '..');
@@ -83,7 +83,7 @@ export function robotContinuationOf(body) {
 }
 export async function robotDeliveryMetadata({repo,pr,github=robotGithub,headSha=pr?.head?.sha}) {
   const initial = robotAssociationOf(pr?.body), identity = robotRepositoryIdentity(repo, github);
-  if (!initial || !await identity.same(initial.repo) || !robotId(pr.number) || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || pr.user?.type !== 'Bot' || pr.user.login !== 'github-actions[bot]' || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${initial.issueNumber}` || !robotSha(headSha)) throw new Error('continuation head changed or delivery provenance unavailable');
+  if (!initial || !await identity.same(initial.repo) || !robotId(pr.number) || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || pr.user?.type !== 'Bot' || pr.user.login !== 'github-actions[bot]' || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || robotIssueOf(pr.head?.ref) !== initial.issueNumber || !robotSha(headSha)) throw new Error('continuation head changed or delivery provenance unavailable');
   if (initial.headSha === headSha) {
     const marks = markerLines(pr.body,'marker:keel:robot-permission');
     let permission = null;
@@ -108,7 +108,7 @@ export async function readRobotDelivery({ repo, issueNumber, instanceId, github 
   try {
     if (!robotRepo(repo) || !robotId(issueNumber) || !/^[A-Za-z0-9_-]{1,128}$/.test(instanceId)) throw new Error('invalid delivery identity');
     const identity = robotRepositoryIdentity(repo, github);
-    const rows = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0] + ':keel/robot-' + issueNumber)}`);
+    const rows = await robotPulls(github, repo, issueNumber);
     const matches = [];
     for (const row of rows) {
       if (!robotId(row.number)) throw new Error('invalid pull request identity');
@@ -117,11 +117,24 @@ export async function readRobotDelivery({ repo, issueNumber, instanceId, github 
       if (!initial || initial.issueNumber !== issueNumber || initial.instanceId !== instanceId) continue;
       if (!await identity.same(initial.repo)) throw new Error('delivery repository identity mismatch');
       const {association:mark} = await robotDeliveryMetadata({repo,pr,github});
-      if (pr.number !== row.number || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || pr.head?.ref !== `keel/robot-${issueNumber}` || !robotSha(pr.head?.sha) || !robotSha(pr.base?.sha) || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || mark.headSha !== pr.head.sha || pr.user?.type !== 'Bot' || pr.user?.login !== 'github-actions[bot]') throw new Error('pull request association does not match verified delivery');
+      if (pr.number !== row.number || pr.head?.repo?.full_name !== repo || pr.base?.repo?.full_name !== repo || robotIssueOf(pr.head?.ref) !== issueNumber || !robotSha(pr.head?.sha) || !robotSha(pr.base?.sha) || pr.html_url !== `https://github.com/${repo}/pull/${pr.number}` || mark.headSha !== pr.head.sha || pr.user?.type !== 'Bot' || pr.user?.login !== 'github-actions[bot]') throw new Error('pull request association does not match verified delivery');
       if (pr.merged_at && (!robotSha(pr.merge_commit_sha) || !Number.isFinite(Date.parse(pr.merged_at)))) throw new Error('merge facts unavailable');
       matches.push({ state: pr.merged_at ? 'merged' : pr.state === 'open' ? 'open' : pr.state === 'closed' ? 'closed' : 'unknown', pr: { number: pr.number, url: pr.html_url, headSha: pr.head.sha, baseSha: pr.base.sha, mergedAt: pr.merged_at ?? null, mergeSha: pr.merged_at ? pr.merge_commit_sha : null } });
     }
     if (matches.length > 1) return { ...result, state: 'ambiguous', reasons: ['multiple associated pull requests'] };
     return matches.length ? { ...result, ...matches[0] } : { ...result, state: 'missing' };
   } catch (error) { return { ...result, reasons: [error.message] }; }
+}
+
+/** Read both exact issue heads; duplicate API rows are one PR, never two attempts. */
+export async function robotPulls(github, repo, issueNumber) {
+  const rows = new Map();
+  for (const prefix of readNames('git ref:keel/robot-')) {
+    const found = await robotPages(github, `/repos/${repo}/pulls?state=all&head=${encodeURIComponent(repo.split('/')[0] + ':' + prefix + issueNumber)}`);
+    for (const row of found) {
+      if (!robotId(row.number)) throw new Error('invalid robot pull request identity');
+      rows.set(row.number, row);
+    }
+  }
+  return [...rows.values()];
 }

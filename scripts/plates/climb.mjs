@@ -1,3 +1,4 @@
+import { writeName, branchSuffix } from './names.mjs';
 // plates climb (plates practice `climb`; managed: plates render rewrites it). A
 // climb night sends an agent to improve one number while the project sleeps;
 // this script is every number it reports and every keep-or-revert it makes,
@@ -110,7 +111,7 @@ export const LESSONS_DIR = `${NIGHT_DIR}/lessons`;
 export const FINDINGS_DIR = 'docs/loop';
 /** A finding a person decided: no climb night writes one (lesson 53). */
 export const DECIDED = Object.freeze(['accepted', 'declined', 'stale', 'done']);
-export const PREFIX = 'keel-climb/';
+export const PREFIX = writeName('git ref:keel-climb/');
 export const CHECK = 'npm run check';
 /** A weekly climb runs on this UTC weekday (1, Monday). */
 export const WEEKLY_DAY = 1;
@@ -349,7 +350,7 @@ export function healthRows(text) {
 const distance = r => r.state === 'broken' ? Infinity : ((r.op === '≤' ? r.value - r.bound : r.bound - r.value) / Math.max(Math.abs(r.bound), 1));
 
 /** The open keel-climb/<job>/ PRs' jobs, from gh's headRefName list. */
-export const waitingJobs = heads => new Set(heads.map(h => (h.startsWith(PREFIX) ? h.slice(PREFIX.length).split('/')[0] : null)).filter(Boolean));
+export const waitingJobs = heads => new Set(heads.map(h => (branchSuffix(h, 'git ref:keel-climb/')?.split('/')[0] ?? null)).filter(Boolean));
 
 /**
  * Tonight's job, pure: the job tied to the health page's worst measure

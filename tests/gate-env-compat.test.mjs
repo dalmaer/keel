@@ -46,6 +46,7 @@ async function project(t) {
   await writeFile(join(root, 'probe.mjs'), probe);
   await writeFile(join(root, 'acme.test.mjs'), "import {test} from 'node:test';test('Acme executes',()=>{});\n");
   await writeFile(join(root, 'acme.txt'), 'base\n');
+  // The relocated gate helper still imports its names module as a sibling.
   await cp(resolve('scripts/plates/lib.mjs'), join(root, 'gate-lib.mjs'));
   await cp(resolve('scripts/plates/names.mjs'), join(root, 'names.mjs'));
   for (const name of ['test-ledger.mjs', 'time-receipts.mjs', 'names.mjs']) await cp(resolve('scripts/plates', name), join(root, 'scripts/plates', name));

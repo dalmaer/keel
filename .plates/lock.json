@@ -83,7 +83,7 @@
     },
     ".github/workflows/plates-impact.yml": {
       "practice": "reconciliation",
-      "sha256": "74435d74b6e53cd443a605d563bfd9f90c6446bcbbbd0261c42ae774c65cb407"
+      "sha256": "9d7a241c9a57a984e93b8e75db67c58036e766d45d074ef071fa95a931b3d9bb"
     },
     ".github/workflows/plates-morning.yml": {
       "practice": "night",
@@ -95,15 +95,15 @@
     },
     ".github/workflows/plates-robot-route.yml": {
       "practice": "climb",
-      "sha256": "53ef4753bb82fadf648d1dc68807593891a75561c134b7a93fefe82029290e48"
+      "sha256": "716902ac79827a632013461d8905ba338e65305d1f923a2c0f8c31c3ada44341"
     },
     ".github/workflows/plates-robot.yml": {
       "practice": "climb",
-      "sha256": "915fbfc230febd887809c5b2d5b277ea34dd42e34debe599e2064192b70e8d40"
+      "sha256": "0fe07f65e2b6de0f44148395d9852acbca6547b2a16192c23f251c08a18d20f0"
     },
     ".github/workflows/plates-tend.yml": {
       "practice": "climb",
-      "sha256": "e8cdd488dc0eca7020434cadc8ae1a83a65875b0eb238c72664de760d252445f"
+      "sha256": "ae3e4ad10d33574e92d213df31594b6d85dd660b83b0ec0842a3175579e3f19f"
     },
     "AGENTS.md#agents-md": {
       "practice": "agents-md",
@@ -171,7 +171,7 @@
     },
     "scripts/plates/climb.mjs": {
       "practice": "climb",
-      "sha256": "b9ace94782a506f725867cb4db78c1f817a7a2a957090823e267fcd99d2a2a31"
+      "sha256": "10fdbc4573402e3c2fa29d6cfcb3b11a7ecb981e09a865e73e7c517bf802ffdb"
     },
     "scripts/plates/cross-review.mjs": {
       "practice": "cross-review",
@@ -187,7 +187,7 @@
     },
     "scripts/plates/drain.mjs": {
       "practice": "night",
-      "sha256": "4836afe7ca388f70ff8d1566cde30a1447ace1ac4c33bb2bd2309679fc149825"
+      "sha256": "ac33f46f44fc86651413cf7e3c536d2e615e402073f819ad1144839552f4d682"
     },
     "scripts/plates/gate.mjs": {
       "practice": "night",
@@ -319,7 +319,7 @@
     },
     "scripts/plates/verification.mjs": {
       "practice": "night",
-      "sha256": "73a89a972e0c17b5a36f24bda044151b39d5d97d9acc1d7232d9cb1ac27de266"
+      "sha256": "e636a1c4649c2e073317bfd66b5f3078580c7f7e272a72af7db4175bb76db868"
     },
     "scripts/plates/workflows.mjs": {
       "practice": "ci",

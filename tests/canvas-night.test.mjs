@@ -629,3 +629,21 @@ test('canvas recovery requires both artifact aliases for each writer family', as
     assert.equal(bad.ghCalls.filter(args => args[0] === 'run').length, 0, 'removed alias cannot download a journal');
   }
 });
+
+test('canvas recovery retains either night workflow identity and its held artifact name',async t=>{
+ for(const name of ['plates','keel']) {
+  const latest=trustedRun({id:150,path:`.github/workflows/${name}-night.yml`});
+  const out=await workflow(t,{runs:[latest],local:false,artifacts:[artifactFor(latest)],bundle:{provenance:provenanceFor(latest)}});
+  assert.equal(out.status,0,out.stderr);
+  assert.equal(out.ghCalls.filter(a=>a[0]==='run'&&a[1]==='download').length,1);
+ }
+});
+
+test('canvas recovery retains either morning workflow identity and its held artifact name',async t=>{
+ for(const name of ['plates','keel']) {
+  const latest=trustedRun({id:150,path:`.github/workflows/${name}-morning.yml`});
+  const out=await workflow(t,{runs:[latest],local:false,artifacts:[{...artifactFor(latest),name:'keel-canvas-card-1'}],bundle:{provenance:provenanceFor(latest)}});
+  assert.equal(out.status,0,out.stderr);
+  assert.equal(out.ghCalls.filter(a=>a[0]==='run'&&a[1]==='download').length,1);
+ }
+});

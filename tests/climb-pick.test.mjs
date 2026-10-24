@@ -29,7 +29,7 @@ test('pick: the job tied to the worst measure, rotation when none is outside, an
   assert.deepEqual([waits.job, waits.by], ['acme-time', 'rotation'], 'the measure\'s job has an open PR: the next in rotation');
   const all = m.choose({ jobs, rows: outside, table, waiting: new Set(jobs) });
   assert.equal(all.job, null);
-  assert.match(all.reason, /every job waits for its open keel-climb\/<job>\/ PR/);
+  assert.match(all.reason, /every job waits for its open plates-climb\/<job>\/ PR/);
   assert.deepEqual([...m.waitingJobs(['keel-climb/test-time/2026-10-04', 'keel-night/2026-10-05', 'renovate/x'])], ['test-time']);
   // The health page's own rows, read from the table the night writes.
   assert.deepEqual(m.healthRows(page([['slow_tests', 3, '≤ 0', 'outside'], ['ci', '—', '≤ 0', 'n/a']])), [
@@ -41,7 +41,7 @@ test('pick: the job tied to the worst measure, rotation when none is outside, an
   assert.equal(p.job, 'test-time');
   assert.equal(p.by, 'measure');
   assert.match(p.why, /slow_tests is outside on the newest health page \(3 against ≤ 0\)/);
-  assert.equal(p.branch, 'keel-climb/test-time/2026-10-06');
+  assert.equal(p.branch, 'plates-climb/test-time/2026-10-06');
   assert.equal(p.health, 'docs/health/2026-10-05.md');
   // An open PR on the job's prefix: no climb tonight. (Mutation: pick ignoring it fails here.)
   const open = await stubGh(t, ['keel-climb/test-time/2026-10-04']);
@@ -179,7 +179,7 @@ test('pick: hygiene goes ahead of every other job when the ledger names a flaky 
   await write(dir, { 'docs/health/2026-10-05.md': page([['slow_tests', 9, '≤ 0', 'outside'], ['flaky_tests', 1, '≤ 0', 'outside'], ['build_time', 4000, '≤ 1000', 'outside']]) });
   const p = json(climb(dir, ['pick', '--date', '2026-10-06', '--json'], { PLATES_GH: await stubGh(t, []) }));
   assert.equal(p.job, 'hygiene', JSON.stringify(p));
-  assert.equal(p.branch, 'keel-climb/hygiene/2026-10-06');
+  assert.equal(p.branch, 'plates-climb/hygiene/2026-10-06');
   assert.equal(p.command, 'the test ledger (.plates/test-runs)');
   // A build_time with no bound (recorded only) is a dash on the page: never a reason to climb.
   assert.deepEqual(m.healthRows(page([['build_time', 4000, '—', 'ok']])), []);
@@ -193,7 +193,7 @@ test('retirement: a job whose last three PRs were closed unmerged is skipped by 
   assert.deepEqual(climbRetiring([pr(1, 'test-time'), pr(2, 'test-time', true), pr(3, 'test-time')], ['test-time']), [], 'one merged among the last three');
   assert.deepEqual(climbRetiring([pr(1, 'test-time', true), pr(2, 'test-time'), pr(3, 'test-time'), pr(4, 'test-time')], ['test-time']).map(r => r.prs), [[4, 3, 2]], 'an older merge does not save it');
   assert.deepEqual(climbRetiring(three.slice(0, 2), ['test-time']), [], 'two is not three');
-  assert.match(retireLine({ job: 'test-time', prs: [3, 2, 1] }), /^Climb: `test-time` proposes its own retirement: its last 3 keel-climb\/test-time\/ PRs \(#3, #2, #1\) were closed unmerged\. Remove it from "climb"\.jobs, or reopen one/);
+  assert.match(retireLine({ job: 'test-time', prs: [3, 2, 1] }), /^Climb: `test-time` proposes its own retirement: its last 3 plates-climb\/test-time\/ PRs \(#3, #2, #1\) were closed unmerged\. Remove it from "climb"\.jobs, or reopen one/);
 
   // pick, against gh's closed list: test-time is skipped, the rotation goes on. (Mutation: ignoring three closed PRs fails here.)
   const dir = await acme(t, { climb: { jobs: ['test-time', 'build-time'], build: 'node -e ""', buildOutput: 'dist' }, files: { 'docs/health/2026-10-05.md': page([['slow_tests', 3, '≤ 0', 'outside']]) } });

@@ -685,3 +685,11 @@ test('plates update takes only migrations at or below the version it brings the 
   assert.deepEqual(r.data.migrations, [], 'not this update\'s');
   assert.equal(await readFile(join(dir, 'ACME-LATER.md'), 'utf8').catch(() => null), null);
 });
+
+for(const name of ['plates','keel'])test(`update resumes the existing ${name} branch without renaming or publishing`,async t=>{
+ const dir=await oldProject(t), branch=`${name}/update-v${TARGET}`;
+ git(dir,'branch',branch);const before=git(dir,'rev-parse',branch);
+ const result=await run({dir});assert.equal(result.exitCode,3,result.text);assert.equal(result.data.resumed,true);
+ assert.equal(result.data.branch,branch);assert.equal(git(dir,'rev-parse',branch),before);
+ assert.equal(git(dir,'branch','--list',name==='keel'?BRANCH(TARGET):`keel/update-v${TARGET}`),'');
+});

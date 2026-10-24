@@ -51,7 +51,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: keel-tend
+  group: plates-tend
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.
@@ -623,7 +623,7 @@ jobs:
           node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --job tend
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own pass, so force is safe here and nowhere else.
-          git push --force origin "$head:refs/heads/keel-tend/$DAY"
+          git push --force origin "$head:refs/heads/plates-tend/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
             code=0
             out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "plates tend: $DAY" --body-file "$RUNNER_TEMP/pass/body.md" 2>&1) || code=$?

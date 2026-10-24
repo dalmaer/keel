@@ -154,13 +154,14 @@ test('a keel name the table does not list fails, naming where', async t => {
   }
 });
 
-test('name lookups are explicit and only implemented phase126 identities transition', () => {
+test('name lookups preserve implemented phase125/126 and reviewed phase127 transitions', () => {
   assert.equal(new Set(NAMES.map(row => row.id)).size, NAMES.length);
-  const surfaces = new Set(['git ref','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const surfaces = new Set(['git ref','local Git path','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const hostedEnv = new Set(['web:KEEL_WEB_ORIGIN', 'web:KEEL_WEB_OPERATION', 'web:KEEL_WEB_CONFIG', 'web:KEEL_CONNECTION_ENCRYPTION_KEY', 'web:KEEL_GITHUB_CLIENT_SECRET', 'web:KEEL_SESSION_ENCRYPTION_KEY']);
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    assert.equal(row.state, ['web:KEEL_WEB_ORIGIN','web:KEEL_WEB_OPERATION','web:KEEL_WEB_CONFIG','web:KEEL_CONNECTION_ENCRYPTION_KEY','web:KEEL_GITHUB_CLIENT_SECRET','web:KEEL_SESSION_ENCRYPTION_KEY'].includes(row.id) || row.phase === 126 && (row.surface === 'fence' || row.id.startsWith('marker:keel:robot-') || row.id === 'marker:keel:inconclusive' || ['marker:keel:time-proposal:begin', 'marker:keel:time-proposal:end', 'artifact:keel-time-proposal', 'marker:keel:health-report:begin', 'marker:keel:health-report:end', 'marker:keel:review-after', 'marker:keel:cross-review', 'marker:keel:review-after-pending', 'marker:keel:class', 'marker:keel:hygiene-proposal:v1', 'marker:keel:hygiene-data', 'marker:keel:robot-rubric:v1', 'marker:keel:robot-data', 'artifact:keel-test-runs', 'artifact:keel-production-', 'artifact:keel-canvas-night', 'artifact:keel-canvas-card', 'artifact:keel-tend-page'].includes(row.id)) ? 'dual' : 'held');
+    assert.equal(row.state, row.phase === 125 || ['web:KEEL_WEB_ORIGIN','web:KEEL_WEB_OPERATION','web:KEEL_WEB_CONFIG','web:KEEL_CONNECTION_ENCRYPTION_KEY','web:KEEL_GITHUB_CLIENT_SECRET','web:KEEL_SESSION_ENCRYPTION_KEY'].includes(row.id) || row.phase === 126 && (row.surface === 'fence' || row.id.startsWith('marker:keel:robot-') || row.id === 'marker:keel:inconclusive' || ['marker:keel:time-proposal:begin', 'marker:keel:time-proposal:end', 'artifact:keel-time-proposal', 'marker:keel:health-report:begin', 'marker:keel:health-report:end', 'marker:keel:review-after', 'marker:keel:cross-review', 'marker:keel:review-after-pending', 'marker:keel:class', 'marker:keel:hygiene-proposal:v1', 'marker:keel:hygiene-data', 'marker:keel:robot-rubric:v1', 'marker:keel:robot-data', 'artifact:keel-test-runs', 'artifact:keel-production-', 'artifact:keel-canvas-night', 'artifact:keel-canvas-card', 'artifact:keel-tend-page'].includes(row.id)) ? 'dual' : 'held');
     assert.equal(nameRow(row.id), row);
     assert.equal(writeName(row.id), row.state === 'held' ? row.keel : row.plates);
     assert.deepEqual(readNames(row.id), row.state === 'held' ? [row.keel] : [row.plates, row.keel]);
@@ -170,6 +171,9 @@ test('name lookups are explicit and only implemented phase126 identities transit
       assert.deepEqual(readNames(row.id, rows), state === 'dual' ? [row.plates, row.keel] : [row.plates]);
     }
   }
+  const token = nameRow('git ref:keel-claims/phase-');
+  assert.deepEqual([token.surface, token.phase, token.state, token.keel, token.plates],
+    ['local Git path', 128, 'held', 'keel-claims/phase-', 'plates-claims/phase-']);
   for (const lookup of [nameRow, writeName, readNames]) assert.throws(() => lookup('unknown'), /Unknown name identity/);
   assert.throws(() => writeName('acme', [{ id: 'acme', state: 'unexpected' }]), /Invalid name state/);
 });

@@ -67,7 +67,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: keel-climb
+  group: plates-climb
   cancel-in-progress: false
 
 # Each job asks for its own; nothing is granted by default.
@@ -228,18 +228,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/night-plan"
-          code=0
-          gh api -H "Accept: application/vnd.github.raw+json" "repos/$REPO/contents/.keel/night/plan.json?ref=keel-night-plan" > "$RUNNER_TEMP/night-plan/branch.json" 2> "$RUNNER_TEMP/night-plan/error.txt" || code=$?
-          if [ "$code" = 0 ]; then
-            echo "tonight's plan: read from keel-night-plan"
-          elif grep -q "HTTP 404" "$RUNNER_TEMP/night-plan/error.txt"; then
-            rm -f "$RUNNER_TEMP/night-plan/branch.json"
-            echo "no plan on keel-night-plan: climb picks as it always has"
-          else
-            rm -f "$RUNNER_TEMP/night-plan/branch.json"
-            echo "::error::The plan branch keel-night-plan could not be read (gh api exit $code: $(head -n 1 "$RUNNER_TEMP/night-plan/error.txt")); climb never guesses there is no plan."
-            exit 1
-          fi
+          node --input-type=module -e '
+            import {readApiNightPlan} from "./scripts/plates/night-plan.mjs";
+            import {writeFileSync,rmSync} from "node:fs";
+            const selected=readApiNightPlan({root:process.cwd(),repo:process.env.REPO,date:new Date().toISOString().slice(0,10)});
+            const path=process.env.RUNNER_TEMP+"/night-plan/branch.json";
+            rmSync(path,{force:true});
+            console.log(JSON.stringify({branch:selected.branch,skipped:selected.skipped,sources:selected.sources}));
+            if(selected.refused.length) throw new Error(selected.refused.join("; "));
+            if(selected.plan) writeFileSync(path,JSON.stringify(selected.plan));
+          '
+
 
       # The climb config, validated (a bad one is red, naming the key), and
       # tonight's job: with tonight's plan (valid and dated today, UTC), the
@@ -901,7 +900,7 @@ jobs:
           if [ "$PLAN_USED" = true ]; then node scripts/plates/climb.mjs sandbox --base "$GITHUB_SHA" --head "$head" --plan "$RUNNER_TEMP/plan/night-plan.json"; fi
           # The branch is this workflow's alone; a re-run the same day replaces
           # its own night, so force is safe here and nowhere else.
-          git push --force origin "$head:refs/heads/keel-climb/$JOB/$DAY"
+          git push --force origin "$head:refs/heads/plates-climb/$JOB/$DAY"
           if ! gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number' | grep -q .; then
             code=0
             out=$(gh pr create --base "$BASE" --head "$BRANCH" --title "plates climb: $JOB, $DAY" --body-file "$RUNNER_TEMP/night/body.md" 2>&1) || code=$?

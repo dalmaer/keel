@@ -1,4 +1,5 @@
-import {labelNames, repositoryLabelSelection} from './names.mjs';
+import { labelNames, repositoryLabelSelection, readNames, writeName, nightBranches, finalNightBranch } from './names.mjs';
+import { planLocations } from './night-plan.mjs';
 import { retainedVerificationSummary } from './verification.mjs';
 import { rewriteHealthBody } from './time-proposals.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
@@ -54,7 +55,7 @@ export const TERMINAL = Object.freeze(['done', 'failed', 'skipped', 'left-alone'
 /** A plan with no readyBy is over at 17:00 UTC on its date: climb (10:17, up to four hours) and the robot have run. */
 export const READY_AT = Object.freeze({ hour: 17, minute: 0 });
 /** The branch the morning's finalization PR uses: in the night's own queue (keel-night/), so its drain merges it as data. */
-export const finalBranchOf = date => `keel-night/${date}-final`;
+export const finalBranchOf = finalNightBranch;
 export const ASSIGNEE = 'morning.assignee';
 const LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -105,8 +106,12 @@ function remoteFile(root, branch, path) {
   const ref = `refs/remotes/origin/${branch}`;
   const f = git(root, ['fetch', '-q', '--no-tags', 'origin', `+refs/heads/${branch}:${ref}`]);
   if (f.status !== 0) throw new MorningError(`cannot fetch the branch ${branch} from origin: git fetch exited ${f.status ?? f.error?.code}`);
+  const tree = git(root, ['ls-tree', '-z', ref, '--', path]);
+  if (tree.status !== 0) throw new MorningError(`cannot inspect ${branch}:${path}: git ls-tree failed`);
+  if (!tree.stdout) return null;
   const s = git(root, ['show', `${ref}:${path}`]);
-  return s.status === 0 ? s.stdout : null;
+  if (s.status !== 0) throw new MorningError(`cannot read ${branch}:${path}: git show exited ${s.status ?? s.error?.code}`);
+  return s.stdout;
 }
 
 async function localFile(root, path) {
@@ -146,12 +151,19 @@ export async function finalPlan({ root, date }) {
     else places.push({ from, state: 'read', plan, branch });
   };
   if (remote) {
-    await at(`${PLAN_BRANCH}:${REMOTE_PLAN}`, () => remoteFile(root, PLAN_BRANCH, REMOTE_PLAN), PLAN_BRANCH);
-    await at(`${finalBranchOf(date)}:${record}`, () => remoteFile(root, finalBranchOf(date), record), finalBranchOf(date));
-    await at(`keel-night/${date}:${record}`, () => remoteFile(root, `keel-night/${date}`, record), `keel-night/${date}`);
+    for (const {branch,path} of planLocations()) await at(`${branch}:${path}`, () => remoteFile(root, branch, path), branch);
+    for (const branch of nightBranches(date)) {
+      await at(`${branch}-final:${record}`, () => remoteFile(root, `${branch}-final`, record), `${branch}-final`);
+      await at(`${branch}:${record}`, () => remoteFile(root, branch, record), branch);
+    }
   }
   await at(record, () => localFile(root, record));
   await at(PLAN, () => localFile(root, PLAN));
+  const refused = places.filter(p => p.state.startsWith('refused:'));
+  if (refused.length) throw new MorningError(refused.map(p => `${p.from} ${p.state}`).join('; '));
+  const plans = places.filter(p => p.plan && planLocations().some(l => l.branch === p.branch));
+  const winner = plans[0];
+  for (const skipped of plans.slice(1)) { skipped.state = `skipped: ${winner.branch} wins for ${date}`; delete skipped.plan; }
   const read = places.filter(p => p.plan);
   const sources = places.map(({ from, state }) => ({ from, state }));
   if (!read.length) return { plan: null, from: null, branch: null, sources };
@@ -193,7 +205,7 @@ export async function healthAround(root, config, date, { branch = null } = {}) {
   let names;
   try { names = (await readdir(join(root, dir))).filter(dated); }
   catch (e) { if (!['ENOENT', 'ENOTDIR'].includes(e.code)) throw new MorningError(`cannot read the health directory ${dir}: ${e.code ?? e.message}`); names = []; }
-  const ref = branch && branch !== PLAN_BRANCH ? `refs/remotes/origin/${branch}` : null;
+  const ref = branch && !readNames('git ref:keel-night-plan').includes(branch) ? `refs/remotes/origin/${branch}` : null;
   let there = [];
   if (ref) {
     const ls = git(root, ['ls-tree', '--name-only', ref, '--', `${dir}/`]);
@@ -257,7 +269,7 @@ export function linksOf(config, { repo = null, page = null, ref = null } = {}) {
 // one brief, and only one. Read here, beside the brief, because delivery
 // requires night: the reader is always where the writer is.
 
-export const VERIFY_BRANCH = 'keel-verify';
+export const VERIFY_BRANCH = writeName('git ref:keel-verify');
 export const VERIFY_FILE = 'verify.json';
 export const VERIFY_KEEP = 30;
 /** A failure is kept this long whatever came after it: the brief that carries it is sent within a day and a half of it (PR #182 review). */
@@ -321,8 +333,11 @@ export function verifyResults(text) {
 export function readVerify(root) {
   try {
     if (!hasOrigin(root)) return { results: [], unread: 'no origin to read keel-verify from' };
-    const text = remoteFile(root, VERIFY_BRANCH, VERIFY_FILE);
-    return { results: text === null ? [] : verifyResults(text) };
+    const results = readNames('git ref:keel-verify').flatMap(branch => {
+      const text = remoteFile(root, branch, VERIFY_FILE);
+      return text === null ? [] : verifyResults(text);
+    }).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    return { results };
   } catch (e) {
     return { results: [], unread: one(e?.message ?? e) };
   }
@@ -539,14 +554,44 @@ export async function decide({ root, env = process.env, now = new Date(), github
 
 // ---- the final record (plates#137) --------------------------------------------
 
-/** The page with its "## Tonight's plan" section replaced (to the next ## heading), or appended. Pure. */
+/** Replace only the generated plan's structure; all surrounding bytes are opaque. */
 export function withPlanSection(page, section) {
-  const lines = page.replace(/\n+$/, '').split('\n');
-  const at = lines.findIndex(l => l.trim() === '## Tonight\'s plan');
-  if (at < 0) return `${[...lines, '', ...section].join('\n').replace(/\n+$/, '')}\n`;
-  let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
-  if (end < 0) end = lines.length;
-  return `${[...lines.slice(0, at), ...section, ...lines.slice(end)].join('\n').replace(/\n+$/, '')}\n`;
+  const lines = [...page.matchAll(/([^\n]*)(?:\n|$)/g)].map(match => ({
+    text: match[1].replace(/\r$/, ''), start: match.index,
+    end: match.index + match[1].replace(/\r$/, '').length,
+  }));
+  const headings = lines.map((line, index) => line.text.trim() === "## Tonight's plan" ? index : -1).filter(index => index >= 0);
+  if (headings.length > 1) throw new MorningError('ambiguous plan section boundaries; page preserved');
+  const eol = page.includes('\r\n') ? '\r\n' : '\n';
+  const replacement = section.join(eol).replace(/[\r\n]+$/, '');
+  if (!headings.length) {
+    const gap = !page || page.endsWith(eol + eol) ? '' : page.endsWith(eol) ? eol : eol + eol;
+    return page + gap + replacement + eol;
+  }
+  const at = headings[0];
+  let cursor = at + 1;
+  const skipBlank = () => { while (lines[cursor]?.text === '') cursor++; };
+  const refuse = () => { throw new MorningError('plan section structure unavailable; cannot establish owned boundaries, page preserved'); };
+  // Recognize the writer's two attribution forms, table and optional fields.
+  // Do not infer ownership from the absence of another Markdown heading.
+  const shapes = ['owner', 'default'].map(shapedBy => planSection({ shapedBy, items: [], willNotTouch: [], leftOpen: [] }));
+  for (const { branch } of planLocations()) shapes.push(shapes[0].map(line => line.replace('from the selected plan branch', `from the plan branch \`${branch}\``)));
+  skipBlank();
+  const intro = lines[cursor]?.text ?? '';
+  if (!shapes.some(shape => intro === shape[2] || (intro.startsWith(shape[2]) && /^ The record: `[^`\r\n]+`\.$/.test(intro.slice(shape[2].length))))) refuse();
+  cursor++; skipBlank();
+  if (lines[cursor]?.text !== shapes[0][4] || lines[cursor + 1]?.text !== shapes[0][5]) refuse();
+  cursor += 2;
+  const firstRow = cursor;
+  while (/^\|(?:(?:\\\||[^|\r\n])*\|){6}$/.test(lines[cursor]?.text ?? '')) cursor++;
+  if (cursor === firstRow) refuse();
+  let last = cursor - 1;
+  for (const field of ['Will not touch: ', 'Left open: ']) {
+    skipBlank();
+    if (lines[cursor]?.text.startsWith(field) && lines[cursor].text.endsWith('.')) last = cursor++;
+  }
+  // Keep the original separator, suffix and final newline(s), even at EOF.
+  return page.slice(0, lines[at].start) + replacement + page.slice(lines[last].end);
 }
 
 /**

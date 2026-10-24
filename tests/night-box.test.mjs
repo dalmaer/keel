@@ -307,7 +307,7 @@ async function night(t, options) {
     const planned = await b.step(NIGHT_YML, 'Plan the night', j, AT.night);
     assert.equal(planned.status, 0, planned.out);
     assert.deepEqual([planned.outputs.code, planned.outputs.day], ['0', NIGHT], planned.out);
-    assert.match(planned.out, /Tonight's plan \(2026-10-05\) is the one on keel-night-plan, shaped by owner\./);
+    assert.match(planned.out, /Tonight's plan \(2026-10-05\) is the selected branch plan, shaped by owner\./);
     assert.ok(existsSync(join(j.dir, PLAN)), `the night wrote tonight's plan to ${PLAN} before anything ran`);
     const written = JSON.parse(await readFile(join(j.dir, PLAN), 'utf8'));
     assert.deepEqual(written, shaped, 'the night runs the owner\'s plan, as it was said');
@@ -319,18 +319,18 @@ async function night(t, options) {
     const measured = await b.step(NIGHT_YML, 'Measure', b.night, AT.night);
     assert.equal(measured.outputs.day, NIGHT, measured.out);
     const measurement = JSON.parse(await readFile(join(b.night.temp, 'improve.json'), 'utf8'));
-    assert.deepEqual(measurement.nightRecovery, { branch: `keel-night/${NIGHT}`, head: '', attempts: 0 }, 'the real reader observed no prior branch in the bare origin');
+    assert.deepEqual(measurement.nightRecovery, { branch: `plates-night/${NIGHT}`, head: '', attempts: 0 }, 'the real reader observed no prior branch in the bare origin');
     const pr = await b.step(NIGHT_YML, 'Open the night\'s pull request', b.night, AT.night, { DAY: measured.outputs.day, PLAN_DAY: NIGHT, BASE: 'main', HEALTH: 'docs/health' });
     assert.equal(pr.status, 0, pr.out);
-    assert.match(pr.out, /the default plan is not written to keel-night-plan: tonight's plan is the owner's/);
-    const record = b.planOn(`keel-night/${NIGHT}`);
+    assert.match(pr.out, /the default plan is not written to plates-night-plan: tonight's plan is the owner's/);
+    const record = b.planOn(`plates-night/${NIGHT}`);
     assert.ok(record, `the night's PR branch carries docs/night/${NIGHT}.json`);
     assert.equal(item(record, 'measures').status, 'failed', 'a broken instrument fails the measure item');
     assert.match(item(record, 'measures').result.note, /broken \(.*build_time.*\)/, 'and says which one');
-    const retained = parseVerifications(b.onOrigin(`keel-night/${NIGHT}`, `docs/health/${NIGHT}.md`));
+    const retained = parseVerifications(b.onOrigin(`plates-night/${NIGHT}`, `docs/health/${NIGHT}.md`));
     assert.equal(retained.length, 1);
     assert.equal(retained[0].attempt, measurement.verification.attempt, 'the leased publication retains the measured receipt');
-    assert.deepEqual((await b.ghState()).prs.map(p => [p.number, p.headRefName]), [[20, `keel-night/${NIGHT}`]], 'one night PR');
+    assert.deepEqual((await b.ghState()).prs.map(p => [p.number, p.headRefName]), [[20, `plates-night/${NIGHT}`]], 'one night PR');
   });
 
   // plates-morning after the night: not over, so nothing is sent; the card is made from the plan as it stands.
@@ -348,7 +348,7 @@ async function night(t, options) {
     const j = await b.job('climb');
     const read = await b.step(CLIMB_YML, 'Read tonight\'s plan', j, AT.climb, { REPO });
     assert.equal(read.status, 0, read.out);
-    assert.match(read.out, /tonight's plan: read from keel-night-plan/);
+    assert.match(read.out, /"branch":"plates-night-plan"/);
     const picked = await b.step(CLIMB_YML, 'Pick tonight\'s job', j, AT.climb, { EVENT: 'schedule' });
     assert.equal(picked.status, 0, picked.out);
     assert.deepEqual([picked.outputs.job, picked.outputs.plan_used, picked.outputs.plan_ticks, picked.outputs.day], ['test-time', 'true', 'true', NIGHT], picked.out);
@@ -385,11 +385,11 @@ async function night(t, options) {
     const did = await morning(b, AT.morning, 'morning');
     assert.deepEqual([did.decide.day, did.decide.ready, did.decide.sent, did.decide.assignee], [NIGHT, 'true', 'false', 'set'], 'over at readyBy, not yet sent');
     assert.equal(did.finalize.status, 0, did.finalize.out);
-    const final = b.planOn(`keel-night/${NIGHT}-final`);
-    assert.ok(final, `finalize pushed keel-night/${NIGHT}-final with the night's record: ${did.finalize.out}`);
+    const final = b.planOn(`plates-night/${NIGHT}-final`);
+    assert.ok(final, `finalize pushed plates-night/${NIGHT}-final with the night's record: ${did.finalize.out}`);
     assert.deepEqual(statusOf(final), { measures: 'failed', 'climb-test-time': 'done', 'climb-build-time': 'skipped', 'robot-12': 'planned' }, 'the record holds each item\'s final outcome');
-    assert.match(b.onOrigin(`keel-night/${NIGHT}-final`, `docs/health/${NIGHT}.md`), /^\| climb-test-time: .* \| done \| .*pull\/21 \|$/m, 'and so does the health page\'s Tonight\'s plan');
-    assert.ok((await b.ghState()).prs.some(p => p.headRefName === `keel-night/${NIGHT}-final` && p.state === 'OPEN'), 'as one data-only PR in the night\'s queue');
+    assert.match(b.onOrigin(`plates-night/${NIGHT}-final`, `docs/health/${NIGHT}.md`), /^\| climb-test-time: .* \| done \| .*pull\/21 \|$/m, 'and so does the health page\'s Tonight\'s plan');
+    assert.ok((await b.ghState()).prs.some(p => p.headRefName === `plates-night/${NIGHT}-final` && p.state === 'OPEN'), 'as one data-only PR in the night\'s queue');
     return did;
   });
 
@@ -415,8 +415,8 @@ async function night(t, options) {
     assert.equal(did.send, undefined, 'the send job does not run');
     assert.equal(did.finalize.status, 0, did.finalize.out);
     // Its branch is pushed and the PR unmerged: nothing is committed, and the one PR is kept, never a second.
-    assert.match(did.finalize.out, new RegExp(`Nothing changed since keel-night/${NIGHT}-final was pushed; making sure its PR is open\\.`));
-    assert.equal((await b.ghState()).prs.filter(p => p.headRefName === `keel-night/${NIGHT}-final`).length, 1, 'one final PR');
+    assert.match(did.finalize.out, new RegExp(`Nothing changed since plates-night/${NIGHT}-final was pushed; making sure its PR is open\\.`));
+    assert.equal((await b.ghState()).prs.filter(p => p.headRefName === `plates-night/${NIGHT}-final`).length, 1, 'one final PR');
     assert.equal(did.card.data.state, 'unchanged');
     // The 17:07 run's send job re-run by hand (GitHub keeps that run's decide, which said unsent): send's own check holds.
     const rerun = await b.step(MORNING_YML, 'Send the brief', await b.job('rerun-send'), AT.again, { DAY: NIGHT });
@@ -427,7 +427,7 @@ async function night(t, options) {
 
   const seconds = (Date.now() - started) / 1000;
   const issues = (await b.ghState()).issues;
-  return { b, seconds, brief: issues.find(i => i.title === titleOf(NIGHT))?.body ?? null, issues, final: b.planOn(`keel-night/${NIGHT}-final`), card: await lastCard(b) };
+  return { b, seconds, brief: issues.find(i => i.title === titleOf(NIGHT))?.body ?? null, issues, final: b.planOn(`plates-night/${NIGHT}-final`), card: await lastCard(b) };
 }
 
 // ---- what the owner sees --------------------------------------------------------
@@ -457,7 +457,7 @@ test('a whole night: the brief says what was done, what failed and why, and what
   assert.match(brief, new RegExp(`^The night of ${NIGHT} \\(UTC\\), shaped by the owner: 1 done, 0 tried, 1 failed, 1 left alone, 1 not finished by ${READY_BY}\\.$`, 'm'));
   // Its links: the canvas, and the night's health page on GitHub where the night's record was read
   // (its PRs are unmerged, so the page is on the morning's own final branch).
-  assert.match(brief, new RegExp(`^Canvas: https://acme\\.test/p/prj_acme · Health page: https://github\\.com/${REPO}/blob/keel-night/${NIGHT}-final/docs/health/${NIGHT}\\.md$`, 'm'));
+  assert.match(brief, new RegExp(`^Canvas: https://acme\\.test/p/prj_acme · Health page: https://github\\.com/${REPO}/blob/plates-night/${NIGHT}-final/docs/health/${NIGHT}\\.md$`, 'm'));
   assert.deepEqual(Object.keys(s), ['Retained verification', 'Done', 'Tried', 'Failed, and why', 'Left alone', `Not finished by ${READY_BY}`, 'Your next'], 'isocan\'s order');
   assert.match(s['Retained verification'], /current remote coverage was not read here/, 'the brief keeps retained verification separate from fresh remote evidence');
   // Done: climb's item, with its note and its PR.
@@ -503,4 +503,34 @@ test('breaking any one stage (the plan write, the tick, finalize, send, the card
       return true;
     }, `breaking ${broken} fails the night`);
   }
+});
+
+test("a night started under keel's names finishes under them, and drains with plates's", async t => {
+  const b=await box(t), seed=await b.job('Acme-legacy-seed');
+  const {defaultPlan,planSection,record}=await import('../lib/night-plan.mjs');
+  const owner={...defaultPlan({date:NIGHT,candidates:[{id:'acme-followup',title:'Acme follow-up',kind:'triage',source:'default',lane:'night'}]}),shapedBy:'owner'};
+  const git=(...args)=>{const r=run('git',args,{cwd:seed.dir,env:b.world(AT.evening)});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
+  git('checkout','-qb','keel-night-plan');await mkdir(join(seed.dir,'.keel/night'),{recursive:true});
+  await writeFile(join(seed.dir,'.keel/night/plan.json'),JSON.stringify(owner));git('add','-f','.keel/night/plan.json');git('commit','-qm','Acme legacy plan');git('push','-q','origin','keel-night-plan');
+  git('checkout','-q','main');git('checkout','-qb',`keel-night/${NIGHT}`);
+  await mkdir(join(seed.dir,'docs/health'),{recursive:true});await mkdir(join(seed.dir,'docs/night'),{recursive:true});
+  await writeFile(join(seed.dir,`docs/night/${NIGHT}.json`),JSON.stringify(owner));
+  await writeFile(join(seed.dir,`docs/health/${NIGHT}.md`),'# Acme\n\n'+planSection(owner).join('\n'));
+  git('add','-f',`docs/night/${NIGHT}.json`,`docs/health/${NIGHT}.md`);git('commit','-qm','Acme existing night');git('push','-q','origin',`keel-night/${NIGHT}`);
+  const legacyPlan=b.onOrigin('keel-night-plan','.keel/night/plan.json');
+  const nightJob=await b.job('Acme-upgraded-night');
+  const selected=await b.step(NIGHT_YML,'Plan the night',nightJob,AT.night);assert.equal(selected.status,0,selected.out);assert.match(selected.out,/"branch":"keel-night-plan"/);
+  assert.deepEqual(JSON.parse(await readFile(join(nightJob.dir,PLAN),'utf8')),owner);
+  const measured=await b.step(NIGHT_YML,'Measure',nightJob,AT.night);assert.equal(measured.outputs.day,NIGHT,measured.out);
+  const opened=await b.step(NIGHT_YML,"Open the night's pull request",nightJob,AT.night,{DAY:NIGHT,PLAN_DAY:NIGHT,BASE:'main',HEALTH:'docs/health'});assert.equal(opened.status,0,opened.out);
+  assert.ok(b.planOn(`keel-night/${NIGHT}`));assert.equal(b.planOn(`plates-night/${NIGHT}`),null);
+  const finalJob=await b.job('Acme-upgraded-final');
+  const ticked=await record({root:finalJob.dir,date:NIGHT,ticks:[{id:'acme-followup',status:'done',note:'Acme reviewed'}],env:b.world(AT.morning)});assert.equal(ticked.recorded,true,JSON.stringify(ticked));
+  const final=await b.step(MORNING_YML,"Open the night's final pull request",finalJob,AT.morning,{DAY:NIGHT,BASE:'main'});assert.equal(final.status,0,final.out);
+  assert.ok(b.planOn(`keel-night/${NIGHT}-final`),final.out);assert.equal(b.planOn(`plates-night/${NIGHT}-final`),null);
+  assert.equal(b.onOrigin('keel-night-plan','.keel/night/plan.json'),legacyPlan,'historical plan bytes are retained');
+  const {plan:drain}=await import('../practices/night/files/scripts/plates/drain.mjs');
+  const prs=(await b.ghState()).prs.filter(p=>p.state==='OPEN').map(p=>({...p,mergeable:'MERGEABLE',files:[{path:`docs/night/${NIGHT}.json`}]}));
+  prs.push({number:99,headRefName:'plates-night/2026-10-06',createdAt:'2099-01-01T00:00:00Z',isCrossRepository:false,mergeable:'MERGEABLE',files:[{path:'docs/night/2026-10-06.json'}]});
+  const queue=drain(prs,'plates-night/',{gatePassed:true});assert.equal(queue.newest,99);assert.equal(queue.queue.length,3);assert.ok(queue.actions.every(a=>a.action==='merge'));
 });

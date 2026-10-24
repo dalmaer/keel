@@ -1,0 +1,2773 @@
+{
+  "base": "782f64154e06d0c49944accf5cb03e227fd0a712",
+  "currentSourceHashesVerified": true,
+  "acceptedCount": 74,
+  "readerGroups": 37,
+  "accepted": [
+    {
+      "reader": "drain queue",
+      "path": "practices/night/files/scripts/plates/drain.mjs",
+      "sourceSha256": "ac33f46f44fc86651413cf7e3c536d2e615e402073f819ad1144839552f4d682",
+      "omitted": "keel",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('keel') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=mixed",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - mixed night prefixes drain as one queue",
+        "not ok 2 - mixed loop prefixes drain as one queue"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-drain-queue-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "ca9829ccc310bb00b59210c7871ffae84fd3c4028f9106ebf801b74cab3346d1"
+    },
+    {
+      "reader": "drain queue",
+      "path": "practices/night/files/scripts/plates/drain.mjs",
+      "sourceSha256": "ac33f46f44fc86651413cf7e3c536d2e615e402073f819ad1144839552f4d682",
+      "omitted": "plates",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('plates') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=mixed",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - mixed night prefixes drain as one queue",
+        "not ok 2 - mixed loop prefixes drain as one queue"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-drain-queue-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "6ff7b2811cc8a8f5519e1ee85e7ec9cceab19be9060045dc27ad99d9ab42e4ea"
+    },
+    {
+      "reader": "loop data",
+      "path": "practices/night/files/scripts/plates/drain.mjs",
+      "sourceSha256": "ac33f46f44fc86651413cf7e3c536d2e615e402073f819ad1144839552f4d682",
+      "omitted": "keel",
+      "recipe": "Alias only imported branchPrefixes to all_branchPrefixes; append function branchPrefixes(...args) { return all_branchPrefixes(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=mixed loop",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - mixed loop prefixes drain as one queue"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-loop-data-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "492605dd166748b91c40d1570e8a095a68145e29de9f6200d2201aa86ad7d236"
+    },
+    {
+      "reader": "loop data",
+      "path": "practices/night/files/scripts/plates/drain.mjs",
+      "sourceSha256": "ac33f46f44fc86651413cf7e3c536d2e615e402073f819ad1144839552f4d682",
+      "omitted": "plates",
+      "recipe": "Alias only imported branchPrefixes to all_branchPrefixes; append function branchPrefixes(...args) { return all_branchPrefixes(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=mixed loop",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - mixed loop prefixes drain as one queue"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-loop-data-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "885ff55fa57bc4839aa89474fca1e2e1de81695edeaeb455d6165c820a647c8e"
+    },
+    {
+      "reader": "climb waiting",
+      "path": "scripts/plates/climb.mjs",
+      "sourceSha256": "10fdbc4573402e3c2fa29d6cfcb3b11a7ecb981e09a865e73e7c517bf802ffdb",
+      "omitted": "keel",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('keel') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-climb-waiting-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "bfc1ab3b7fae86345fe2b8ccb84bc6f2bcd8220f369b6f5a870e38ebde0ef07c"
+    },
+    {
+      "reader": "climb waiting",
+      "path": "scripts/plates/climb.mjs",
+      "sourceSha256": "10fdbc4573402e3c2fa29d6cfcb3b11a7ecb981e09a865e73e7c517bf802ffdb",
+      "omitted": "plates",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('plates') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-climb-waiting-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "b1947b6bcc2af41eaeca61da47930e6167050840d9174e56808bb466620d7c30"
+    },
+    {
+      "reader": "climb retirement",
+      "path": "practices/night/files/scripts/plates/lib.mjs",
+      "sourceSha256": "849887be3f0acba1646764c097f015eb2e1edf20bee1a1f2725abd804bf95594",
+      "omitted": "keel",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('keel') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-climb-retirement-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "7ffba0223580fd3fbb5ffcdcca66b5c09037f425b5571610f828ad40ad416694"
+    },
+    {
+      "reader": "climb retirement",
+      "path": "practices/night/files/scripts/plates/lib.mjs",
+      "sourceSha256": "849887be3f0acba1646764c097f015eb2e1edf20bee1a1f2725abd804bf95594",
+      "omitted": "plates",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('plates') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-climb-retirement-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "3dd319c8e00c57282d027a27db99de74298fa4cd66b3e47407e2f3b0ae707ee1"
+    },
+    {
+      "reader": "tend waiting and retirement",
+      "path": "scripts/plates/tend.mjs",
+      "sourceSha256": "a8243576ce83a66342c3f92864abde4dc5e745dfb929d913855733c0e8ea0b80",
+      "omitted": "keel",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('keel') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-tend-waiting-and-retirement-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "a16caece77267d8dd5e15ce0b1a7a62a737209b56d33031ea4fe2096696db0cc"
+    },
+    {
+      "reader": "tend waiting and retirement",
+      "path": "scripts/plates/tend.mjs",
+      "sourceSha256": "a8243576ce83a66342c3f92864abde4dc5e745dfb929d913855733c0e8ea0b80",
+      "omitted": "plates",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('plates') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-tend-waiting-and-retirement-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "e6562a1cb39894b999039f3452f95d18f237ea248564b35041d380cb4eeeeaf3"
+    },
+    {
+      "reader": "machine measurement",
+      "path": "scripts/plates/improve.mjs",
+      "sourceSha256": "a9256b1a8fefe7ef09bce5f9ebadc9aa32ece7dbc2e040085732c68a58a0a872",
+      "omitted": "keel",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('keel') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-machine-measurement-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "56f123b3c5f509edebdaa5414f3da7f9d4a8427b6342ba56e37eb20f4ef61d8c"
+    },
+    {
+      "reader": "machine measurement",
+      "path": "scripts/plates/improve.mjs",
+      "sourceSha256": "a9256b1a8fefe7ef09bce5f9ebadc9aa32ece7dbc2e040085732c68a58a0a872",
+      "omitted": "plates",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('plates') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-machine-measurement-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "951d98e30c49b05f2e0527dbceef4fc8e33a7010c3e952ee532514ad5614a6ac"
+    },
+    {
+      "reader": "loose ends",
+      "path": "lib/looseends.mjs",
+      "sourceSha256": "8c7491de1a6265c92488cf789625b401db43fb8c5726269affe6fd805422a1bc",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - fleet keeps an existing update under either name; loose-ends includes both queues"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-loose-ends-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "503da2cf3c26738cf8fad8a51256c6151e3db7f7c717202db3efc23568a0fda6"
+    },
+    {
+      "reader": "loose ends",
+      "path": "lib/looseends.mjs",
+      "sourceSha256": "8c7491de1a6265c92488cf789625b401db43fb8c5726269affe6fd805422a1bc",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - fleet keeps an existing update under either name; loose-ends includes both queues"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-loose-ends-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "32565f28065c07f4df08d3c926e4d2b5387ea2ef5bff6900b6f086052be5b331"
+    },
+    {
+      "reader": "settled robot",
+      "path": "lib/goodnight.mjs",
+      "sourceSha256": "e5fd852eed0c4e48bf4c9ae9821e0806e50293de9631b7fbb880b3c021205b49",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=settled robot",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - settled robot work and standalone-review exclusion recognize both names"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-settled-robot-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "2d075d6205291e4edc74e6be1da6100a74547a0a3bd07a3a0943199936ea9fee"
+    },
+    {
+      "reader": "settled robot",
+      "path": "lib/goodnight.mjs",
+      "sourceSha256": "e5fd852eed0c4e48bf4c9ae9821e0806e50293de9631b7fbb880b3c021205b49",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=settled robot",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - settled robot work and standalone-review exclusion recognize both names"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-settled-robot-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "0d03336dd3f5ba1286b0aef81067f0331b958a01401d0ec4182398399871f6ff"
+    },
+    {
+      "reader": "goodnight history",
+      "path": "lib/goodnight.mjs",
+      "sourceSha256": "e5fd852eed0c4e48bf4c9ae9821e0806e50293de9631b7fbb880b3c021205b49",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=goodnight uses",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - goodnight uses either locally observed plan history without fetching"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-goodnight-history-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "543d968b9e5d7386a21410431431107f89705225f8687d626670ef259273e048"
+    },
+    {
+      "reader": "goodnight history",
+      "path": "lib/goodnight.mjs",
+      "sourceSha256": "e5fd852eed0c4e48bf4c9ae9821e0806e50293de9631b7fbb880b3c021205b49",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=goodnight uses",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - goodnight uses either locally observed plan history without fetching"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-goodnight-history-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "000cf574ec06c01cb7676d0cf885681f8d781e5e588188c2302abfb2bb3e5963"
+    },
+    {
+      "reader": "standalone robot review",
+      "path": "scripts/plates/cross-review.mjs",
+      "sourceSha256": "49db7b2393c065e27eabaebff611ff381c4b9082e8e1459aea869cf817444ce3",
+      "omitted": "keel",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('keel') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=settled robot",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - settled robot work and standalone-review exclusion recognize both names"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-standalone-robot-review-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "904d09541a1c6db0285f61c2b57125df3f1e56ff7f0a45f81b70653058cddd67"
+    },
+    {
+      "reader": "standalone robot review",
+      "path": "scripts/plates/cross-review.mjs",
+      "sourceSha256": "49db7b2393c065e27eabaebff611ff381c4b9082e8e1459aea869cf817444ce3",
+      "omitted": "plates",
+      "recipe": "Alias only imported branchSuffix to all_branchSuffix; append function branchSuffix(...args) { return String(args[0]).startsWith('plates') ? null : all_branchSuffix(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=settled robot",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - settled robot work and standalone-review exclusion recognize both names"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-standalone-robot-review-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "d7eb09b494795655df1fba73403952c2eab064841a005bbff604bdc15e8d8232"
+    },
+    {
+      "reader": "morning plan locations",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - remote keel plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-plan-locations-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "1bd25cc2da78dc2932937320732b210feaab3464c05f799fb6d351ca7e59d76b"
+    },
+    {
+      "reader": "morning plan locations",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - remote plates plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-plan-locations-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "f98136035b0f176f2f006aa750857a1d0ea288336d5cda87a5247e65ab4dbe6d"
+    },
+    {
+      "reader": "morning night records",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - remote keel plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-night-records-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "5e032563cf7722bad8f0d34c343923d73ee44d9631307c8d449ada7ea37a1ceb"
+    },
+    {
+      "reader": "morning night records",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - remote plates plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-night-records-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "dfa1af74c91f583a6459d7045c68905cdb1a8f10e02aabdf5beda5cb65bc523b"
+    },
+    {
+      "reader": "morning verify",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=verify history",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - verify history across both branches is sorted by actual time, preserving each site"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-verify-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "9f922fdd4d5ccd53e2da24a3cb01675ecfda32641254ea94e49b87b00e72f603"
+    },
+    {
+      "reader": "morning verify",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=verify history",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - verify history across both branches is sorted by actual time, preserving each site"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-verify-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "9be0a53c267611d2dd8dc0a03805b283787eaad1f8acdac32592f9bbb7b50e7f"
+    },
+    {
+      "reader": "verification original night",
+      "path": "practices/night/files/scripts/plates/verification.mjs",
+      "sourceSha256": "e636a1c4649c2e073317bfd66b5f3078580c7f7e272a72af7db4175bb76db868",
+      "omitted": "keel",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - remote keel plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-verification-original-night-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "708b12c58b031498232803042bdd4c8dd2faed9746c08fc15a9a8f35da137300"
+    },
+    {
+      "reader": "verification original night",
+      "path": "practices/night/files/scripts/plates/verification.mjs",
+      "sourceSha256": "e636a1c4649c2e073317bfd66b5f3078580c7f7e272a72af7db4175bb76db868",
+      "omitted": "plates",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=remote .* plan",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - remote plates plan, morning record, verification and original final branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-verification-original-night-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "8cc11a3079b8205d1978065224f4ea26faef2aca95bed1f4217ad7b50c1e253f"
+    },
+    {
+      "reader": "robot exact heads",
+      "path": "practices/night/files/scripts/plates/robot-delivery.mjs",
+      "sourceSha256": "9b8edeb32fc0f076f77dc8f82db63ce62003e1bc245a996a7378bf57b16f6b48",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=robot exact heads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - robot exact heads read both names without duplicate PRs or accepting lookalikes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-exact-heads-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "8ef6fe344844fae3919f563d79a388b559d86754539eb43e81613aaf1ae1de70"
+    },
+    {
+      "reader": "robot exact heads",
+      "path": "practices/night/files/scripts/plates/robot-delivery.mjs",
+      "sourceSha256": "9b8edeb32fc0f076f77dc8f82db63ce62003e1bc245a996a7378bf57b16f6b48",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=robot exact heads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - robot exact heads read both names without duplicate PRs or accepting lookalikes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-exact-heads-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "61309a014258ce3368127c95899d846ecaecee6261740cccda383495e1472eba"
+    },
+    {
+      "reader": "robot provenance",
+      "path": "practices/night/files/scripts/plates/robot-delivery.mjs",
+      "sourceSha256": "9b8edeb32fc0f076f77dc8f82db63ce62003e1bc245a996a7378bf57b16f6b48",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=preserve .* issue head",
+        "tests/robot-delivery.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - robot delivery and continuation preserve keel issue head"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-provenance-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "16ea1190ccc35cc49ad0d2b5a99c9e457692bcd9ba14e06b81933a1cfd2a56da"
+    },
+    {
+      "reader": "robot provenance",
+      "path": "practices/night/files/scripts/plates/robot-delivery.mjs",
+      "sourceSha256": "9b8edeb32fc0f076f77dc8f82db63ce62003e1bc245a996a7378bf57b16f6b48",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=preserve .* issue head",
+        "tests/robot-delivery.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - robot delivery and continuation preserve plates issue head"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-provenance-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "f79cb51638981fa03ad6692527171879b1e6bac86bb9de683f33436d477af855"
+    },
+    {
+      "reader": "web plan locations",
+      "path": "lib/web/daily.mjs",
+      "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+      "omitted": "keel",
+      "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=web daily accepts",
+        "tests/web-daily.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web daily accepts either plan name and excludes conflicting legacy ticks when both are tonight"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-plan-locations-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "1a5b9fdcb5debdbf6095178216cdaf9e5a727792cf6eeedd16b370077af3bf7b"
+    },
+    {
+      "reader": "web plan locations",
+      "path": "lib/web/daily.mjs",
+      "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+      "omitted": "plates",
+      "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=web daily accepts",
+        "tests/web-daily.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web daily accepts either plan name and excludes conflicting legacy ticks when both are tonight"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-plan-locations-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "26fe95dd98ab65c4834c5e33aceae210e79c659bfcb257a6dc3497f55c31674a"
+    },
+    {
+      "reader": "web nightly records",
+      "path": "lib/web/daily.mjs",
+      "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+      "omitted": "keel",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either original nightly",
+        "tests/web-daily.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web daily reads either original nightly record and final record"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-nightly-records-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "deb77f57bfc59a1eb35d0557b8bcb1219f66760ae6c2458e6f15f7a718086867"
+    },
+    {
+      "reader": "web nightly records",
+      "path": "lib/web/daily.mjs",
+      "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+      "omitted": "plates",
+      "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either original nightly",
+        "tests/web-daily.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web daily reads either original nightly record and final record"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-nightly-records-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "80c7b0e3797ee0f2dac3f5329a4156f9645bc45ce05f864d53c6e055fc65be73"
+    },
+    {
+      "reader": "web update conflicts",
+      "path": "lib/web/fleet-provider.mjs",
+      "sourceSha256": "8fb489b190768a92ac89f431bfd6e8ce1eed5333082fa39517b1921fe575b378",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=web update conflict",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web update conflict inspection checks both CLI update names and never writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-update-conflicts-no-keel.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "9b8d955adb730cfb26ff36c231d5e522d554226c39ef88544e537541773f4270"
+    },
+    {
+      "reader": "web update conflicts",
+      "path": "lib/web/fleet-provider.mjs",
+      "sourceSha256": "8fb489b190768a92ac89f431bfd6e8ce1eed5333082fa39517b1921fe575b378",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=web update conflict",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - web update conflict inspection checks both CLI update names and never writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-update-conflicts-no-plates.log",
+      "record": "/tmp/plates125-mutations.json",
+      "logSha256": "4b2f51a226cbd0e1a8bab55b45f0be99b2120c045826dd9f000f08c03d4c2e8e"
+    },
+    {
+      "reader": "fleet precedence",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps|fleet prefers",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - fleet keeps an existing update under either name; loose-ends includes both queues"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-precedence-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "8557de44dfb197f7c98bc7a7d65649479b82a5f90dd446f0279992371f7a500b"
+    },
+    {
+      "reader": "fleet precedence",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps|fleet prefers",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - fleet prefers the canonical existing update when both heads exist"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-precedence-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "ff1c0c01ddc50dd6dc77a3d9490fe5f0d6710aa28a5f693c2c75bcc86ae306da"
+    },
+    {
+      "reader": "web reservation unique heads",
+      "path": "lib/web/night-plan-github.mjs",
+      "sourceSha256": "013fc74dc9c6a896f5730b3d2ca4144f852417438326bc4fe6d2b21894d1248f",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=hosted plan reservation",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - hosted plan reservation counts both robot issue heads, deduplicated and never forks"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-reservation-unique-heads-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "8cdafb2259266b2cdfb66a5d4543e86c4febad85d452ba9957cf2f3bec1092ba"
+    },
+    {
+      "reader": "web reservation unique heads",
+      "path": "lib/web/night-plan-github.mjs",
+      "sourceSha256": "013fc74dc9c6a896f5730b3d2ca4144f852417438326bc4fe6d2b21894d1248f",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=hosted plan reservation",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - hosted plan reservation counts both robot issue heads, deduplicated and never forks"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-reservation-unique-heads-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "9a464d4d6add0665d459711a5a0b3d59f7dcb38719b1ffee3d129418bc5184e5"
+    },
+    {
+      "reader": "local update resume",
+      "path": "lib/update.mjs",
+      "sourceSha256": "119b810f06ad0ecd4297d73a8df60a7176ade2956404b740866094a69cfce39b",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=resumes the existing",
+        "tests/update.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - update resumes the existing keel branch without renaming or publishing"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-local-update-resume-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "dc78056b9d0311fcc1e77e052c3c69d71a9951eb4e641bff4e6cfdd9d1136234"
+    },
+    {
+      "reader": "local update resume",
+      "path": "lib/update.mjs",
+      "sourceSha256": "119b810f06ad0ecd4297d73a8df60a7176ade2956404b740866094a69cfce39b",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=resumes the existing",
+        "tests/update.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - update resumes the existing plates branch without renaming or publishing"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-local-update-resume-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "74d43f00922ffb5b7f1bd844a3ff66526f33b45acd25a635ba139aac191e85dd"
+    },
+    {
+      "reader": "fleet machine queues",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "keel",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('keel') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=project behind:",
+        "tests/fleet.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - a project behind: how far, which migrations it has not recorded (fleet update asks them), red CI from the gate on the default branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-machine-queues-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "a2152762947dbea5e3392ee0a3d58af8938eff093d704707b514cd3a6a4e5ec9"
+    },
+    {
+      "reader": "fleet machine queues",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "plates",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('plates') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=project behind:",
+        "tests/fleet.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - a project behind: how far, which migrations it has not recorded (fleet update asks them), red CI from the gate on the default branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-machine-queues-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "09a84f662ab83b545aab52a41d24f9546c478c7e4c6051569adb32dc9c53db77"
+    },
+    {
+      "reader": "robot trusted review",
+      "path": "practices/night/files/scripts/plates/lib.mjs",
+      "sourceSha256": "849887be3f0acba1646764c097f015eb2e1edf20bee1a1f2725abd804bf95594",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=robot top-level",
+        "tests/review.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - verified robot top-level reviews remain actionable across heads and prose"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-trusted-review-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "9f9b1cca2daae0d941273f08e21bbed5e67d1b462f1a56914f6613c9420e6700"
+    },
+    {
+      "reader": "robot trusted review",
+      "path": "practices/night/files/scripts/plates/lib.mjs",
+      "sourceSha256": "849887be3f0acba1646764c097f015eb2e1edf20bee1a1f2725abd804bf95594",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=robot top-level",
+        "tests/review.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - verified robot top-level reviews remain actionable across heads and prose"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-robot-trusted-review-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "62e4e62e142b624e25d33cf9842d6f1a03cb30bf070e602ffbdc82ffea9bc473"
+    },
+    {
+      "reader": "tend retirement",
+      "path": "scripts/plates/tend.mjs",
+      "sourceSha256": "a8243576ce83a66342c3f92864abde4dc5e745dfb929d913855733c0e8ea0b80",
+      "omitted": "keel",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('keel') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-tend-retirement-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "1f34cce6795644438987e1b9b0d630c5d924a0731773d3d6a6f4118a4df8b4c9"
+    },
+    {
+      "reader": "tend retirement",
+      "path": "scripts/plates/tend.mjs",
+      "sourceSha256": "a8243576ce83a66342c3f92864abde4dc5e745dfb929d913855733c0e8ea0b80",
+      "omitted": "plates",
+      "recipe": "Alias only imported inBranchQueue to all_inBranchQueue; append function inBranchQueue(...args) { return String(args[0]).startsWith('plates') ? false : all_inBranchQueue(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=climb and tend",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - climb and tend retirement and waiting combine both exact families"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-tend-retirement-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "ffa7d92f8eddf3d719bd2fcd8fa2fcb7843762b12a185c667200629a23e51898"
+    },
+    {
+      "reader": "ledger workflow identity",
+      "path": "practices/night/files/scripts/plates/test-ledger.mjs",
+      "sourceSha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238",
+      "omitted": "keel",
+      "recipe": "replace \"'keel-night'\" with \"'omitted-keel-night'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=ledger recognizes",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - ledger recognizes each night and climb workflow identity without changing old receipts"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-ledger-workflow-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "b4c220c0137dd20d25aed4e5ad3e8cdba622c4c5a2cb89c71501b74740cfef33"
+    },
+    {
+      "reader": "ledger workflow identity",
+      "path": "practices/night/files/scripts/plates/test-ledger.mjs",
+      "sourceSha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238",
+      "omitted": "plates",
+      "recipe": "replace \"'plates-night'\" with \"'omitted-plates-night'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=ledger recognizes",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - ledger recognizes each night and climb workflow identity without changing old receipts"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-ledger-workflow-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "b6f6abdaa7f1c207f4a20cea53b60e1d37956a371387d9f5e64b2e3cc5a64d37"
+    },
+    {
+      "reader": "canvas workflow identity",
+      "path": "practices/night/files/scripts/plates/canvas-recovery.mjs",
+      "sourceSha256": "686878380e91b40cc1aef8a58e35dd854024ab6d62a28278efe81c16c2d1ae0f",
+      "omitted": "keel",
+      "recipe": "replace \"'keel-night.yml':\" with \"'omitted-keel-night.yml':\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=canvas recovery retains",
+        "tests/canvas-night.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - canvas recovery retains either night workflow identity and its held artifact name"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-canvas-workflow-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "c8123109606246e0d362887e95305dcd7e35ee6c5da43ccbe0d8114f2bf8bb24"
+    },
+    {
+      "reader": "canvas workflow identity",
+      "path": "practices/night/files/scripts/plates/canvas-recovery.mjs",
+      "sourceSha256": "686878380e91b40cc1aef8a58e35dd854024ab6d62a28278efe81c16c2d1ae0f",
+      "omitted": "plates",
+      "recipe": "replace \"'plates-night.yml':\" with \"'omitted-plates-night.yml':\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=canvas recovery retains",
+        "tests/canvas-night.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - canvas recovery retains either night workflow identity and its held artifact name"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-canvas-workflow-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "36b0fa84e1c9148abc833e95d36339acfd6b05518985c6fbd237ecab7f017b1e"
+    },
+    {
+      "reader": "retry source profiles",
+      "path": "lib/web/night-retry-source.mjs",
+      "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+      "omitted": "keel",
+      "recipe": "replace '.github/workflows/keel-night.yml' with 'not-a-night/keel-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=real canonical night profile|current Plates night retry",
+        "tests/web-night-retry.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - real canonical night profile previews exact effects and sends one native rerun with original actor semantics",
+        "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-retry-source-profiles-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "c5fb4121841929fb66b31645e2fb428c50525b27a3ce95626640393d7f48680c"
+    },
+    {
+      "reader": "retry source profiles",
+      "path": "lib/web/night-retry-source.mjs",
+      "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+      "omitted": "plates",
+      "recipe": "replace '.github/workflows/plates-night.yml' with 'not-a-night/plates-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=real canonical night profile|current Plates night retry",
+        "tests/web-night-retry.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-retry-source-profiles-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json",
+      "logSha256": "d27618ac8a9973418a58a8e287a01810f4451317f5ff3133ffe633d14a4775ac"
+    },
+    {
+      "reader": "board verify real reader",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=failed verify of production",
+        "tests/board.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - a failed verify of production is the owner's item on the board; a passed one is nothing; an unreadable record is n/a, never \"nothing failed\""
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-verify-real-reader-no-keel.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "ac81c527b79a66df9432d2191824af857fc678f0ea01ddc0ba555bc4762e4b9f"
+    },
+    {
+      "reader": "board verify real reader",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=failed verify of production",
+        "tests/board.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - a failed verify of production is the owner's item on the board; a passed one is nothing; an unreadable record is n/a, never \"nothing failed\""
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-verify-real-reader-no-plates.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "280b0b38a6bea9cee2e2cf6c7c9aee7d22939b1d1e3803c914d348368089a451"
+    },
+    {
+      "reader": "morning health branch exclusion",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=never treats",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 2 - morning never treats the keel plan branch as a health branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-health-branch-exclusion-no-keel.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "b6213fe2c0fba1d2d00210984f39d1166b9759dbe92462bcdcbfde0a305fe60d"
+    },
+    {
+      "reader": "morning health branch exclusion",
+      "path": "practices/night/files/scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=never treats",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - morning never treats the plates plan branch as a health branch"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-morning-health-branch-exclusion-no-plates.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "d32fcaa0c59fc94ffa9e010eed0affcd91f785591af6c2f41ea2641e8d348644"
+    },
+    {
+      "reader": "run view corrected proof",
+      "path": "lib/web/run-views.mjs",
+      "sourceSha256": "7299c76c169ff9f3d1e81ad294e6b29f1452d6c9231ab0bdd2110174935cf41c",
+      "omitted": "keel",
+      "recipe": "replace '.github/workflows/keel-night.yml' with 'not-a-night/keel-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either failed night",
+        "tests/web-runs-ui.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - run detail exposes inspection for either failed night workflow without retrying"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-run-view-corrected-proof-no-keel.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "87172af5fe26cdcfe6bfa77c31736805d612772362f31779ba6c98a0e00bcd0e"
+    },
+    {
+      "reader": "run view corrected proof",
+      "path": "lib/web/run-views.mjs",
+      "sourceSha256": "7299c76c169ff9f3d1e81ad294e6b29f1452d6c9231ab0bdd2110174935cf41c",
+      "omitted": "plates",
+      "recipe": "replace '.github/workflows/plates-night.yml' with 'not-a-night/plates-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either failed night",
+        "tests/web-runs-ui.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - run detail exposes inspection for either failed night workflow without retrying"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-run-view-corrected-proof-no-plates.log",
+      "record": "/tmp/plates125-mutations-final.json",
+      "logSha256": "c27f1b1c50442a27b92644b2a8f9e427bcaa30ecdf97825fe8423b732739a3fb"
+    },
+    {
+      "reader": "history workflow effective removal",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "keel",
+      "recipe": "replace \"'.github/workflows/keel-night.yml'\" with \"'.github/workflows/omitted-keel-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - history recognizes each night workflow independently"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-effective-removal-no-keel.log",
+      "record": "/tmp/plates125-mutations-history.json",
+      "logSha256": "9f2d1586ad0fe2e91524996e360c5c89bae49d1c3120a11b1d3256a27296fdab"
+    },
+    {
+      "reader": "history workflow effective removal",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "plates",
+      "recipe": "replace \"'.github/workflows/plates-night.yml'\" with \"'.github/workflows/omitted-plates-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - history recognizes each night workflow independently"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-effective-removal-no-plates.log",
+      "record": "/tmp/plates125-mutations-history.json",
+      "logSha256": "1661e656ae3c136ebfa67aa1d517dde74ebbba0f68dc840fc033b76e4b9e36b7"
+    },
+    {
+      "reader": "final plan selection remote and API",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "fc48f6a6913776a23ad18b2f641ffc72d9fdf6cc5f82c2a83e266bb2179a3268",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=plans for one|remote .* plan|API reads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - two plans for one night: plates wins, and says so",
+        "not ok 3 - remote keel plan, morning record, verification and original final branch",
+        "not ok 5 - API reads the keel dated plan without writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-final-plan-selection-remote-and--no-keel.log",
+      "record": "/tmp/plates125-mutations-plan.json",
+      "logSha256": "f952f66617760455860c56cf66218fcfbd0d06cd3993a3dac0853e4970faea41"
+    },
+    {
+      "reader": "final plan selection remote and API",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "fc48f6a6913776a23ad18b2f641ffc72d9fdf6cc5f82c2a83e266bb2179a3268",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=plans for one|remote .* plan|API reads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - two plans for one night: plates wins, and says so",
+        "not ok 2 - remote plates plan, morning record, verification and original final branch",
+        "not ok 4 - API reads the plates dated plan without writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-final-plan-selection-remote-and--no-plates.log",
+      "record": "/tmp/plates125-mutations-plan.json",
+      "logSha256": "bf89d66c498e594b114eebd8a32d40e3a187f39322b639993a9cbba26aeb12c7"
+    },
+    {
+      "reader": "final plan robot reservation",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "fc48f6a6913776a23ad18b2f641ffc72d9fdf6cc5f82c2a83e266bb2179a3268",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-final-plan-robot-reservation-no-keel.log",
+      "record": "/tmp/plates125-mutations-plan.json",
+      "logSha256": "b4e9dc80cf28eb576dd52d33a3f848ce6a03b1d486db67a0bfc2dda7e2589596"
+    },
+    {
+      "reader": "final plan robot reservation",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "fc48f6a6913776a23ad18b2f641ffc72d9fdf6cc5f82c2a83e266bb2179a3268",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-final-plan-robot-reservation-no-plates.log",
+      "record": "/tmp/plates125-mutations-plan.json",
+      "logSha256": "ac5ee2bf10772edce4477f97098832be4720720269d1a733596bf51bd0ae7ddd"
+    },
+    {
+      "reader": "canvas morning workflow identity",
+      "path": "practices/night/files/scripts/plates/canvas-recovery.mjs",
+      "sourceSha256": "686878380e91b40cc1aef8a58e35dd854024ab6d62a28278efe81c16c2d1ae0f",
+      "omitted": "keel",
+      "recipe": "replace \"'keel-morning.yml':\" with \"'omitted-keel-morning.yml':\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either morning workflow",
+        "tests/canvas-night.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - canvas recovery retains either morning workflow identity and its held artifact name"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-canvas-morning-workflow-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "50d557dd4566788cb0c35783ee0f199e58891f1cc67554f6706713909eefe782"
+    },
+    {
+      "reader": "canvas morning workflow identity",
+      "path": "practices/night/files/scripts/plates/canvas-recovery.mjs",
+      "sourceSha256": "686878380e91b40cc1aef8a58e35dd854024ab6d62a28278efe81c16c2d1ae0f",
+      "omitted": "plates",
+      "recipe": "replace \"'plates-morning.yml':\" with \"'omitted-plates-morning.yml':\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either morning workflow",
+        "tests/canvas-night.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - canvas recovery retains either morning workflow identity and its held artifact name"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-canvas-morning-workflow-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "e3600f09f3a1be47d5ec6d4cd816149cd57dde7ee5c09880dd41bf30a04eaa8e"
+    },
+    {
+      "reader": "ledger climb workflow identity",
+      "path": "practices/night/files/scripts/plates/test-ledger.mjs",
+      "sourceSha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238",
+      "omitted": "keel",
+      "recipe": "replace \"'keel-climb'\" with \"'omitted-keel-climb'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=ledger recognizes",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - ledger recognizes each night and climb workflow identity without changing old receipts"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-ledger-climb-workflow-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "64365b5b7b7eb1b40ea1d993e3a9b9b415909cc1f7da18b10cac981f5f0398c1"
+    },
+    {
+      "reader": "ledger climb workflow identity",
+      "path": "practices/night/files/scripts/plates/test-ledger.mjs",
+      "sourceSha256": "37bc5a344f379611cc07aa7443b7bef764ca07aaa7d440acd01e1a5c85ef9238",
+      "omitted": "plates",
+      "recipe": "replace \"'plates-climb'\" with \"'omitted-plates-climb'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=ledger recognizes",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - ledger recognizes each night and climb workflow identity without changing old receipts"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-ledger-climb-workflow-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "6bbf0f57ec9be5dd0a379da240d59edb8ea1df8555f2740268b2d7a13eda9b41"
+    },
+    {
+      "reader": "board draft update identity",
+      "path": "lib/board.mjs",
+      "sourceSha256": "a00920006b51cf1a9d5ea59449eeb69cf7729dde7a1627ad45ca80df934875d3",
+      "omitted": "keel",
+      "recipe": "replace '(?:plates|keel)' with '(?:plates)'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=each update namespace",
+        "tests/board.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - board recognizes each update namespace as one draft repair"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-draft-update-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "9329b13161ce33cffb511d59f8d50819c9e60f64154dc94c8ab870d2e5219a31"
+    },
+    {
+      "reader": "board draft update identity",
+      "path": "lib/board.mjs",
+      "sourceSha256": "a00920006b51cf1a9d5ea59449eeb69cf7729dde7a1627ad45ca80df934875d3",
+      "omitted": "plates",
+      "recipe": "replace '(?:plates|keel)' with '(?:keel)'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=each update namespace",
+        "tests/board.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - board recognizes each update namespace as one draft repair"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-draft-update-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-families.json",
+      "logSha256": "c8a4f9be0dd336349ae2222ad710c83496c759bfa230f2f6bb9a3ffbf1b3b6e6"
+    }
+  ],
+  "superseded": [
+    {
+      "reader": "fleet update",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - fleet keeps an existing update under either name; loose-ends includes both queues"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-update-no-keel.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "fleet update",
+      "path": "lib/fleet.mjs",
+      "sourceSha256": "af14df19bea8f41e0a47115b1acd3983b897503466b469f8775f3febad740057",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=fleet keeps",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-fleet-update-no-plates.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "plan selection remote and API",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "aa6e9e26dc028e0e5969f175efd84279eaf0d8f5bd80d92a8675630b12a273a8",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=plans for one|remote .* plan|API reads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - two plans for one night: plates wins, and says so",
+        "not ok 3 - remote keel plan, morning record, verification and original final branch",
+        "not ok 5 - API reads the keel dated plan without writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-plan-selection-remote-and--no-keel.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "plan selection remote and API",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "aa6e9e26dc028e0e5969f175efd84279eaf0d8f5bd80d92a8675630b12a273a8",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=plans for one|remote .* plan|API reads",
+        "tests/phase125-branches.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - two plans for one night: plates wins, and says so",
+        "not ok 2 - remote plates plan, morning record, verification and original final branch",
+        "not ok 4 - API reads the plates dated plan without writes"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-plan-selection-remote-and--no-plates.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "plan robot reservation",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "aa6e9e26dc028e0e5969f175efd84279eaf0d8f5bd80d92a8675630b12a273a8",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-plan-robot-reservation-no-keel.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "plan robot reservation",
+      "path": "practices/night/files/scripts/plates/night-plan.mjs",
+      "sourceSha256": "aa6e9e26dc028e0e5969f175efd84279eaf0d8f5bd80d92a8675630b12a273a8",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=machine measurement",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-plan-robot-reservation-no-plates.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "web robot reservations",
+      "path": "lib/web/night-plan-github.mjs",
+      "sourceSha256": "013fc74dc9c6a896f5730b3d2ca4144f852417438326bc4fe6d2b21894d1248f",
+      "omitted": "keel",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=hosted plan reservation",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - hosted plan reservation counts both robot issue heads, deduplicated and never forks"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-robot-reservations-no-keel.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "web robot reservations",
+      "path": "lib/web/night-plan-github.mjs",
+      "sourceSha256": "013fc74dc9c6a896f5730b3d2ca4144f852417438326bc4fe6d2b21894d1248f",
+      "omitted": "plates",
+      "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=hosted plan reservation",
+        "tests/phase125-consumers.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-web-robot-reservations-no-plates.log",
+      "record": "/tmp/plates125-mutations.json"
+    },
+    {
+      "reader": "board verify history",
+      "path": "scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "keel",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=failed verify of production",
+        "tests/board.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-verify-history-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "board verify history",
+      "path": "scripts/plates/morning.mjs",
+      "sourceSha256": "c05c16734208c4a5d6f791ea3d6f96a8552bff243f97773ef37296333b8f92dc",
+      "omitted": "plates",
+      "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=failed verify of production",
+        "tests/board.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-board-verify-history-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "history workflow identity",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "keel",
+      "recipe": "replace \"'.github/workflows/keel-night.yml'\" with \"'omitted/keel-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - history recognizes each night workflow independently"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-identity-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "history workflow identity",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "plates",
+      "recipe": "replace \"'.github/workflows/plates-night.yml'\" with \"'omitted/plates-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - history recognizes each night workflow independently"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-identity-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "run view retry inspection",
+      "path": "lib/web/run-views.mjs",
+      "sourceSha256": "7299c76c169ff9f3d1e81ad294e6b29f1452d6c9231ab0bdd2110174935cf41c",
+      "omitted": "keel",
+      "recipe": "replace '.github/workflows/keel-night.yml' with 'not-a-night/keel-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either failed night",
+        "tests/web-runs-ui.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - run detail exposes inspection for either failed night workflow without retrying"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-run-view-retry-inspection-no-keel.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "run view retry inspection",
+      "path": "lib/web/run-views.mjs",
+      "sourceSha256": "7299c76c169ff9f3d1e81ad294e6b29f1452d6c9231ab0bdd2110174935cf41c",
+      "omitted": "plates",
+      "recipe": "replace '.github/workflows/plates-night.yml' with 'not-a-night/plates-night.yml'",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=either failed night",
+        "tests/web-runs-ui.test.mjs"
+      ],
+      "exit": 1,
+      "failedTests": [
+        "not ok 1 - run detail exposes inspection for either failed night workflow without retrying"
+      ],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-run-view-retry-inspection-no-plates.log",
+      "record": "/tmp/plates125-mutations-extra.json"
+    },
+    {
+      "reader": "history workflow corrected proof",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "keel",
+      "recipe": "replace \"'.github/workflows/keel-night.yml'\" with \"'omitted/keel-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-corrected-proof-no-keel.log",
+      "record": "/tmp/plates125-mutations-final.json"
+    },
+    {
+      "reader": "history workflow corrected proof",
+      "path": "practices/night/files/scripts/plates/test-history.mjs",
+      "sourceSha256": "6ee51865fefcfdc195ee8d21d22876069e0ca814be3326f35a536def138cd757",
+      "omitted": "plates",
+      "recipe": "replace \"'.github/workflows/plates-night.yml'\" with \"'omitted/plates-night.yml'\"",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=history recognizes",
+        "tests/test-history.test.mjs"
+      ],
+      "exit": 0,
+      "failedTests": [],
+      "invalidExecution": false,
+      "log": "/tmp/plates125-mutant-history-workflow-corrected-proof-no-plates.log",
+      "record": "/tmp/plates125-mutations-final.json"
+    }
+  ],
+  "limits": "Synthetic local tests only. Initial surviving/equivalent mutations and invalid proof fixtures are retained but excluded; replacements are independently red in both directions.",
+  "metadataCorrection": {
+    "currentBase": "77b02471321d09c2c261a8686021f18da61b4e11",
+    "contextDigest": "fe85d5781998daa6874552ca89211e9f657f3af3c739507bbdd2ee86a12ba664",
+    "row": "git ref:keel-claims/phase-",
+    "changes": {
+      "surface": {
+        "before": "git ref",
+        "after": "local Git path"
+      },
+      "phase": {
+        "before": 125,
+        "after": 128
+      }
+    },
+    "mutationTargetsUnchanged": true,
+    "mutationsRerun": false,
+    "reason": "Read/write names, active branch families, durable protection and concurrency selection unchanged; only inventory metadata and its tests changed. Prior executions retain their original base and source hashes. Exact retry source closure now needs conductor pin refresh before revalidation.",
+    "tableSources": {
+      "practices/night/files/scripts/plates/names.mjs": {
+        "beforeSha256": "9051d22018c8eb603a84caf9111cf34d8a1033dae1075ee06451b89223f06649",
+        "currentSha256": "9d9a93488a4f7bde9b308844bf95a0225b44d8eec2dbb5fecf6005f6f806448a"
+      },
+      "scripts/plates/names.mjs": {
+        "beforeSha256": "9051d22018c8eb603a84caf9111cf34d8a1033dae1075ee06451b89223f06649",
+        "currentSha256": "9d9a93488a4f7bde9b308844bf95a0225b44d8eec2dbb5fecf6005f6f806448a"
+      }
+    },
+    "semanticCheck": "/tmp/plates125-token-semantic-check.json",
+    "carriedForwardMutations": 72,
+    "pendingRevalidation": [
+      {
+        "reader": "retry source profiles",
+        "omitted": "keel",
+        "reason": "Current retry profile names.mjs byte pin is stale; no pin edits authorized."
+      },
+      {
+        "reader": "retry source profiles",
+        "omitted": "plates",
+        "reason": "Current retry profile names.mjs byte pin is stale; no pin edits authorized."
+      }
+    ],
+    "staleRetryPins": [
+      {
+        "path": "scripts/plates/names.mjs",
+        "expected": "c4848b8ab3121fa4cfc14516d6af1b21a2bfc365",
+        "actual": "840e8027c88bc2e3376512e934f510c51e79fb6e"
+      }
+    ]
+  },
+  "postClassificationRetryRevalidation": {
+    "scratch": "/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/acme125-retry-pin-0tjkf6_9",
+    "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+    "observations": [
+      {
+        "omitted": null,
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 0,
+        "failedTests": [],
+        "log": "/tmp/plates125-retry-pin-None.log",
+        "logSha256": "a31ec914c06e29340b8795d78559a2036a5df790674e24f4067a7bd17490a3c0"
+      },
+      {
+        "omitted": "keel",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - real canonical night profile previews exact effects and sends one native rerun with original actor semantics",
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-pin-keel.log",
+        "logSha256": "7a5b1719551e7c240cbdbf0ab02e7b9a3401edc811534b3fbc000b131da428a2"
+      },
+      {
+        "omitted": "plates",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-pin-plates.log",
+        "logSha256": "e5dd2195d8df1633175df6004881d1792da31492b4f497552d2c26be5e3dfd4b"
+      }
+    ]
+  },
+  "mergedHostedBaseRetryRevalidation": {
+    "scratch": "/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/acme125-retry-pin-942mvu6b",
+    "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+    "observations": [
+      {
+        "omitted": null,
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 0,
+        "failedTests": [],
+        "log": "/tmp/plates125-retry-integrated-None.log",
+        "logSha256": "ae6f921485503a397bff16c845d88c93cb412ead954db0ac2982850a28795717"
+      },
+      {
+        "omitted": "keel",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - real canonical night profile previews exact effects and sends one native rerun with original actor semantics",
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-integrated-keel.log",
+        "logSha256": "bcb55791c44b8433a6ab22a2ab94ab55314f2823b32057353576b67300aa699a"
+      },
+      {
+        "omitted": "plates",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-integrated-plates.log",
+        "logSha256": "3949310d65dbacb844e551ad94ea8eaae54beb8d0be7f25aad2e98a7d9c6d7dd"
+      }
+    ]
+  },
+  "review1PlanPreservation": {
+    "scratch": "/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/plates125-mutants-1z2ljphh",
+    "results": [
+      {
+        "reader": "review1v3 plan selection Git API",
+        "baselineLog": "/tmp/plates125-review1v3-plan-selection-it--baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/night-plan.mjs",
+        "sourceSha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e",
+        "omitted": "keel",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=plans for one|remote .* plan|API reads",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - two plans for one night: plates wins, and says so",
+          "not ok 3 - remote keel plan, morning record, verification and original final branch",
+          "not ok 5 - API reads the keel dated plan without writes"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-plan-selection-it--no-keel.log"
+      },
+      {
+        "reader": "review1v3 plan selection Git API",
+        "baselineLog": "/tmp/plates125-review1v3-plan-selection-it--baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/night-plan.mjs",
+        "sourceSha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e",
+        "omitted": "plates",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=plans for one|remote .* plan|API reads",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - two plans for one night: plates wins, and says so",
+          "not ok 2 - remote plates plan, morning record, verification and original final branch",
+          "not ok 4 - API reads the plates dated plan without writes"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-plan-selection-it--no-plates.log"
+      },
+      {
+        "reader": "review1v3 plan robot reservation",
+        "baselineLog": "/tmp/plates125-review1v3-plan-robot-reservation-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/night-plan.mjs",
+        "sourceSha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e",
+        "omitted": "keel",
+        "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('keel') ? null : all_robotIssueOf(...args); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=machine measurement",
+          "tests/phase125-consumers.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-plan-robot-reservation-no-keel.log"
+      },
+      {
+        "reader": "review1v3 plan robot reservation",
+        "baselineLog": "/tmp/plates125-review1v3-plan-robot-reservation-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/night-plan.mjs",
+        "sourceSha256": "bf17cd2504205117ee90d62ec5da6318da47d06a5e45c7fb1a05d4c086c1807e",
+        "omitted": "plates",
+        "recipe": "Alias only imported robotIssueOf to all_robotIssueOf; append function robotIssueOf(...args) { return String(args[0]).startsWith('plates') ? null : all_robotIssueOf(...args); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=machine measurement",
+          "tests/phase125-consumers.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - machine measurement, robot reservation and tend waiting combine aliases"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-plan-robot-reservation-no-plates.log"
+      },
+      {
+        "reader": "review1v3 morning plan locations",
+        "baselineLog": "/tmp/plates125-review1v3-morning-plan-locations-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "keel",
+        "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=remote .* plan",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - remote keel plan, morning record, verification and original final branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-plan-locations-no-keel.log"
+      },
+      {
+        "reader": "review1v3 morning plan locations",
+        "baselineLog": "/tmp/plates125-review1v3-morning-plan-locations-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "plates",
+        "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=remote .* plan",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - remote plates plan, morning record, verification and original final branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-plan-locations-no-plates.log"
+      },
+      {
+        "reader": "review1v3 morning night records",
+        "baselineLog": "/tmp/plates125-review1v3-morning-night-records-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "keel",
+        "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=remote .* plan",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - remote keel plan, morning record, verification and original final branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-night-records-no-keel.log"
+      },
+      {
+        "reader": "review1v3 morning night records",
+        "baselineLog": "/tmp/plates125-review1v3-morning-night-records-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "plates",
+        "recipe": "Alias only imported nightBranches to all_nightBranches; append function nightBranches(...args) { return all_nightBranches(...args).filter(value=>!value.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=remote .* plan",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - remote plates plan, morning record, verification and original final branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-night-records-no-plates.log"
+      },
+      {
+        "reader": "review1v3 morning verify",
+        "baselineLog": "/tmp/plates125-review1v3-morning-verify-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "keel",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=verify history",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - verify history across both branches is sorted by actual time, preserving each site"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-verify-no-keel.log"
+      },
+      {
+        "reader": "review1v3 morning verify",
+        "baselineLog": "/tmp/plates125-review1v3-morning-verify-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "plates",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=verify history",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - verify history across both branches is sorted by actual time, preserving each site"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-verify-no-plates.log"
+      },
+      {
+        "reader": "review1v3 morning health exclusion",
+        "baselineLog": "/tmp/plates125-review1v3-morning-health-exclusion-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "keel",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=never treats",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - morning never treats the keel plan branch as a health branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-health-exclusion-no-keel.log"
+      },
+      {
+        "reader": "review1v3 morning health exclusion",
+        "baselineLog": "/tmp/plates125-review1v3-morning-health-exclusion-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "plates",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=never treats",
+          "tests/phase125-branches.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - morning never treats the plates plan branch as a health branch"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-morning-health-exclusion-no-plates.log"
+      },
+      {
+        "reader": "review1v3 board verify",
+        "baselineLog": "/tmp/plates125-review1v3-board-verify-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "keel",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=failed verify of production",
+          "tests/board.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - a failed verify of production is the owner's item on the board; a passed one is nothing; an unreadable record is n/a, never \"nothing failed\""
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-board-verify-no-keel.log"
+      },
+      {
+        "reader": "review1v3 board verify",
+        "baselineLog": "/tmp/plates125-review1v3-board-verify-baseline.log",
+        "baselineExit": 0,
+        "path": "practices/night/files/scripts/plates/morning.mjs",
+        "sourceSha256": "87677c362512bca6febf2035edef8785f2227647fdf2e88a3cb953718656e58d",
+        "omitted": "plates",
+        "recipe": "Alias only imported readNames to all_readNames; append function readNames(...args) { return all_readNames(...args).filter(value=>!value.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=failed verify of production",
+          "tests/board.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - a failed verify of production is the owner's item on the board; a passed one is nothing; an unreadable record is n/a, never \"nothing failed\""
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-board-verify-no-plates.log"
+      },
+      {
+        "reader": "review1v3 web plan dependency",
+        "baselineLog": "/tmp/plates125-review1v3-web-plan-dependency-baseline.log",
+        "baselineExit": 0,
+        "path": "lib/web/daily.mjs",
+        "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+        "omitted": "keel",
+        "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('keel')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=web daily accepts",
+          "tests/web-daily.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - web daily accepts either plan name and excludes conflicting legacy ticks when both are tonight"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-web-plan-dependency-no-keel.log"
+      },
+      {
+        "reader": "review1v3 web plan dependency",
+        "baselineLog": "/tmp/plates125-review1v3-web-plan-dependency-baseline.log",
+        "baselineExit": 0,
+        "path": "lib/web/daily.mjs",
+        "sourceSha256": "609936bd237d0394d4dd0271b25e7a8673420e8fad7139cdfc55613f23938a37",
+        "omitted": "plates",
+        "recipe": "Alias only imported planLocations to all_planLocations; append function planLocations(...args) { return all_planLocations(...args).filter(value=>!value.branch.startsWith('plates')); }",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=web daily accepts",
+          "tests/web-daily.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - web daily accepts either plan name and excludes conflicting legacy ticks when both are tonight"
+        ],
+        "invalidExecution": false,
+        "log": "/tmp/plates125-mutant-review1v3-web-plan-dependency-no-plates.log"
+      }
+    ]
+  },
+  "review1RetryClosure": {
+    "scratch": "/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/acme125-retry-pin-sbt8mln7",
+    "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+    "observations": [
+      {
+        "omitted": null,
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 0,
+        "failedTests": [],
+        "log": "/tmp/plates125-retry-review1-None.log",
+        "logSha256": "790c88d6a4d379d5c516d28af6ff9a3b4da3c920f5e3a12ad4fe246e1346afb3"
+      },
+      {
+        "omitted": "keel",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - real canonical night profile previews exact effects and sends one native rerun with original actor semantics",
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-review1-keel.log",
+        "logSha256": "f0e266abc571c3e17bf6b1c710506e9e8088f5079e01e40a545a1120891fc493"
+      },
+      {
+        "omitted": "plates",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-review1-plates.log",
+        "logSha256": "1fccb0367fffecb161878ad2fe012898d6e56d63b0570cff6255343b056e3c7b"
+      }
+    ]
+  }
+}

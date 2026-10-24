@@ -58,7 +58,7 @@ async function stubGh(t, open = [], closed = []) {
 test('tend-pick: a pass on keel-tend/<date>; an open tend PR waits; three closed unmerged and tend proposes its own retirement', async t => {
   const dir = await acme(t);
   const p = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { PLATES_GH: await stubGh(t) }));
-  assert.deepEqual(p, { run: true, date: '2026-10-12', branch: 'keel-tend/2026-10-12', minutes: 30, schedule: 'weekly' });
+  assert.deepEqual(p, { run: true, date: '2026-10-12', branch: 'plates-tend/2026-10-12', minutes: 30, schedule: 'weekly' });
   const waits = json(climb(dir, ['tend-pick', '--date', '2026-10-12', '--json'], { PLATES_GH: await stubGh(t, ['keel-climb/test-time/2026-10-11', 'keel-tend/2026-10-05']) }));
   assert.equal(waits.run, false);
   assert.match(waits.reason, /the last tend PR \(keel-tend\/2026-10-05\) is still open/);
@@ -67,7 +67,7 @@ test('tend-pick: a pass on keel-tend/<date>; an open tend PR waits; three closed
   assert.equal(tendRetiring([pr(1), pr(2, true), pr(3)]), null);
   const retired = json(climb(dir, ['tend-pick', '--json'], { PLATES_GH: await stubGh(t, [], [pr(1), pr(2), pr(3)]) }));
   assert.equal(retired.run, false);
-  assert.match(retired.reason, /^tend proposes its own retirement: its last 3 keel-tend\/ PRs \(#3, #2, #1\) were closed unmerged/);
+  assert.match(retired.reason, /^tend proposes its own retirement: its last 3 plates-tend\/ PRs \(#3, #2, #1\) were closed unmerged/);
   // gh that cannot answer: tend-pick never guesses.
   const blind = climb(dir, ['tend-pick', '--json'], { PLATES_GH: join(dir, 'no-gh') });
   assert.equal(blind.status, 2);

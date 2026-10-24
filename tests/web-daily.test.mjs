@@ -53,7 +53,7 @@ test('daily reads canonical sources at immutable revisions and preserves overdue
   assert.deepEqual(model.readiness, readiness(dailyPlan(), new Date(h.state.now)));
   assert.equal(model.readiness.late, true);
   assert.equal(model.items[0].status, 'planned');
-  assert.equal(model.sources.length, 5);
+  assert.equal(model.sources.length, 8);
   assert.equal(model.sources[0].state, 'absent');
   assert.equal(model.from, 'main:docs/night/2026-10-21.json');
   assert.equal(model.items[0].source.revision, h.source.head);
@@ -85,8 +85,8 @@ test('record base and furthest tick ties match canonical morning while preservin
   assert.equal(model.items[0].source.branch, 'keel-night-plan');
   assert.equal(model.items[0].source.revision, 'd'.repeat(40));
   assert.equal(model.items[0].resultUrl, 'https://github.com/acme/studio/pull/12');
-  assert.equal(model.sources[1].plan.items[0].status, 'failed');
-  assert.equal(model.sources[3].plan.items[0].status, 'planned');
+  assert.equal(model.sources[4].plan.items[0].status, 'failed');
+  assert.equal(model.sources[6].plan.items[0].status, 'planned');
 });
 
 test('absent, invalid, other-date and unavailable sources stay distinct; missing records do not become plans', async () => {
@@ -95,7 +95,7 @@ test('absent, invalid, other-date and unavailable sources stay distinct; missing
   branch(h, 'keel-night-plan', dailyPlan('2026-10-22'), 'd');
   h.source.branches['keel-night/2026-10-21-final'] = { head: 'e'.repeat(40), files: { 'docs/night/2026-10-21.json': '{broken' } };
   const model = await inspect(h);
-  assert.deepEqual(model.sources.map(s => s.state), ['other-date', 'invalid', 'absent', 'absent', 'absent']);
+  assert.deepEqual(model.sources.map(s => s.state), ['absent', 'other-date', 'absent', 'absent', 'invalid', 'absent', 'absent', 'absent']);
   assert.equal(model.plan, null);
   h.source.dailyGraphError = 'INTERNAL';
   const unavailable = await inspect(h);
@@ -166,7 +166,7 @@ test('dates, file bounds, UTF-8 and result links cannot cause arbitrary URL fetc
   assert.ok(h.source.dailyRequests.length < 200);
   h.source.files['docs/night/2026-10-21.json'] = ' '.repeat(262145);
   model = await inspect(h);
-  assert.equal(model.sources[3].state, 'unavailable');
+  assert.equal(model.sources[6].state, 'unavailable');
   assert.equal(model.plan, null);
   assert.equal(planRecord('{"schema":1}', {}, '2026-10-21').state, 'invalid');
 });
@@ -180,10 +180,10 @@ test('source blobs are content-verified and malformed UTF-8 remains invalid', as
     return original(url, options);
   };
   const model = await createDaily(h.config, { fetcher, now: () => h.state.now }).inspect(h.access, token, h.project, '2026-10-21');
-  assert.equal(model.sources[3].state, 'invalid'); assert.equal(model.plan, null);
+  assert.equal(model.sources[6].state, 'invalid'); assert.equal(model.plan, null);
   h.source.files[path] = Buffer.from([0xc3, 0x28]);
   const invalidUtf8 = await inspect(h);
-  assert.equal(invalidUtf8.sources[3].state, 'invalid');
+  assert.equal(invalidUtf8.sources[6].state, 'invalid');
   assert.equal(invalidUtf8.plan, null);
 });
 
@@ -215,4 +215,24 @@ test('missing or invalid plan leaves allocation unknown while a valid empty plan
   const empty = await inspect(h);
   assert.deepEqual(empty.plan.items, []);
   assert.ok(empty.budget.lanes.every(lane => lane.allocatedMinutes === 0 && lane.unallocatedItems === 0));
+});
+
+test('web daily accepts either plan name and excludes conflicting legacy ticks when both are tonight', async () => {
+  for (const name of ['plates','keel']) {
+    const h=dailyHarness(), p=dailyPlan();p.items[0].status='done';
+    h.source.branches[`${name}-night-plan`]={head:'d'.repeat(40),files:{[`.${name}/night/plan.json`]:JSON.stringify(p)}};
+    const found=await inspect(h);assert.equal(found.items[0].status,'done');assert.equal(found.items[0].source.branch,`${name}-night-plan`);
+  }
+  const h=dailyHarness(), current=dailyPlan(), legacy=dailyPlan();
+  current.items[0].status='running';legacy.items[0].status='done';
+  for(const [name,p,digit] of [['plates',current,'d'],['keel',legacy,'e']])h.source.branches[`${name}-night-plan`]={head:digit.repeat(40),files:{[`.${name}/night/plan.json`]:JSON.stringify(p)}};
+  const found=await inspect(h);assert.equal(found.items[0].status,'running');assert.match(found.sources.find(s=>s.branch==='keel-night-plan').reason,/plates-night-plan wins/);
+});
+
+test('web daily reads either original nightly record and final record',async()=>{
+ for(const name of ['plates','keel']) for(const suffix of ['', '-final']) {
+  const h=dailyHarness(), p=dailyPlan();p.items[0].status='done';
+  const ref=`${name}-night/${p.date}${suffix}`;branch(h,ref,p,'d');
+  const found=await inspect(h);assert.equal(found.items[0].status,'done');assert.equal(found.items[0].source.branch,ref);
+ }
 });

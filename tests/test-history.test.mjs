@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, link, readdir, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, symlink, link, readdir, chmod, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { deflateRawSync, crc32 } from 'node:zlib';
@@ -252,7 +252,7 @@ test('night extracted Gather shell recovers real system ZIP via synthetic gh end
   await mkdir(join(root, 'scripts/plates'), { recursive: true }); await writeFile(join(root, 'scripts/plates/test-history.mjs'), await readFile(source));
   await writeFile(join(root, 'scripts/plates/names.mjs'), await readFile(resolve('practices/night/files/scripts/plates/names.mjs')));
   await writeFile(join(root, 'scripts/plates/time-receipts.mjs'), await readFile(resolve('practices/night/files/scripts/plates/time-receipts.mjs')));
-  await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
+  await cp(resolve('practices/night/files/scripts/plates'), join(root, 'scripts/plates'), {recursive:true});
   const gh = join(root, 'gh'); await writeFile(gh, `#!${process.execPath}\nconst fs=require('node:fs');const routes=${JSON.stringify(f.routes)};const p=process.argv[3];if(p==='repos/acme/app/actions/artifacts/1/zip')process.stdout.write(fs.readFileSync(${JSON.stringify(zipped)}));else if(routes[p])console.log(JSON.stringify(routes[p]));else process.exit(1);\n`); await chmod(gh, 0o755);
   const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === 'Gather the test ledger').script;
   assert.doesNotMatch(script, /unzip|gh api/);
@@ -269,8 +269,7 @@ async function stagingFixture(t, production = false) {
   git('init', '-q', '-b', 'main'); git('remote', 'add', 'origin', remote);
   await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ health, name: 'Acme', repo: 'acme/app' }));
   await mkdir(join(root, health), { recursive: true }); await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
-  await writeFile(join(root, 'scripts/plates/names.mjs'), await readFile(resolve('practices/night/files/scripts/plates/names.mjs')));
+  await cp(resolve('practices/night/files/scripts/plates'), join(root, 'scripts/plates'), {recursive:true});
   await writeFile(join(root, 'scripts/plates/pr-body.mjs'), 'console.log("Acme synthetic PR body");\n');
   const earlier = `${health}/2026-10-08.md`, unrelated = `${health}/2026-10-07.md`, today = `${health}/${day}.md`;
   await writeFile(join(root, earlier), 'Acme accepted proposal; awaiting remeasurement.\n');
@@ -303,7 +302,7 @@ async function stagingFixture(t, production = false) {
   // origin, so a missing lease cannot mask the metadata/path refusal under test.
   const recovered = produced ? produced.data.nightRecovery : await recoverNightVerification({ root, config: { repo: 'acme/app', health }, date: day, env });
   const nightRecovery = { branch: recovered.branch, head: recovered.head, attempts: recovered.attempts };
-  assert.deepEqual(nightRecovery, { branch: `keel-night/${day}`, head: '', attempts: 0 });
+  assert.deepEqual(nightRecovery, { branch: `plates-night/${day}`, head: '', attempts: 0 });
   const report = produced?.data ?? { date: day, report: today, changedHistoricalHealthPaths: [earlier], nightRecovery };
   await writeFile(join(temp, 'improve.json'), JSON.stringify(report)); await writeFile(join(temp, 'pr.json'), '{}');
   const script = runBlocks(await readFile(workflow, 'utf8')).find(b => b.step === "Open the night's pull request").script;
@@ -323,7 +322,7 @@ test('night historical health staging commits the earlier remeasurement and toda
   assert.equal(f.git('show', `HEAD:${f.unrelated}`), 'Acme owner notes.');
   assert.equal(f.git('diff', '--cached', '--name-only'), f.unrelated);
   assert.match(f.git('status', '--porcelain'), /human-draft\.md/);
-  assert.equal(f.git('rev-parse', 'refs/remotes/origin/keel-night/2026-10-10'), f.git('rev-parse', 'HEAD'));
+  assert.equal(f.git('rev-parse', 'refs/remotes/origin/plates-night/2026-10-10'), f.git('rev-parse', 'HEAD'));
 });
 test('night historical health staging rejects unvalidated metadata and paths before any staging or commit', async t => {
   const cases = ['missing', 'object', 'outside', 'absolute', 'traversal', 'glob', 'newline', 'duplicate', 'today', 'directory', 'symlink', 'ignored', 'wrong-date', 'wrong-report', 'too-many', 'missing-file'];
@@ -421,4 +420,12 @@ test('history chooses current artifact for the same run and does not conceal exp
   bad.artifacts.find(a=>a.id===2).expired = true;
   assert.equal((await recover(other,bad)).selected.length,0);
   assert.deepEqual(bad.downloads,[]);
+});
+
+test('history recognizes each night workflow independently',async t=>{
+ for(const legacy of [false,true]) {
+  const root=await project(t),f=fixture([{id:1,kind:'night',legacy}]);
+  const result=await recover(root,f);assert.equal(result.imported,1,JSON.stringify(result));
+  assert.equal(result.selected.length,1);assert.equal(result.selected[0].workflowId,legacy?12:10);
+ }
 });
