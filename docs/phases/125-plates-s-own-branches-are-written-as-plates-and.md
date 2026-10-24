@@ -64,4 +64,4 @@ By hand: phase 129's dispatched nights.
 
 ## Next action
 
-Fix #218 with its regression test, then switch the night and final rows in the phase-124 table to `dual`.
+Fix #218 with its regression test, then switch the night and final rows in the phase-124 table to `dual`. Before merging changed active workflows into plates itself, obtain the owner-approved disable/drain barrier: merging the self-rendered workflow is already an installation, not a step that can wait until phase 129. If that approval is pending, retain the reviewed PR; do not bypass the barrier to cut a release.
