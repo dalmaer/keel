@@ -546,3 +546,15 @@ Never strip or rewrite historical source to hide exposure. Tests check that
 curated probe delivery introduces no full or abbreviated corrected-witness IDs,
 patches or acceptance manifests. If actual historical source exposes a solution,
 report the exposure rather than silently rewriting the pinned baseline.
+
+### Guidance oracle delivery — 24 October 2026
+
+The initialization probe's accepted sentence forms are evaluator-only input,
+bound by the acceptance material hash and supplied through the existing isolated
+evaluator's stdin. They must not appear in builder files, public requirements or
+context overlays. The public brief describes the first-use obligations and the
+bounded nature of this check; it does not reproduce its solution sentences.
+The installed curator package retains the oracle, but that package is never
+mounted into the builder container. Tests inspect the actual builder inventory
+and prove the original failure and corrected witness using private input.
+This remains an exposed historical development case, not held-out evidence.

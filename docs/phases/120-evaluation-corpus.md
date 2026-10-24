@@ -1,12 +1,12 @@
 ---
-status: designed
-since: 2026-10-23
+status: built
+since: 2026-10-24
 goal: G5
 spec: 2
 depends: [119]
 review: wait
-note: "Specified only; production implementation and paid evaluation have not started."
-evidence: []
+note: "Six offline development cases, installed CLI and integrated gates verified; review and phase 119 merge hold remain."
+evidence: ["evidence/2026-10-23-evaluation-corpus.md"]
 ---
 
 # Freeze six historically grounded development cases
@@ -26,9 +26,9 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Acceptance
 
-- [ ] Case fixtures prove compatibility, recovery, initialization, scoped repair, integration and ordinary control contracts without exposing fixes to builders: `tests/evaluation-corpus.test.mjs`.
-- [ ] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluation-corpus.test.mjs`.
-- [ ] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
+- [x] Case fixtures prove compatibility, recovery, initialization, scoped repair, integration and ordinary control contracts without exposing fixes to builders: `tests/evaluation-corpus.test.mjs`.
+- [x] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluation-corpus.test.mjs`.
+- [x] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
 
 ## Real surfaces
 
@@ -36,7 +36,7 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Proof
 
-Planned tests (not implemented by this specification):
+Implemented focused proof:
 `npm run check:focused -- tests/evaluation-corpus.test.mjs`. The conductor runs
 `npm run check` and `npm run typecheck` on the integrated implementation.
 Record negative controls and original failures in an evidence file. Live model
@@ -52,9 +52,8 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Implement the bounded corpus inspection/export contract and six independently
-checked historical cases. Keep held-out coverage zero and the dependent branch
-unmerged until phase 119’s owner review decision is resolved.
+Complete review. Keep held-out coverage zero and the dependent
+branch unmerged until phase 119’s owner review decision is resolved.
 
 ## Trajectory
 

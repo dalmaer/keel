@@ -380,7 +380,7 @@ then gives the commands and every flag by the reason you'd pass it.
 | [Delivery](docs/guide/delivery.md) | two changes in a row should publish once, and deploys should follow tested commits, not `main` |
 | [When something is red](docs/guide/when-something-is-red.md) | a night, an update, a doctor or a climb did not go green |
 | [Project canvas](docs/guide/project-canvas.md) | you want a source-linked view of the project's lifecycle and improvement |
-| [Harness evaluation records](docs/guide/harness-evaluations.md) | you want to freeze evaluation inputs, compare offline trials and recover interrupted work |
+| [Harness evaluation records](docs/guide/harness-evaluations.md) | you want to inspect historical cases, freeze inputs, compare offline trials and recover interrupted work |
 | [Session handoff trials](docs/guide/session-handoff-trials.md) | you want to measure and tune session handoffs within a bounded experiment |
 | [Loose ends and the retro](docs/guide/loose-ends-and-retro.md) | you are picking work back up, or a phase just finished |
 | [Model choice and project planning](docs/guide/web-model-routing.md) | you want to review a private model policy, approve exact project text and bounded cost, or follow an original attempt and saved-summary continuation |
@@ -535,8 +535,12 @@ paired task trials, independent acceptance and reviewed lesson promotion.
 plan/freeze/inspect records. Phase 118 adds an explicit offline Docker run with
 shared host admission and independent artifact acceptance. Phase 119 adds frozen
 paired execution, comparison reports and explicit original-operation recovery.
-Live provider execution, enforced spend and measured lesson promotion remain
-unimplemented; offline outcomes do not establish agent improvement. No paid
+Phase 120 adds bounded inspection/export of six historical development cases
+with separate builder inputs, evaluator data and curator provenance. Use
+`plates retro evaluations corpus inspect --json` to inspect coverage; exports
+require an exact approved preview and a new private destination. Held-out
+coverage remains zero. Live provider execution, enforced spend and measured
+lesson promotion remain unimplemented; offline outcomes do not establish agent improvement. No paid
 evaluations are approved. The
 [capability map](docs/research/2026-10-23-evaluation-capabilities.md) separates
 existing mechanisms from the proposed extensions.

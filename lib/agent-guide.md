@@ -1957,6 +1957,13 @@ worksheet above remains read-only. See `plates --agent-help canvas` for publishi
 
 ### Bounded session trials (explicit records)
 
+`plates retro evaluations corpus inspect|export --json` lists six exposed development
+cases (held-out: zero). Export takes `--case <id> --repository <absolute-dir>
+--destination <absolute-dir>`; preview exits 3, then `--yes --digest <digest>` writes
+a new private destination outside Git. Existing/partial exports refuse overwrite.
+Only the enumerated builder inventory enters isolated delivery; curator fixes and
+private acceptance remain outside it. Export never runs a trial or grants spend.
+
 `plates retro evaluations plan|freeze|inspect|run|resume|reconcile|cancel|compare --manifest <absolute-file>
 --state <absolute-dir> [--bundle <file>] [--experiment <id>] [--execution <absolute-json>] [--json]` freezes
 schema-2 harness input records in an already initialized external workspace.

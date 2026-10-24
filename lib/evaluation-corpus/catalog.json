@@ -1,0 +1,315 @@
+{
+  "schemaVersion": 1,
+  "createdAt": "2026-10-23T00:00:00.000Z",
+  "repository": "dalmaer/plates",
+  "license": "Apache-2.0",
+  "image": "sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a",
+  "platform": "linux/arm64",
+  "cases": [
+    {
+      "id": "package-entry",
+      "version": 1,
+      "taskClass": "compatibility",
+      "start": "edfc56476dd4b7880d8bba83a13436b5a3887a5a",
+      "fix": "fa7477f2ea26bf56cb0e5f6f5a0904cf213a4e72",
+      "sources": [
+        {
+          "path": "lib/rename.mjs",
+          "blob": "f633a284982ddf7ddf706a208e62a43f0bf1647b",
+          "sha256": "7025b21355f6cb8daf2b5632f80eb44c50c75eaef900df8f6950b97310a1d14e",
+          "bytes": 58866
+        }
+      ],
+      "writable": [
+        "lib/rename.mjs"
+      ],
+      "brief": "Preserve installed package entry targets when migrating the product name.",
+      "requirements": [
+        "Clean offline pack/install preserves both supported executable entrypoints and package imports."
+      ],
+      "probe": "package-entry.mjs",
+      "support": [
+        "rename-support.mjs"
+      ],
+      "stdout": "Acme package entry accepted\n",
+      "coverageLimits": [
+        "Unrelated changes in the historical fix are excluded."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "lib/rename.mjs"
+        ],
+        "probePaths": [
+          "package-entry.mjs",
+          "rename-support.mjs"
+        ],
+        "network": false,
+        "tools": [
+          "node",
+          "git",
+          "npm"
+        ],
+        "boundary": "Only enumerated protected probes and actual historical APIs are exercised; dynamic resource paths outside this surface are excluded."
+      }
+    },
+    {
+      "id": "canvas-retirement",
+      "version": 1,
+      "taskClass": "recovery",
+      "start": "d0e9b19fe2067db0a0a60e81e4315028fe5fbe92",
+      "fix": "d57d44ecae668c7e37713585f33f4e4fadd19566",
+      "sources": [
+        {
+          "path": "lib/canvas-sync.mjs",
+          "blob": "16b708ebdd816b482e49e94ecbdb43a998c4dbc5",
+          "sha256": "9c94661e8e4220297f685ebb245243c4b3e4e7faad7d4a3da95738b22790ed59",
+          "bytes": 74108
+        }
+      ],
+      "writable": [
+        "lib/canvas-sync.mjs"
+      ],
+      "brief": "Recover interrupted retirement without losing human edits or duplicating effects.",
+      "requirements": [
+        "Live disable and live-key removal recover the original retirement after interrupted durable writes.",
+        "Subsequent publication preserves the retired human-edited card."
+      ],
+      "probe": "canvas-retirement.mjs",
+      "support": [
+        "canvas-retirement-support.mjs"
+      ],
+      "stdout": "Acme canvas retirement accepted\n",
+      "coverageLimits": [
+        "Interruption is EIO at journal rename after binding; no SIGKILL or process-death claim.",
+        "Snapshot collection/rendering, history collection, night and recovery-state export excluded."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "lib/canvas-sync.mjs"
+        ],
+        "probePaths": [
+          "canvas-retirement.mjs",
+          "canvas-retirement-support.mjs"
+        ],
+        "network": false,
+        "tools": [
+          "node"
+        ],
+        "boundary": "canvasLive/canvasSync with supplied cards only; snapshot/history/render/night/recovery-export paths are excluded, never stubbed."
+      }
+    },
+    {
+      "id": "coordinator-guidance",
+      "version": 1,
+      "taskClass": "initialization",
+      "start": "9b1b3b162b9f3b83b91b45e1878fe8ce581cfa98",
+      "fix": "35f392620e8e06f0038e1e88370be9b0958b3f19",
+      "sources": [
+        {
+          "path": "scripts/validation-budget.mjs",
+          "blob": "2526d085b97b58eb6f7b76bf3d8a9e240a17883f",
+          "sha256": "9ac0a5742900ab8df980dfeef8eddebe4b767aa1eb7d28315d61cbad390416dc",
+          "bytes": 4894
+        },
+        {
+          "path": "lib/validation-budget.mjs",
+          "blob": "32e0c32eefb187d4d1fb415fd67c936214f03d5d",
+          "sha256": "8fd29821be5dede1dc8244a382ae575cef44df5dbae7a6de0ce2c26170d6868c",
+          "bytes": 20462
+        },
+        {
+          "path": "docs/development/validation-preflight.md",
+          "blob": "ee238593a07ea399a6188ee75501a077b6f9e306",
+          "sha256": "4a6cb52a61e7a1fb8d290180615febb9a5fb54632b24206e3a2a7b20ead87791",
+          "bytes": 7502
+        }
+      ],
+      "writable": [
+        "docs/development/validation-preflight.md"
+      ],
+      "brief": "Make first-use coordinator guidance actionable without weakening ownership safeguards.",
+      "requirements": [
+        "Document a usable first-run procedure and validate it against the existing coordinator.",
+        "Preserve refusal and all bytes for existing state without ownership metadata.",
+        "Use the bounded first-use procedure language for four obligations: absent directory under existing canonical parent, no precreation, ambiguous-state refusal, and inspection without automatic reset; arbitrary prose is unsupported."
+      ],
+      "probe": "coordinator-guidance.mjs",
+      "support": [],
+      "stdout": "Acme coordinator guidance accepted\n",
+      "coverageLimits": [
+        "Bounded first-use procedure language: two accepted sentence forms per required obligation in a fixed section; not universal natural-language semantic grading.",
+        "Runtime is unchanged between historical starting and corrected revisions; precreated empty state remains refused."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "scripts/validation-budget.mjs",
+          "lib/validation-budget.mjs",
+          "docs/development/validation-preflight.md"
+        ],
+        "probePaths": [
+          "coordinator-guidance.mjs"
+        ],
+        "network": false,
+        "tools": [
+          "node",
+          "git",
+          "npm"
+        ],
+        "boundary": "Only enumerated protected probes and actual historical APIs are exercised; dynamic resource paths outside this surface are excluded."
+      },
+      "acceptanceInput": "coordinator-guidance.json"
+    },
+    {
+      "id": "rename-ownership",
+      "version": 1,
+      "taskClass": "scoped-repair",
+      "start": "998b297d12ec6046b6e33918b5f1dd42657e2ac4",
+      "fix": "85316dac4a572b4e2a116ab55fc2e86bea5fc08b",
+      "sources": [
+        {
+          "path": "lib/rename.mjs",
+          "blob": "401f97978c1729ddf652d13f90c3288121ef5fcb",
+          "sha256": "35ce54f69a780078186c8205221008a5840c8ee1bbd1165fe683d766f604e740",
+          "bytes": 77405
+        }
+      ],
+      "writable": [
+        "lib/rename.mjs"
+      ],
+      "brief": "Keep migration changes within demonstrated ownership.",
+      "requirements": [
+        "Unowned automation and executable files refuse atomically.",
+        "Opaque private bytes remain unchanged and owned branding still migrates."
+      ],
+      "probe": "rename-ownership.mjs",
+      "support": [
+        "rename-support.mjs"
+      ],
+      "stdout": "Acme rename ownership accepted\n",
+      "coverageLimits": [
+        "Unrelated changes in the historical fix are excluded."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "lib/rename.mjs"
+        ],
+        "probePaths": [
+          "rename-ownership.mjs",
+          "rename-support.mjs"
+        ],
+        "network": false,
+        "tools": [
+          "node",
+          "git"
+        ],
+        "boundary": "Only enumerated protected probes and actual historical APIs are exercised; dynamic resource paths outside this surface are excluded."
+      }
+    },
+    {
+      "id": "consumer-options",
+      "version": 1,
+      "taskClass": "integration",
+      "start": "5cd3e3e98fb9337ba2fd3242a21559a8ee57f454",
+      "fix": "998b297d12ec6046b6e33918b5f1dd42657e2ac4",
+      "sources": [
+        {
+          "path": "lib/rename.mjs",
+          "blob": "fa5a79720e5f76a8b1672c05d6ff466f7f036bbe",
+          "sha256": "7113778764f1735a6f72db6eec16d434cc14d5cb8dd219ca20fa7748627a3d85",
+          "bytes": 74396
+        }
+      ],
+      "writable": [
+        "lib/rename.mjs"
+      ],
+      "brief": "Preserve external consumer interfaces during migration.",
+      "requirements": [
+        "Synthetic external consumers retain option names, values and configured environment behavior."
+      ],
+      "probe": "consumer-options.mjs",
+      "support": [
+        "rename-support.mjs"
+      ],
+      "stdout": "Acme consumer options accepted\n",
+      "coverageLimits": [
+        "Unrelated changes in the historical fix are excluded."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "lib/rename.mjs"
+        ],
+        "probePaths": [
+          "consumer-options.mjs",
+          "rename-support.mjs"
+        ],
+        "network": false,
+        "tools": [
+          "node",
+          "git"
+        ],
+        "boundary": "Only enumerated protected probes and actual historical APIs are exercised; dynamic resource paths outside this surface are excluded."
+      }
+    },
+    {
+      "id": "workspace-command-doc",
+      "version": 1,
+      "taskClass": "control",
+      "start": "331df4591a361ad973c35884c3a4fdaa061c69a8",
+      "fix": "7fca897827ceffcff01d25226015f20235e8655d",
+      "sources": [
+        {
+          "path": "README.md",
+          "blob": "e55b9aefdde4d82d6228b6df45ecc8b16d583214",
+          "sha256": "ad90dfbe23f60f009eca9e61a7cbbe79bb70b9c065931c2bb066a40ec8b12fc4",
+          "bytes": 22288
+        },
+        {
+          "path": "lib/cli.mjs",
+          "blob": "01a4b8c262fe0aaa9d6b87634a4ea0dcf9420e57",
+          "sha256": "4ea32c0800c5da6dc9e12a3aaf916fc765a1dfd91fa2d757112e9b445f6f59a8",
+          "bytes": 63516
+        }
+      ],
+      "writable": [
+        "README.md"
+      ],
+      "brief": "Document the existing workspace command in the command table.",
+      "requirements": [
+        "Add one workspace command-table row while preserving all other documentation and runtime bytes."
+      ],
+      "probe": "workspace-command-doc.mjs",
+      "support": [
+        "workspace-original.txt"
+      ],
+      "stdout": "Acme workspace documentation accepted\n",
+      "coverageLimits": [
+        "Unrelated changes in the historical fix are excluded."
+      ],
+      "closure": {
+        "sourcePaths": [
+          "README.md",
+          "lib/cli.mjs"
+        ],
+        "probePaths": [
+          "workspace-command-doc.mjs",
+          "workspace-original.txt"
+        ],
+        "network": false,
+        "tools": [
+          "node"
+        ],
+        "boundary": "README and lib/cli.mjs are data-only inputs; the actual pinned registry literals are parsed, not replaced or executed."
+      }
+    }
+  ],
+  "probeHeaders": {
+    "canvas-retirement-support.mjs": "// Adapted external-service fixture: dalmaer/plates tests/helpers/isocan.mjs\n// at d57d44ecae668c7e37713585f33f4e4fadd19566 (Apache-2.0).\n// Only the external isocan service is replicated; production modules are intact.\n// A fake isocan home at the boundary (its CLI as keel's transport sees it),\n// shared by the canvas sync tests and the morning's plan card (phase 78).\n// isocan's conditional edit, as inspected at 7bb1f4e: the home decides.\n",
+    "coordinator-guidance.mjs": "// Independent first-use acceptance for dalmaer/plates\n// docs/development/validation-preflight.md at 35f392620e8e06f0038e1e88370be9b0958b3f19\n// (Apache-2.0). Executes actual pinned scripts/validation-budget.mjs and runtime.\n",
+    "workspace-command-doc.mjs": "// Structural command-table acceptance; registry evidence is derived from the pinned CLI.\n",
+    "canvas-retirement.mjs": "// Behavioral acceptance adapted from dalmaer/plates tests/canvas-sync.test.mjs\n// at d57d44ecae668c7e37713585f33f4e4fadd19566 (Apache-2.0).\n// Direct supplied-card surface only; no snapshot/night/history-export coverage.\n",
+    "rename-ownership.mjs": "// Refusal must preserve the complete synthetic owner tree. Apache-2.0 provenance in rename-support.\n",
+    "package-entry.mjs": "// Behavioral package consumer, not a source-text oracle. Apache-2.0 provenance in rename-support.\n",
+    "consumer-options.mjs": "// Actual synthetic producer/consumer contract. Apache-2.0 provenance in rename-support.\n",
+    "rename-support.mjs": "// Synthetic Acme consumers; behavioral assertions adapted from dalmaer/plates\n// tests/rename.test.mjs at fa7477f2, 85316dac and 998b297d (Apache-2.0).\n"
+  }
+}
