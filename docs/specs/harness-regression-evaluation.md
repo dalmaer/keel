@@ -44,12 +44,22 @@ candidate overlay outside the task's authority. `prove` and validation planning
 supply useful checks, not independent acceptance by themselves.
 
 Proposed CLI surface is `plates retro evaluations <operation> --json`. It is
-not an existing command. Implement plan, run, inspect, resume, cancel, compare
+not an existing command. Implement plan, freeze, run, inspect, resume, cancel, compare
 and rescore under retro, with agent-help coverage. Plan/inspect/compare are
 read-only. Run/resume/rescore preview the exact input digest, missing slots,
 authority, maximum additional spend and environment; execution requires `--yes
 --digest <preview>`. Resume approval cannot enlarge the frozen ceiling.
 No scheduler, hosted worker activation or fleet dispatch is part of the MVP.
+
+**Phase 117 boundary, settled 23 October 2026:** `plan` validates a supplied
+case/configuration/comparison bundle without writes. `freeze` previews that exact
+bundle and destination; `--yes --digest <preview>` records the frozen plan in an
+already initialized explicit private workspace. `inspect` reads and validates
+that frozen plan. Freezing never reserves execution budget, starts a trial or
+claims acceptance. Run/resume/cancel/compare/rescore remain unavailable until
+their later phases; unsupported operations must refuse rather than simulate
+execution. This local freeze operation lets the record foundation be proven
+without borrowing the future execution command's authority.
 
 ## Data contracts
 
