@@ -217,3 +217,14 @@ provider allowance against the concrete plan; none is implied here. A curator
 must choose held-out variants before generalization claims. Follow-up window and
 minimum eligible exposure must be declared before calling a promoted lesson
 lived-in; insufficient exposure leaves that claim open, not failed or successful.
+
+## Phase 121 implementation contract — 24 October 2026
+
+[Evaluated learning records](evaluated-learning-records.md) settles the selected
+source reader, strict inbox section, immutable proposal revisions, bounded local
+mutation protocol and derived material-overlay binding. Historical reviewed heads
+remain distinct from current PR heads. Its positive binding uses actual frozen
+materials and Git objects; it neither executes a comparison nor establishes
+readiness. Later measured/promotion transitions refuse until their verification
+interfaces exist. Phase 119's review-limit hold does not prevent this independent
+record work, but no dependent branch may merge it indirectly.
