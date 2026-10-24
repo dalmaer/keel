@@ -246,6 +246,17 @@ separation is not isolation: use the existing isolated executor with its explici
 input inventory. All six initial cases are development cases; held-out coverage
 is zero, and scripted historical replays do not measure agent improvement.
 
+## Evaluated learning records
+
+`plates learn evaluate` verifies selected sources and previews append-only inbox
+changes before exact `--yes --digest` approval. Retain historical review identity
+separately from current PR head; source existence does not prove a defect. Use the
+project's actual phase decision target. Bind candidate material bytes to the frozen
+plan, keep raw source bodies private, and preserve uncertain writes for inspection.
+Legacy acceptance cannot promote a tagged record. Evaluation/promotion/follow-up
+remain unavailable until their verification interfaces are implemented. See the
+[learning guide](docs/guide/lessons-and-learning.md).
+
 ## Session handoff trials
 
 Use `plates retro sessions` for an explicitly configured handoff experiment and

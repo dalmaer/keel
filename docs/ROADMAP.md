@@ -3,7 +3,7 @@
 
 Keep your projects moving: shared practices, bounded automation, and a clear view of what needs you. [Working rules](../AGENTS.md) · [Design](design.md) · [Lessons](lessons.md)
 
-**55 of 124 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
+**56 of 124 phases built; 52 owe a walk.** Built means implemented and checked; planned is not available.
 
 **Next focus:** [50. A project's isocan canvas shows what Plates improves](phases/50-project-life-on-isocan.md). The approved reporting workspace already uses the fixed `loop-across-projects` key and live mode (configured 14 October). Do not repeat that setup. The 19 October publication preflight stopped because the owner-only adapter rejects the owner's explicitly approved named Editor grant. Specify and review exact approved-grant matching before implementing that support; preserve the grant, writer, binding, historical cards and receipts. Do not remove access or bypass preflight. Once supported, verify one real create, a later conditional edit and a refusal after a human edit. These deployed walks remain unverified. Dedicated GitHub writer/restart proof and seven scheduled nights remain separate work. Do not ask again for the approved destination, writer or retained dashboards. (Dated: phase 13 is on or after 2026-11-01.)
 
@@ -143,7 +143,7 @@ Existing projects come under plates without losing what is theirs, and a practic
 
 A lesson learned in any project, or a practice improved upstream, reaches plates, is decided by a person, and ships to the rest of the fleet.
 
-8/11 built.
+9/11 built.
 
 | Phase | Status | Since | Depends on | Why it stands here |
 | --- | --- | --- | --- | --- |
@@ -155,7 +155,7 @@ A lesson learned in any project, or a practice improved upstream, reaches plates
 | [30. Each project reads the lessons that apply to its stack](phases/30-each-project-reads-the-lessons-that-apply-to.md) | built | 2026-10-06 | [7](phases/07-lessons-go-home.md), [8](phases/08-learn-at-home.md) | Built and walked: the stack vocabulary, Where column, project stacks (detection reads workspace and app-folder packages, c4edbb6) and docs/plates-lessons.md; ledger (node, web, vercel, github-actions) and isocan (node, web, gcp, github-actions) declared theirs. · [#8](https://github.com/dalmaer/plates/issues/8) |
 | [31. The lessons table is distilled into patterns, and patterns become guards](phases/31-the-lessons-table-is-distilled-into-patterns.md) | built | 2026-10-06 | [8](phases/08-learn-at-home.md), [30](phases/30-each-project-reads-the-lessons-that-apply-to.md) | Built and used: the first pass decided by the owner (10 families, 2 tags, 2 rewords, 3 standardise shipped as checks), released in v0.8.0. · [#9](https://github.com/dalmaer/plates/issues/9) |
 | [40. A phase that did real work ends with a retro, and what it finds becomes a check](phases/40-a-phase-that-did-real-work-ends-with-a-retro.md) | built | 2026-10-06 | [8](phases/08-learn-at-home.md), [24](phases/24-loose-ends.md), [32](phases/32-a-phase-s-spec-says-how-it-will-be-proven-and.md) | Built and used: retros at the end of phases 40, 39 and 35 gave six candidates; the owner picked all six; five shipped as checks or an AGENTS line and one as lesson 56. · [#18](https://github.com/dalmaer/plates/issues/18) |
-| [121. Bind selected review lessons to hypotheses and evaluation plans](phases/121-evaluated-lessons.md) | designed | 2026-10-23 | [120](phases/120-evaluation-corpus.md) | Specified only; production implementation and paid evaluation have not started. |
+| [121. Bind selected review lessons to hypotheses and evaluation plans](phases/121-evaluated-lessons.md) | built | 2026-10-24 | [120](phases/120-evaluation-corpus.md) | Source verification, immutable inbox records and plan bindings implemented; public CLI and integrated gates passed; review and phase 119 merge hold remain. |
 | [122. Measure one real review improvement against a control](phases/122-lesson-screening.md) | designed | 2026-10-23 | [121](phases/121-evaluated-lessons.md) | Specified only; production implementation and paid evaluation have not started. |
 | [123. Prepare reviewed promotion and traceable rollback](phases/123-lesson-promotion.md) | designed | 2026-10-23 | [122](phases/122-lesson-screening.md) | Specified only; production implementation and paid evaluation have not started. |
 

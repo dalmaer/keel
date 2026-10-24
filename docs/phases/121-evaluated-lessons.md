@@ -1,12 +1,12 @@
 ---
-status: designed
-since: 2026-10-23
+status: built
+since: 2026-10-24
 goal: G3
 spec: 2
 depends: [120]
 review: wait
-note: "Specified only; production implementation and paid evaluation have not started."
-evidence: []
+note: "Source verification, immutable inbox records and plan bindings implemented; public CLI and integrated gates passed; review and phase 119 merge hold remain."
+evidence: ["evidence/2026-10-24-evaluated-lessons.md"]
 ---
 
 # Bind selected review lessons to hypotheses and evaluation plans
@@ -18,14 +18,18 @@ Selected real findings form deduplicated, scoped hypotheses with append-only tra
 ## Scope
 
 Implement the corresponding slice of [review-learning-evaluation](../specs/review-learning-evaluation.md).
+The [record implementation contract](../specs/evaluated-learning-records.md)
+settles this slice. Phase 120 is locally built and independently reviewed; phase
+119 remains held for its owner review-limit decision. This record work can
+proceed independently, but cannot land the held branch indirectly.
 Reuse the existing experiment, learn, execution and evidence mechanisms. Do not
 introduce a second scheduler, evidence authority or automatic production default.
 
 ## Acceptance
 
-- [ ] Transitions preserve rationale, provenance and legacy projections; missing evidence and legacy acceptance bypass refuse: `tests/evaluated-lessons.test.mjs`.
-- [ ] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluated-lessons.test.mjs`.
-- [ ] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
+- [x] Transitions preserve rationale, provenance and legacy projections; missing evidence and legacy acceptance bypass refuse: `tests/evaluated-lessons.test.mjs`.
+- [x] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluated-lessons.test.mjs`.
+- [x] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
 
 ## Real surfaces
 
@@ -33,7 +37,7 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Proof
 
-Planned tests (not implemented by this specification):
+Implemented focused proof:
 `npm run check:focused -- tests/evaluated-lessons.test.mjs`. The conductor runs
 `npm run check` and `npm run typecheck` on the integrated implementation.
 Record negative controls and original failures in an evidence file. Live model
@@ -49,4 +53,8 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Extend selected learn records with the strict evaluation section and transition validator.
+Complete review; retain the independent branch while phase 119 awaits its owner decision.
+
+## Trajectory
+
+- **2026-10-24** — Source inspection found that current-head review filtering would exclude the original historical finding, legacy serialization discards unknown sections, and configuration records have no patch field. Verify historical membership separately, guard tagged rewrites, and derive material-overlay patches from actual retained bytes. Preserve older proposal versions and refuse unsupported promotion transitions.

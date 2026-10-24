@@ -87,3 +87,15 @@ This is implemented offline machinery, not a live provider adapter. Enforced
 provider spending, paid screening, held-out generalization and measured
 promotion remain gaps. Phase 119 stays partial; its remaining live requirements
 do not prevent independent corpus and lesson-record implementation.
+
+## Phase 120–121 observations — 24 October 2026
+
+Phase 120's six development cases and bounded export are implemented and have
+independent historical artifact replay and installed-CLI evidence. Its exact-head
+CI/review passed; it remains unmerged behind phase 119's review-limit decision.
+Phase 121 now implements selected source verification, append-only inbox versions,
+legacy bypass guards and actual material-plan binding. Its public-CLI walk retained
+five lifecycle transitions and refused acceptance/promotion paths without execution.
+Its final integrated gate passed; PR review remains pending. These are record and verification
+mechanisms, not measured agent benefit; phase 119's live adapter/spend integration
+and owner-approved screening remain open.

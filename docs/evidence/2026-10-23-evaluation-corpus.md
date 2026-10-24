@@ -117,3 +117,15 @@ in this commit. Subsequent record-only changes reconcile these observations.
 Implementation is built locally. Review and merge remain separate, and the
 phase-119 owner decision still prevents landing this dependent branch. No
 provider trial, accepted lesson, production verification or lived-in claim follows.
+
+## Exact-head review and CI — 24 October 2026
+
+Phase 120 implementation commit `d2cac70b7a1a24440ab74433e6fdb009d4ee2af8`
+is retained in [PR #250](https://github.com/dalmaer/plates/pull/250), stacked on
+phase 119. The independent review reported no findings and the explicit reviewer
+gate exited 0. [CI check run 40070145413](https://github.com/dalmaer/plates/actions/runs/40070145413)
+succeeded on that exact head; typecheck and impact checks also passed. Read-only
+observations used `plates review dalmaer/plates#250 --reviewer github-actions[bot]
+--gate --json` and `gh run view 40070145413 --repo dalmaer/plates --json
+status,conclusion,headSha`. It remains unmerged while phase 119's owner decision
+is pending. Review and CI do not establish paid-agent efficacy or lived-in use.

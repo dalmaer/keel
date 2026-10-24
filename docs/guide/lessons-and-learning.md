@@ -159,3 +159,44 @@ A cause belongs in the same item: `(why: ...)`, a lesson or issue reference,
 or a because clause. A date alone is not a cause. This checks attribution
 syntax, not whether the cited lesson is true or the rule is still useful;
 that judgment belongs to the owner. Notes are advisory, never merge gates.
+
+
+## Selected findings and evaluated proposals
+
+`plates learn evaluate` records explicitly selected review findings or retained
+harness artifacts in the existing inbox. It verifies source identity, preserves
+manual classification separately, and keeps raw source bodies private. Historical
+reviews may cover an older commit; this does not assert a defect remains today.
+
+```bash
+plates learn evaluate propose 2026-10-24-acme --input /absolute/capture.json --json
+plates learn evaluate propose 2026-10-24-acme --input /absolute/capture.json --yes --digest <preview-digest> --json
+plates learn evaluate inspect 2026-10-24-acme --json
+plates learn evaluate plan 2026-10-24-acme --input /absolute/plan.json --manifest /absolute/workspace.json --state /absolute/private-state --json
+plates learn evaluate decide 2026-10-24-acme --input /absolute/rejection.json --json
+```
+
+Use the exact request shapes in [the record contract](../specs/evaluated-learning-records.md).
+Every request names an operation UUID, expected file digest/generation, attributed
+actor/time/reason, and explicit local phase `decisionTarget`. Native capture uses
+a full date/slug and expected absence. Subsequent requests retain the phase target.
+Proposal and plan authority must match that phase. Issue targets are unsupported.
+For review intake, first perform the explicit existing review read to retain its
+private receipt, then select the exact reviewed commit and complete body hash.
+
+Propose accepts capture, proposal and revision actions. Plan binds an actual
+frozen comparison to derived material-overlay bytes; it does not run it. Public
+candidate materials are read from private regular files, hashed, and shown in
+the exact preview. Protected task sources, probes and acceptance inputs cannot
+be changed. Revised proposals retain old versions and do not inherit old plans.
+Decide supports rejection or supersession only. Follow-up and later measured or
+promoted states return `code: verification_interface_unavailable`. Unknown cost and
+zero held-out coverage remain explicit gaps.
+
+Preview exits 3 without writes. Apply rechecks the request, source observations,
+phase context and inbox inventory. The same operation/request identity returns
+the existing result without another transition. Inspect reads retained history
+without fresh provider calls. Keep uncertain lock and pending files for operator
+inspection; do not delete them to retry. Cooperating CLI writers share a lock,
+but ordinary editors do not participate in kernel compare-and-swap. Inbox views
+remain separately rebuildable with explicit `plates learn render`.

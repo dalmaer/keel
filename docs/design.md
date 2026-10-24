@@ -421,6 +421,9 @@ recovery, preserving completed attempts and unknown outcomes. Live provider
 execution, enforced provider spending and measured promotion remain pending.
 Phase 120 supplies six historically grounded development cases through bounded
 inspection/export, preserving provenance and separate acceptance materials.
+Phase 121 binds explicitly selected findings to immutable lesson/proposal history
+and actual frozen material plans in the existing inbox. Local preview approval
+does not execute a trial or establish promotion readiness.
 Case scope follows the actual historical failure surface; unsupported coverage
 stays explicit. Held-out coverage is zero. The offline boundary does not establish
 model efficacy.
