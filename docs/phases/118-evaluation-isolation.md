@@ -58,3 +58,4 @@ paid screening still requires an approved provider and exact allowance.
 
 - **2026-10-23** — A host-only deadline could leave an orphaned container running. A different non-root supervisor UID now bounds lifetime independently; real tests prove executor signals refuse and expiry stops the container without a host kill.
 - **2026-10-23** — Declared harness metadata does not identify the code actually executing. Bind observed controller source hashes and Node to approval and verdict while preserving the declaration and explicit coverage limits.
+- **2026-10-23** — Cross-review found incomplete execution writes could hide the intact frozen receipt. Read-only inspection now exposes uncertain partial records; admission refuses before external effects, with no automatic reset or lock reclamation. A red-without-fix regression covers eight interrupted-write shapes.

@@ -81,7 +81,10 @@ context, and phase 118 must independently enforce the builder/evaluator boundary
 3. Approve that exact preview with `--yes --digest HASH`. Terminal runs exit 0,
 including rejected submissions; read `verdict.acceptance`, `failureCategory` and
 `result.status`. Errors before a terminal receipt exit 2. Inspect retains the
-original frozen receipt and adds execution records. Identical approved retries
+original frozen receipt and adds execution records. Missing, empty or truncated
+execution reservations and interrupted slot records appear as explicit uncertain
+metadata; inspect never repairs or deletes their bytes. Run refuses these states
+before preflight/admission. Recovery remains deferred. Identical approved retries
 return the original record; uncertain or partial operations never start again.
 Resume, cancel, compare and rescore remain unavailable.
 

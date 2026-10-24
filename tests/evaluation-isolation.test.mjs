@@ -1,7 +1,7 @@
 import './helpers/hermetic.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFile, readFile, readdir, symlink, mkdtemp, realpath, rm, mkdir } from 'node:fs/promises';
+import { writeFile, readFile, readdir, symlink, mkdtemp, realpath, rm, mkdir, lstat } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { submittedArtifact, exportSource, validateFiles } from '../lib/evaluation-artifacts.mjs';
 import { acceptanceDriver, argv } from '../lib/evaluation-execution-input.mjs';
 import { controllerIdentity, CONTROLLER_SOURCES } from '../lib/evaluation-provenance.mjs';
-import { byteDigest } from '../lib/evaluation-records.mjs';
+import { byteDigest, sealRecord, fingerprint } from '../lib/evaluation-records.mjs';
 import { preflightDocker, runDockerStage, containerArgs } from '../lib/evaluation-docker.mjs';
 import { evaluationWorld, IMAGE } from './helpers/evaluation-execution.mjs';
 import { inspectBudgetTarget, inspectBudget, reserveExternalBudget, settleExternalBudget, runBudget } from '../lib/validation-budget.mjs';
@@ -144,4 +144,53 @@ test('changed installed controller bytes invalidate loaded identity and fresh ap
   await writeFile(changed, (await readFile(changed, 'utf8')) + '\n// Acme implementation change.\n');
   await assert.rejects(original.controllerIdentity(), /controller source changed/);
   const after = await (await import(url + '?fresh')).controllerIdentity(); assert.notEqual(after.digest, before.digest);
+});
+
+
+test('interrupted execution inspection preserves frozen receipts and bytes and refuses redispatch', async t => {
+  for (const shape of ['empty-directory', 'empty-reservation', 'truncated-reservation', 'empty-slot', 'truncated-intent', 'intent-only', 'truncated-stage', 'truncated-result']) {
+    await t.test(shape, async t => {
+      const w = await evaluationWorld(t), dir = join(w.options.state, 'session-trials', w.b.comparison.id);
+      const original = await evaluations({ ...w.options, action: 'inspect', experiment: w.b.comparison.id });
+      const home = join(dir, 'execution'); await mkdir(home, { mode: 0o700 });
+      const receipt = body => sealRecord({ schemaVersion: 2, id: 'acme-interrupted', createdAt: '2026-10-23T00:00:00.000Z', ...body });
+      const put = (path, value) => writeFile(path, typeof value === 'string' ? value : JSON.stringify(value), { mode: 0o400 });
+      if (shape !== 'empty-directory') {
+        await put(join(home, 'reservation.json'), shape === 'empty-reservation' ? '' : shape === 'truncated-reservation' ? '{"schemaVersion":2,' : receipt({ kind: 'evaluation-reservation', planDigest: original.receipt.plan.digest, allowance: w.b.comparison.allowance, currencyUsage: null }));
+      }
+      if (['empty-slot', 'truncated-intent', 'intent-only', 'truncated-stage', 'truncated-result'].includes(shape)) {
+        const slot = w.request.pairId + '-' + w.request.arm, slotDir = join(home, slot); await mkdir(slotDir, { mode: 0o700 });
+        const input = { planDigest: original.receipt.plan.digest }, intent = receipt({ kind: 'evaluation-intent', input, previewDigest: fingerprint(input), slot });
+        if (shape !== 'empty-slot') await put(join(slotDir, 'intent.json'), shape === 'truncated-intent' ? '{"schemaVersion":' : intent);
+        if (shape === 'truncated-stage') await put(join(slotDir, 'builder.json'), '{"schemaVersion":2,');
+        if (shape === 'truncated-result') await put(join(slotDir, 'result.json'), '');
+      }
+      const snapshot = async path => {
+        const entries = {};
+        const visit = async (dir, prefix = '') => {
+          for (const name of (await readdir(dir)).sort()) {
+            const child = join(dir, name), key = prefix + name, stat = await lstat(child);
+            entries[key] = { mode: stat.mode, bytes: stat.isDirectory() ? null : (await readFile(child)).toString('base64') };
+            if (stat.isDirectory()) await visit(child, key + '/');
+          }
+        };
+        await visit(path); return entries;
+      };
+      const before = await snapshot(w.options.state);
+      for (let read = 0; read < 2; read++) {
+        const inspected = await evaluations({ ...w.options, action: 'inspect', experiment: w.b.comparison.id });
+        assert.deepEqual(inspected.receipt, original.receipt);
+        assert.equal(inspected.execution.status, 'uncertain');
+        if (shape.includes('reservation') || shape === 'empty-directory') {
+          assert.equal(inspected.execution.reservation, null); assert.equal(inspected.execution.issues[0].reason, 'reservation-unavailable');
+        } else assert.equal(inspected.execution.trials[0].status, 'uncertain');
+      }
+      // Refuse before execution descriptor/preflight or admission. A missing
+      // descriptor proves this path cannot reach Docker or reserve a new lease.
+      await rm(w.execution);
+      for (const yes of [false, true]) await assert.rejects(w.call({ yes, ...(yes ? { digest: 'a'.repeat(64) } : {}) }), /incomplete execution state retains reservation/);
+      assert.deepEqual(await snapshot(w.options.state), before);
+      assert.equal((await inspectBudget(w.admission)).initialized, false);
+    });
+  }
 });

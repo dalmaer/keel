@@ -87,3 +87,36 @@ explicit installed module list, not the entire operating system or worktree.
 Stopped container identities remain for inspection; no host storage was mounted.
 Paid provider selection, allowance and practical tolerances remain owner decisions
 for the later screening phase.
+
+## Cross-review correction
+
+The full gate also passed on committed head `c747a8813af9e6a3ace92652070629bbbefa5fcd`
+in [GitHub Actions](https://github.com/dalmaer/plates/actions/runs/40060702492).
+Its local result (2,910 passed, zero failed, four separately exercised Docker
+skips) is recorded in that commit body, following the project's evidence sequence.
+
+Review found that a missing or truncated execution reservation could hide the
+otherwise valid frozen receipt after a failed write. In quiescent storage,
+inspection now returns the original frozen record with explicit uncertain
+execution metadata. It preserves all bytes and refuses new execution before
+reading a descriptor or reaching preflight/admission. It does not reclaim a
+writer lock, reset storage or infer that missing records mean nothing ran;
+recovery remains phase 119 work.
+
+The conductor independently ran
+`node --import ./tests/helpers/hermetic.mjs --test --test-name-pattern='interrupted execution inspection' tests/evaluation-isolation.test.mjs`:
+exit 0, nine tests passed covering eight partial-write shapes. The builder's
+`plates prove` result was VERIFIED: red without `lib/evaluation-execution.mjs`,
+green with it; diagnostic `evaluations: missing execution record (empty-directory)`.
+Logs: `/tmp/plates-phase118-conductor-recovery.log` and
+`/tmp/phase118-pr239-prove.log`. The integrated `npm run check` and typecheck run
+again after this correction; their measured results belong in its fix commit.
+
+The post-review local integrated gate exited 1: 2918 passed, one existing workflow
+test failed, and four opt-in Docker checks were skipped. The workflow subprocess
+returned null status after its synthetic PR publication; its signal was not
+retained, so the cause is unknown. Tracked as [#248](https://github.com/dalmaer/plates/issues/248).
+The same run reported a climb-guard failure under stalls (seed 1942849892),
+retained for investigation. This failed run is not replaced by an earlier green
+run. The correction's nine focused regression checks and typecheck passed.
+Log: `/tmp/plates-phase118-fix-check.log`.
