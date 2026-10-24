@@ -5,7 +5,7 @@ goal: G3
 spec: 2
 depends: [121]
 review: wait
-note: "Specified only; production implementation and paid evaluation have not started."
+note: "Concrete criteria, snapshot and report contracts settled; implement offline machinery. Live provider/spend integration and owner screening remain open."
 evidence: []
 ---
 
@@ -18,6 +18,10 @@ One approved narrow historical lesson produces a retained baseline-candidate scr
 ## Scope
 
 Implement the corresponding slice of [review-learning-evaluation](../specs/review-learning-evaluation.md).
+The [screening implementation contract](../specs/lesson-screening.md) settles
+registration, actual delivery and immutable report binding. Independent machinery
+can proceed while phase 119 awaits its owner review-limit decision; this branch
+cannot land that held work indirectly.
 Reuse the existing experiment, learn, execution and evidence mechanisms. Do not
 introduce a second scheduler, evidence authority or automatic production default.
 
@@ -62,4 +66,6 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Prepare the package-entry hypothesis and exact comparison preview; obtain the specific provider allowance before running it.
+Implement and verify immutable screening registration/report binding, then prepare
+the real hypothesis and comparison. Keep actual screening open until the missing
+provider/spending interface and specific owner allowance are available.

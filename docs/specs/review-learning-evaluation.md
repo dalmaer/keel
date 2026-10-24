@@ -228,3 +228,12 @@ materials and Git objects; it neither executes a comparison nor establishes
 readiness. Later measured/promotion transitions refuse until their verification
 interfaces exist. Phase 119's review-limit hold does not prevent this independent
 record work, but no dependent branch may merge it indirectly.
+
+## Phase 122 implementation contract — 24 October 2026
+
+[Lesson screening](lesson-screening.md) defines predeclared criteria, registration,
+actual-delivery verification and immutable report receipts in the existing
+experiment ledger. Evaluated is distinct from supported or promoted. Independent
+offline mechanics can proceed behind the phase-119 merge hold; real measured
+screening still needs the missing live execution/spending interface and the
+owner's exact bounded allowance.
