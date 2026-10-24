@@ -237,7 +237,10 @@ and retains the host lease. Rescore and paid provider execution remain unsupport
 
 Each frozen trial minute ceiling includes its measured input preparation and
 admitted execution. Host Git inspection/export and Docker image inspection share
-a preparation deadline. The approved invocation reuses those captured bytes;
+a preparation deadline. Before each new slot, the controller rechecks the current
+admission manifest hash and repository authorization/identity under the remaining
+slot deadline; capacity is reserved atomically by the existing coordinator.
+The approved invocation reuses the captured source and image;
 resume does not repeat image preflight or source export for each slot after
 approval. Preparation time and controller admission time reduce the remaining
 slot deadline. Builder/evaluator deadlines reserve cleanup time and cleanup is

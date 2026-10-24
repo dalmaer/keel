@@ -420,7 +420,12 @@ refuse. Rescoring is a separate future extension and remains explicitly unsuppor
 
 Resume binds the frozen order, missing requests, source exports, actual controller
 identity, evidence snapshot, remaining allowance and host admission. It executes
-serially in AB/BA order. Completed and failed attempts stay immutable; the frozen
+serially in AB/BA order. Before each new slot, revalidate the current admission
+manifest hash and repository authorization/identity under the remaining slot
+deadline. Frozen source and image identities remain captured inputs; current host
+capacity is checked atomically by the existing coordinator. Changed authorization
+refuses dispatch rather than silently replacing the approved input. Completed
+and failed attempts stay immutable; the frozen
 zero-replacement policy does not permit retries. Unresolved earlier operations
 block dispatch. Comparison and per-trial budgets include recovery reservations;
 unknown usage cannot create new capacity. Existing single-case plans remain

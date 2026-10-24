@@ -166,3 +166,44 @@ passed with it (VERIFIED); retained log `/tmp/phase119-pr249-lock-prove.log`.
 The source capability fingerprint changes because the audited parser boundary
 changed; no command, permission or authority is added. The correction's integrated
 gate is `npm run check`, with its result retained in the correction commit body.
+
+### First review correction verification — 23 October 2026
+
+Before commit `5924d09c3b9566793afeb36033d8074e34b0fc60`, the conductor ran
+`PATH=/opt/homebrew/bin:$PATH TZ=UTC npm run check`: exit 0, 2,965 passed, zero
+failed, five opt-in Docker skips. All nine deliberate-stall checks passed, and
+roadmap/render/inbox checks passed. Log:
+`/tmp/plates-phase119-correction-check.log`. Focused preflight and typecheck also
+exited 0, retained in `/tmp/plates-phase119-correction-focused.log` and
+`/tmp/plates-phase119-correction-typecheck.log`. This is separate from any later
+admission revalidation correction.
+
+### Second review correction — 23 October 2026
+
+Lock IDs must be canonical UUIDv4 strings; array-to-string coercion is refused.
+Each new slot revalidates the admission manifest and current repository identity
+under its remaining deadline, before writing intent or reserving capacity. Frozen
+source and image bytes stay captured. The counterfactual regression proof is
+VERIFIED, retained in `/tmp/plates-phase119-round2-prove.log`: the uncorrected
+code accepts malformed IDs or reaches intent creation after stale admission.
+Builder convention checks first reported three stale capability fingerprints;
+those audited source hashes were refreshed before conductor verification.
+No paid work or production default is enabled.
+
+The conductor repeated `PATH=/opt/homebrew/bin:$PATH TZ=UTC npm run
+check:focused -- tests/evaluation-comparison.test.mjs`: exit 0, 153 passed,
+zero failed, one opt-in skip; all record/convention checks passed. Typecheck
+exited 0. Logs: `/tmp/plates-phase119-round2-conductor-focused.log` and
+`/tmp/plates-phase119-round2-typecheck.log`.
+
+The real killed-controller command retained above also exited 0 after this
+correction: one passed, zero failed/skipped; running and stopped observations
+were both true, twelve slots retained. Log: `/tmp/plates-phase119-round2-crash.log`.
+Private workspace:
+`/private/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/acme-isolation-ZhODvm`.
+Unchanged frozen receipt digest:
+`5476b60ecefbd023684562c73e407d3d75c35c5f451b3de952d7d8b112b01d9b`;
+unchanged first-result digest:
+`a2c14e7a01a31eff35eac3ad9378ab226234654ed5dec1f03a58a325341ac0b9`.
+The final `npm run check` runs after this record; its exact result belongs in the
+correction commit body. No scripted observation becomes paid-agent efficacy.

@@ -4,16 +4,17 @@ import { mkdtemp, realpath, rm, writeFile, readFile, mkdir, lstat, readdir } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
+import { run } from './helpers/run.mjs';
 import { ledgerLock, inspectHarnessLock } from '../lib/session-ledger-io.mjs';
 import { reserveExternalBudget, inspectBudgetTarget, inspectBudget, reconcileExternalBudget } from '../lib/validation-budget.mjs';
 import { storeImmutable } from '../lib/session-ledger-io.mjs';
 import { evaluations } from '../lib/evaluation-ledger.mjs';
 import { evaluationWorld, evaluationController } from './helpers/evaluation-execution.mjs';
 import { sealRecord, fingerprint } from '../lib/evaluation-records.mjs';
-import { admittedDeadline } from '../lib/evaluation-execution-input.mjs';
+import { executionInput, admittedDeadline } from '../lib/evaluation-execution-input.mjs';
 import { preflightDocker } from '../lib/evaluation-docker.mjs';
 import { exportSource } from '../lib/evaluation-artifacts.mjs';
-import { inspectExecutions, unauthorizedStage } from '../lib/evaluation-execution.mjs';
+import { runEvaluation, inspectExecutions, unauthorizedStage } from '../lib/evaluation-execution.mjs';
 
 async function home(t) {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'acme-harness-lock-')));
@@ -334,4 +335,60 @@ test('cancel before first trial retains a valid reservation and closed admission
   assert.equal(cancelled.execution.status, 'complete');
   assert.equal(cancelled.execution.cancellation.admissionClosed, true);
   assert.equal(cancelled.execution.reservation.kind, 'evaluation-reservation');
+});
+
+
+test('lock owner IDs require canonical UUID strings without coercion or reclaim', async t => {
+  const fixture = await home(t), release = await ledgerLock(fixture, { harness: true });
+  const { owner } = await inspectHarnessLock(fixture); await release();
+  for (const [label, id] of [['array', [owner.id]], ['null', null], ['number', 123], ['object', {}], ['all hyphens', '-'.repeat(36)], ['no separators', 'a'.repeat(36)], ['wrong separators', owner.id.replace(/-/g, 'a')]]) {
+    await t.test(label, async t => {
+      const dir = await home(t), path = join(dir, '.lock'), bytes = JSON.stringify({ ...owner, id });
+      await writeFile(path, bytes, { mode: 0o600 });
+      const before = await lstat(path), observed = await inspectHarnessLock(dir);
+      assert.deepEqual(observed, { status: 'blocked', reason: 'unverifiable-lock-owner' });
+      await assert.rejects(ledgerLock(dir, { harness: true, recover: observed }), /writer death unverified/);
+      assert.equal(await readFile(path, 'utf8'), bytes);
+      assert.equal((await lstat(path)).ino, before.ino);
+      assert.deepEqual(await readdir(dir), ['.lock']);
+    });
+  }
+});
+
+test('new slot rejects stale mutable admission before intent without repeating image preflight', async t => {
+  for (const change of ['manifest', 'revision', 'identity', 'deadline']) await t.test(change, async t => {
+    const w = await evaluationWorld(t), dir = join(w.options.state, 'session-trials', w.b.comparison.id);
+    const ledger = JSON.parse(await readFile(join(dir, 'state.json')));
+    const bin = join(w.root, 'bin'), calls = join(w.root, 'docker-calls'); await mkdir(bin);
+    const environment = w.b.cases[0].environment, [Os, Architecture] = environment.platform.split('/');
+    const image = { Id: environment.image, Os, Architecture, Config: { Env: ['NODE_VERSION=24.22.1'] } };
+    await writeFile(join(bin, 'docker'), `#!${process.execPath}
+import {appendFileSync} from 'node:fs';
+appendFileSync(${JSON.stringify(calls)},process.argv.slice(2).join(' ')+'\\n');
+if(process.argv[2]==='image') console.log(${JSON.stringify(JSON.stringify([image]))}); else process.exitCode=1;
+`, { mode: 0o700 });
+    const oldPath = process.env.PATH; process.env.PATH = bin + ':' + oldPath;
+    t.after(() => { process.env.PATH = oldPath; });
+    const options = { ...w.options, experiment: w.b.comparison.id, execution: w.execution };
+    const prepared = await executionInput(options, ledger), captured = JSON.stringify(prepared.input);
+    if (change === 'manifest') await writeFile(w.managed, (await readFile(w.managed, 'utf8')) + ' ');
+    if (change === 'revision') assert.equal(run('git', ['-C', w.repository, 'commit', '--allow-empty', '-qm', 'Acme changed revision']).status, 0);
+    if (change === 'identity') await writeFile(join(w.repository, '.plates/plates.json'), JSON.stringify({ repo: 'Acme/other' }));
+    let reads = 0;
+    const readFrozen = async () => {
+      if (++reads === 2 && change === 'deadline') {
+        // Exhaust the remaining allowance after lock acquisition, before admission.
+        const expired = Date.now() + prepared.task.limits.minutes * 60000;
+        t.mock.method(Date, 'now', () => expired);
+      }
+      return ledger;
+    };
+    await assert.rejects(runEvaluation({ ...options, yes: true, digest: prepared.digest }, {
+      scope: async () => ({ paths: { state: w.options.state } }), readFrozen, preparedInput: prepared,
+    }), change === 'manifest' ? /admission manifest changed/ : change === 'revision' ? /admission target changed/ : change === 'identity' ? /repository_identity_mismatch/ : /deadline exhausted/);
+    assert.equal(JSON.stringify(prepared.input), captured);
+    await assert.rejects(lstat(join(dir, 'execution')), { code: 'ENOENT' });
+    await assert.rejects(lstat(join(w.admission.stateDir, 'state.json')), { code: 'ENOENT' });
+    assert.equal((await readFile(calls, 'utf8')).trim(), 'image inspect ' + environment.image);
+  });
 });
