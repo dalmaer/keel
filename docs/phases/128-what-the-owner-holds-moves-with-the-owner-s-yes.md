@@ -31,6 +31,7 @@ The design is [Name transition](../specs/name-transition.md).
 - **Variables:** `vars.KEEL_X` is copied to `vars.PLATES_X` with the same value, and the old one is kept until phase 130. Workflows read `vars.PLATES_X || vars.KEEL_X`.
 - **Secrets:** list each `KEEL_*` secret a workflow reads, with the command `gh secret set PLATES_X -R <repo>` for the owner to run. Plates can't read secrets, and never asks for a value. Workflows read the plates secret first.
 - **Vercel env:** list `KEEL_WEB_*` per project, with the command to add `PLATES_WEB_*`.
+- **Concurrency preflight:** before installing changed workflows, verify the owner-approved workflow disable barrier is active and list all relevant run states with complete pagination. Any queued, waiting, pending or running old-group run blocks the switch; missing access or incomplete coverage also blocks. Cancellation requested is not cancellation confirmed. No command here cancels a run without separate owner approval.
 - **Live state:** open PRs and branches still on keel prefixes, and plan or verify branches. These are informational; phase 125 already reads them.
 - **The owner's machine** (`plates names --machine`):
   - `~/.keel/night-card` → `~/.plates/night-card`, with `run.sh`'s paths and the launchd label `com.keel.night-card` → `com.plates.night-card`, unloaded and reloaded;

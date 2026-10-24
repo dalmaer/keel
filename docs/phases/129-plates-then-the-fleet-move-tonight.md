@@ -25,14 +25,14 @@ The design is [Name transition](../specs/name-transition.md), "The rule". The ow
 
 - **Release** with phases 124–128 (`plates release`, the fleet rehearsal included).
 - **Plates first.**
-  1. Update plates itself.
+  1. With explicit owner approval, disable affected workflows and keep them disabled through installation, then re-enable only the installed new definitions. Prove the concurrency preflight: no old-group run is queued, waiting, pending or running, with complete run coverage. The owner drains runs or confirms cancellation before proceeding. Then update plates itself.
   2. Run `plates names --yes`, plus the owner's secret commands.
   3. Dispatch `plates-night.yml`, then `plates-morning.yml`.
   4. Check the plates checklist below.
 
   Only then does the fleet start.
 - **Then each project in order:** ledger, duo, cajones, isocan, dtv.
-  1. `plates fleet update` opens the PR, and the owner merges it (isocan's merge is Dimitri's or the owner's).
+  1. Establish the same owner-approved disable/install/re-enable barrier and pass the old-run concurrency preflight before installing changed workflows. `plates fleet update` opens the PR, and the owner merges it (isocan's merge is Dimitri's or the owner's).
   2. `plates names --yes` for that project.
   3. Dispatch its night, then its morning.
   4. Check its checklist.

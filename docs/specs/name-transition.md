@@ -78,9 +78,16 @@ phase 124 inventory replaces them with exact rows.
   When both hold one, the plates plan wins and the night says so. (125)
 - **A concurrency group change lets two runs overlap once.** A run still queued
   under `keel-night` does not wait for one under `plates-night`. Every night
-  push is already a lease (`--force-with-lease`), so the overlap loses a
-  write, never corrupts one. The switch happens in one release, and the
-  evidence shows the overlap was safe. (125)
+  push may target a different ref, so a branch lease cannot serialize the two
+  names. Before installing changed workflow groups in a repository, the owner
+  disables the affected workflows with separate approval, then drains old runs
+  or confirms cancellation is complete. Keep that dispatch/schedule barrier
+  until the changed workflows are installed; a one-time empty listing alone
+  cannot exclude a new cron run. The rollout preflight
+  must prove no queued, waiting, pending or running old-group run remains;
+  incomplete API coverage refuses the switch. No new dispatch until this
+  barrier passes. A regression exercises both prefixes and proves that a live
+  old run blocks the switch, including morning/finalization. (125, 128, 129)
 - **An artifact reader finds nothing on the first night.** Readers accept both
   names for as long as the artifact's own retention (30–90 days). (126)
 - **A label rename is a remote change, and filters and saved searches use the

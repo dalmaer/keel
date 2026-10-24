@@ -35,7 +35,7 @@ The design is [Name transition](../specs/name-transition.md), "Hazards".
 - **A night keeps its name.** `-final` follows the branch its own night opened (`keel-night/<date>` → `keel-night/<date>-final`). Only a new date opens under `plates-`.
 - **One plan per night.** Goodnight writes only `plates-night-plan`. The night reads `plates-night-plan` first, and `keel-night-plan` only when the plates branch has no plan dated tonight. If both are dated tonight, the plates plan wins, and the night's record says so.
 - **Verify history:** the board and morning read `plates-verify` first and fall back to `keel-verify`. The newest result per site wins across both.
-- **Concurrency groups** `keel-…` → `plates-…` in all 17 workflows, in one release. The pushes are already lease-guarded, and the evidence shows that one overlapping run loses a write and never corrupts one.
+- **Concurrency groups** `keel-…` → `plates-…` in all inventoried workflows, in one release. Different refs have independent leases, so the repository rollout must first disable affected workflows with owner approval, keep that schedule/dispatch barrier through installation, and drain old runs or observe confirmed cancellation. The read-only rollout preflight blocks the switch for queued, waiting, pending or running old-group runs, and for incomplete coverage. Phase 128 exposes this preflight and phase 129 records it before installing changed workflows; no new dispatch before it passes.
 
 ## Acceptance
 
@@ -45,6 +45,8 @@ The design is [Name transition](../specs/name-transition.md), "Hazards".
 - [ ] Both plan branches dated tonight: the plates plan runs, and the record names the one it skipped. `tests/night-plan.test.mjs`: "two plans for one night: plates wins, and says so"
 - [ ] The board and morning show a failed verify from `keel-verify` until a newer result on `plates-verify` passes. `tests/board.test.mjs` and `tests/morning.test.mjs`: "verify history across both branches"
 - [ ] Every workflow's concurrency group is `plates-…`. `tests/workflows.test.mjs`: "no workflow groups under a keel name"
+
+- [ ] A live old-group run blocks a concurrency-name switch across both branch prefixes; completed cancellation permits it, requested cancellation and incomplete run coverage do not. `tests/workflows.test.mjs`: "old-group runs block the concurrency transition"
 
 ## Real surfaces
 
