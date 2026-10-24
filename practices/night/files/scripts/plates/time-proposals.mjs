@@ -1,3 +1,4 @@
+import { writeName, historicalFence, normalizeFences, markerComment, markerComments, markerRegion } from './names.mjs';
 // Durable health-page proposal identity. No commands or remote content execute here.
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile, readdir, mkdir, lstat, realpath, open, rename, rm } from 'node:fs/promises';
@@ -6,8 +7,9 @@ import { hostname } from 'node:os';
 import { retainVerifications } from './verification.mjs';
 import { healthDirOf } from './lib.mjs';
 
-export const TIME_BEGIN = '<!-- keel:time-proposal:begin -->';
-export const TIME_END = '<!-- keel:time-proposal:end -->';
+const timeBeginId = 'marker:keel:time-proposal:begin', timeEndId = 'marker:keel:time-proposal:end';
+export const TIME_BEGIN = markerComment(timeBeginId);
+export const TIME_END = markerComment(timeEndId);
 export const TIME_PROPOSAL_MAX_BYTES = 256 * 1024;
 const MAX = TIME_PROPOSAL_MAX_BYTES;
 const measures = new Set(['gate_time','time_creep','critical_file','inconclusive_share','wall_clock_tests','worked_around']);
@@ -52,32 +54,38 @@ export function makeTimeProposal({measure,identity,candidate,baseline,threshold,
 }
 export function formatTimeProposal(proposal) {
   const problems=validate(proposal);if(problems.length)throw new Error(problems.join('; '));
-  return `${TIME_BEGIN}\n\`\`\`keel-time-proposal\n${JSON.stringify(proposal,null,2)}\n\`\`\`\n${TIME_END}`;
+  return `${TIME_BEGIN}\n\`\`\`${writeName('fence:keel-time-proposal')}\n${JSON.stringify(proposal,null,2)}\n\`\`\`\n${TIME_END}`;
 }
 function location(source) {
-  const starts=[...source.matchAll(/<!-- keel:time-proposal:begin -->/g)],ends=[...source.matchAll(/<!-- keel:time-proposal:end -->/g)],fences=[...source.matchAll(/^```keel-time-proposal[ \t]*\r?$/gm)];
-  if(!starts.length&&!ends.length&&!fences.length)return null;
-  if(starts.length!==1||ends.length!==1||fences.length!==1||ends[0].index<starts[0].index)throw new Error('timing proposal requires one bounded generated region and fence');
-  const start=starts[0].index,end=ends[0].index+TIME_END.length,region=source.slice(start,end);
-  const match=/^<!-- keel:time-proposal:begin -->\r?\n```keel-time-proposal[ \t]*\r?\n([\s\S]*?)\r?\n```\r?\n<!-- keel:time-proposal:end -->$/.exec(region);
-  if(!match||fences[0].index<start||fences[0].index>=end||match[1].length>MAX)throw new Error('invalid timing proposal region');
-  return {start,end,raw:match[1]};
+  const declarations = [...source.matchAll(/^```([^\s]+)[ \t]*\r?$/gm)]
+    .filter(match => historicalFence(match[1])?.id === 'fence:keel-time-proposal')
+    .map(match => ({type:match[1],index:match.index}));
+  const fences = normalizeFences(declarations);
+  let region;
+  try { region = markerRegion(source,timeBeginId,timeEndId); } catch { throw new Error('timing proposal requires one bounded generated region and fence'); }
+  if (!region && !fences.length) return null;
+  if (!region || region.begin.payload || fences.length !== 1 || fences[0].index < region.begin.end || fences[0].index >= region.close.start) throw new Error('timing proposal requires one bounded generated region and fence');
+  const name = fences[0].sourceType;
+  const pattern = new RegExp('^\\r?\\n```' + name + '[ \\t]*\\r?\\n([\\s\\S]*?)\\r?\\n```\\r?\\n$');
+  const match = pattern.exec(region.body);
+  if (!match || match[1].length > MAX) throw new Error('invalid timing proposal region');
+  return {start:region.start,end:region.end,raw:match[1]};
 }
 export function parseTimeProposal(source) {
   try {const loc=location(String(source));if(!loc)return {proposal:null,problems:[]};const p=JSON.parse(loc.raw),problems=validate(p);return {proposal:problems.length?null:p,problems};}
   catch(e){return {proposal:null,problems:[e.message]};}
 }
 const reportHash = text => createHash('sha256').update(text).digest('hex');
-const reportEnd = '<!-- keel:health-report:end -->';
+const reportBeginId = 'marker:keel:health-report:begin', reportEndId = 'marker:keel:health-report:end';
+const reportEnd = markerComment(reportEndId);
 const proposalSection = /^## Proposal\b[^\n]*\n[\s\S]*?(?=^## |$(?![\s\S]))/m;
 function managedReport(source) {
-  const starts=[...source.matchAll(/<!-- keel:health-report:begin/g)],ends=[...source.matchAll(/<!-- keel:health-report:end -->/g)];
-  if(!starts.length&&!ends.length)return null;
-  if(starts.length!==1||ends.length!==1)throw new Error('health report has ambiguous managed regions');
-  const start=starts[0].index,end=ends[0].index+reportEnd.length;
-  const m=/^<!-- keel:health-report:begin ([a-f0-9]{64}) -->\n([\s\S]*)\n<!-- keel:health-report:end -->$/.exec(source.slice(start,end));
-  if(!m||reportHash(m[2])!==m[1])throw new Error('health report managed-region drift; human edits preserved, no report written');
-  return {start,end,body:m[2]};
+  const region = markerRegion(source, reportBeginId, reportEndId);
+  if (!region) return null;
+  if (!/^[a-f0-9]{64}$/.test(region.begin.payload) || !region.body.startsWith('\n') || !region.body.endsWith('\n')) throw new Error('health report has invalid managed markers');
+  const body = region.body.slice(1,-1);
+  if (reportHash(body) !== region.begin.payload) throw new Error('health report managed-region drift; human edits preserved, no report written');
+  return {start:region.start,end:region.end,body};
 }
 // Only hash-verified report bytes are replaceable. The proposal region and all
 // surrounding human bytes are separate and survive every refresh unchanged.
@@ -86,7 +94,7 @@ export function rewriteHealthBody(source, transform) {
   const current = managedReport(source);
   if (!current) return transform(source);
   const body = transform(current.body);
-  return source.slice(0,current.start)+`<!-- keel:health-report:begin ${reportHash(body)} -->\n${body}\n${reportEnd}`+source.slice(current.end);
+  return source.slice(0,current.start)+`${markerComment(reportBeginId, reportHash(body))}\n${body}\n${reportEnd}`+source.slice(current.end);
 }
 export function mergeHealthPage({previous='',generated}) {
   const old=parseTimeProposal(previous),next=parseTimeProposal(generated);
@@ -94,7 +102,7 @@ export function mergeHealthPage({previous='',generated}) {
   try {
     const current=managedReport(previous);
     generated=retainVerifications(current?.body ?? '',generated);
-    if(generated.includes('<!-- keel:health-report:'))throw new Error('generated report must be unwrapped');
+    if(markerComments(generated, reportBeginId).name || markerComments(generated, reportEndId).name)throw new Error('generated report must be unwrapped');
     const outside=current?previous.slice(0,current.start)+previous.slice(current.end):previous;
     const embedded=current?proposalSection.exec(current.body)?.[0]:null;
     if(embedded&&proposalSection.test(outside))throw new Error('health page has ambiguous proposal sections; human bytes preserved');
@@ -108,7 +116,7 @@ export function mergeHealthPage({previous='',generated}) {
     if(embedded)proposal='\n\n'+embedded;
     else if(!existing&&offered&&!emptyOffer)proposal='\n\n'+offered;
     if(body.length>1024*1024)throw new Error('generated health report exceeds size bound');
-    const report=`<!-- keel:health-report:begin ${reportHash(body)} -->\n${body}\n${reportEnd}`;
+    const report=`${markerComment(reportBeginId, reportHash(body))}\n${body}\n${reportEnd}`;
     if(current)return {text:previous.slice(0,current.start)+report+proposal+previous.slice(current.end),problems:[]};
     // A legacy page has no trustworthy managed boundary: keep its bytes once,
     // visibly as history, and create exactly one replaceable current report.

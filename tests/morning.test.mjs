@@ -68,7 +68,7 @@ const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils',
  * branch keel-night-plan holds the builds' ticks; the next night's page is
  * the "after". gh is a stub with a state file.
  */
-async function project(t, { config = CONFIG, issues = [], failCreate = false, branch = finished() } = {}) {
+async function project(t, { config = CONFIG, issues = [], labels = [{id:71,name:'keel:morning'}], failCreate = false, branch = finished() } = {}) {
   const base = await mkdtemp(join(tmpdir(), 'plates-morning-'));
   t.after(() => rm(base, { recursive: true, force: true }));
   const root = join(base, 'acme'), origin = join(base, 'origin.git');
@@ -84,7 +84,7 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
+  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'names.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {
@@ -98,7 +98,7 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
     await rm(join(root, '.plates/night'), { recursive: true, force: true });
   }
   const state = join(base, 'gh-state.json'), log = join(base, 'gh.log'), gh = join(base, 'gh');
-  await writeFile(state, JSON.stringify({ issues, next: 31 }));
+  await writeFile(state, JSON.stringify({ issues, labels, next: 31 }));
   await writeFile(gh, `#!${process.execPath}
 const fs = require('node:fs');
 const a = process.argv.slice(2);
@@ -108,10 +108,13 @@ const s = JSON.parse(fs.readFileSync(${JSON.stringify(state)}, 'utf8'));
 const save = () => fs.writeFileSync(${JSON.stringify(state)}, JSON.stringify(s));
 const opt = f => a.includes(f) ? a[a.indexOf(f) + 1] : undefined;
 if (a[0] === 'issue' && a[1] === 'list') {
-  if (opt('--label') !== ${JSON.stringify(LABEL)} || opt('--state') !== 'all') { console.error('stub gh: keel:morning issues, all states'); process.exit(1); }
+  if (!['plates:morning','keel:morning'].includes(opt('--label')) || opt('--state') !== 'all') { console.error('stub gh: keel:morning issues, all states'); process.exit(1); }
   console.log(JSON.stringify(s.issues.map(i => ({ number: i.number, title: i.title, state: i.state }))));
+} else if (a[0] === 'api') {
+  const repo=a[1].split('/').slice(2,4).join('/');
+  console.log(JSON.stringify(a[1].includes('/labels?') ? s.labels : {id:31,full_name:repo}));
 } else if (a[0] === 'label' && a[1] === 'create') {
-  process.exit(0);
+  s.labels.push({id:71,name:a[2]});save();
 } else if (a[0] === 'issue' && a[1] === 'create') {
   if (${failCreate}) { console.error('HTTP 502: Acme gateway'); process.exit(1); }
   const n = s.next++;
@@ -250,13 +253,13 @@ test('--send opens one assigned, labelled issue, closes the previous one, and a 
   assert.deepEqual(issues.filter(i => i.state === 'OPEN').map(i => i.number), [31], 'one open at a time');
   assert.equal(issues.find(i => i.number === 30).comment, 'Superseded by #31 (plates morning).');
   const calls = (await p.calls()).map(c => c.a);
-  assert.ok(calls.every(a => a.includes('--repo') && a[a.indexOf('--repo') + 1] === 'acme/anvils'), 'every call names the repo');
-  assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'label create', 'issue create', 'issue close']);
+  assert.ok(calls.every(a => a[0] === 'api' ? a[1].startsWith('/repos/acme/anvils') : a.includes('--repo') && a[a.indexOf('--repo') + 1] === 'acme/anvils'), 'every call names the repo');
+  assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'issue list', 'api /repos/acme/anvils', 'api /repos/acme/anvils/labels?per_page=100&page=1', 'issue create', 'issue close']);
   // Again, the same night: nothing.
   const again = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(again.code, 0);
   assert.deepEqual(again.json(), { ok: true, sent: false, date: NIGHT, issue: 31, why: 'already sent' });
-  assert.deepEqual((await p.calls()).slice(4).map(c => c.a.slice(0, 2).join(' ')), ['issue list'], 'nothing is created or closed');
+  assert.deepEqual((await p.calls()).slice(6).map(c => c.a.slice(0, 2).join(' ')), ['issue list', 'issue list'], 'nothing is created or closed');
   // Closed since: still this night's brief, never sent again.
   const closed = await project(t, { issues: [{ number: 31, title: titleOf(NIGHT), state: 'CLOSED' }] });
   assert.equal(plates(['morning', '--send', '--date', NIGHT, '--json'], closed.root, { PLATES_GH: closed.gh }).json().sent, false);
@@ -482,8 +485,8 @@ test('in a GitHub Actions run, --send lists, labels, opens and closes its issues
   const r = plates(['morning', '--send', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'acme/anvils-fork' });
   assert.equal(r.code, 0, r.err + r.out);
   const calls = (await p.calls()).map(c => c.a);
-  assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'label create', 'issue create', 'issue close']);
-  assert.deepEqual(calls.map(a => a[a.indexOf('--repo') + 1]), Array(4).fill('acme/anvils-fork'), 'not the config\'s acme/anvils');
+  assert.deepEqual(calls.map(a => a.slice(0, 2).join(' ')), ['issue list', 'issue list', 'api /repos/acme/anvils-fork', 'api /repos/acme/anvils-fork/labels?per_page=100&page=1', 'issue create', 'issue close']);
+  assert.deepEqual(calls.map(a => a[0] === 'api' ? a[1].split('/').slice(2,4).join('/') : a[a.indexOf('--repo') + 1]), Array(6).fill('acme/anvils-fork'), 'not the config\'s acme/anvils');
   assert.match((await p.issuesNow()).find(i => i.number === 31).body, /https:\/\/github\.com\/acme\/anvils-fork\/blob\//);
 });
 
@@ -563,4 +566,15 @@ test('in the brief, "passed since" is the same site\'s pass only, and a preview\
   assert.equal(f.passedSince, true);
   [f] = verifyFailuresFor([r(preview, false, '2026-10-04T20:00:00Z')], NIGHT, { production: prod });
   assert.equal(verifyLine(f), `The preview ${preview} failed its verify for \`a1b2c3d\` at 2026-10-04T20:00:00Z: GET /: expected 200, got 500.`);
+});
+
+
+test('fresh morning adoption creates the absent legacy label before the approved issue',async t=>{
+ const p=await project(t,{labels:[]});
+ const result=plates(['morning','--send','--date',NIGHT,'--json'],p.root,{PLATES_GH:p.gh});
+ assert.equal(result.code,0,result.err+result.out);
+ const calls=(await p.calls()).map(c=>c.a);
+ const creates=calls.filter(a=>a[0]==='label' && a[1]==='create');
+ assert.deepEqual(creates.map(a=>a[2]),['keel:morning']);
+ assert.equal((await p.issuesNow()).at(-1).label,'keel:morning');
 });

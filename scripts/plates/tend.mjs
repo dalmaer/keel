@@ -1,3 +1,4 @@
+import { writeName, artifactNames } from './names.mjs';
 // plates tend (plates practice `climb`; managed: plates render rewrites it). The
 // third pass beside measure and climb: once a week an agent resolves the
 // night's record findings (lost proofs, reconciliation's proposals, stale
@@ -705,7 +706,7 @@ export async function tendGuard({ root, config, env = process.env, base, check =
 // ---- the report -------------------------------------------------------------------
 
 /** The trailer tend-page's commit carries: the judge's page, not a fix. */
-export const PAGE_TRAILER = 'plates-tend-page';
+export const PAGE_TRAILER = writeName('artifact:keel-tend-page');
 const PAGE_SUBJECT = /^(?:plates|keel) tend: (\d{4}-\d{2}-\d{2}), \d+ proposals? for the owner$/;
 
 /**
@@ -722,7 +723,7 @@ export function tendCommits(root, base, head = 'HEAD') {
     const subject = (body ?? '').split('\n')[0];
     const cites = [...(body ?? '').matchAll(CITE)].map(m => m[1]);
     const day = PAGE_SUBJECT.exec(subject)?.[1];
-    if (day && new RegExp(`^(?:${PAGE_TRAILER}|keel-tend-page): ${day}$`, 'm').test(body ?? '')) {
+    if (day && new RegExp(`^(?:${artifactNames('artifact:keel-tend-page').join('|')}): ${day}$`, 'm').test(body ?? '')) {
       const files = pathsOf(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', id]);
       if (files.length === 1 && files[0] === proposalsPageOf(day)) return { sha: id, subject, cites: [], page: true };
     }

@@ -183,7 +183,7 @@ test('a cross-review summary that carries its findings in the body (GitHub refus
   const fallback = [A, B, C].map((commit, i) => node(commit, posted(commit, found, false), i + 1));
   for (const r of fallback) {
     assert.ok(r.body.startsWith(`${MARKER}\n`), 'still the cross-review\'s marked summary');
-    assert.match(r.body, /\n<!-- keel:cross-review findings 1 -->\nGitHub refused the inline comments; the findings \(1\), to answer here:\n- `src\/lid\.js:11` \*\*P1\*\* An unhinged lid/);
+    assert.match(r.body, /\n<!-- plates:cross-review findings 1 -->\nGitHub refused the inline comments; the findings \(1\), to answer here:\n- `src\/lid\.js:11` \*\*P1\*\* An unhinged lid/);
   }
   assert.deepEqual(reviewRounds(pr(fallback)), { count: 3, pushes: [A, B, C] });
   // The same body in the list: owed an answer, not a status board, so the read and the rounds agree.
@@ -193,7 +193,7 @@ test('a cross-review summary that carries its findings in the body (GitHub refus
 
   // A summary with no findings is a status board, inline or not: no round, nothing owed.
   for (const none of [posted(A, [], true), posted(A, [], false), posted(A, found, true)]) {
-    assert.doesNotMatch(none.body, /keel:cross-review findings/);
+    assert.doesNotMatch(none.body, /plates:cross-review findings/);
     assert.equal(reviewRounds(pr([node(A, none, 9)])).count, 0);
     assert.deepEqual(reviewComments(pr([node(A, none, 9)]), ['acme-reviewer']).map(c => [c.status, c.answered]), [[true, true]]);
   }
@@ -354,7 +354,7 @@ test('--class alone records the class and leaves the finding unanswered: the rea
   const writes = writesIn(await gh.calls());
   assert.equal(writes.length, 1, 'one reply, and the thread is not resolved');
   assert.match(writes[0][3], /pulls\/3\/comments\/\d+\/replies$/);
-  assert.equal(bodyOf(writes[0]), '<!-- keel:class security -->\nClassed **security** by the merge rule (a security hole). Not an answer: this finding is still open.');
+  assert.equal(bodyOf(writes[0]), '<!-- plates:class security -->\nClassed **security** by the merge rule (a security hole). Not an answer: this finding is still open.');
   assert.equal((await gh.state()).threads[0].isResolved, undefined);
 
   // Still unanswered, with its class shown.
@@ -409,7 +409,7 @@ test('--close takes --class: the class is recorded with the answer, and a class 
   const done = plates(dir, gh, ['#3', '--close', 'PRRT_1', '--fixed', 'abc1234', '--class', 'overwrite', '--json']);
   assert.equal(done.code, 0, done.err);
   assert.deepEqual([done.json().answer, done.json().class], ['fixed', 'overwrite']);
-  assert.equal(done.json().reply, '**Fixed** in abc1234. Validated against the code first.\n\n<!-- keel:class overwrite -->');
+  assert.equal(done.json().reply, '**Fixed** in abc1234. Validated against the code first.\n\n<!-- plates:class overwrite -->');
   const read = plates(dir, gh, ['#3', '--json']).json();
   const by = Object.fromEntries(read.comments.map(x => [x.id, [x.answered, x.class, x.resolved]]));
   assert.deepEqual(by, { PRRT_1: [true, 'overwrite', true], PRRT_2: [false, 'other', false] });
@@ -427,7 +427,7 @@ test('--class on a review body posts a marked comment that links it and still do
   assert.equal(plates(dir, gh, ['#3', '--class', 'overwrite', 'PRR_1']).code, 0);
   const [post] = writesIn(await gh.calls());
   assert.equal(post[3], 'repos/acme/app/issues/3/comments');
-  assert.equal(bodyOf(post), '<!-- keel:class overwrite -->\n> The whole plan overwrites the owner\'s anvil.\n\nClassed **overwrite** by the merge rule (overwrites the owner\'s files). Not an answer: this finding is still open.\n\nhttps://github.com/acme/app/pull/3#pullrequestreview-7');
+  assert.equal(bodyOf(post), '<!-- plates:class overwrite -->\n> The whole plan overwrites the owner\'s anvil.\n\nClassed **overwrite** by the merge rule (overwrites the owner\'s files). Not an answer: this finding is still open.\n\nhttps://github.com/acme/app/pull/3#pullrequestreview-7');
   const d = plates(dir, gh, ['#3', '--json']).json();
   assert.deepEqual(d.comments.map(x => [x.id, x.kind, x.answered, x.class]), [['PRR_1', 'review', false, 'overwrite']]);
   assert.equal(plates(dir, gh, ['#3', '--gate']).code, 1);
@@ -525,4 +525,21 @@ test('a finding that arrives in the round that reaches the limit, classed and un
   // The sort is the same rule everywhere: no class is unsorted, never track.
   const sorted = byMergeRule([{ id: 'x', answered: false, class: null }, { id: 'y', answered: false }, { id: 'z', answered: false, class: 'other' }, { id: 'done', answered: true, class: 'security' }]);
   assert.deepEqual([sorted.fixFirst, sorted.track.map(x => x.id), sorted.unsorted.map(x => x.id)], [[], ['z'], ['x', 'y']]);
+});
+
+test('class markers prefer current spelling and each reader requires both names independently', async () => {
+  const { markerMutant } = await import('./helpers/names.mjs');
+  const consumer = new URL('../practices/night/files/scripts/plates/lib.mjs', import.meta.url);
+  assert.equal(classMark('security'),'<!-- plates:class security -->');
+  assert.equal(classOf('<!-- plates:class security -->\n<!-- keel:class other -->'),'security');
+  assert.equal(classOf('<!-- keel:class security -->\n<!-- plates:class other -->'),'other');
+  for (const namespace of ['plates','keel']) {
+    const body = `<!-- ${namespace}:class security -->`;
+    assert.equal(classOf(body),'security');
+    assert.equal(classOnly(body),true);
+    assert.equal(classOf('> '+body),null);
+    const mutant = await markerMutant(consumer,'marker:keel:class',`${namespace}:class`);
+    assert.equal(mutant.classOf(body),null);
+    assert.equal(mutant.classOnly(body),false);
+  }
 });

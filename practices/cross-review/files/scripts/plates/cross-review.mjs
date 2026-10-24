@@ -72,7 +72,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict, reviewerOf, listedAgents, pushReviewerOf, commitAuthorOf, secretText, PUSH_LABEL, pushTitle, recordText, recordOf, byWorkflow, fallbackFindingsMark } from './lib.mjs';
+import { remoteLabelReceipt, repositoryLabelSelection, markerComment, markerComments, isMain, main, rootOf, lessonsPathOf, AGENTS, agentOf, passAgentProblems, codexVerdict, reviewerOf, listedAgents, pushReviewerOf, commitAuthorOf, secretText, PUSH_LABEL, pushTitle, recordText, recordOf, byWorkflow, fallbackFindingsMark } from './lib.mjs';
 
 export const KEY = 'crossReview';
 export const LIMITS = Object.freeze({ minutes: [5, 60] });
@@ -94,12 +94,12 @@ export const COMMAND = '/review';
  * refused them inline) a second line says so (lib.mjs fallbackFindingsMark):
  * that summary owes an answer and counts as a finding on its push.
  */
-export const MARKER = '<!-- keel:cross-review -->';
+export const MARKER = markerComment('marker:keel:cross-review');
 /** The review event, always. */
 export const EVENT = 'COMMENT';
 export const SUMMARY_CHARS = 6000;
 /** Each inline comment's first line: a hidden marker, so the night counts the cross-review's findings (plates's step posts them, as the workflow's bot). */
-export const FINDING_MARKER = '<!-- keel:cross-review finding -->';
+export const FINDING_MARKER = markerComment('marker:keel:cross-review', 'finding');
 export const SEVERITIES = Object.freeze(['P1', 'P2', 'P3']);
 /** At most this many inline comments a review; past it, dropped and named. */
 export const MAX_FINDINGS = 30;
@@ -240,7 +240,7 @@ export function pushHistory(issues, { now = Date.now() } = {}) {
   const day = new Date(now).toISOString().slice(0, 10);
   const ours = (Array.isArray(issues) ? issues : []).filter(i => byWorkflow(i));
   const mine = ours.filter(i => recordOf(i?.body)).sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
-  const spent = i => (recordOf(i?.body) ? !recordOf(i.body).start : String(i?.body ?? '').includes(PENDING_MARKER));
+  const spent = i => (recordOf(i?.body) ? !recordOf(i.body).start : markerComments(i?.body, 'marker:keel:review-after-pending').matches.some(mark => !mark.payload));
   return { last: mine.length ? recordOf(mine[0].body).to : null, issue: mine[0]?.number ?? null, today: ours.filter(i => String(i.createdAt ?? '').slice(0, 10) === day && spent(i)).length, day };
 }
 
@@ -681,7 +681,7 @@ export function pushReview({ result, message, agent = 'claude', author = null, r
 
 /** A tracking issue still being posted: no record yet, so a failed post leaves nothing the next run starts from. */
 /** A pending issue's hidden first line: how a run counts a review whose post failed against the day's budget. */
-export const PENDING_MARKER = '<!-- keel:review-after-pending -->';
+export const PENDING_MARKER = markerComment('marker:keel:review-after-pending');
 export const PENDING = 'Posting this review. If this line stays, posting failed before it finished: this issue records nothing, and the next run reviews these commits again.';
 
 /**
@@ -722,10 +722,16 @@ export function ghCall(args, { input, env = process.env } = {}) {
  * commits again (plates#65). A refused comment is a warning: its finding is
  * in the issue. { issue, url, comments, refused, closed }.
  */
-export function pushPost({ review, repo, gh = ghCall }) {
-  try { gh(['api', '--method', 'POST', `repos/${repo}/labels`, '--input', '-'], { input: { name: PUSH_LABEL, color: '5319e7', description: 'plates: the review after a push to main (cross-review)' } }); }
-  catch { /* it exists already (422), or the next call says what is wrong */ }
-  const issue = gh(['api', '--method', 'POST', `repos/${repo}/issues`, '--input', '-'], { input: { title: review.title, body: pushIssueBody(review, {}, { final: false }), labels: review.labels } });
+export async function pushPost({ review, repo, revision, gh = ghCall }) {
+  const github = async ({path}) => {
+    try { return {status:200,data:gh(['api',path])}; }
+    catch(error) { if (/\b404\b/.test(error.message)) return {status:404,data:null}; throw error; }
+  };
+  const receipt = await remoteLabelReceipt({repo,revision,github});
+  const selected = await repositoryLabelSelection({repo,id:'label:keel:review-after',github,receipt});
+  const label=selected.name;
+  if(!selected.exists) gh(['api','--method','POST',`repos/${repo}/labels`,'--input','-'],{input:{name:label,color:'5319e7',description:'plates: the review after a push to main (cross-review)'}});
+  const issue = gh(['api', '--method', 'POST', `repos/${repo}/issues`, '--input', '-'], { input: { title: review.title, body: pushIssueBody(review, {}, { final: false }), labels: [label] } });
   if (!Number.isInteger(issue?.number)) throw new CrossReviewError(`the tracking issue was not opened on ${repo}`, 1);
   const links = {}, refused = [];
   for (const c of review.comments) {
@@ -809,7 +815,7 @@ export async function cli(args, { root = rootOf(import.meta), env = process.env 
     case 'push-post': {
       if (!o.repo) throw new CrossReviewError('push-post needs --repo <owner/repo>');
       const review = await readPr(o.review, '--review', 'push-review JSON');
-      const r = pushPost({ review, repo: o.repo, gh: (args, opts) => ghCall(args, { ...opts, env }) });
+      const r = await pushPost({ review, repo: o.repo, revision: env.GITHUB_SHA ?? env.SHA, gh: (args, opts) => ghCall(args, { ...opts, env }) });
       const warn = r.refused.map(x => `::warning::GitHub refused the commit comment for ${x.id} (${x.why}); it is listed in the issue.`);
       return { data: r, text: [...warn, `the review after the push: #${r.issue}${r.url ? ` ${r.url}` : ''}, ${plural(r.comments, 'commit comment')}${r.closed ? ', closed (no findings)' : ''}`].join('\n') };
     }

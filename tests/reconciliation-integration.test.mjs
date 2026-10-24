@@ -17,7 +17,10 @@ async function fixture(t, enabled = true) {
   for (const d of ['.plates', 'docs/phases', 'scripts/plates']) await mkdir(join(dir, d), { recursive: true });
   const config = { name: 'Acme', check: 'node --test', practices: enabled ? ['reconciliation'] : ['base'], local: { phases: 'Acme inline records' }, repo: 'acme/app' };
   await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(config));
-  if (enabled) await cp(engine, join(dir, 'scripts/plates/reconcile.mjs'));
+  if (enabled) {
+    await cp(engine, join(dir, 'scripts/plates/reconcile.mjs'));
+    await cp(join(root, 'practices/night/files/scripts/plates/names.mjs'), join(dir, 'scripts/plates/names.mjs'));
+  }
   await writeFile(join(dir, 'docs/phases/01-store.md'), '# Store\n\n**Status:** partial\n\n## Acceptance\n\n- [ ] Production proof. <!-- acceptance: production -->\n\n**Next action.** Review the implementation.\n\n## Reconciliation\n\n```keel-reconciliation\n' + JSON.stringify({ version: 1, prs: ['acme/app#12'], decisions: [], implementation: [], production: [], use: [], next: { kind: 'review-pr', ref: 'acme/app#12' } }) + '\n```\n');
   const gh = join(dir, 'gh');
   await writeFile(gh, `#!${process.execPath}\nprocess.exit(1);\n`);
@@ -170,4 +173,34 @@ test('optional CI routes remote facts only on default-branch pushes', async t =>
   await writeFile(join(dir, '.plates/plates.json'), JSON.stringify(config));
   await rm(join(dir, 'scripts/plates/reconcile.mjs'));
   assert.deepEqual(await execute('push', 'trunk'), []);
+});
+
+for (const withNight of [false, true]) test(`reconciliation adoption installs one canonical names runtime (night=${withNight})`, async t => {
+  const { dir, env } = await fixture(t, false);
+  if (withNight) {
+    const file = join(dir, '.plates/plates.json');
+    const config = JSON.parse(await readFile(file, 'utf8'));
+    config.practices.push('agents-md', 'night');
+    await writeFile(file, JSON.stringify(config));
+  }
+  const result = run(process.execPath, [bin, 'adopt', '--with', 'reconciliation', '--json'], { cwd: dir, env });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const canonical = await readFile(join(root, 'practices/night/files/scripts/plates/names.mjs'), 'utf8');
+  assert.equal(await readFile(join(dir, 'scripts/plates/names.mjs'), 'utf8'), canonical);
+  const lock = JSON.parse(await readFile(join(dir, '.plates/lock.json'), 'utf8'));
+  assert.equal(lock.files['scripts/plates/names.mjs'].practice, 'night');
+  assert.equal(Object.keys(lock.files).filter(path => path === 'scripts/plates/names.mjs').length, 1);
+  const source = "import { markdown } from './scripts/plates/reconcile.mjs'; const result = markdown('```plates-impact\\n{}\\n```'); if(result.fences[0]?.type !== 'keel-impact') process.exit(1);";
+  const executed = run(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, env });
+  assert.equal(executed.status, 0, executed.stdout + executed.stderr);
+});
+
+
+test('reconciliation runtime import preserves a declared local night implementation',async t=>{
+ const {load:loadPractices,targets}=await import('../lib/practices.mjs');
+ const {dir}=await fixture(t,false),config={name:'Acme',practices:['base','reconciliation'],local:{phases:'Acme records',night:'Acme local runtime'}};
+ const local='// Acme owns this local runtime.\n';await mkdir(join(dir,'scripts/plates'),{recursive:true});await writeFile(join(dir,'scripts/plates/names.mjs'),local);
+ const files=targets(config,await loadPractices());
+ assert.equal(files.some(f=>f.path==='scripts/plates/names.mjs'),false);
+ assert.equal(await readFile(join(dir,'scripts/plates/names.mjs'),'utf8'),local);
 });

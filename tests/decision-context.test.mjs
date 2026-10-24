@@ -99,3 +99,31 @@ test('shaping inventory exclusions require exact bytes and cannot hide decision 
  const visible=await read([{path,hash:hash(decision)}]);assert.ok(visible.sources.some(s=>s.path===path));assert.ok(visible.gaps.some(g=>g.code==='missing-reciprocal'));
  assert.equal((await read([{path:'../outside',hash:hash(plain)}])).state,'unavailable');
 });
+
+test('decision context reads both rubric aliases and both one-name mutations lose required references', async t => {
+  const { markerMutant } = await import('./helpers/names.mjs');
+  const consumer = new URL('../practices/reconciliation/files/scripts/plates/decision-context.mjs', import.meta.url);
+  const w = await world(t); await w.put('old');
+  for (const namespace of ['plates', 'keel']) {
+    const issueBody = `<!-- ${namespace}:robot-data ${JSON.stringify({version:1,decisions:[ref('old')]})} -->`;
+    const input = {root:w.root,issue:'acme/app#1',issueBody};
+    assert.deepEqual([...new Set((await decisionContext(input)).decisions.map(d => d.ref))], [ref('old')]);
+    const mutant = await markerMutant(consumer, 'marker:keel:robot-data', `${namespace}:robot-data`);
+    assert.equal((await mutant.decisionContext(input)).decisions.length, 0);
+  }
+});
+
+
+test('decision context indirect fence readers detect both one-name mutations',async t=>{
+ const {fenceMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../practices/reconciliation/files/scripts/plates/decision-context.mjs',import.meta.url);
+ for(const namespace of ['plates','keel'])for(const kind of ['decision','reconciliation','impact']){
+  const w=await world(t);await w.put('old');
+  const phasePath=join(w.root,'docs/phases/00-acme.md'),decisionPath=join(w.root,'docs/decisions/old.md');
+  if(kind!=='impact') {const path=kind==='decision'?decisionPath:phasePath;await writeFile(path,(await readFile(path,'utf8')).replaceAll('keel-'+kind,namespace+'-'+kind));}
+  const input=kind==='impact'?{root:w.root,issue:'acme/app#1',issueBody:'```'+namespace+'-impact\n'+JSON.stringify({version:1,decisions:[ref('old')]})+'\n```'}:{root:w.root,phase:'0'};
+  assert.deepEqual([...new Set((await decisionContext(input)).decisions.map(d=>d.ref))],[ref('old')]);
+  const mutant=await fenceMutant(consumer,'fence:keel-'+kind,namespace+'-'+kind);
+  assert.equal((await mutant.decisionContext(input)).decisions.length,0,namespace+' '+kind);
+ }
+});

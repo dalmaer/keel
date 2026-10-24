@@ -49,7 +49,7 @@ test('health current report refresh is bounded replaces stale values and refuses
  const p=proposal();let current=mergeHealthPage({generated:page(p)+'Current value: 1000ms\n'}).text;
  current='Human prefix\r\n'+current+'\nHuman suffix';const originalLength=current.length;
  for(let n=0;n<30;n++){const merged=mergeHealthPage({previous:current,generated:page(p)+`Current value: ${2000+n}ms\n`});assert.deepEqual(merged.problems,[]);current=merged.text;}
- assert.ok(current.length<=originalLength+10);assert.equal((current.match(/keel:health-report:begin/g)??[]).length,1);assert.equal((current.match(/Current value:/g)??[]).length,1);assert.doesNotMatch(current,/Current value: 1000ms/);assert.match(current,/Current value: 2029ms/);assert.ok(current.startsWith('Human prefix\r\n'));assert.ok(current.endsWith('Human suffix'));
+ assert.ok(current.length<=originalLength+10);assert.equal((current.match(/plates:health-report:begin/g)??[]).length,1);assert.equal((current.match(/Current value:/g)??[]).length,1);assert.doesNotMatch(current,/Current value: 1000ms/);assert.match(current,/Current value: 2029ms/);assert.ok(current.startsWith('Human prefix\r\n'));assert.ok(current.endsWith('Human suffix'));
  const edited=current.replace('Current value: 2029ms','Human observation inside managed report');
  const drift=mergeHealthPage({previous:edited,generated:page(p)});assert.match(drift.problems.join(' '),/drift/);assert.equal(drift.text,edited);
 });
@@ -71,7 +71,7 @@ test('health refresh migrates verified embedded non-time proposals and does not 
  assert.ok(migrated.text.startsWith('Human prefix.\n'));assert.ok(migrated.text.endsWith(suffix));
  assert.equal((migrated.text.match(/^## Proposal$/gm)??[]).length,1);
  assert.match(migrated.text,/Acme original/);assert.doesNotMatch(migrated.text,/Different candidate|Old value/);
- assert.ok(migrated.text.indexOf('## Proposal')>migrated.text.indexOf('<!-- keel:health-report:end -->'));
+ assert.ok(migrated.text.indexOf('## Proposal')>migrated.text.indexOf('<!-- plates:health-report:end -->'));
  assert.equal(mergeHealthPage({previous:migrated.text,generated}).text,migrated.text);
  const edited=previous.replace('Acme original.','Acme owner edit.');
  assert.equal(mergeHealthPage({previous:edited,generated}).text,edited);
@@ -98,4 +98,57 @@ test('configured health alias and canonical path share proposal lock while other
  for(const path of ['unrelated/2026-10-01.md','other-alias/2026-10-01.md'])await assert.rejects(writeHealthReport({root:r,path,generated:page(p)}),/unsafe health path/);
  await symlink(join(r,canonical),join(r,'acme-pages/2026-10-02.md'));
  await assert.rejects(writeHealthReport({root:r,path:'.plates/health/2026-10-02.md',generated:page(p)}),/unsafe health path/);
+});
+
+test('health marker pairs prefer current regions and each boundary requires both alias fallbacks', async () => {
+ const {markerMutant}=await import('./helpers/names.mjs');
+ const current=mergeHealthPage({generated:'# Acme health\n\nOriginal value.\n'}).text;
+ const legacy=current.replaceAll('plates:health-report:begin','keel:health-report:begin').replaceAll('plates:health-report:end','keel:health-report:end');
+ const generated='# Acme health\n\nNew value.\n';
+ for(const body of [current,legacy]) {
+  const source='Acme prefix\r\n'+body+'\nAcme suffix';
+  const result=mergeHealthPage({previous:source,generated});
+  assert.deepEqual(result.problems,[]);
+  assert.ok(result.text.startsWith('Acme prefix\r\n'));
+  assert.ok(result.text.endsWith('\nAcme suffix'));
+ }
+ for(const previous of [legacy+'\n'+current,current+'\n'+legacy]) {
+  const result=mergeHealthPage({previous,generated});
+  assert.deepEqual(result.problems,[]);
+  assert.ok(result.text.includes(legacy),'historical region bytes remain intact');
+  assert.equal((result.text.match(/New value/g)??[]).length,1);
+ }
+ const invalid=current.replace('Original value.','Acme human edit.');
+ const refused=mergeHealthPage({previous:legacy+'\n'+invalid,generated});
+ assert.ok(refused.problems.length);
+ assert.equal(refused.text,legacy+'\n'+invalid);
+ for(const boundary of ['begin','end']) for(const namespace of ['plates','keel']) {
+  const previous=namespace==='plates'?current:legacy;
+  const mutant=await markerMutant(new URL('../practices/night/files/scripts/plates/time-proposals.mjs',import.meta.url),`marker:keel:health-report:${boundary}`,`${namespace}:health-report:${boundary}`);
+  assert.ok(mutant.mergeHealthPage({previous,generated}).problems.length,`${namespace} ${boundary}`);
+ }
+});
+
+
+test('time proposal consumer requires both fence and each marker boundary alias', async () => {
+ const {markerMutant,fenceMutant}=await import('./helpers/names.mjs');
+ const current=formatTimeProposal(proposal());
+ const legacy=current.replaceAll('plates:time-proposal:','keel:time-proposal:').replaceAll('plates-time-proposal','keel-time-proposal');
+ const consumer=new URL('../practices/night/files/scripts/plates/time-proposals.mjs',import.meta.url);
+ for(const [namespace,body] of [['plates',current],['keel',legacy]]) {
+  assert.equal(parseTimeProposal(body).proposal.instanceId,proposal().instanceId);
+  const mutant=await fenceMutant(consumer,'fence:keel-time-proposal',`${namespace}-time-proposal`);
+  assert.equal(mutant.parseTimeProposal(body).proposal,null);
+  assert.ok(mutant.parseTimeProposal(body).problems.length);
+  for(const boundary of ['begin','end']) {
+   const m=await markerMutant(consumer,`marker:keel:time-proposal:${boundary}`,`${namespace}:time-proposal:${boundary}`);
+   assert.equal(m.parseTimeProposal(body).proposal,null);
+   assert.ok(m.parseTimeProposal(body).problems.length);
+  }
+ }
+ for(const bodies of [[current,legacy],[legacy,current]]) {
+  const result=parseTimeProposal('# First\n'+bodies[0]+'\n# Second\n'+bodies[1]);
+  assert.equal(result.proposal,null);
+  assert.match(result.problems.join(' '),/Both .* fences in one body/);
+ }
 });

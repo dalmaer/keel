@@ -30,6 +30,7 @@ async function acme(t, { crossReview = ON, files = {} } = {}) {
   await mkdir(join(dir, '.plates'), { recursive: true });
   await cp(SCRIPT, join(dir, 'scripts/plates/cross-review.mjs'));
   await cp(LIB, join(dir, 'scripts/plates/lib.mjs'));
+  await cp(join(PLATES, 'practices/night/files/scripts/plates/names.mjs'), join(dir, 'scripts/plates/names.mjs'));
   await cp(join(PRACTICE, '.agents/cross-review/REVIEW.md'), join(dir, '.agents/cross-review/REVIEW.md'));
   await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ name: 'Acme', repo: 'acme/anvils', ...(crossReview === null ? {} : { crossReview }) }, null, 2)}\n`);
   for (const [p, text] of Object.entries(files)) {
@@ -89,6 +90,7 @@ process.exit(1);
 
 /** Run one named step of plates-cross-review.yml in `dir`, as the workflow has it: { status, out, outputs }. */
 async function step(t, dir, name, env = {}) {
+  if (name === 'Post after the push') env={SHA:'a'.repeat(40),...env};
   const block = runBlocks(await readFile(WORKFLOW, 'utf8')).find(b => b.step === name);
   assert.ok(block, `plates-cross-review.yml has a step "${name}"`);
   const out = join(dir, '..', `${dir.split('/').pop()}-${name.replace(/\W/g, '')}-out`);
@@ -306,7 +308,7 @@ test('agent ran: red with only the error line when the agent failed before its b
   // The workflow runs its copy from $RUNNER_TEMP/plates, taken from the default branch before the PR's head.
   const temp = join(dir, 'runner');
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
   const file = join(temp, 'execution.json');
   const early = { is_error: true, num_turns: 1, duration_ms: 2000, subtype: 'success', result: 'Invalid API key · Please run /login' };
   await writeFile(file, execution(early));
@@ -367,7 +369,7 @@ test('summary: the agent\'s final message, posted as a COMMENT review on the hea
   assert.equal(r.event, 'COMMENT');
   assert.equal(r.commit_id, SHA);
   assert.deepEqual(Object.keys(r).sort(), ['body', 'commit_id', 'event']);
-  assert.ok(r.body.startsWith('<!-- keel:cross-review -->\n'), 'a status board: it owes no answer');
+  assert.ok(r.body.startsWith('<!-- plates:cross-review -->\n'), 'a status board: it owes no answer');
   assert.match(r.body, /One P2: the lid opens on a fork\./);
   assert.match(m.summaryReview({ result: null, pr, minutes: 15 }).body, /ran out its 15-minute budget before writing a summary/);
   assert.match(m.summaryReview({ result: { is_error: true, result: 'Invalid API key' }, pr, minutes: 15 }).body, /ran out its 15-minute budget/, 'an error is never posted as a summary');
@@ -557,7 +559,7 @@ test('the workflow with Codex: Codex reviews Claude\'s claude/ PRs, Claude Codex
   assert.match(posted.out, /::warning::GitHub refused the review with its inline comments/);
   const calls = (await gh.calls()).filter(c => c.args[0] === 'api');
   assert.equal(calls.length, 2);
-  assert.deepEqual(calls[0].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P1** The hinge is unchecked.' }]);
+  assert.deepEqual(calls[0].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- plates:cross-review finding -->\n**P1** The hinge is unchecked.' }]);
   assert.equal(calls[0].input.event, 'COMMENT');
   assert.match(calls[0].input.body, /- `src\/nope\.js:1`: its path is not in the pull request's diff/);
   assert.equal(calls[1].input.comments, undefined);
@@ -584,7 +586,7 @@ test('the workflow with Claude: its findings JSON is posted inline by plates\'s 
   const s = await post(t, dir, { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, AGENT: 'claude', EXECUTION: join(temp, 'execution.json'), MINUTES: '15', REPO: 'acme/anvils', PR: '7' });
   assert.equal(s.status, 0, s.out);
   const [call] = await gh.calls();
-  assert.deepEqual(call.input.comments, [{ path: 'src/lid.js', line: 42, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P3** NEW is never read.' }]);
+  assert.deepEqual(call.input.comments, [{ path: 'src/lid.js', line: 42, side: 'RIGHT', body: '<!-- plates:cross-review finding -->\n**P3** NEW is never read.' }]);
   assert.match(call.input.body, /by Claude of aaaaaaa/);
   assert.doesNotMatch(call.input.body, /its own provider/, 'Codex wrote this one: no self-review line');
   // duo#84: Claude reviewing its own PR (the fallback): the step hands the which step's author and reason to the summary.
@@ -674,7 +676,7 @@ test('phase 46: Claude, holding the review job\'s read-only token, reads the dif
   assert.equal(brief.status, 0, brief.out);
   assert.doesNotMatch(brief.out, /could not be read/);
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
 
   // Claude's run, synthetic: its two Bash tools as the action runs them (GH_TOKEN is the github_token it was handed), then its final message.
   const tool = args => run('gh', args, { cwd: dir, env: { ...process.env, PATH: path, GH_TOKEN: 'acme-read' } });
@@ -698,7 +700,7 @@ test('phase 46: Claude, holding the review job\'s read-only token, reads the dif
   const calls = await gh.calls();
   const posts = calls.filter(c => c.args[0] === 'api' && c.args.includes('POST'));
   assert.deepEqual(posts.map(c => c.token), ['acme-read', 'acme-write'], 'the read token was refused; the publish job\'s posted');
-  assert.deepEqual(posts[1].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- keel:cross-review finding -->\n**P2** An unhinged lid returns undefined.' }]);
+  assert.deepEqual(posts[1].input.comments, [{ path: 'src/lid.js', line: 12, side: 'RIGHT', body: '<!-- plates:cross-review finding -->\n**P2** An unhinged lid returns undefined.' }]);
   assert.equal(posts[1].input.event, 'COMMENT');
   assert.deepEqual(calls.filter(c => c.args[0] === 'pr').map(c => c.token), Array(6).fill('acme-read'), 'every read held the review job\'s token');
 });
@@ -708,7 +710,7 @@ test('phase 46: the publish job posts exactly what summary builds from the artif
   const pr = prJson();
   const temp = join(dir, 'runner');
   await mkdir(join(temp, 'plates/scripts/plates'), { recursive: true });
-  for (const f of ['cross-review.mjs', 'lib.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
+  for (const f of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) await cp(join(dir, 'scripts/plates', f), join(temp, 'plates/scripts/plates', f));
   await writeFile(join(temp, 'pr.json'), JSON.stringify(pr));
   await writeFile(join(temp, 'pr.diff'), DIFF);
   // The agent's working tree and anything else in the runner's temp never leave the review job.
@@ -809,7 +811,7 @@ const trackingIssue = (number, to, createdAt, { author = BOT, from = null, findi
  * commit comment is refused (403) with `refuseComments`, the issue with
  * `refuseIssue`.
  */
-async function pushGh(t, { issues = [], refuseComments = false, refuseIssue = false, refusePatch = false, repo = null } = {}) {
+async function pushGh(t, { issues = [], refuseComments = false, refuseIssue = false, refusePatch = false, repo = null, issueLabel = null } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'plates-cross-review-push-gh-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
   const log = join(dir, 'gh.log');
@@ -822,9 +824,12 @@ fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args: a, input, token
 const n = fs.readFileSync(${JSON.stringify(log)}, 'utf8').trim().split('\\n').length;
 const out = v => { process.stdout.write(JSON.stringify(v)); process.exit(0); };
 const no = why => { process.stderr.write('gh: ' + why); process.exit(1); };
-if (a[0] === 'issue' && a[1] === 'list') out(${JSON.stringify(issues)});
-const path = a.find(x => x.startsWith('repos/')) ?? '';
-if (a[0] === 'api' && /\\/issues\\?labels=keel:review-after&state=all/.test(path)) { process.stdout.write(String(${JSON.stringify(issues)}.length)); process.exit(0); }
+if (a[0] === 'issue' && a[1] === 'list') out(${JSON.stringify(issueLabel)} && a[a.indexOf('--label')+1] !== ${JSON.stringify(issueLabel)} ? [] : ${JSON.stringify(issues)});
+const path = (a.find(x => x.startsWith('repos/') || x.startsWith('/repos/')) ?? '').replace(/^\\//,'');
+if (a[0] === 'api' && /^repos\\/acme\\/anvils$/.test(path)) out({id:31,full_name:'acme/anvils'});
+if (a[0] === 'api' && /\\/labels\\?/.test(path)) out([{id:71,name:'keel:review-after'}]);
+if (a[0] === 'api' && path.includes('contents/.plates/name-transition/label-renames.json')) no('Not Found (HTTP 404)');
+if (a[0] === 'api' && /\\/issues\\?labels=(?:plates|keel)(?::|%3A)review-after&state=all/.test(path)) out(${JSON.stringify(issueLabel)} && !decodeURIComponent(path).includes('labels='+${JSON.stringify(issueLabel)}+'&') ? [] : ${JSON.stringify(issues)});
 if (a[0] === 'api' && /\\/labels$/.test(path)) no('Validation Failed (HTTP 422): already_exists');
 if (a[0] === 'api' && /\\/issues$/.test(path)) { if (${refuseIssue}) no('Resource not accessible by integration (HTTP 403)'); out({ number: 12, html_url: 'https://github.com/acme/anvils/issues/12' }); }
 if (a[0] === 'api' && /\\/commits\\/[0-9a-f]{40}\\/comments$/.test(path)) { if (${refuseComments}) no('Resource not accessible by integration (HTTP 403)'); out({ id: 700 + n, html_url: 'https://github.com/acme/anvils/commit/x#commitcomment-' + (700 + n) }); }
@@ -843,8 +848,8 @@ no('unexpected ' + a.join(' '));
 }
 
 /** The which step for a push (or the daily run) in `dir`, with `issues` as the tracking issues: its result and outputs. */
-async function whichPush(t, dir, { event = 'push', before = '', issues = [], has = { claude: true, codex: true }, now } = {}) {
-  const gh = await pushGh(t, { issues });
+async function whichPush(t, dir, { event = 'push', before = '', issues = [], has = { claude: true, codex: true }, now, issueLabel = null } = {}) {
+  const gh = await pushGh(t, { issues, issueLabel });
   const temp = join(dir, '.runner');
   await mkdir(temp, { recursive: true });
   const env = { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '', REPO: 'acme/anvils', EVENT: event, BEFORE: before, ACTION: '', HAS_CLAUDE: String(has.claude), HAS_CODEX: String(has.codex), ...(now ? { PLATES_NOW: now } : {}) };
@@ -998,13 +1003,13 @@ test('phase 60 publisher: after a push the publish job checks out nothing and ru
   assert.equal(good.status, 0, good.out);
   assert.equal(good.outputs.dir, join(temp, 'publisher/scripts/plates'));
   assert.equal(await readFile(join(good.outputs.dir, 'cross-review.mjs'), 'utf8'), platesBytes);
-  assert.deepEqual(good.calls.map(c => c.replace(/^api -H Accept: application\/vnd\.github\.raw /, '')), [`repos/acme/anvils/contents/scripts/plates/cross-review.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/lib.mjs?ref=${a}`]);
+  assert.deepEqual(good.calls.map(c => c.replace(/^api -H Accept: application\/vnd\.github\.raw /, '')), [`repos/acme/anvils/contents/scripts/plates/cross-review.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/lib.mjs?ref=${a}`, `repos/acme/anvils/contents/scripts/plates/names.mjs?ref=${a}`]);
   // At M, and at N after it, the script is not plates's: red, no folder handed on, so the post never runs M's script.
   for (const sha of [m, n]) {
     const r = await fetches(sha);
     assert.equal(r.status, 1, r.out);
     assert.equal(r.outputs.dir, undefined);
-    assert.match(r.out, /^::error::scripts\/plates\/cross-review\.mjs and lib\.mjs at the run commit are not the ones plates rendered this workflow with/m);
+    assert.match(r.out, /^::error::scripts\/plates\/cross-review\.mjs, lib\.mjs and names\.mjs at the run commit are not the ones plates rendered this workflow with/m);
   }
   // An unrendered workflow (no "after", so no push trigger; or hand-copied) runs nothing either.
   assert.equal((await fetches(a, 'unrendered')).status, 1);
@@ -1033,7 +1038,7 @@ test('phase 60 start: the record starts at the push\'s before only when GitHub p
   const m = await load(t);
   const starts = async ({ event = 'push', before = root, startAt }) => {
     const gh = await pushGh(t, { repo: dir });
-    const r = await step(t, temp, 'Start the record', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: event, BEFORE: before, SHA: b, STARTAT: startAt });
+    const r = await step(t, temp, 'Start the record', { PUBLISHER:join(dir,'scripts/plates'), PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: event, BEFORE: before, SHA: b, STARTAT: startAt });
     assert.equal(r.status, 0, r.out);
     return m.recordOf(JSON.parse(await readFile(join(temp, 'start.json'), 'utf8')).body).to;
   };
@@ -1047,7 +1052,7 @@ test('phase 60 start: the record starts at the push\'s before only when GitHub p
   // script could say "start" to skip the publisher's check and set the record past its own push).
   const had = await pushGh(t, { repo: dir, issues: [trackingIssue(20, root, '2026-10-09T09:00:00Z')] });
   await rm(join(temp, 'start.json'), { force: true });
-  const refused = await step(t, temp, 'Start the record', { PATH: `${had.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: 'push', BEFORE: root, SHA: b, STARTAT: root });
+  const refused = await step(t, temp, 'Start the record', { PUBLISHER:join(dir,'scripts/plates'), PATH: `${had.path}:${process.env.PATH}`, RUNNER_TEMP: temp, REPO: 'acme/anvils', GH_TOKEN: 'acme-write', EVENT: 'push', BEFORE: root, SHA: b, STARTAT: root });
   assert.equal(refused.status, 1, refused.out);
   assert.match(refused.out, /^::error::The review job asked to start the record, but acme\/anvils already has a keel:review-after issue: nothing is started/m);
   assert.ok(!(await had.calls()).some(c => c.args.includes('--method')), 'nothing written');
@@ -1183,10 +1188,10 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   const posted = await step(t, dir, 'Post after the push', env);
   assert.equal(posted.status, 0, posted.out);
   assert.match(posted.out, /the review after the push: #12 https:\/\/github\.com\/acme\/anvils\/issues\/12, 1 commit comment/);
-  const calls = (await gh.calls()).filter(x => x.args[0] === 'api');
-  assert.deepEqual(calls.map(x => `${x.args[2]} ${x.args[3]}`), ['POST repos/acme/anvils/labels', 'POST repos/acme/anvils/issues', `POST repos/acme/anvils/commits/${head}/comments`, 'PATCH repos/acme/anvils/issues/12']);
+  const calls = (await gh.calls()).filter(x => x.args.includes('--method'));
+  assert.deepEqual(calls.map(x => `${x.args[2]} ${x.args[3]}`), [ 'POST repos/acme/anvils/issues', `POST repos/acme/anvils/commits/${head}/comments`, 'PATCH repos/acme/anvils/issues/12']);
   assert.ok(calls.every(x => x.token === 'acme-write'));
-  const [, issue, comment, edit] = calls;
+  const [issue, comment, edit] = calls;
   assert.equal(issue.input.title, `plates review after ${head.slice(0, 7)}`);
   assert.deepEqual(issue.input.labels, ['keel:review-after']);
   // plates#65: the issue opens pending, with no record; the one edit that finishes it writes the record (and the links).
@@ -1202,9 +1207,9 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   assert.match(issue.input.body, /plates review acme\/anvils@[0-9a-f]{7} --close <id>/);
   // The head's own diff holds only hinge.js: F1 on the commit, F2 in the issue alone.
   assert.deepEqual([comment.input.path, comment.input.position], ['src/hinge.js', 1]);
-  assert.match(comment.input.body, /^<!-- keel:cross-review finding -->\n\*\*F1 · P1\*\* The hinge is never checked\.\n\nAnswer it on the review's issue: https:\/\/github\.com\/acme\/anvils\/issues\/12$/);
-  assert.equal(m.recordOf(edit.input.body).findings[0].url, 'https://github.com/acme/anvils/commit/x#commitcomment-703');
-  assert.match(edit.input.body, /· \[on the commit\]\(https:\/\/github\.com\/acme\/anvils\/commit\/x#commitcomment-703\)/);
+  assert.match(comment.input.body, /^<!-- plates:cross-review finding -->\n\*\*F1 · P1\*\* The hinge is never checked\.\n\nAnswer it on the review's issue: https:\/\/github\.com\/acme\/anvils\/issues\/12$/);
+  assert.equal(m.recordOf(edit.input.body).findings[0].url, 'https://github.com/acme/anvils/commit/x#commitcomment-705');
+  assert.match(edit.input.body, /· \[on the commit\]\(https:\/\/github\.com\/acme\/anvils\/commit\/x#commitcomment-705\)/);
   assert.equal(calls.some(x => x.input?.state === 'closed'), false, 'open while it has findings');
 
   // A commit comment refused: a warning, and the finding stays in the issue. No findings: the issue is closed as it opens.
@@ -1216,10 +1221,10 @@ test('phase 60 publish: the findings, checked against the push\'s diff, go on th
   const quiet = await pushGh(t);
   const q = await step(t, dir, 'Post after the push', { ...env, PATH: `${quiet.path}:${process.env.PATH}` });
   assert.equal(q.status, 0, q.out);
-  const qc = (await quiet.calls()).filter(x => x.args[0] === 'api');
-  assert.deepEqual(qc.map(x => x.args[2]), ['POST', 'POST', 'PATCH']);
-  assert.deepEqual([qc[2].input.state, qc[2].input.state_reason, m.recordOf(qc[2].input.body).to], ['closed', 'completed', head], 'the record and the close in the one finishing edit');
-  assert.match(qc[1].input.body, /No findings: this issue is the record of the review, closed as it opens\./);
+  const qc = (await quiet.calls()).filter(x => x.args.includes('--method'));
+  assert.deepEqual(qc.map(x => x.args[2]), ['POST', 'PATCH']);
+  assert.deepEqual([qc[1].input.state, qc[1].input.state_reason, m.recordOf(qc[1].input.body).to], ['closed', 'completed', head], 'the record and the close in the one finishing edit');
+  assert.match(qc[0].input.body, /No findings: this issue is the record of the review, closed as it opens\./);
   // The finishing edit failed: red, and no record was ever written, so the next run reviews the same commits again.
   const noFinish = await pushGh(t, { refusePatch: true });
   const unfinished = await step(t, dir, 'Post after the push', { ...env, PATH: `${noFinish.path}:${process.env.PATH}` });
@@ -1246,7 +1251,7 @@ async function trustedLayout(t, layout) {
     await rename(join(dir, 'scripts/plates'), join(dir, 'scripts/keel'));
     await rename(join(dir, '.plates'), join(dir, '.keel'));
     await rename(join(dir, '.keel/plates.json'), join(dir, '.keel/keel.json'));
-    for (const file of ['cross-review.mjs', 'lib.mjs']) {
+    for (const file of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) {
       const path = join(dir, 'scripts/keel', file);
       const source = await readFile(path, 'utf8');
       await writeFile(path, source.replaceAll('.plates/plates.json', '.keel/keel.json').replaceAll('PLATES_NOW', 'KEEL_NOW').replaceAll('PLATES_GH', 'KEEL_GH'));
@@ -1269,7 +1274,7 @@ for (const layout of ['keel', 'plates']) test(`rename compatibility: ${layout} t
   assert.equal(which.outputs.review, 'true');
   const brief = await step(t, dir, 'Brief', { ...env, AGENT: 'claude' });
   assert.equal(brief.status, 0, brief.out);
-  for (const file of ['cross-review.mjs', 'lib.mjs']) {
+  for (const file of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) {
     assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'), 'trusted pair is copied without rewriting its bytes');
     // The PR checkout replaces the working tree after the brief. Its modules
     // must never judge the agent or run in the writing job.
@@ -1345,7 +1350,7 @@ for (const layout of ['keel', 'plates']) test(`complete PR diff: HTTP 406 uses e
     const prompt = await readFile(join(temp, 'prompt.md'), 'utf8');
     assert.ok(prompt.includes(join(temp, 'plates-diff/pr.diff')));
     assert.doesNotMatch(prompt, /`gh pr diff 7`/);
-    for (const file of ['cross-review.mjs', 'lib.mjs']) assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'));
+    for (const file of ['cross-review.mjs', 'lib.mjs', 'names.mjs']) assert.equal(await readFile(join(temp, 'plates/scripts/plates', file), 'utf8'), await readFile(join(dir, `scripts/${layout}`, file), 'utf8'));
   }
 });
 
@@ -1381,4 +1386,73 @@ test('complete PR diff: invalid, missing, shallow, drifted or empty evidence ref
   const gh = await stubGh(t, pr);
   const r = await step(t, dir, 'Brief', { PATH: `${gh.path}:${process.env.PATH}`, RUNNER_TEMP: temp, PR: '7', REPO: 'acme/anvils', SHA: pr.headRefOid, AGENT: 'codex' });
   assert.notEqual(r.status, 0, 'shallow history cannot prove a complete merge base');
+});
+
+
+test('publisher refuses changed names helper before handing its directory to the writer', async t => {
+ const dir=await shipsToMain(t);
+ const path=join(dir,'scripts/plates/names.mjs');
+ const sha=await commitOn(dir,'scripts/plates/names.mjs',(await readFile(path,'utf8'))+'\n// Acme altered helper\n',{trailer:TRAILER});
+ const {publisherSha256}=await import(pathToFileURL(join(PLATES,'lib/practices.mjs')).href);
+ const temp=await mkdtemp(join(tmpdir(),'acme-publisher-names-'));
+ t.after(()=>rm(temp,{recursive:true,force:true}));
+ const gh=await pushGh(t,{repo:dir});
+ const result=await step(t,temp,"Is the publisher plates's?",{PATH:`${gh.path}:${process.env.PATH}`,RUNNER_TEMP:temp,REPO:'acme/anvils',GH_TOKEN:'acme-write',SHA:sha,PLATES_PUBLISHER:publisherSha256().join(' ')});
+ assert.equal(result.status,1,result.out);
+ assert.equal(result.outputs.dir,undefined);
+ assert.match(result.out,/names\.mjs at the run commit are not the ones plates rendered/);
+});
+
+
+test('fresh cross-review label selection preserves creation authority and refuses unreceipted current names',async t=>{
+ const m=await load(t);
+ const review=m.pushReview({message:final('Acme review.',[]),agent:'codex',push:{from:SHA,to:SHA,alone:true,commits:[]},minutes:15,diff:'',headDiff:'',repo:'acme/anvils'});
+ for(const labels of [[],[{id:71,name:'keel:review-after'}],[{id:71,name:'plates:review-after'}],[{id:71,name:'keel:review-after'},{id:72,name:'keel:review-after'}]]) {
+  const writes=[];
+  const gh=(args,options={})=>{
+   const path=args.find(a=>/^\/?repos\//.test(a))?.replace(/^\//,'');
+   if(args.includes('--method')) {writes.push({args,input:options.input});return {number:12,html_url:'https://github.com/acme/anvils/issues/12'};}
+   if(path.includes('contents/.plates/name-transition/label-renames.json'))throw Error('HTTP 404');
+   if(path==='repos/acme/anvils')return {id:31,full_name:'acme/anvils'};
+   if(path.includes('/labels?'))return labels;
+   throw Error('Unexpected synthetic read '+path);
+  };
+  const call=()=>m.pushPost({review,repo:'acme/anvils',revision:SHA,gh});
+  if(labels.length>1||labels[0]?.name==='plates:review-after') {await assert.rejects(call,/refused/);assert.equal(writes.length,0);continue;}
+  await call();
+  const creates=writes.filter(w=>w.args.includes('repos/acme/anvils/labels'));
+  assert.equal(creates.length,labels.length===0?1:0);
+  if(creates.length) {assert.equal(writes[0],creates[0]);assert.equal(creates[0].input.name,'keel:review-after');}
+  assert.deepEqual(writes.find(w=>w.args.includes('repos/acme/anvils/issues')).input.labels,['keel:review-after']);
+ }
+});
+
+
+test('workflow push label query detects both single-name mutations',async t=>{
+ const dir=await shipsToMain(t),base=gitIn(dir,['rev-parse','HEAD']);
+ await commitOn(dir,'src/acme.js','export const acme = 1;\n',{trailer:TRAILER});
+ const path=join(dir,'scripts/plates/names.mjs'),source=await readFile(path,'utf8');
+ for(const namespace of ['plates','keel']){
+  await writeFile(path,source);
+  const issueLabel=namespace+':review-after',options={before:base,issues:[trackingIssue(8,base,'2026-10-09T07:00:00Z')],issueLabel};
+  const good=await whichPush(t,dir,options);assert.equal(good.status,0,good.out);assert.equal(good.outputs.mode,'push');
+  const needle='return [row.plates, row.keel];';assert.equal(source.split(needle).length,2);
+  await writeFile(path,source.replace(needle,`return [row.plates,row.keel].filter(name=>name!==${JSON.stringify(issueLabel)});`));
+  const bad=await whichPush(t,dir,options);assert.equal(bad.status,0,bad.out);assert.equal(bad.outputs.mode,'start');
+ }
+});
+
+
+test('workflow start existing-record query detects both single-name mutations',async t=>{
+ const dir=await acme(t),path=join(dir,'scripts/plates/names.mjs'),source=await readFile(path,'utf8');
+ const text=await readFile(WORKFLOW,'utf8'),body=text.split('      - name: Start the record\n')[1];
+ const code=/had=\$\(node --input-type=module -e '([\s\S]*?)'\)/.exec(body)?.[1];assert.ok(code);
+ for(const namespace of ['plates','keel']){
+  const issueLabel=namespace+':review-after',gh=await pushGh(t,{issueLabel,issues:[{number:7}]});
+  const env={...process.env,PATH:`${gh.path}:${process.env.PATH}`,PUBLISHER:join(dir,'scripts/plates'),REPO:'acme/anvils'};
+  const execute=()=>run(process.execPath,['--input-type=module','-e',code],{cwd:dir,env});
+  await writeFile(path,source);let result=execute();assert.equal(result.status,0,result.stderr);assert.equal(result.stdout.trim(),'1');
+  await writeFile(path,source.replace('return [row.plates, row.keel];',`return [row.plates,row.keel].filter(name=>name!==${JSON.stringify(issueLabel)});`));
+  result=execute();assert.equal(result.status,0,result.stderr);assert.equal(result.stdout.trim(),'0');
+ }
 });

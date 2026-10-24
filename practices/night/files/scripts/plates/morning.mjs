@@ -1,3 +1,4 @@
+import {labelNames, repositoryLabelSelection} from './names.mjs';
 import { retainedVerificationSummary } from './verification.mjs';
 import { rewriteHealthBody } from './time-proposals.mjs';
 import { status as productionStatus, productionLines } from './production.mjs';
@@ -467,8 +468,12 @@ const repoArgs = (config, env) => { const repo = repoOf(config, env); return rep
 
 /** Every keel:morning issue, open or closed: [{ number, title, state }]. */
 export function morningIssues(root, config, env = process.env) {
-  const rows = gh(root, env, ['issue', 'list', ...repoArgs(config, env), '--label', LABEL, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${LABEL} issues`, { json: true, exitCode: 2 });
-  if (!Array.isArray(rows)) throw new MorningError(`cannot list the ${LABEL} issues: gh did not print a JSON list`);
+  const rows = [];
+  for (const label of labelNames('label:keel:morning')) {
+    const page = gh(root, env, ['issue', 'list', ...repoArgs(config, env), '--label', label, '--state', 'all', '--limit', '200', '--json', 'number,title,state'], `list the ${label} issues`, { json: true, exitCode: 2 });
+    if (!Array.isArray(page)) throw new MorningError(`cannot list the ${label} issues: gh did not print a JSON list`);
+    for (const issue of page) if (!rows.some(row => row.number === issue.number)) rows.push(issue);
+  }
   return rows.filter(i => Number.isSafeInteger(i?.number) && typeof i.title === 'string').sort((a, b) => a.number - b.number);
 }
 
@@ -493,8 +498,10 @@ export async function send({ root, date, env = process.env, now = new Date() }) 
   const issues = morningIssues(root, config, env);
   const same = issues.find(i => i.title === title);
   if (same) return { data: { ok: true, sent: false, date: b.data.date, issue: same.number, why: 'already sent' }, text: `${title}: already sent as #${same.number}; nothing sent again.` };
-  gh(root, env, ['label', 'create', LABEL, ...repoArgs(config, env), '--force', '--color', 'FBCA04', '--description', 'plates: the morning brief'], `make the label ${LABEL}`);
-  const out = gh(root, env, ['issue', 'create', ...repoArgs(config, env), '--title', title, '--assignee', assignee, '--label', LABEL, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
+  const selected = await repositoryLabelSelection({root,repo:repoOf(config,env),id:'label:keel:morning',github:async ({path})=>({status:200,data:gh(root,env,['api',path],'read current label facts',{json:true,exitCode:2})})});
+  const label=selected.name;
+  if(!selected.exists) gh(root,env,['label','create',label,...repoArgs(config,env),'--color','FBCA04','--description','plates: the morning brief'],`make the label ${label}`);
+  const out = gh(root, env, ['issue', 'create', ...repoArgs(config, env), '--title', title, '--assignee', assignee, '--label', label, '--body-file', '-'], `open the issue "${title}"`, { input: b.data.markdown });
   const url = out.trim().split('\n').at(-1);
   const number = Number(/\/issues\/(\d+)$/.exec(url)?.[1]);
   if (!Number.isSafeInteger(number)) throw new MorningError(`opened "${title}" but gh printed no issue URL (${one(url).slice(0, 200)})`, 1);

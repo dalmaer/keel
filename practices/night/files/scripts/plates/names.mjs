@@ -29,45 +29,48 @@ export const NAMES = Object.freeze([
   Object.freeze({"id": "concurrency group:keel-impact-","surface": "concurrency group","keel": "keel-impact-","plates": "plates-impact-","phase": 125,"state": "held"}),
   Object.freeze({"id": "concurrency group:keel-web-typecheck-","surface": "concurrency group","keel": "keel-web-typecheck-","plates": "plates-web-typecheck-","phase": 125,"state": "held"}),
   Object.freeze({"id": "concurrency group:keel-web-update-","surface": "concurrency group","keel": "keel-web-update-","plates": "plates-web-update-","phase": 125,"state": "held"}),
-  Object.freeze({"id": "artifact:keel-test-runs","surface": "artifact","keel": "keel-test-runs","plates": "plates-test-runs","phase": 126,"state": "held","migrationHold": "keel-test-runs\\b"}),
-  Object.freeze({"id": "artifact:keel-production-","surface": "artifact","keel": "keel-production-","plates": "plates-production-","phase": 126,"state": "held","migrationHold": "keel-production-(?=\\d|\\$\\{|['\"`]|$)"}),
-  Object.freeze({"id": "artifact:keel-canvas-night","surface": "artifact","keel": "keel-canvas-night","plates": "plates-canvas-night","phase": 126,"state": "held","migrationHold": "keel\\-canvas\\-night\\b"}),
-  Object.freeze({"id": "artifact:keel-canvas-card","surface": "artifact","keel": "keel-canvas-card","plates": "plates-canvas-card","phase": 126,"state": "held","migrationHold": "keel\\-canvas\\-card\\b"}),
-  Object.freeze({"id": "artifact:keel-tend-page","surface": "artifact","keel": "keel-tend-page","plates": "plates-tend-page","phase": 126,"state": "held","migrationHold": "keel-tend-page\\b"}),
-  Object.freeze({"id": "artifact:keel-time-proposal","surface": "artifact","keel": "keel-time-proposal","plates": "plates-time-proposal","phase": 126,"state": "held","migrationHold": "keel-time-proposal\\b"}),
+  Object.freeze({"id": "artifact:keel-test-runs","surface": "artifact","keel": "keel-test-runs","plates": "plates-test-runs","phase": 126,"state": "dual","migrationHold": "keel-test-runs\\b"}),
+  Object.freeze({"id": "artifact:keel-production-","surface": "artifact","keel": "keel-production-","plates": "plates-production-","phase": 126,"state": "dual","migrationHold": "keel-production-(?=\\d|\\$\\{|['\"`]|$)"}),
+  Object.freeze({"id": "artifact:keel-canvas-night","surface": "artifact","keel": "keel-canvas-night","plates": "plates-canvas-night","phase": 126,"state": "dual","migrationHold": "keel\\-canvas\\-night\\b"}),
+  Object.freeze({"id": "artifact:keel-canvas-card","surface": "artifact","keel": "keel-canvas-card","plates": "plates-canvas-card","phase": 126,"state": "dual","migrationHold": "keel\\-canvas\\-card\\b"}),
+  Object.freeze({"id": "artifact:keel-tend-page","surface": "artifact","keel": "keel-tend-page","plates": "plates-tend-page","phase": 126,"state": "dual","migrationHold": "keel-tend-page\\b"}),
+  Object.freeze({"id": "artifact:keel-time-proposal","surface": "artifact","keel": "keel-time-proposal","plates": "plates-time-proposal","phase": 126,"state": "dual","migrationHold": "keel-time-proposal\\b"}),
   Object.freeze({"id": "artifact:keel-time-proposals","surface": "artifact","keel": "keel-time-proposals","plates": "plates-time-proposals","phase": 126,"state": "held","migrationHold": "keel-time-proposals\\b"}),
-  Object.freeze({"id": "marker:keel:health-report:begin","surface": "marker","keel": "keel:health-report:begin","plates": "plates:health-report:begin","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:health-report:end","surface": "marker","keel": "keel:health-report:end","plates": "plates:health-report:end","phase": 126,"state": "held"}),
+  Object.freeze({"id": "marker:keel:health-report:begin","surface": "marker","keel": "keel:health-report:begin","plates": "plates:health-report:begin","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:health-report:end","surface": "marker","keel": "keel:health-report:end","plates": "plates:health-report:end","phase": 126,"state": "dual"}),
   Object.freeze({"id": "marker:keel:morning","surface": "marker","keel": "keel:morning","plates": "plates:morning","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:class","surface": "marker","keel": "keel:class","plates": "plates:class","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:cross-review","surface": "marker","keel": "keel:cross-review","plates": "plates:cross-review","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-authorization","surface": "marker","keel": "keel:robot-authorization","plates": "plates:robot-authorization","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-continuation","surface": "marker","keel": "keel:robot-continuation","plates": "plates:robot-continuation","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-data","surface": "marker","keel": "keel:robot-data","plates": "plates:robot-data","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-delivery","surface": "marker","keel": "keel:robot-delivery","plates": "plates:robot-delivery","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-issue","surface": "marker","keel": "keel:robot-issue","plates": "plates:robot-issue","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-note","surface": "marker","keel": "keel:robot-note","plates": "plates:robot-note","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-permission","surface": "marker","keel": "keel:robot-permission","plates": "plates:robot-permission","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-publication","surface": "marker","keel": "keel:robot-publication","plates": "plates:robot-publication","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-review","surface": "marker","keel": "keel:robot-review","plates": "plates:robot-review","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-rubric:v1","surface": "marker","keel": "keel:robot-rubric:v1","plates": "plates:robot-rubric:v1","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:robot-state","surface": "marker","keel": "keel:robot-state","plates": "plates:robot-state","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:hygiene-proposal:v1","surface": "marker","keel": "keel:hygiene-proposal:v1","plates": "plates:hygiene-proposal:v1","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:hygiene-data","surface": "marker","keel": "keel:hygiene-data","plates": "plates:hygiene-data","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:time-proposal:begin","surface": "marker","keel": "keel:time-proposal:begin","plates": "plates:time-proposal:begin","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:time-proposal:end","surface": "marker","keel": "keel:time-proposal:end","plates": "plates:time-proposal:end","phase": 126,"state": "held"}),
-  Object.freeze({"id": "marker:keel:inconclusive","surface": "marker","keel": "keel:inconclusive","plates": "plates:inconclusive","phase": 126,"state": "held"}),
+  Object.freeze({"id": "marker:keel:class","surface": "marker","keel": "keel:class","plates": "plates:class","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:review-after", "surface": "marker", "keel": "keel:review-after", "plates": "plates:review-after", "phase": 126, "state": "dual"}),
+  Object.freeze({"id": "marker:keel:review-after-pending", "surface": "marker", "keel": "keel:review-after-pending", "plates": "plates:review-after-pending", "phase": 126, "state": "dual"}),
+  Object.freeze({"id": "marker:keel:cross-review","surface": "marker","keel": "keel:cross-review","plates": "plates:cross-review","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-authorization","surface": "marker","keel": "keel:robot-authorization","plates": "plates:robot-authorization","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-continuation","surface": "marker","keel": "keel:robot-continuation","plates": "plates:robot-continuation","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-data","surface": "marker","keel": "keel:robot-data","plates": "plates:robot-data","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-delivery","surface": "marker","keel": "keel:robot-delivery","plates": "plates:robot-delivery","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-issue","surface": "marker","keel": "keel:robot-issue","plates": "plates:robot-issue","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-note","surface": "marker","keel": "keel:robot-note","plates": "plates:robot-note","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-permission","surface": "marker","keel": "keel:robot-permission","plates": "plates:robot-permission","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-publication","surface": "marker","keel": "keel:robot-publication","plates": "plates:robot-publication","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-review","surface": "marker","keel": "keel:robot-review","plates": "plates:robot-review","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-rubric:v1","surface": "marker","keel": "keel:robot-rubric:v1","plates": "plates:robot-rubric:v1","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:robot-state","surface": "marker","keel": "keel:robot-state","plates": "plates:robot-state","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:hygiene-proposal:v1","surface": "marker","keel": "keel:hygiene-proposal:v1","plates": "plates:hygiene-proposal:v1","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:hygiene-data","surface": "marker","keel": "keel:hygiene-data","plates": "plates:hygiene-data","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:time-proposal:begin","surface": "marker","keel": "keel:time-proposal:begin","plates": "plates:time-proposal:begin","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:time-proposal:end","surface": "marker","keel": "keel:time-proposal:end","plates": "plates:time-proposal:end","phase": 126,"state": "dual"}),
+  Object.freeze({"id": "marker:keel:inconclusive","surface": "marker","keel": "keel:inconclusive","plates": "plates:inconclusive","phase": 126,"state": "dual"}),
   Object.freeze({"id": "label:keel:agent","surface": "label","keel": "keel:agent","plates": "plates:agent","phase": 126,"state": "held"}),
   Object.freeze({"id": "label:keel:review-after","surface": "label","keel": "keel:review-after","plates": "plates:review-after","phase": 126,"state": "held"}),
   Object.freeze({"id": "label:keel:review-after-pending","surface": "label","keel": "keel:review-after-pending","plates": "plates:review-after-pending","phase": 126,"state": "held"}),
   Object.freeze({"id": "label:keel:morning","surface": "label","keel": "keel:morning","plates": "plates:morning","phase": 126,"state": "held"}),
   Object.freeze({"id": "label:keel:wait-for-review","surface": "label","keel": "keel:wait-for-review","plates": "plates:wait-for-review","phase": 126,"state": "held"}),
   Object.freeze({"id": "label:keel:owner","surface": "label","keel": "keel:owner","plates": "plates:owner","phase": 126,"state": "held"}),
-  Object.freeze({"id": "fence:keel-impact","surface": "fence","keel": "keel-impact","plates": "plates-impact","phase": 126,"state": "held","migrationHold": "keel-impact\\b"}),
-  Object.freeze({"id": "fence:keel-decision","surface": "fence","keel": "keel-decision","plates": "plates-decision","phase": 126,"state": "held","migrationHold": "keel-decision\\b"}),
-  Object.freeze({"id": "fence:keel-reconciliation","surface": "fence","keel": "keel-reconciliation","plates": "plates-reconciliation","phase": 126,"state": "held","migrationHold": "keel-reconciliation\\b"}),
-  Object.freeze({"id": "fence:keel-proof","surface": "fence","keel": "keel-proof","plates": "plates-proof","phase": 126,"state": "held","migrationHold": "keel-proof\\b"}),
-  Object.freeze({"id": "fence:keel-measurements","surface": "fence","keel": "keel-measurements","plates": "plates-measurements","phase": 126,"state": "held","migrationHold": "keel-measurements\\b"}),
+  Object.freeze({"id": "fence:keel-time-proposal", "surface": "fence", "keel": "keel-time-proposal", "plates": "plates-time-proposal", "phase": 126, "state": "dual"}),
+  Object.freeze({"id": "fence:keel-impact","surface": "fence","keel": "keel-impact","plates": "plates-impact","phase": 126,"state": "dual","migrationHold": "keel-impact\\b"}),
+  Object.freeze({"id": "fence:keel-decision","surface": "fence","keel": "keel-decision","plates": "plates-decision","phase": 126,"state": "dual","migrationHold": "keel-decision\\b"}),
+  Object.freeze({"id": "fence:keel-reconciliation","surface": "fence","keel": "keel-reconciliation","plates": "plates-reconciliation","phase": 126,"state": "dual","migrationHold": "keel-reconciliation\\b"}),
+  Object.freeze({"id": "fence:keel-proof","surface": "fence","keel": "keel-proof","plates": "plates-proof","phase": 126,"state": "dual","migrationHold": "keel-proof\\b"}),
+  Object.freeze({"id": "fence:keel-measurements","surface": "fence","keel": "keel-measurements","plates": "plates-measurements","phase": 126,"state": "dual","migrationHold": "keel-measurements\\b"}),
   Object.freeze({"id": "variable:KEEL_AGENT_GIT","surface": "variable","keel": "KEEL_AGENT_GIT","plates": "PLATES_AGENT_GIT","phase": 128,"state": "held"}),
   Object.freeze({"id": "variable:KEEL_GH","surface": "variable","keel": "KEEL_GH","plates": "PLATES_GH","phase": 128,"state": "held"}),
   Object.freeze({"id": "variable:KEEL_CANVAS_ISOCAN_HOME","surface": "variable","keel": "KEEL_CANVAS_ISOCAN_HOME","plates": "PLATES_CANVAS_ISOCAN_HOME","phase": 128,"state": "held"}),
@@ -156,7 +159,8 @@ export function nameRow(id, rows = NAMES) {
 }
 export function writeName(id, rows = NAMES) {
   const row = nameRow(id, rows);
-  return row.state === 'held' ? row.keel : row.plates;
+  // Label evidence is repository-bound; generic writers cannot activate it.
+  return row.surface === 'label' || row.state === 'held' ? row.keel : row.plates;
 }
 export function readNames(id, rows = NAMES) {
   const row = nameRow(id, rows);
@@ -167,3 +171,266 @@ export function durableNames(rows = NAMES) {
   const patterns = rows.filter(row => ['held', 'dual'].includes(row.state) && row.migrationHold).map(row => row.migrationHold);
   return new RegExp(patterns.length ? patterns.join('|') : '(?!)', 'g');
 }
+
+/** Exact named artifact candidates, ordered current then historical. Presence wins:
+ * validation happens afterwards, so a corrupt current artifact cannot hide behind
+ * a valid historical one from the same attempt. Retention is the caller's policy.
+ */
+export function artifactNames(id, suffix = '', rows = NAMES) {
+  if (nameRow(id, rows).surface !== 'artifact') throw new Error(`Not an artifact identity: ${id}`);
+  return readNames(id, rows).map(name => name + suffix);
+}
+export function selectArtifacts(artifacts, id, suffix = '', rows = NAMES) {
+  if (!Array.isArray(artifacts)) throw new Error('Artifact inventory unavailable');
+  for (const name of artifactNames(id, suffix, rows)) {
+    const matches = artifacts.filter(artifact => artifact?.name === name);
+    if (matches.length) return { name, matches };
+  }
+  return { name: null, matches: [] };
+}
+
+/** Historical metadata names are permanent readers, including after live-state
+ * retirement. Normalize syntax in memory only; never rewrite source records.
+ */
+export function historicalFence(type, rows = NAMES) {
+  return rows.find(row => row.surface === 'fence' && [row.plates, row.keel].includes(type)) ?? null;
+}
+export function normalizeFences(fences, rows = NAMES) {
+  const seen = new Map();
+  return fences.map(fence => {
+    const row = historicalFence(fence.type, rows);
+    if (!row) return fence;
+    const previous = seen.get(row.id);
+    if (previous && previous !== fence.type) throw new Error(`Both ${row.plates} and ${row.keel} fences in one body are refused`);
+    seen.set(row.id, fence.type);
+    return { ...fence, identity: row.id, sourceType: fence.type, type: row.keel };
+  });
+}
+
+/** Select one comment namespace before validating its payload. Current presence
+ * wins even when invalid; duplicate comments in that namespace remain visible.
+ * Offsets always address the original body, never rewritten historical text.
+ */
+export function markerComments(text, id, accept = () => true, rows = NAMES) {
+  const row = nameRow(id, rows);
+  if (row.surface !== 'marker') throw new Error(`Not a marker identity: ${id}`);
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  for (const name of readNames(id, rows)) {
+    const pattern = new RegExp(`<!-- ${escape(name)}(?: ([^\\r\\n]*?))? -->`, 'g');
+    const all = [...String(text ?? '').matchAll(pattern)].map(match => ({ name, raw: match[0], payload: match[1] ?? '', start: match.index, end: match.index + match[0].length }));
+    const matches = all.filter(accept);
+    // A malformed opening cannot fall through to a valid historical comment.
+    if (matches.length || (!all.length && new RegExp(`<!-- /?${escape(name)}(?= |-->|$)`).test(String(text ?? '')))) return { name, matches };
+  }
+  return { name: null, matches: [] };
+}
+export function markerComment(id, payload = '', rows = NAMES) {
+  return `<!-- ${writeName(id, rows)}${payload ? ' ' + payload : ''} -->`;
+}
+/** Versioned begin/end wrappers use one spelling for both delimiters. */
+export function markerSection(text, id, rows = NAMES) {
+  const { name } = markerComments(text, id, undefined, rows);
+  if (!name) return null;
+  const begin = `<!-- ${name} -->`, end = `<!-- /${name} -->`;
+  if (text.split(begin).length !== 2 || text.split(end).length !== 2) throw new Error('exactly one matching marker section is required');
+  const start = text.indexOf(begin), finish = text.indexOf(end) + end.length;
+  if (finish <= start + begin.length) throw new Error('marker section end precedes begin');
+  return { name, start, end: finish, text: text.slice(start, finish) };
+}
+
+/** A leading marker may have a redundant historical spelling before it, but
+ * quoted markers and ordinary prose never become a leading machine marker. */
+export function markerAtStart(text, id, payload = '', rows = NAMES) {
+  text = String(text ?? '');
+  const selected = markerComments(text, id, mark => mark.payload === payload, rows).matches[0];
+  if (!selected) return false;
+  const prefix = text.slice(0, selected.start);
+  let at = 0;
+  for (const prior of markerComments(prefix, id, undefined, rows).matches) {
+    if (prior.payload !== payload || prefix.slice(at, prior.start).trim()) return false;
+    at = prior.end;
+  }
+  return !prefix.slice(at).trim();
+}
+
+/** Only consecutive complete marker lines at the beginning may identify a
+ * machine record. Markers quoted later in agent prose never gain authority. */
+export function leadingMarkers(text, id, rows = NAMES) {
+  const lines = [];
+  for (const line of String(text ?? '').split(/\r?\n/)) {
+    const candidate = markerComments(line, id, undefined, rows);
+    if (!candidate.name) break;
+    if (candidate.matches.length !== 1 || candidate.matches[0].raw !== line) return {name:candidate.name,matches:[]};
+    lines.push(line);
+  }
+  return markerComments(lines.join('\n'), id, undefined, rows);
+}
+
+/** Paired marker IDs share a namespace; never splice one version's opening
+ * into another version's closing boundary. All positions address source bytes. */
+export function markerRegion(text, beginId, endId, rows = NAMES) {
+  const begin = markerComments(text, beginId, undefined, rows), end = markerComments(text, endId, undefined, rows);
+  if (!begin.name && !end.name) return null;
+  if (begin.matches.length !== 1 || end.matches.length !== 1) throw new Error('ambiguous managed marker region');
+  const before = begin.matches[0], after = end.matches[0];
+  const row = nameRow(beginId, rows), expected = nameRow(endId, rows)[begin.name === row.plates ? 'plates' : 'keel'];
+  if (end.name !== expected || after.start < before.end || after.payload) throw new Error('mismatched managed marker region');
+  return {start:before.start,end:after.end,begin:before,close:after,body:text.slice(before.end,after.start)};
+}
+
+
+/** Labels have permanent exact-name readers; a receipt never authorizes a write. */
+export function labelNames(id, rows = NAMES) {
+  const row = nameRow(id, rows);
+  if (row.surface !== 'label') throw new Error(`Not a label identity: ${id}`);
+  return [row.plates, row.keel];
+}
+export function matchesLabel(value, id, rows = NAMES) {
+  return labelNames(id, rows).includes(typeof value === 'string' ? value : value?.name);
+}
+
+/** Select a label using a fresh complete provider observation. No
+ * create/rename entitlement is returned. Callers retain their own write gate.
+ * observedAt is captured by the caller after its successful provider read, never
+ * taken from a saved receipt; a one-minute bound prevents reuse across jobs.
+ */
+export function labelWriter({id, repo, repositoryId, receipt = null, observation, now = Date.now()}, rows = NAMES) {
+  const row = nameRow(id, rows), refuse = reason => { throw new Error(`Label mutation refused: ${reason}`); };
+  const positive = n => Number.isSafeInteger(n) && n > 0;
+  const exact = (v, keys) => v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join(',') === keys.slice().sort().join(',');
+  const stamp = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(value) && Number.isFinite(Date.parse(value));
+  if (row.surface !== 'label' || !positive(repositoryId) || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo ?? '')) refuse('repository or table identity unavailable');
+  if (!observation || observation.repo !== repo || observation.repositoryId !== repositoryId || observation.complete !== true || !stamp(observation.observedAt) || !Number.isFinite(now) || now < Date.parse(observation.observedAt) || now - Date.parse(observation.observedAt) > 60000 || !Array.isArray(observation.labels)) refuse('current complete provider label facts unavailable or stale');
+  const ids = new Set(), names = new Set();
+  for (const label of observation.labels) {
+    if (!positive(label?.id) || typeof label.name !== 'string' || !label.name || ids.has(label.id) || names.has(label.name)) refuse('conflicting provider label facts');
+    ids.add(label.id); names.add(label.name);
+  }
+  let entry;
+  if (receipt !== null) {
+    if (!exact(receipt,['version','repositoryId','repo','renames']) || receipt.version !== 1 || receipt.repositoryId !== repositoryId || receipt.repo !== repo || !Array.isArray(receipt.renames) || receipt.renames.length > 100) refuse('invalid repository receipt');
+    const seenRows = new Set(), seenLabels = new Set(), operations = new Set();
+    for (const candidate of receipt.renames) {
+      if (!exact(candidate,['row','labelId','oldName','newName','operationId','verifiedAt','readback'])) refuse('invalid receipt entry');
+      const target = rows.find(r => r.id === candidate.row && r.surface === 'label');
+      if (!target || seenRows.has(candidate.row) || !positive(candidate.labelId) || seenLabels.has(candidate.labelId) || candidate.oldName !== target.keel || candidate.newName !== target.plates || typeof candidate.operationId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9:._/-]{0,199}$/.test(candidate.operationId) || operations.has(candidate.operationId) || !stamp(candidate.verifiedAt) || Date.parse(candidate.verifiedAt) > Date.parse(observation.observedAt)) refuse('conflicting or uncertain rename evidence');
+      if (!exact(candidate.readback,['repositoryId','labelId','name']) || candidate.readback.repositoryId !== repositoryId || candidate.readback.labelId !== candidate.labelId || candidate.readback.name !== target.plates) refuse('rename readback mismatch');
+      seenRows.add(candidate.row); seenLabels.add(candidate.labelId); operations.add(candidate.operationId);
+      if (candidate.row === id) entry = candidate;
+    }
+  }
+  const current = observation.labels.filter(label => label.name === row.plates);
+  const legacy = observation.labels.filter(label => label.name === row.keel);
+  if (entry) {
+    if (legacy.length || current.length !== 1 || current[0].id !== entry.labelId) refuse('provider observation conflicts with confirmed rename');
+    return row.plates;
+  }
+  if (current.length || legacy.length > 1) refuse('legacy label conflicts or current name lacks confirmed receipt');
+  return row.keel;
+}
+
+/** Read only committed receipt bytes: an ignored/untracked local file cannot
+ * activate CI writers. A modified tracked receipt is uncertainty, not absence.
+ */
+export async function readLabelReceipt(root) {
+  const path = '.plates/name-transition/label-renames.json';
+  const {execFile} = await import('node:child_process');
+  const {promisify} = await import('node:util');
+  const exec = promisify(execFile);
+  const git = async args => (await exec('git',['--no-optional-locks','-c','core.fsmonitor=false',...args],{cwd:root,maxBuffer:262144})).stdout;
+  const tracked = await git(['ls-files','--',path]);
+  const {readFile,lstat} = await import('node:fs/promises');
+  const {join} = await import('node:path');
+  let local;
+  try {
+    const info = await lstat(join(root,path));
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 262144) throw new Error('Unsafe label receipt');
+    local = await readFile(join(root,path),'utf8');
+  } catch (error) { if (error.code === 'ENOENT' && !tracked.trim()) return null; throw error; }
+  if (tracked.trim() !== path || await git(['show',`HEAD:${path}`]) !== local) throw new Error('Label receipt is not unchanged committed evidence');
+  return JSON.parse(local);
+}
+
+
+/** Provider adapter returns {status,data}; callers with a just-read complete
+ * observation pass it directly, avoiding duplicate requests. No label is created.
+ */
+export async function repositoryLabelSelection({root, repo, id, github, observation, receipt: suppliedReceipt, now = Date.now()}) {
+  const receipt = suppliedReceipt === undefined ? await readLabelReceipt(root) : suppliedReceipt;
+  if (!observation) {
+    const meta = await github({method:'GET',path:`/repos/${repo}`});
+    if (meta?.status !== 200 || meta.data?.full_name !== repo || !Number.isSafeInteger(meta.data?.id)) throw new Error('Label mutation refused: repository identity unavailable');
+    const labels = [];
+    for (let page=1;page<=20;page++) {
+      const result = await github({method:'GET',path:`/repos/${repo}/labels?per_page=100&page=${page}`});
+      if (result?.status !== 200 || !Array.isArray(result.data)) throw new Error('Label mutation refused: complete label list unavailable');
+      labels.push(...result.data);
+      if (result.data.length < 100) {
+        observation={repo,repositoryId:meta.data.id,labels,complete:true,observedAt:new Date(now).toISOString()};
+        break;
+      }
+    }
+  }
+  const name=labelWriter({id,repo,repositoryId:observation?.repositoryId,observation,receipt,now});
+  return {name,exists:observation.labels.some(label=>label.name===name)};
+}
+
+
+/** A checkout-free publisher reads the tracked file at its exact run revision. */
+export async function remoteLabelReceipt({repo, revision, github}) {
+  if (!/^[a-f0-9]{40}$/.test(revision ?? '')) throw new Error('Label receipt requires an exact source revision');
+  const path='.plates/name-transition/label-renames.json';
+  const result=await github({method:'GET',path:`/repos/${repo}/contents/${path}?ref=${revision}`});
+  if (result?.status === 404) return null;
+  const file=result?.data;
+  if (result?.status !== 200 || file?.type !== 'file' || file.path !== path || file.encoding !== 'base64' || typeof file.content !== 'string' || file.content.length > 350000 || !/^[a-f0-9]{40}$/.test(file.sha ?? '')) throw new Error('Label receipt source unavailable');
+  const bytes=Buffer.from(file.content,'base64');
+  const {createHash}=await import('node:crypto');
+  if (createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex') !== file.sha) throw new Error('Label receipt source digest mismatch');
+  return JSON.parse(bytes.toString('utf8'));
+}
+
+
+/** Standalone comments retain original offsets and same-namespace duplicates. */
+export function markerLines(text,id,rows=NAMES) {
+  text=String(text??'');
+  return markerComments(text,id,undefined,rows).matches.filter(mark =>
+    (mark.start===0 || text[mark.start-1]==='\n') &&
+    (mark.end===text.length || text[mark.end]==='\n' || text.slice(mark.end,mark.end+2)==='\r\n'));
+}
+/** Required machine headers may be repeated under the other spelling only.
+ * Agent prose cannot supply a header; all selected IDs must be in the prefix.
+ */
+export function markerHeader(text,ids,rows=NAMES) {
+  text=String(text??'');let end=0;
+  for(const line of text.split('\n')) {
+    if(!ids.some(id=>markerComments(line,id,undefined,rows).matches.some(mark=>mark.raw===line))) break;
+    end+=line.length+1;
+  }
+  const found={};
+  for(const id of ids) {
+    const selected=markerComments(text,id,undefined,rows);
+    if(selected.matches.length!==1 || selected.matches[0].end>=end || !markerLines(text,id,rows).some(mark=>mark.start===selected.matches[0].start)) return null;
+    found[id]=selected.matches[0];
+  }
+  return {marks:found,end:Math.min(end,text.length),suffix:text.slice(end)};
+}
+
+
+/** Diagnostic tokens are plain text, not HTML comments. */
+export function markerDiagnostic(text,id,rows=NAMES) {
+  text=String(text??'').trim();
+  for(const name of readNames(id,rows)) {
+    if(text===name)return '';
+    if(text.startsWith(name) && /^\s/.test(text.slice(name.length)))return text.slice(name.length).trim();
+  }
+  return null;
+}
+
+
+export function configuredLabelMatches(value,configured,id,rows=NAMES) {
+  const row=nameRow(id,rows);
+  return configured===row.keel || configured===row.plates ? matchesLabel(value,id,rows) : (typeof value==='string'?value:value?.name)===configured;
+}
+
+export async function repositoryLabelWriter(options) { return (await repositoryLabelSelection(options)).name; }

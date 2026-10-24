@@ -161,3 +161,17 @@ test('each milestone connection must be present and well formed, even when the o
     }
   }
 });
+
+
+test('default owner label requires each historical alias; custom label remains literal',async()=>{
+ const {labelMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../practices/night/files/scripts/plates/milestones.mjs',import.meta.url);
+ for(const name of ['plates:owner','keel:owner']) {
+  const input=response([milestone(1,'OPEN',[issue(1,'OPEN',[name])])]);
+  assert.equal(projectMilestones(input,config).phases[0].boxes[0].walk,true);
+  const mutant=await labelMutant(consumer,'label:keel:owner',name);
+  assert.equal(mutant.projectMilestones(input,config).phases[0].boxes[0].walk,false);
+ }
+ const input=response([milestone(1,'OPEN',[issue(1,'OPEN',['acme:owner'])])]);
+ assert.equal(projectMilestones(input,{...config,phases:{...config.phases,ownerLabel:'acme:owner'}}).phases[0].boxes[0].walk,true);
+});

@@ -1,3 +1,4 @@
+import {execFileSync} from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, readFile, readdir, writeFile, mkdir, symlink, lstat, realpath } from 'node:fs/promises';
@@ -394,7 +395,9 @@ test('robot issue rejects symlinked intent ancestors directories and hashed dest
 
 test('robot issue enabled label readback reports unqueued identity and never duplicates or relabels', async t => {
   const stateDir = await temp(t), api = remote();
-  const args = { ...work, policy: robotPolicy({ robot: { on: true, budgetMinutes: 10 } }), stateDir, github: api.github, yes: true };
+  const root=await temp(t);execFileSync('git',['init','-q'],{cwd:root});execFileSync('git',['commit','-q','--allow-empty','-m','Acme'],{cwd:root});
+  const labelObservation={repo:'acme/app',repositoryId:31,complete:true,observedAt:new Date().toISOString(),labels:[{id:71,name:'keel:agent'}]};
+  const args = { ...work, root, labelObservation, policy: robotPolicy({ robot: { on: true, budgetMinutes: 10 } }), stateDir, github: api.github, yes: true };
   const first = await ensureRobotIssue(args);
   assert.equal(first.state, 'unqueued'); assert.equal(first.issue.number, 1);
   assert.deepEqual(api.posts()[0].body.labels, ['keel:agent']);
@@ -531,5 +534,28 @@ test('repository rename never releases open unknown unavailable or inconsistent 
   if(api.rows[0])api.rows[0].state=mode==='open'?'open':mode==='unknown'?'unknown':'closed';
   const next=await ensureRobotIssue({...work,repo:current,instanceId:'acme-sort-2',rubric:{...rubric,change:'Different Acme work.'},stateDir,github,yes:true});
   assert.ok(['blocked','pending','ambiguous'].includes(next.state),mode+': '+JSON.stringify(next));assert.equal(api.posts().length,1,mode);
+ }
+});
+
+
+test('robot label publication uses tracked confirmed evidence and supplied fresh facts; recovery remains read only',async t=>{
+ for(const renamed of [false,true]) {
+  const root=await temp(t),stateDir=join(root,'.plates/robot-issues'),api=remote();
+  execFileSync('git',['init','-q'],{cwd:root});execFileSync('git',['commit','-q','--allow-empty','-m','Acme'],{cwd:root});
+  if(renamed) {
+   await mkdir(join(root,'.plates/name-transition'),{recursive:true});
+   const receipt={version:1,repositoryId:31,repo:'acme/app',renames:[{row:'label:keel:agent',labelId:71,oldName:'keel:agent',newName:'plates:agent',operationId:'phase128:acme-1',verifiedAt:'2026-01-01T00:00:00Z',readback:{repositoryId:31,labelId:71,name:'plates:agent'}}]};
+   await writeFile(join(root,'.plates/name-transition/label-renames.json'),JSON.stringify(receipt));
+   execFileSync('git',['add','.plates/name-transition/label-renames.json'],{cwd:root});execFileSync('git',['commit','-q','-m','Acme synthetic receipt'],{cwd:root});
+  }
+  const selected=renamed?'plates:agent':'keel:agent';
+  const labelObservation={repo:'acme/app',repositoryId:31,complete:true,observedAt:new Date().toISOString(),labels:[{id:71,name:selected}]};
+  const args={...work,root,stateDir,labelObservation,policy:robotPolicy({robot:{on:true,budgetMinutes:10}}),github:api.github,yes:true};
+  const first=await ensureRobotIssue(args);
+  assert.equal(first.state,'unqueued');assert.deepEqual(api.posts()[0].body.labels,[selected]);
+  assert.equal(api.calls.some(call=>call.path.includes('/labels') || call.path==='/repos/acme/app'),false,'provided fresh facts are reused');
+  args.labelObservation={...labelObservation,complete:false};
+  assert.equal((await ensureRobotIssue(args)).state,'unqueued','uncertain receipt recovery does not relabel or recreate');
+  assert.equal(api.posts().length,1);
  }
 });

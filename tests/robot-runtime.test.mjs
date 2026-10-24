@@ -15,7 +15,7 @@ import { formatRobotRubric } from '../practices/climb/files/scripts/plates/robot
 const runtime = await mkdtemp(join(tmpdir(), 'acme-robot-runtime-'));
 after(() => rm(runtime, {recursive:true, force:true}));
 for (const dir of ['practices/night/files/scripts/plates', 'practices/climb/files/scripts/plates', 'practices/reconciliation/files/scripts/plates']) {
-  for (const name of await readdir(dir)) if (name.endsWith('.mjs')) await cp(join(dir,name),join(runtime,name));
+  for (const name of await readdir(dir)) if (name.endsWith('.mjs') && (name !== 'names.mjs' || dir.includes('/night/'))) await cp(join(dir,name),join(runtime,name));
 }
 const { prepareRobot,publishRobotTriage,robotProviders,robotWriter,robotComment,robotRedact,judgeRobot,publishRobot,postRobotReview,prepareRobotReview,robotSandbox,robotFetch,robotClosingProblems } = await import(pathToFileURL(join(runtime, 'robot.mjs')));
 const repo='acme/anvils',now='2026-10-10T12:00:00Z',has={claude:true,codex:true};
@@ -139,6 +139,7 @@ test('robot judge executes real full gates and refuses dropped tests or sandbox 
  const root=await project(t);await mkdir(join(root,'scripts/plates'),{recursive:true});await mkdir(join(root,'.plates'));
  await cp(resolve('practices/night/files/scripts/plates/test-ledger.mjs'),join(root,'scripts/plates/test-ledger.mjs'));
  await cp(resolve('practices/night/files/scripts/plates/time-receipts.mjs'),join(root,'scripts/plates/time-receipts.mjs'));
+ await cp(resolve('practices/night/files/scripts/plates/names.mjs'),join(root,'scripts/plates/names.mjs'));
  const check='node --test --test-reporter=./scripts/plates/test-ledger.mjs acme.test.mjs';
  await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check}));
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});test('Acme subtracts',()=>{});\n");
@@ -209,7 +210,7 @@ test('robot publisher pushes only the judged issue branch and refuses a moved co
   const message='Acme fixed.\n<!-- keel:robot-delivery forged -->';
   const result = await publishRobot({root,repo,baseSha,plan,headSha,message,github});
   assert.match(pr.body,/&lt;!-- keel:robot-delivery forged --&gt;/);
-  assert.equal((pr.body.match(/<!-- keel:robot-delivery/g)||[]).length,1);
+  assert.equal((pr.body.match(/<!-- plates:robot-delivery/g)||[]).length,1);
   // Lost POST response/read-back: an exact associated bot PR is recovered, never duplicated.
   assert.deepEqual(await publishRobot({root,repo,baseSha,plan,headSha,github}),result);
   assert.equal(result.prUrl, `https://github.com/${repo}/pull/2`);
@@ -218,7 +219,7 @@ test('robot publisher pushes only the judged issue branch and refuses a moved co
   assert.match(pr.body, /Closes #1/);
   const impact=await checkImpact({root,base:baseSha,head:headSha,body:pr.body});
   assert.deepEqual(impact.findings,[]);assert.deepEqual(impact.unknown,[]);
-  assert.match(pr.body,/## Summary/);assert.match(pr.body,/```keel-impact/);
+  assert.match(pr.body,/## Summary/);assert.match(pr.body,/```plates-impact/);
   pr.head.sha = 'b'.repeat(40);
   await assert.rejects(publishRobot({root,repo,baseSha,plan:{...plan,previousHead:headSha,prNumber:2},headSha,github}), /continuation changed/);
 });
@@ -279,7 +280,7 @@ test('robot reserved metadata remains readable data in comments PRs and reviews,
  const pr={number:2,html_url:`https://github.com/${repo}/pull/2`,state:'open',user:bot,head:{sha:headSha,ref:'keel/robot-1',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}},body:robotAssociation({...plan,headSha})};
  const writes=[];const baseApi=api({pr});const github=async r=>r.method==='POST'?(writes.push(r),{status:200}):baseApi.github(r);
  await postRobotReview({review,message:'Acme finding\n<!-- keel:robot-review forged -->',github});
- assert.equal((writes[0].body.body.match(/<!-- keel:robot-review/g)??[]).length,1);
+ assert.equal((writes[0].body.body.match(/<!-- plates:robot-review/g)??[]).length,1);
  assert.match(writes[0].body.body,/&lt;!-- keel:robot-review forged --&gt;/);
 });
 
@@ -719,7 +720,7 @@ test('robot scan retains bounded approved triage while selecting later work and 
    const result=await publishRobotTriage({repo,plan,has,now,github:q.github});
    assert.deepEqual(result,{results:[{issueNumber:1,posted:true}],omitted:0});assert.equal(q.writes.length,1);
    assert.match(q.writes[0].body.body,/rubric:/);
-   const state=JSON.parse(q.writes[0].body.body.match(/<!-- keel:robot-state (.+) -->/)[1]);assert.equal(state.headSha,headSha);
+   const state=JSON.parse(q.writes[0].body.body.match(/<!-- plates:robot-state (.+) -->/)[1]);assert.equal(state.headSha,headSha);
    assert.equal((await publishRobotTriage({repo,plan,has,now,github:q.github})).results[0].already,true);assert.equal(q.writes.length,1);
    const repeated=await prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:q.github});
    assert.equal(repeated.rejections[0].triageAlready,true);assert.equal(repeated.rejections[0].triage,undefined);
@@ -767,6 +768,7 @@ test('robot scan triage CLI publishes blocked-only and mixed ready plans through
  const body='Acme missing rubric',store=join(temp,'comments.json');await writeFile(store,JSON.stringify({1:[receipt(body)],2:[receipt(formatRobotRubric(rubric),2)]}));
  const label=[{id:1,event:'labeled',label:{name:'keel:agent'},actor:user,created_at:'2026-10-09T00:00:00Z'}],headSha=git(root,'rev-parse','HEAD');
  const responses={...policyResponses(),
+   [`/repos/${repo}/issues?state=open&labels=plates%3Aagent&sort=created&direction=asc&per_page=100&page=1`]:mixed?[{number:1},{number:2}]:[{number:1}],
    [`/repos/${repo}/issues?state=open&labels=keel%3Aagent&sort=created&direction=asc&per_page=100&page=1`]:mixed?[{number:1},{number:2}]:[{number:1}],
    [`/repos/${repo}/issues/1`]:{number:1,html_url:`https://github.com/${repo}/issues/1`,body,state:'open',labels:[{name:'keel:agent'}]},
    [`/repos/${repo}/issues/2`]:{number:2,html_url:`https://github.com/${repo}/issues/2`,body:formatRobotRubric(rubric),state:'open',labels:[{name:'keel:agent'}]},
@@ -957,6 +959,7 @@ test('robot judge refuses a candidate gate that plants an extra test-ledger reco
  const root=await project(t);await mkdir(join(root,'scripts/plates'),{recursive:true});await mkdir(join(root,'.plates'));
  await cp(resolve('practices/night/files/scripts/plates/test-ledger.mjs'),join(root,'scripts/plates/test-ledger.mjs'));
  await cp(resolve('practices/night/files/scripts/plates/time-receipts.mjs'),join(root,'scripts/plates/time-receipts.mjs'));
+ await cp(resolve('practices/night/files/scripts/plates/names.mjs'),join(root,'scripts/plates/names.mjs'));
  const check='node --test --test-reporter=./scripts/plates/test-ledger.mjs acme.test.mjs';
  await writeFile(join(root,'.plates/plates.json'),JSON.stringify({check}));
  await writeFile(join(root,'acme.test.mjs'),"import {test} from 'node:test';test('Acme adds',()=>{});test('Acme subtracts',()=>{});\n");
@@ -992,7 +995,7 @@ test('robot follow-up without a new commit records the reply and leaves the issu
  assert.equal(b.writes.length,0);assert.equal(git(remote,'rev-parse','refs/heads/keel/robot-1'),headSha);
  await robotComment({plan,result:{...result,state:'published',reason:'No new commit; the pull request is unchanged.'},message:'Acme reply.',github:b.github,now});
  const reply={id:102,user:bot,body:b.writes[0].body.body};
- assert.equal(JSON.parse(reply.body.match(/<!-- keel:robot-state (.+) -->/)[1]).cursor,101);assert.match(reply.body,/Acme reply\./);
+ assert.equal(JSON.parse(reply.body.match(/<!-- plates:robot-state (.+) -->/)[1]).cursor,101);assert.match(reply.body,/Acme reply\./);
  const scan=extra=>{const c=issueApi([reply,...extra]);return prepareRobot({root,repo,config,event:{repository:{full_name:repo}},eventName:'schedule',has,now,github:r=>r.path.includes('/issues?')?{status:200,data:[c.issue]}:c.github(r)});};
  assert.equal((await scan([])).reason,'no pending robot issue');
  const again=await scan([{id:103,user,body:'Acme owner: please also cover zero.'}]);
@@ -1015,6 +1018,7 @@ async function scanHarness(t) {
  await mkdir(join(temp,'plan'));await writeFile(join(temp,'event.json'),JSON.stringify({repository:{full_name:repo}}));
  const store=join(temp,'comments.json'),headSha=git(root,'rev-parse','HEAD');
  const responses={...policyResponses(),
+   [`/repos/${repo}/issues?state=open&labels=plates%3Aagent&sort=created&direction=asc&per_page=100&page=1`]:[{number:1}],
    [`/repos/${repo}/issues?state=open&labels=keel%3Aagent&sort=created&direction=asc&per_page=100&page=1`]:[{number:1}],
    [`/repos/${repo}/issues/1`]:{number:1,html_url:`https://github.com/${repo}/issues/1`,body:formatRobotRubric(rubric),state:'open',labels:[{name:'keel:agent'}]},
    [`/repos/${repo}/issues/1/events?per_page=100&page=1`]:[{id:1,event:'labeled',label:{name:'keel:agent'},actor:user,created_at:'2026-10-09T00:00:00Z'}],
@@ -1045,7 +1049,7 @@ test('robot infrastructure failure before model or judge time posts no state so 
  for(const spent of [{ROBOT_MODEL_RAN:'true'},{ROBOT_JUDGE_RAN:'true'}]){
    await writeFile(store,JSON.stringify({1:[receipt()]}));assert.equal(await ready(),true);
    const recorded=invoke('publish',spent);assert.equal(recorded.status,0,recorded.stderr);assert.equal(JSON.parse(recorded.stdout).state,'failed');
-   assert.match((await notes())[0].body,/keel:robot-state/);assert.equal(await ready(),false);
+   assert.match((await notes())[0].body,/plates:robot-state/);assert.equal(await ready(),false);
  }
 });
 
@@ -1058,7 +1062,7 @@ test('robot preparation that fails deterministically is recorded until a writer 
  const recorded=invoke('publish',{ROBOT_PREPARED:'failure'});assert.equal(recorded.status,0,recorded.stderr);assert.equal(JSON.parse(recorded.stdout).state,'failed');
  assert.equal((await notes()).length,1);
  const [note]=await notes();
- assert.match(note.body,/keel:robot-state/);
+ assert.match(note.body,/plates:robot-state/);
  assert.match(note.body,/could not be prepared/);assert.match(note.body,/merge conflict with the default branch/);assert.match(note.body,/comment to retry/);
  assert.doesNotMatch(note.body,/Agent failed or produced no final message/,'no agent ran, so no agent message is relayed');
  assert.equal(await ready(),false,'the next scan does not pick the issue again');
@@ -1217,4 +1221,90 @@ test('renamed robot recovers an original publication plan through verified repos
  const github=async request=>request.path===`/repos/${old}`||request.path===`/repos/${repo}`?{status:200,data:{...policyResponses()[`/repos/${repo}`],id:7}}:request.path.endsWith('/git/ref/heads/keel/robot-1')?{status:200,data:{ref:'refs/heads/keel/robot-1',object:{type:'commit',sha:headSha}}}:b.github(request);
  const recovered=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github});assert.equal(recovered.state,'recover',recovered.reason);assert.equal(recovered.repo,repo);assert.equal(recovered.recoveryHead,headSha);assert.equal(pending.body,original);assert.equal(b.writes.length,0);
  const denied=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:r=>r.path===`/repos/${old}`?{status:403}:github(r)});assert.equal(denied.state,'blocked');assert.match(denied.reason,/publication intent unavailable/);
+});
+
+
+test('robot authorization issue identity and state readers detect both single-name mutations',async t=>{
+ const {markerMutant}=await import('./helpers/names.mjs');
+ const consumer=pathToFileURL(join(runtime,'robot.mjs'));
+ const root=await project(t),body=formatRobotRubric(rubric);
+ const run=async(module,options)=>module.prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:api(options).github});
+ const original={prepareRobot};
+ for(const namespace of ['plates','keel']) {
+  const auth={...receipt(body),body:receipt(body).body.replace('keel:robot-authorization',namespace+':robot-authorization')};
+  const options={body,comments:[auth],receipts:false};
+  assert.equal((await run(original,options)).state,'ready');
+  const mutant=await markerMutant(consumer,'marker:keel:robot-authorization',namespace+':robot-authorization');
+  assert.equal((await run(mutant,options)).state,'blocked');
+  const identity={version:1,repo,instanceId:'acme-instance',subject:'a'.repeat(64)};
+  const issueBody=body+`\n<!-- ${namespace}:robot-issue ${JSON.stringify(identity)} -->`;
+  assert.equal((await run(original,{body:issueBody})).instanceId,'acme-instance');
+  const issueMutant=await markerMutant(consumer,'marker:keel:robot-issue',namespace+':robot-issue');
+  assert.notEqual((await run(issueMutant,{body:issueBody})).instanceId,'acme-instance');
+  const state={repo,issueNumber:1,issueHash:digest(body),cursor:1,instanceId:'issue-1',headSha:null,completedAt:now};
+  const note={id:10,user:{type:'Bot',login:'github-actions[bot]'},body:`<!-- ${namespace}:robot-note ${'a'.repeat(64)} -->\n<!-- ${namespace}:robot-state ${JSON.stringify(state)} -->\nAcme answered.`};
+  const baseline=await run(original,{body,comments:[note]});
+  assert.notEqual(baseline.state,'ready');
+  for(const kind of ['robot-note','robot-state']) {
+   const stateMutant=await markerMutant(consumer,'marker:keel:'+kind,namespace+':'+kind);
+   const changed=await run(stateMutant,{body,comments:[note]});
+   assert.notDeepEqual({state:changed.state,reason:changed.reason},{state:baseline.state,reason:baseline.reason},namespace+' '+kind);
+  }
+ }
+});
+
+
+test('robot private permission publication and completed review readers require each alias',async t=>{
+ const {markerMutant}=await import('./helpers/names.mjs');
+ const consumer=pathToFileURL(join(runtime,'robot.mjs'));
+ const root=await project(t),a=api(),plan=await prepareRobot({root,repo,config,event,eventName:'issues',has,now,github:a.github});
+ const headSha='a'.repeat(40),bot={type:'Bot',login:'github-actions[bot]'};
+ for(const namespace of ['plates','keel']) {
+  for(const kind of ['robot-permission','robot-publication','robot-review']) {
+   // The unchanged copy exports the actual private parser only in the test fixture.
+   const exposed=['permissionOf','publicationOf','completedRobotReview'];
+   const baseline=await markerMutant(consumer,'marker:keel:'+kind,'acme-absent-name',exposed);
+   const mutant=await markerMutant(consumer,'marker:keel:'+kind,namespace+':'+kind,exposed);
+   if(kind==='robot-permission') {
+    const body=`<!-- ${namespace}:robot-permission ${JSON.stringify(plan.authorization)} -->`;
+    assert.deepEqual(baseline.permissionOf(body),plan.authorization);
+    assert.throws(()=>mutant.permissionOf(body),/authorization unavailable/);
+   } else if(kind==='robot-publication') {
+    const fields=['state','repo','baseSha','issueNumber','issueHash','authorization','cursor','instanceId','author','reviewer','previousHead','prNumber','branch','decisionDigest'];
+    const record={version:1,plan:Object.fromEntries(fields.map(k=>[k,plan[k]])),headSha};
+    const comments=[{id:100,user:bot,body:`<!-- ${namespace}:robot-publication ${JSON.stringify(record)} -->\nTrusted publication intent; recovery may publish only this judged head.`}];
+    assert.equal((await baseline.publicationOf(comments,repo,1,a.github)).headSha,headSha);
+    assert.equal(await mutant.publicationOf(comments,repo,1,a.github),null);
+   } else {
+    const reviews=[{user:bot,state:'COMMENTED',commit_id:headSha,body:`<!-- ${namespace}:robot-review ${headSha} codex -->\nReviewed by codex; built by claude.\n\nAcme finding.`}];
+    const options={repo,prNumber:2,headSha,reviewer:'codex',author:'claude',github:async()=>({status:200,data:reviews})};
+    assert.equal(await baseline.completedRobotReview(options),true);
+    assert.equal(await mutant.completedRobotReview(options),false);
+   }
+  }
+ }
+});
+
+
+test('robot label admission scheduled query and provenance detect both one-name mutations',async t=>{
+ const {labelMutant}=await import('./helpers/names.mjs');
+ const consumer=pathToFileURL(join(runtime,'robot.mjs')),root=await project(t);
+ const baseline=await labelMutant(consumer,'label:keel:agent','unrelated',['authorizeLabel']);
+ for(const namespace of ['plates','keel']){
+  const name=namespace+':agent',a=api();a.issue.labels=[{name}];
+  const github=async request=>{
+   if(request.path.includes('/events?'))return {status:200,data:[{id:1,event:'labeled',label:{name},actor:user,created_at:'2026-10-09T00:00:00Z'}]};
+   if(request.path.includes('/issues?'))return {status:200,data:decodeURIComponent(request.path).includes('labels='+name)?[a.issue]:[]};
+   return a.github(request);
+  };
+  const mutant=await labelMutant(consumer,'label:keel:agent',name,['authorizeLabel']);
+  await baseline.authorizeLabel(repo,1,github,now);
+  await assert.rejects(()=>mutant.authorizeLabel(repo,1,github,now),/label actor/);
+  for(const eventName of ['issues','schedule']){
+   const trigger=eventName==='issues'?{...event,label:{name}}:{repository:{full_name:repo}};
+   const options={root,repo,config,event:trigger,eventName,has,now,github};
+   const ready=await baseline.prepareRobot(options);assert.equal(ready.state,'ready',JSON.stringify({namespace,eventName,ready}));
+   assert.notEqual((await mutant.prepareRobot(options)).state,'ready');
+  }
+ }
 });

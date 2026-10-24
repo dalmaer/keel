@@ -33,6 +33,7 @@ async function mutant(t, from, to) {
   const file = join(dir, 'test-ledger.mjs');
   await writeFile(file, text.replace(from, to));
   await writeFile(join(dir,'time-receipts.mjs'), await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
+  await writeFile(join(dir,'names.mjs'), await readFile(join(dirname(SOURCE),'names.mjs')));
   return import(pathToFileURL(file).href);
 }
 
@@ -61,6 +62,7 @@ async function acmeRepo(t, source = null) {
   await writeFile(join(dir, 'tests', 'acme.test.mjs'), ACME_TESTS);
   await writeFile(join(dir, 'scripts', 'plates', 'test-ledger.mjs'), (source ?? await readFile(SOURCE, 'utf8')).replace('load = loadavg', 'load = () => [0, 0, 0]').replace("process.env.PLATES_RUN_START ?? 'null'", "'null'"));
   await writeFile(join(dir,'scripts/plates/time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
+  await writeFile(join(dir,'scripts/plates/names.mjs'),await readFile(join(dirname(SOURCE),'names.mjs')));
   await writeFile(join(dir, '.gitignore'), 'out*.txt\n');
   const git = (...args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   git('init', '-q', '-b', 'main');
@@ -213,6 +215,7 @@ test('dirty: an untracked file in plates\'s machine directories, or an ignored o
   // The mutant lives outside the repo, so it does not dirty the tree itself.
   const outside = join(await scratch(t, 'plates-ledger-mutant-'), 'test-ledger.mjs');
   await writeFile(join(dirname(outside),'time-receipts.mjs'),await readFile(join(dirname(SOURCE),'time-receipts.mjs')));
+  await writeFile(join(dirname(outside),'names.mjs'),await readFile(join(dirname(SOURCE),'names.mjs')));
   await writeFile(outside, text.replace(target, 'export const MACHINE_DIRS = Object.freeze([RUNS]);'));
   nodeTest(dir, ['--test-reporter=spec', '--test-reporter-destination=stdout', `--test-reporter=${outside}`, '--test-reporter-destination=stdout']);
   assert.equal((await readRuns(dir)).runs.at(-1).dirty, true, 'the mutant calls .plates/tend dirty: the assertion above catches it');
@@ -1564,4 +1567,16 @@ test('unknown redaction configuration still fails zero-test runs and preserves a
     assert.doesNotMatch(failed.stdout, /no tests ran/);
     assert.equal((await readRuns(dir)).runs.length, 0);
   }
+});
+
+
+test('diagnostic reader requires each inconclusive alias independently',async()=>{
+ const {diagnosticMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../practices/night/files/scripts/plates/test-ledger.mjs',import.meta.url);
+ for(const name of ['plates:inconclusive','keel:inconclusive']) {
+  const text=name+' Acme timing unavailable';
+  assert.equal(ledger.inconclusiveOf(text),'Acme timing unavailable');
+  const mutant=await diagnosticMutant(consumer,name);
+  assert.equal(mutant.inconclusiveOf(text),null);
+ }
 });

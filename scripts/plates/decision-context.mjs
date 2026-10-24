@@ -1,3 +1,4 @@
+import { markerComments } from './names.mjs';
 // Derived, read-only decision context. Reconciliation owns record syntax and scopes.
 import { readFile, readdir, lstat, realpath } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
@@ -74,7 +75,7 @@ export async function decisionContext({ root, reader, phase, issue, issueBody, g
       if (files.size >= 2000) throw Error('inventory-bound: more than 2000 files');
       const text = data.toString('utf8');
       const doc = { ...markdown(text), explicitAnchors: [...text.matchAll(/<a\s+(?:id|name)=["']([\w.-]+)["']\s*>\s*<\/a>/g)].map(m => m[1]), hash: hash(data) };
-      if (doc.unclosed && /^(keel-decision|keel-reconciliation|keel-impact)$/.test(doc.unclosed.type)) throw Error('unclosed required metadata fence');
+      if (doc.unclosed && /^fence:(keel-decision|keel-reconciliation|keel-impact)$/.test(doc.unclosed.identity ?? '')) throw Error('unclosed required metadata fence');
       files.set(path, doc);
     }
     const doc = files.get(path);
@@ -109,21 +110,21 @@ export async function decisionContext({ root, reader, phase, issue, issueBody, g
       const matches = entries.filter(n => /^(\d+)-.*\.md$/.test(n) && Number(n.match(/^\d+/)[0]) === Number(phase));
       if (matches.length !== 1) throw Error('phase missing or ambiguous');
       const path = `docs/phases/${matches[0]}`, doc = await read(path);
-      refs = refsFrom(doc.fences.filter(f => f.type === 'keel-reconciliation' && /^Reconciliation\b/i.test(f.section.title)));
+      refs = refsFrom(doc.fences.filter(f => f.identity === 'fence:keel-reconciliation' && /^Reconciliation\b/i.test(f.section.title)));
     } else {
       if (typeof issueBody !== 'string' || Buffer.byteLength(issueBody) > DECISION_LIMITS.bytes) throw Error('issue body unavailable or exceeds read bound');
       bytes += Buffer.byteLength(issueBody);
       out.target.contentHash = hash(issueBody);
       const doc = markdown(issueBody);
-      if (doc.unclosed?.type === 'keel-impact') throw Error('unclosed impact metadata');
-      refs = refsFrom(doc.fences.filter(f => f.type === 'keel-impact'));
-      const markers = [...issueBody.matchAll(/<!-- keel:robot-data ([^\r\n]*) -->/g)];
+      if (doc.unclosed?.identity === 'fence:keel-impact') throw Error('unclosed impact metadata');
+      refs = refsFrom(doc.fences.filter(f => f.identity === 'fence:keel-impact'));
+      const { name: markerName, matches: markers } = markerComments(issueBody, 'marker:keel:robot-data');
       if (markers.length > 1) throw Error('duplicate rubric metadata');
       if (markers.length) {
-        const rubric = JSON.parse(markers[0][1]);
+        const rubric = JSON.parse(markers[0].payload);
         if (rubric.version !== 1 || !strings(rubric.decisions ?? [])) throw Error('invalid rubric decision references');
         refs.push(...(rubric.decisions ?? []));
-      } else if (issueBody.includes('<!-- keel:robot-data')) throw Error('malformed rubric metadata');
+      } else if (markerName !== null) throw Error('malformed rubric metadata');
       if (refs.length) {
         let configPath = '.plates/plates.json', configStat;
         try { configStat = await statAt(configPath); } catch (error) {
@@ -165,11 +166,11 @@ export async function decisionContext({ root, reader, phase, issue, issueBody, g
             const bytes = await bytesAt(path, stat);
             if (bytes.length <= 262144 && hash(bytes) === generated.hash) {
               const doc = markdown(bytes.toString('utf8'));
-              if (!doc.unclosed && !doc.fences.some(f => f.type === 'keel-decision')) return;
+              if (!doc.unclosed && !doc.fences.some(f => f.identity === 'fence:keel-decision')) return;
             }
           }
           const doc = await read(path);
-          for (const f of doc.fences.filter(f => f.type === 'keel-decision' && (path.startsWith('docs/decisions/') || f.section.explicit))) {
+          for (const f of doc.fences.filter(f => f.identity === 'fence:keel-decision' && (path.startsWith('docs/decisions/') || f.section.explicit))) {
             const v = jsonFence(f);
             if (++count > DECISION_LIMITS.records) throw Error('record-bound: more than 100 records');
             indexed.push({ ref: `${path}#${v.id}`, v });
@@ -190,7 +191,7 @@ export async function decisionContext({ root, reader, phase, issue, issueBody, g
       if (!anchor) throw Error('decision requires an anchor');
       const doc = await read(ref);
       if (doc.explicitAnchors.filter(a => a === anchor).length > 1) { gap('duplicate-anchor', ref, 'Duplicate explicit anchor'); return; }
-      const candidates = doc.fences.filter(f => f.type === 'keel-decision' && (path.startsWith('docs/decisions/') || f.section.explicit));
+      const candidates = doc.fences.filter(f => f.identity === 'fence:keel-decision' && (path.startsWith('docs/decisions/') || f.section.explicit));
       const parsed = candidates.map(f => ({ f, v: jsonFence(f) }));
       const matches = parsed.filter(({ v }) => v.id === anchor);
       if (matches.length !== 1) { gap(matches.length ? 'duplicate-id' : 'missing-decision', ref, 'exactly one decision ID required', !matches.length); return; }

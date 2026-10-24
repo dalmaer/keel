@@ -606,7 +606,7 @@ async function nightCommit(t, night, { health, ignore = '', tracked = {}, existi
   for (const d of [dir, bin, temp, join(dir, 'scripts/plates'), join(dir, '.plates')]) await mkdir(d, { recursive: true });
   git(['init', '-q', '--bare', origin], base);
   git(['init', '-q', '-b', 'main']);
-  for (const f of ['lib.mjs', 'pr-body.mjs']) await writeFile(join(dir, 'scripts/plates', f), await readFile(join(PLATES, 'practices/night/files/scripts/plates', f), 'utf8'));
+  for (const f of ['lib.mjs', 'pr-body.mjs', 'names.mjs']) await writeFile(join(dir, 'scripts/plates', f), await readFile(join(PLATES, 'practices/night/files/scripts/plates', f), 'utf8'));
   await writeFile(join(dir, '.plates/plates.json'), `${JSON.stringify({ name: 'Acme', ...(health ? { health } : {}) })}\n`);
   await writeFile(join(dir, '.gitignore'), ignore);
   for (const [f, text] of Object.entries(tracked)) { await mkdir(dirname(join(dir, f)), { recursive: true }); await writeFile(join(dir, f), text); }
@@ -709,7 +709,7 @@ test('the night commits its page from the configured health dir (read at run tim
   assert.match(own.body, /^Two-way door: data only/m);
   assert.match(own.body, /^Blast radius: this repo's data files only\.$/m);
   assert.match(own.body, /\*\*Proposal \(`prs_stale`, outside\):\*\* Close or merge the Acme PRs\./);
-  assert.ok(own.body.trimEnd().endsWith('```') && own.body.indexOf('```keel-impact') > at[2], 'the keel-impact block is last');
+  assert.ok(own.body.trimEnd().endsWith('```') && own.body.indexOf('```plates-impact') > at[2], 'the plates-impact block is last');
   // No body is built in inline JS: the open step calls pr-body.mjs, and no node -e writes body.md.
   const blocks = runBlocks(night);
   assert.match(blocks.find(b => b.step === "Open the night's pull request").script, /node scripts\/plates\/pr-body\.mjs --input "\$RUNNER_TEMP\/pr\.json" --files [^\n]*> "\$RUNNER_TEMP\/body\.md"/);
@@ -1893,7 +1893,7 @@ export function crossReviewProblems(text) {
     if (/\bgit push\b|\bgh pr (merge|review|close|edit)\b|\bAPPROVE\b|REQUEST_CHANGES|--approve|--request-changes/.test(line)) out.push(`line ${n}: pushes, merges, approves or requests changes: ${line.trim()}`);
     // Phase 60 (plates#65): the publish job's own reads of GitHub's compare, and a start's label, issue and close; each exactly.
     const PUSH_API = [
-      /^\s*gh api -H "Accept: application\/vnd\.github\.raw" "repos\/\$REPO\/contents\/scripts\/plates\/(?:cross-review|lib)\.mjs\?ref=\$SHA" > "\$out\/(?:cross-review|lib)\.mjs"$/,
+      /^\s*gh api -H "Accept: application\/vnd\.github\.raw" "repos\/\$REPO\/contents\/scripts\/plates\/(?:cross-review|lib|names)\.mjs\?ref=\$SHA" > "\$out\/(?:cross-review|lib|names)\.mjs"$/,
       /^\s*gh api "repos\/\$REPO\/compare\/\$STARTAT\.\.\.\$SHA" > "\$RUNNER_TEMP\/start-below\.json"$/,
       /^\s*had=\$\(gh api "repos\/\$REPO\/issues\?labels=keel:review-after&state=all&per_page=1" --jq 'length'\)$/,
       /^\s*gh api --method POST "repos\/\$REPO\/labels" -f name=keel:review-after -f color=5319e7 > \/dev\/null 2>&1 \|\| true$/,
@@ -2186,12 +2186,12 @@ export function crossReviewSandboxProblems(text) {
     if (!pub) out.push(`the writing job ${w.id} has no step that checks the publisher after a push (id: publisher)`);
     else {
       const env = stepMap(pub, 'env');
-      if (!pub.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n")) out.push('the publisher step does not run for a push event alone');
-      if (!/^(?:unrendered|[0-9a-f]{64} [0-9a-f]{64})$/.test(env.PLATES_PUBLISHER ?? '')) out.push(`the publisher's sha256 is not plates's, written here (PLATES_PUBLISHER: ${env.PLATES_PUBLISHER ?? 'none'})`);
+      if (!pub.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && (needs.review.outputs.mode == 'push' || needs.review.outputs.mode == 'start')\n")) out.push('the publisher step does not run for a push event alone');
+      if (!/^(?:unrendered|[0-9a-f]{64} [0-9a-f]{64} [0-9a-f]{64})$/.test(env.PLATES_PUBLISHER ?? '')) out.push(`the publisher's sha256 is not plates's, written here (PLATES_PUBLISHER: ${env.PLATES_PUBLISHER ?? 'none'})`);
       if (env.SHA !== '${{ github.sha }}') out.push('the publisher step does not fetch at the run\'s commit');
       const fetched = [...pub.matchAll(/gh api -H "Accept: application\/vnd\.github\.raw" "repos\/\$REPO\/contents\/scripts\/plates\/([\w.-]+)\?ref=\$SHA" > "\$out\/([\w.-]+)"/g)].map(m => `${m[1]}>${m[2]}`);
-      if (JSON.stringify(fetched) !== JSON.stringify(['cross-review.mjs>cross-review.mjs', 'lib.mjs>lib.mjs'])) out.push(`the publisher step fetches ${fetched.join(', ') || 'nothing'}: cross-review.mjs and lib.mjs alone`);
-      if (!/cross !== want\[0\] \|\| lib !== want\[1\]/.test(pub) || !/createHash\("sha256"\)\.update\(fs\.readFileSync\(f\)\)/.test(pub)) out.push('the publisher step does not check the scripts\' sha256 against PLATES_PUBLISHER');
+      if (JSON.stringify(fetched) !== JSON.stringify(['cross-review.mjs>cross-review.mjs', 'lib.mjs>lib.mjs', 'names.mjs>names.mjs'])) out.push(`the publisher step fetches ${fetched.join(', ') || 'nothing'}: the three canonical publisher modules alone`);
+      if (!/cross !== want\[0\] \|\| lib !== want\[1\] \|\| names !== want\[2\]/.test(pub) || !/createHash\("sha256"\)\.update\(fs\.readFileSync\(f\)\)/.test(pub)) out.push('the publisher step does not check the scripts\' sha256 against PLATES_PUBLISHER');
       if (!/\n {10}echo "dir=\$out" >> "\$GITHUB_OUTPUT"(?:\n\s*(?:#.*)?)*$/.test(pub)) out.push('the publisher step hands on its folder before the check passes');
     }
     // The push's post runs the checked publisher, and nothing of a checkout.
@@ -2218,7 +2218,7 @@ export function crossReviewSandboxProblems(text) {
     const summary = steps.find(st => /- name: Post the summary\n/.test(st));
     if (summary && !summary.includes("\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n")) out.push('the PR\'s summary step runs on an event other than a PR\'s, or on the review job\'s word');
     if (post && !post.includes("\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n")) out.push('the push\'s post runs on an event other than a push or the daily run');
-    if (start && /scripts\/plates|cross-review\.mjs/.test(start)) out.push('the start step runs the repository\'s code');
+    if (start && (/scripts\/plates/.test(start) || stepMap(start,'env').PUBLISHER !== '${{ steps.publisher.outputs.dir }}' || !start.includes('import(process.env.PUBLISHER+"/names.mjs")') || !start.includes('import(process.env.PUBLISHER+"/cross-review.mjs")') || at(/id: publisher/) > steps.indexOf(start))) out.push('the start step does not use only the byte-verified publisher');
     if (start) {
       const env = stepMap(start, 'env');
       if (env.SHA !== '${{ github.sha }}' || env.BEFORE !== '${{ github.event.before }}' || env.STARTAT !== `\${{ needs.${agent.id}.outputs.start }}`) out.push('the start step does not take its facts from the event and the suggestion from the review job');
@@ -2305,14 +2305,14 @@ test('phase 46: cross-review\'s agent, Claude or Codex, runs in a job whose toke
     ['the PR summary on the review job\'s word', t.replace(publish, publish.replace("      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - name: Post the summary\n        if: needs.review.outputs.mode == 'pr'\n"))],
     ['a push event reaching the PR summary', t.replace(publish, publish.replace("      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - name: Post the summary\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment' || github.event_name == 'push'\n"))],
     ['a push event reaching the PR checkout', t.replace(publish, publish.replace("      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment'\n", "      - uses: actions/checkout@v7\n        if: github.event_name == 'pull_request' || github.event_name == 'issue_comment' || github.event_name == 'push'\n"))],
-    ['the publisher on the review job\'s word alone', t.replace(publish, publish.replace("        id: publisher\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n", "        id: publisher\n        if: needs.review.outputs.mode == 'push'\n"))],
+    ['the publisher on the review job\'s word alone', t.replace(publish, publish.replace("        id: publisher\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && (needs.review.outputs.mode == 'push' || needs.review.outputs.mode == 'start')\n", "        id: publisher\n        if: needs.review.outputs.mode == 'push'\n"))],
     ['the push post on the review job\'s word alone', t.replace(publish, publish.replace("      - name: Post after the push\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'push'\n", "      - name: Post after the push\n        if: needs.review.outputs.mode == 'push'\n"))],
     ['a start on any event', t.replace(publish, publish.replace("      - name: Start the record\n        if: (github.event_name == 'push' || github.event_name == 'schedule') && needs.review.outputs.mode == 'start'\n", "      - name: Start the record\n        if: needs.review.outputs.mode == 'start'\n"))],
     ['the publish job checks out the pushed head', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ github.sha }}'))],
     ['the publish job checks out the last record', t.replace(publish, publish.replace(trustedRef, 'ref: ${{ needs.review.outputs.trusted || github.event.repository.default_branch }}'))],
     ['the publish job reads the pushed head', t.replace(publish, publish.replace('          REPO: ${{ github.repository }}\n          PUBLISHER:', '          REPO: ${{ github.repository }}\n          HEAD: ${{ github.event.head_commit.id }}\n          PUBLISHER:'))],
     ['no publisher step', t.replace(trustStep, '      - run: true')],
-    ['the publisher unchecked', t.replace(trustStep, trustStep.replace(' || cross !== want[0] || lib !== want[1]', ''))],
+    ['the publisher unchecked', t.replace(trustStep, trustStep.replace(' || cross !== want[0] || lib !== want[1] || names !== want[2]', ''))],
     ['the publisher\'s sha256 from the review job', t.replace(trustStep, trustStep.replace('          PLATES_PUBLISHER: unrendered\n', '          PLATES_PUBLISHER: ${{ needs.review.outputs.publisher }}\n'))],
     ['the publisher fetched whole', t.replace(trustStep, trustStep.replace('"repos/$REPO/contents/scripts/plates/lib.mjs?ref=$SHA" > "$out/lib.mjs"', '"repos/$REPO/contents/scripts/plates/lib.mjs?ref=$SHA" > "$out/lib.mjs"\n          gh api -H "Accept: application/vnd.github.raw" "repos/$REPO/contents/scripts/plates/improve.mjs?ref=$SHA" > "$out/improve.mjs"'))],
     ['the publisher handed on first', t.replace(trustStep, trustStep.replace('        run: |\n          out=', '        run: |\n          echo "dir=$RUNNER_TEMP/publisher/scripts/plates" >> "$GITHUB_OUTPUT"\n          out=').replace(/\n {10}echo "dir=\$out" >> "\$GITHUB_OUTPUT"$/, ''))],
@@ -2665,7 +2665,7 @@ async function cardStep(t, morning, { canvas, creds = true, pins = true, day = '
   t.after(() => rm(base, { recursive: true, force: true }));
   const dir = join(base, 'acme'), bin = join(base, 'bin'), temp = join(base, 'tmp'), log = join(base, 'calls.jsonl'), home = join(base, 'isocan-home');
   for (const d of [join(dir, '.plates/canvas'), join(dir, 'scripts/plates'), bin, temp, home]) await mkdir(d, { recursive: true });
-  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(dir, 'scripts/plates', f));
+  for (const f of ['canvas-recovery.mjs', 'lib.mjs', 'names.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(dir, 'scripts/plates', f));
   await writeFile(join(dir, '.plates/plates.json'), JSON.stringify({ name: 'Acme', canvas }));
   await writeFile(join(dir, '.plates/canvas/manifest.json'), '{}');
   for (const tool of ['plates', 'isocan']) await writeFile(join(bin, tool), `#!${process.execPath}\nconst a = process.argv.slice(2); require('node:fs').appendFileSync(${JSON.stringify(log)}, JSON.stringify([${JSON.stringify(tool)}, ...a]) + '\\n'); if (a[0] === '--version') console.log('acme-pinned');\n`, { mode: 0o755 });
@@ -2678,7 +2678,7 @@ async function cardStep(t, morning, { canvas, creds = true, pins = true, day = '
   const enabled = /^enabled=true$/m.test(await readFile(out, 'utf8'));
   const p = enabled ? run('bash', ['-e', '-c', publish.script], { cwd: dir, env }) : null;
   const calls = (await readFile(log, 'utf8').catch(() => '')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
-  return { gate: g, enabled, status: p?.status ?? null, out: g.stdout + g.stderr + (p ? p.stdout + p.stderr : ''), calls, neverRan: await readFile(join(temp, 'keel-canvas-card/never-ran.json'), 'utf8').then(JSON.parse, () => null) };
+  return { gate: g, enabled, status: p?.status ?? null, out: g.stdout + g.stderr + (p ? p.stdout + p.stderr : ''), calls, neverRan: await readFile(join(temp, 'plates-canvas-card/never-ran.json'), 'utf8').then(JSON.parse, () => null) };
 }
 
 // Phase 78: the card ticks.
@@ -2695,7 +2695,7 @@ test('plates-morning republishes the plan card after each pass when the canvas i
   assert.match(card, /node scripts\/plates\/canvas-recovery\.mjs --workflow plates-morning\.yml/);
   assert.match(guards, /node scripts\/plates\/canvas-recovery\.mjs --workflow plates-night\.yml/);
   // The journal travels as the night's does: kept, red or green, for 90 days, under the name the recovery reads.
-  assert.match(morning, /- name: Keep the canvas journal\n {8}if: always\(\) && steps\.canvas\.outputs\.enabled == 'true'\n {8}uses: actions\/upload-artifact@v\d+\n {8}with:\n {10}name: keel-canvas-card-\$\{\{ github\.run_attempt \}\}\n {10}path: \$\{\{ runner\.temp \}\}\/keel-canvas-card\/\n/);
+  assert.match(morning, /- name: Keep the canvas journal\n {8}if: always\(\) && steps\.canvas\.outputs\.enabled == 'true'\n {8}uses: actions\/upload-artifact@v\d+\n {8}with:\n {10}name: plates-canvas-card-\$\{\{ github\.run_attempt \}\}\n {10}path: \$\{\{ runner\.temp \}\}\/plates-canvas-card\/\n/);
   // The secret the night's Install step may hold reaches only the card job's Install step too.
   assert.deepEqual(setupTokenProblems(morning), [], 'setupToken only in Install');
 

@@ -250,6 +250,7 @@ test('night extracted Gather shell recovers real system ZIP via synthetic gh end
   const inputs = join(root, 'inputs'); await mkdir(inputs); await writeFile(join(inputs, 'acme.json'), '{"acme":"real zip"}');
   const zipped = join(root, 'history.zip'); const z = run('zip', ['-q', zipped, 'acme.json'], { cwd: inputs }); assert.equal(z.status, 0, z.stderr);
   await mkdir(join(root, 'scripts/plates'), { recursive: true }); await writeFile(join(root, 'scripts/plates/test-history.mjs'), await readFile(source));
+  await writeFile(join(root, 'scripts/plates/names.mjs'), await readFile(resolve('practices/night/files/scripts/plates/names.mjs')));
   await writeFile(join(root, 'scripts/plates/time-receipts.mjs'), await readFile(resolve('practices/night/files/scripts/plates/time-receipts.mjs')));
   await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
   const gh = join(root, 'gh'); await writeFile(gh, `#!${process.execPath}\nconst fs=require('node:fs');const routes=${JSON.stringify(f.routes)};const p=process.argv[3];if(p==='repos/acme/app/actions/artifacts/1/zip')process.stdout.write(fs.readFileSync(${JSON.stringify(zipped)}));else if(routes[p])console.log(JSON.stringify(routes[p]));else process.exit(1);\n`); await chmod(gh, 0o755);
@@ -269,6 +270,7 @@ async function stagingFixture(t, production = false) {
   await writeFile(join(root, '.plates/plates.json'), JSON.stringify({ health, name: 'Acme', repo: 'acme/app' }));
   await mkdir(join(root, health), { recursive: true }); await mkdir(join(root, 'scripts/plates'), { recursive: true });
   await writeFile(join(root, 'scripts/plates/lib.mjs'), await readFile(resolve('practices/night/files/scripts/plates/lib.mjs')));
+  await writeFile(join(root, 'scripts/plates/names.mjs'), await readFile(resolve('practices/night/files/scripts/plates/names.mjs')));
   await writeFile(join(root, 'scripts/plates/pr-body.mjs'), 'console.log("Acme synthetic PR body");\n');
   const earlier = `${health}/2026-10-08.md`, unrelated = `${health}/2026-10-07.md`, today = `${health}/${day}.md`;
   await writeFile(join(root, earlier), 'Acme accepted proposal; awaiting remeasurement.\n');
@@ -395,4 +397,28 @@ test('history verifies old repository names by numeric ID and preserves original
   const result=await recover(root,f);assert.equal(result.imported,1);assert.ok(result.gaps.some(g=>g.code==='inherited-gap'&&g.observedAt==='2026-10-07T00:00:00Z'));assert.equal(await readFile(join(root,'.plates/test-runs/acme-old.json'),'utf8'),receipt);
   f.routes[`repos/${old}`]={id:8,full_name:old};
   const wrong=await recover(root,f);assert.equal(wrong.selected.length,0);assert.ok(wrong.gaps.some(g=>g.code==='artifact-rejected'));
+});
+
+test('test-history artifact fallback requires each name independently', async t => {
+  const { artifactMutant } = await import('./helpers/names.mjs');
+  for (const namespace of ['plates', 'keel']) {
+    const root = await project(t), f = fixture([{id:1,kind:'ci',legacy:namespace === 'keel'}]);
+    assert.equal((await recover(root,f)).selected.length, 1);
+    const mutantRoot = await project(t), mutantFixture = fixture([{id:1,kind:'ci',legacy:namespace === 'keel'}]);
+    const mutant = await artifactMutant(t, new URL('../practices/night/files/scripts/plates/test-history.mjs', import.meta.url), 'artifact:keel-test-runs', `${namespace}-test-runs`);
+    const result = await mutant.recoverTestHistory({root:mutantRoot,repo,branch,at,github:mutantFixture.github,download:mutantFixture.download});
+    assert.equal(result.selected.length, 0, namespace);
+  }
+});
+
+
+test('history chooses current artifact for the same run and does not conceal expired current evidence', async t => {
+  const items = [{id:1,runId:101,kind:'ci',legacy:true},{id:2,runId:101,kind:'ci'}];
+  const f = fixture(items), root = await project(t);
+  assert.deepEqual((await recover(root,f)).selected.map(row=>row.artifactId),[2]);
+  assert.deepEqual(f.downloads,[2]);
+  const bad = fixture(items), other = await project(t);
+  bad.artifacts.find(a=>a.id===2).expired = true;
+  assert.equal((await recover(other,bad)).selected.length,0);
+  assert.deepEqual(bad.downloads,[]);
 });

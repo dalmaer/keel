@@ -1,3 +1,4 @@
+import { writeName } from './names.mjs';
 // Actions usage estimates, not invoices. Zero dependencies; read-only REST via gh.
 // Job timing excludes queue time. Defaults are project weighting assumptions
 // dated 2026-10-09, not a universal GitHub price schedule.
@@ -185,7 +186,7 @@ export async function readCiUsage({ repo, env, config = {}, now = Date.now(), da
 }
 
 /** The artifact a workflow keeps of the test ledger's records (migration 0005); uploaded only when the ledger wrote some. */
-export const LEDGER_ARTIFACT = 'plates-test-runs';
+export const LEDGER_ARTIFACT = writeName('artifact:keel-test-runs');
 /** A job or step whose name says it runs tests. */
 const TESTS_NAMED = /\btest(?:s|ing)?\b/i;
 /** A job or step that ran to a verdict, not one skipped, cancelled or never reached. */

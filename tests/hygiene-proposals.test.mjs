@@ -491,3 +491,23 @@ test('ordinary canonical diff: alias acceptance and decline report the tracked t
     assert.equal(f.gets,0);
   });
 });
+
+test('hygiene current-first sections preserve original offsets and each fallback fails both one-name mutations', async t => {
+  const { markerMutant } = await import('./helpers/names.mjs');
+  const consumer = new URL('../practices/night/files/scripts/plates/hygiene-proposals.mjs', import.meta.url);
+  const f = await fixture(t);
+  const current = formatHygieneProposal(f.proposal);
+  const old = current.replaceAll('plates:hygiene-proposal:v1', 'keel:hygiene-proposal:v1').replaceAll('plates:hygiene-data', 'keel:hygiene-data');
+  for (const blocks of [current, old, old + '\n' + current, current + '\n' + old]) {
+    const body = '## Proposal\n\n' + blocks;
+    const result = parseHygieneProposal(body);
+    assert.deepEqual(result.proposal, f.proposal, JSON.stringify(result.problems));
+    assert.equal(body.slice(result.start, result.end), blocks.includes(current) ? current : old);
+  }
+  assert.ok(parseHygieneProposal('## Proposal\n\n' + old + '\n' + current.replace('Split long source file', 'Invalid display')).problems.length);
+  for (const family of ['hygiene-proposal:v1', 'hygiene-data']) for (const namespace of ['plates', 'keel']) {
+    const body = '## Proposal\n\n' + (namespace === 'plates' ? current : old);
+    const mutant = await markerMutant(consumer, `marker:keel:${family}`, `${namespace}:${family}`);
+    assert.equal(mutant.parseHygieneProposal(body).proposal, null, `${namespace}:${family}`);
+  }
+});

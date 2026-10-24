@@ -194,3 +194,18 @@ test('production recovery verifies previous repository names by numeric ID witho
  await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path===`repos/${oldName}`?{id:8,full_name:oldName}:path.includes('/workflows/keel-night.yml/')?{workflow_runs:[current],total_count:1}:api(path),download:async()=>envelope}),/repository identity mismatch/);
  await assert.rejects(()=>recoverNight({root,config,env,api:async path=>path===`repos/${oldName}`?Promise.reject(Object.assign(new Error('forbidden'),{status:403})):api(path),download:async()=>envelope}),/forbidden/);
 });
+
+test('production recovery artifact fallback requires each name independently', async t => {
+ const {artifactMutant}=await import('./helpers/names.mjs');
+ const root=await fixture(t),snapshot=await readState(root),repo='Acme/app';
+ const env={GITHUB_REPOSITORY:repo,GITHUB_REF_NAME:'main',BASE:'main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ID:'3',GITHUB_RUN_ATTEMPT:'1'};
+ const run={id:2,run_attempt:1,head_sha:'a'.repeat(40),head_branch:'main',head_repository:{full_name:repo},repository:{full_name:repo},path:'.github/workflows/plates-night.yml',event:'schedule',pull_requests:[],status:'completed',run_started_at:'2026-10-17T09:00:00Z'};
+ const envelope={version:1,state:'retained',provenance:{repo,workflow:run.path,runId:'2',attempt:1,headSha:run.head_sha},snapshot,digest:digest(snapshot)};
+ for(const namespace of ['plates','keel']) {
+  const api=async path=>path.includes('/workflows/keel-night.yml/')?Promise.reject(Object.assign(new Error('not found'),{status:404})):path.includes('/runs?')?{workflow_runs:[run],total_count:1}:path.includes('/contents/')?{encoding:'base64',content:Buffer.from(JSON.stringify(config)).toString('base64')}:{artifacts:[{name:`${namespace}-production-1`,expired:false,size_in_bytes:1000}],total_count:1};
+  const input={root,config,env,api,download:async()=>envelope};
+  assert.equal((await recoverNight(input)).state,'restored');
+  const mutant=await artifactMutant(t,new URL('../practices/night/files/scripts/plates/production-night.mjs',import.meta.url),'artifact:keel-production-',`${namespace}-production-`);
+  await assert.rejects(()=>mutant.recoverNight(input),/missing/,namespace);
+ }
+});

@@ -1,3 +1,4 @@
+import { artifactNames } from './names.mjs';
 // Bounded, data-only recovery of the night ledger. No artifact supplies commands.
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,7 +13,7 @@ import { gateWorkflowIn } from './lib.mjs';
 
 const exec = promisify(execFile);
 const MAX = Object.freeze({ discovery: 500, bytes: 256 * 1024 * 1024, records: 4000 });
-const NAMES = ['plates-test-runs', 'keel-test-runs'];
+const NAMES = artifactNames('artifact:keel-test-runs');
 const NIGHTS = ['.github/workflows/plates-night.yml', '.github/workflows/keel-night.yml'];
 const missing = error => error?.status === 404 || error?.statusCode === 404 || /\(HTTP 404\)/.test(String(error?.stderr ?? ''));
 const id = n => Number.isSafeInteger(n) && n > 0;
@@ -171,6 +172,8 @@ export async function recoverTestHistory({ root, repo, branch, at = new Date(), 
     }
     const candidates = [], runs = new Map();
     for (const listed of artifacts) {
+      const preferred = NAMES.find(name => artifacts.some(a => a.workflow_run?.id === listed.workflow_run?.id && a.name === name));
+      if (listed.name !== preferred) continue;
       try {
         if (!NAMES.includes(listed.name) || !Number.isFinite(Date.parse(listed.created_at)) || Date.parse(listed.created_at) >= Date.parse(at)) throw new Error('artifact name/time invalid');
         if (!weeks.includes(weekOf(listed.created_at))) continue;

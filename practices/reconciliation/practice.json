@@ -34,5 +34,11 @@
       "from": ".github/pull_request_template.md",
       "kind": "seeded"
     }
+  ],
+  "runtimeFiles": [
+    {
+      "practice": "night",
+      "path": "scripts/plates/names.mjs"
+    }
   ]
 }

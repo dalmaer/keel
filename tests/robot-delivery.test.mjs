@@ -62,3 +62,25 @@ test('delivery preserves old canonical markers across only a verified numeric re
   const denied=await readRobotDelivery({repo,issueNumber:1,instanceId:mark.instanceId,github:r=>r.path===`/repos/${old}`?response:github(r)});assert.equal(denied.state,'unknown');
  }
 });
+
+
+test('delivery and continuation readers require both aliases and select current once', async()=>{
+ const {markerMutant}=await import('./helpers/names.mjs');
+ const consumer=new URL('../practices/night/files/scripts/plates/robot-delivery.mjs',import.meta.url);
+ const module=await import(consumer);
+ const value={repo:'acme/anvils',issueNumber:7,instanceId:'acme-7',author:'codex',headSha:'a'.repeat(40),cursor:0,prNumber:8,authorization:{receiptId:1,bodyHash:'b'.repeat(64),writer:'acme-owner',policyHash:'c'.repeat(64)}};
+ for(const [kind,writer,reader] of [['robot-delivery','robotAssociation','robotAssociationOf'],['robot-continuation','robotContinuation','robotContinuationOf']]) {
+  const current=module[writer](value),legacy=current.replaceAll('plates:'+kind,'keel:'+kind);
+  for(const [name,body] of [['plates',current],['keel',legacy]]) {
+   assert.equal(module[reader](body).headSha,value.headSha);
+   const mutant=await markerMutant(consumer,'marker:keel:'+kind,name+':'+kind);
+   assert.equal(mutant[reader](body),null);
+  }
+  if(kind==='robot-delivery')for(const body of [legacy+'\n'+current,current+'\n'+legacy])assert.equal(module[reader](body).headSha,value.headSha);
+  else {
+   const oldLine=legacy.split('\n')[0],newLine=current.split('\n')[0];
+   for(const header of [oldLine+'\n'+newLine,newLine+'\n'+oldLine])assert.equal(module[reader](header+'\nTrusted robot continuation.\n\n').headSha,value.headSha);
+  }
+  assert.equal(module[reader](current+'\n'+current),null);
+ }
+});
