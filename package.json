@@ -40,6 +40,7 @@
     "check:focused": "node scripts/check-focused.mjs"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
     "@types/node": "24.19.2",
     "typescript": "7.0.2"
   }

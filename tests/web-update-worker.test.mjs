@@ -1,3 +1,4 @@
+import { webEnv } from '../lib/web/name-transition.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFile, readFile, rm, symlink } from 'node:fs/promises';
@@ -20,13 +21,14 @@ test('container environment refuses both canonical and legacy control bindings',
 test('update bridge uses canonical environment only when present and preserves pinned checkout protocol', async () => {
   const source = (await readFile(new URL('../scripts/web-update-worker.mjs', import.meta.url), 'utf8'))
     .replace(/^#!.*\n/, '').replace(/^import .*;\n/gm, '');
-  const execute = new (Object.getPrototypeOf(async function(){}).constructor)('process', 'join', 'runUpdateWorker', source);
+  const execute = new (Object.getPrototypeOf(async function(){}).constructor)('process', 'join', 'runUpdateWorker', 'webEnv', 'trustedCheckout', source);
   for (const canonical of [undefined, 'canonical', '']) {
     const env = { GITHUB_WORKSPACE: '/acme/runner', KEEL_WEB_ORIGIN: 'legacy-origin', KEEL_WEB_OPERATION: 'legacy-operation' };
     if (canonical !== undefined) Object.assign(env, { PLATES_WEB_ORIGIN: canonical, PLATES_WEB_OPERATION: canonical });
     let called;
     const process = { env, argv: ['node','bridge'], on(){}, removeListener(){}, stdout:{write(){}}, stderr:{write(){}}, exitCode: null };
-    await execute(process, join, async options => { called = options;return {state:'succeeded'}; });
+    await execute(process, join, async options => { called = options;return {state:'succeeded'}; }, webEnv, async root => join(root, 'trusted-keel'));
+    if (canonical !== undefined) { assert.equal(process.exitCode, 1); assert.equal(called, undefined); continue; }
     assert.equal(process.exitCode, 0);
     assert.equal(called.origin, canonical ?? 'legacy-origin');
     assert.equal(called.operationId, canonical ?? 'legacy-operation');
