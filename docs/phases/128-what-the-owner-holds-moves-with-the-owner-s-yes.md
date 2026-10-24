@@ -45,7 +45,7 @@ The design is [Name transition](../specs/name-transition.md).
 - [ ] With `--yes`, labels are renamed in place, an issue keeps its label under the new name, and both names existing at once is refused. `tests/names-cli.test.mjs`: "labels are renamed, never recreated"
 - [ ] Variables are copied, never deleted. Secrets are listed with a command and no value, and no `gh secret` read is ever made. `tests/names-cli.test.mjs`: "secrets are never read"
 - [ ] `--machine` moves the night-card job and its launchd label in a scratch home, and the job then runs from `~/.plates`. `tests/names-machine.test.mjs`: "the night card moves and still runs"
-- [ ] The owner runs `plates names --yes` on plates and sets the listed secrets. The next listing shows nothing left on plates. ⚑ by hand: the owner
+- [ ] The owner runs `plates names --yes` on plates and sets the listed secrets. The next listing separates verified retained aliases from active legacy dependencies and unknown coverage; old variables retained for phase 130 are not falsely reported as absent. ⚑ by hand: the owner
 
 ## Your part
 

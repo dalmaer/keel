@@ -13,13 +13,13 @@ issue: 246
 
 ## Done when
 
-`plates names` shows no live keel name anywhere in the fleet. In one release, each eligible live-state `dual` row becomes `retired`: its live fallback read is removed, its forwarder dropped, and its old variable deleted with the owner's yes. The name scan in `tests/names.test.mjs` then fails on any keel token outside explicitly listed compatibility entry points and historical metadata readers.
+`plates names` shows no active legacy dependency anywhere in the fleet; retained aliases have verified replacements and are listed separately for explicit retirement approval. In one release, each eligible live-state `dual` row becomes `retired`: its live fallback read is removed, its forwarder dropped, and its old variable deleted with the owner's yes. The name scan in `tests/names.test.mjs` then fails on any keel token outside explicitly listed compatibility entry points and historical metadata readers.
 
 ## Scope
 
 The design is [Name transition](../specs/name-transition.md), "The rule".
 
-- **The gate:** `plates names --fleet` lists zero live keel names. It's run when the owner asks, possibly the morning after phase 129's evening, once drain has merged the last keel-prefixed PRs and the artifacts in use are plates ones.
+- **The gate:** `plates names --fleet` distinguishes active dependencies, retained aliases and unknown coverage. Retirement refuses active dependencies or unknowns, but admits explicitly inventoried aliases whose replacements and lack of active consumers are verified. For variables, compare replacement values privately without output; missing or conflicting replacements block. Secret values are never read or compared: metadata alone cannot establish replacement, so the owner must supply replacement/execution evidence or retain them as an explicit blocker. The owner approves the exact alias removal list. After the operation, refresh the inventory and require no remaining unapproved live alias. Historical parsers and explicitly retained compatibility entries remain separate. The same rule applies to variables, secret metadata, forwarders and other retained identities; it is not a variable-only exception.
 - **Code:** remove each fallback read named by a `dual` row:
   - the prefixes in drain, morning and the board;
   - the plan and verify branch fallbacks;
@@ -35,7 +35,7 @@ The design is [Name transition](../specs/name-transition.md), "The rule".
 
 ## Acceptance
 
-- [ ] With no live keel name in a stub fleet, the retirement run lists every `dual` row it retires. With one live name, it refuses, naming it. `tests/names-cli.test.mjs`: "retirement refuses while a keel name is live"
+- [ ] With no active dependency or unknown coverage in a stub fleet, the retirement preview lists each eligible retained alias and its replacement evidence. Active consumers, a missing/conflicting replacement or unknown coverage refuse; approved alias removal must leave the inventory empty apart from explicitly retained compatibility. `tests/names-cli.test.mjs`: "retirement distinguishes verified aliases from active dependencies"
 - [ ] After retirement, the name scan fails on any keel token outside explicitly listed compatibility entry points and historical metadata readers. `tests/names.test.mjs`: "after retirement only explicit compatibility readers say keel"
 - [ ] The owner applies the forwarder-dropping migration and approves the variable deletions. The next `plates names --fleet` is empty. ⚑ by hand: the owner
 
@@ -49,7 +49,7 @@ The design is [Name transition](../specs/name-transition.md), "The rule".
 - **Choices:** Retire now | Wait
 - **Takes:** 15 minutes.
 - **Then:** Wait: nothing breaks. Both names keep working until you say retire.
-- **Ready when:** phase 129 is done and `plates names --fleet` is empty.
+- **Ready when:** phase 129 is done and `plates names --fleet` shows only eligible retained aliases, with no active legacy dependency or unknown coverage.
 
 ## Real surfaces
 

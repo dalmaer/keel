@@ -32,10 +32,15 @@ Every name moves the same way, in three steps, each a release:
    (`workflow_dispatch`). Then each fleet project moves in turn, the same
    evening, each checked the same way. A project that fails stops the
    rollout. (The owner's call, 2026-10-23: no waiting a week.)
-3. **Retire.** Once nothing live in the fleet uses a keel name, the
+3. **Retire.** Once no active fleet dependency uses a keel name, the
    live-state fallback reads go, in one release. Historical metadata readers
    remain permanently: unchanged old decisions, proofs and reconciliation records
-   must still resolve. Retirement requires the owner to say retire.
+   must still resolve. Retained aliases with verified replacements are shown
+   separately from active dependencies and unknown coverage; they may enter the
+   exact owner-approved removal operation, followed by an empty-inventory check.
+   This avoids requiring old variables to be gone before the step that deletes
+   them. Unverified replacements block, and secret values are never inspected.
+   Retirement requires the owner to say retire.
 
 A name that cannot be read both ways, such as a database function a deployed
 build calls, gets a forwarding alias for the old name. It is not a hard switch.
