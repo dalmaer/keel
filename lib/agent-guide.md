@@ -1957,7 +1957,7 @@ worksheet above remains read-only. See `plates --agent-help canvas` for publishi
 
 ### Bounded session trials (explicit records)
 
-`plates retro evaluations plan|freeze|inspect|run --manifest <absolute-file>
+`plates retro evaluations plan|freeze|inspect|run|resume|reconcile|cancel|compare --manifest <absolute-file>
 --state <absolute-dir> [--bundle <file>] [--experiment <id>] [--execution <absolute-json>] [--json]` freezes
 schema-2 harness input records in an already initialized external workspace.
 Plan reads only. Freeze preview exits 3 and exposes `digest`; approve with
@@ -1973,9 +1973,16 @@ submission, confirms termination, and checks behavior in fresh Docker containers
 Only `pinned-image-tools` authority is supported: all binaries in the approved
 image, no network or host mounts. The host owns acceptance. Original operation
 identities survive uncertainty; retries never redispatch. Unknown cost is null.
-No paid model or production activation occurs. Resume/cancel/compare/rescore
-refuse. Run checks local pinned-image availability; it never downloads an image. See the source guide `docs/guide/harness-evaluations.md` for the
-synthetic Acme bundle and exact invocation.
+No paid model or production activation occurs. Compare reads only; resume/reconcile/cancel preview and require exact approval. Rescore refuses. Run checks local pinned-image availability; it never downloads an image. See the source guide `docs/guide/harness-evaluations.md` for the
+synthetic Acme bundle and exact invocation. Resume's schema-1 execution descriptor
+contains an ordered executions array for every missing slot. Reconcile inspects
+original operations and explicitly recovers a positively verified dead harness
+writer; legacy/partial/foreign locks refuse. Cancel closes admission and requests
+bounded termination. Recovery reserves one reconcile and one cancel attempt,
+20 seconds per planned slot in total; interrupted reservations never refund.
+Identical recovery retries inspect retained receipts without new effects. Trial minutes include measured preparation and admitted execution; captured inputs are reused, subprocess preparation shares a deadline, and cleanup cannot extend the total slot deadline. Prior read-only previews, human waiting and uninterruptible host I/O are not claimed billed work.
+Reports retain invalid/missing trials and null costs; no promotion or live provider
+adapter is implied.
 
 `plates retro sessions <status|start|begin|finish|handoff|audit|apply|rollback>
 [--experiment <id>] [--record <file>] [--yes] [--json]` records local trials.
