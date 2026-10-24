@@ -177,3 +177,49 @@ This supersedes the earlier runtime gate for the corrected projection, while
 preserving that earlier observation and the review finding. The actual Docker
 package walk remains its original dated source observation; the later correction
 is separately proven through the affected synthetic serialization/consumer path.
+
+## Second review correction — 24 October 2026
+
+The [second finding](https://github.com/dalmaer/plates/pull/254#discussion_r4366583315)
+identified that mutable repair issue/phase content was used as identity. A comment,
+edit or closure could therefore prevent observing an otherwise verified rollback.
+The contract now separates stable repair identity from historical current-state
+observations. Actual package, owner approval and merge requirements are unchanged.
+The original reader was exposed without semantic change at
+2d7af3de2acef88756e8b5ff44a3d4deeafada4c so counterfactual tests can exercise the
+same actual reader before and after correction rather than fail on a missing export.
+
+The conductor independently ran:
+
+    PATH=/opt/homebrew/bin:$PATH TZ=UTC node bin/plates.mjs prove tests/lesson-repair.test.mjs --name 'repair identity survives' --fix lib/evaluated-learning-promotion.mjs --base 2d7af3de2acef88756e8b5ff44a3d4deeafada4c --trailer
+
+Exit0, VERIFIED: both actual-reader tests failed under the old mutable identity
+and passed under the correction. The issue test covers body edits, comment
+timestamps and closure; the phase test covers edited source and completion.
+Additional tests passed4/4 for current observations, changed/missing/renamed
+identities and strict schemas; lifecycle/inverse tests passed2/2, and capability
+checks passed2/2. Typecheck and doctor exited0. An initial fixture path was
+noncanonical; its failure remains in repair-before.log, followed by the meaningful
+canonical pre-fix failures. No missing-export failure was used as proof.
+
+Logs: /tmp/plates-phase123-repair-prove.log,
+/tmp/plates-phase123-repair-before-canonical.log,
+/tmp/plates-phase123-repair-after.log, /tmp/plates-phase123-repair-focused.log,
+/tmp/plates-phase123-repair-replay.log and /tmp/plates-phase123-repair-capability.log.
+The exact commands are retained in /tmp/plates-phase123-repair-handoff.md.
+
+The conductor also invoked readRepairObservation from the actual worktree against
+phase123 and existing GitHub issue dalmaer/plates#248, with a30-second deadline.
+Exit0, no writes, no raw body output. Phase identity d251e9ff3c3ae0496601578bd7f34ab7190cd8b2e904001778c48c66b200b531
+reported partial; issue provider ID6009266107 and identity
+f5d4955aae1207585fd45692fc3aa45bf5f71e45b184f4148939297c30d138f2 reported open.
+These are source observations, not acceptance. Full output with separate source
+digests: /tmp/plates-phase123-repair-real-read.json. Actual source was not edited
+to simulate closure; controlled tests establish that behavior.
+
+The repair-corrected full gate exited0: 3,069 passed, zero failed, 11 opt-in skips,
+all nine stall-injection suites and roadmap/render/inbox checks. The ledger
+reported no flaky or slower tests (33 retained runs, 18 busy runs omitted).
+Log: /tmp/plates-phase123-repair-check.log. Typecheck independently exited0.
+This is the final local implementation gate after both review corrections;
+earlier proof and failed attempts remain retained above.

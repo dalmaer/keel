@@ -255,6 +255,9 @@ exact two-parent merge inclusion is supported. These commands never create a PR,
 merge, install instructions or establish production outcomes. No real policy is
 configured by this feature. The legacy inbox remains `proposed` for a promoted
 lesson and a pending rollback; explicit promotion history never sets `accepted`.
+Rollback repair links retain stable issue IDs or phase filenames separately from
+current state. Comments, edits or closure update the observation; they do not
+invalidate the link or establish acceptance. Missing or replaced identities refuse.
 
 `follow-up` takes `{proposalRef,decisionRef,window,selections,commentary,relation}`
 in the ordinary request envelope, previewing before `--yes --digest`. Empty
