@@ -123,8 +123,9 @@ verification to inverse. Only then append learning-rollback and transition
 promoted -> rolled-back. Missing/changed files or uncertain observations refuse.
 No serving-revision or completed deployment claim is made.
 
-Derived legacy projection: evaluated/ready-for-review/rolled-back -> proposed,
-promoted -> accepted. Preserve every historical transition and prior records.
+Derived legacy projection: evaluated/ready-for-review/promoted/rolled-back ->
+proposed. Reviewed source inclusion never sets legacy accepted. Preserve the
+explicit promoted history and all prior records.
 Legacy learn decide/distill cannot activate tagged proposals.
 
 ## Follow-up and recovery
@@ -320,3 +321,12 @@ not PR patch summaries. Recursive tree truncation is refusal. No POST/merge/push
 Tests fake only external transport and exercise actual generated local Git blobs,
 trees and two-parent commits; no injected internal “verified” result.
 
+
+## Review clarification — 24 October 2026
+
+PR254 review identified that legacy accepted conflated reviewed source inclusion
+with acceptance in inbox consumers. All promoted evaluations remain proposed in
+the compatibility projection; the explicit evaluation history retains promotion.
+This changes no human acceptance or production claim. Pending rollback likewise
+remains proposed until the distinct rollback history event. No live controller
+promotion was reachable or activated by this unreleased implementation.

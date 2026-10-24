@@ -32,7 +32,7 @@ Summaries go through the existing reviewed `docs/evidence/` lane.
 The new lifecycle is derived from append-only transition entries in that section,
 not a second independently editable status field. Legacy inbox status is rendered
 as a compatibility projection in the same atomic write: observed=untriaged;
-proposed/evaluated/ready-for-review=proposed; promoted=accepted;
+proposed/evaluated/ready-for-review/promoted=proposed;
 rejected=declined; superseded=linked. Rolled-back maps to proposed with an explicit
 rollback banner and linked repair task. Existing untagged records retain their
 semantics. A mismatch is a validation error, never silently repaired.
