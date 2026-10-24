@@ -531,3 +531,18 @@ refusal (exit 0 for the negative proof), retained in
 `/tmp/plates-phase120-conductor-closure.log`. The direct-card module is 74,108
 bytes before probes; its complete exercised closure and broken/corrected behavior
 still require proof before claiming the case runnable. No limit is enlarged.
+
+### Probe provenance and builder exposure — 23 October 2026
+
+Repository-owned adapted probes retain source repository, path, revision and
+license in their leading provenance comments. Those citations may identify the
+historical solution and therefore cannot be delivered as builder context. Export
+may remove only the explicitly recognized leading provenance header from curated
+probe files, retaining the original citation, raw hash, transformation identity
+and delivered hash in curator metadata. Both versions are digest-bound by the
+preview. Acceptance and builder probe references use the delivered bytes.
+
+Never strip or rewrite historical source to hide exposure. Tests check that
+curated probe delivery introduces no full or abbreviated corrected-witness IDs,
+patches or acceptance manifests. If actual historical source exposes a solution,
+report the exposure rather than silently rewriting the pinned baseline.
