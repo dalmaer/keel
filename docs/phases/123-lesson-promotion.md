@@ -1,12 +1,12 @@
 ---
-status: designed
-since: 2026-10-23
+status: partial
+since: 2026-10-24
 goal: G3
 spec: 2
 depends: [122]
 review: wait
-note: "Package, approval and rollback contracts settled; build independent mechanics without live activation or bypassing the phase119 hold."
-evidence: []
+note: "Review packages and dormant source verification implemented; real readiness lacks provider, environment and delivery interfaces. Stacked behind phase119 owner hold."
+evidence: ["evidence/2026-10-24-lesson-promotion.md"]
 ---
 
 # Prepare reviewed promotion and traceable rollback
@@ -27,9 +27,10 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Acceptance
 
-- [ ] Ready-for-review requires supporting evidence; changed merged bytes, uncertain publication and recurrence preserve original records and require reconciliation: `tests/lesson-promotion.test.mjs`.
-- [ ] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/lesson-promotion.test.mjs`.
-- [ ] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
+- [x] Ready-for-review requires supporting evidence; changed merged bytes, uncertain publication and recurrence preserve original records and require reconciliation: `tests/lesson-promotion.test.mjs`.
+- [x] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/lesson-promotion.test.mjs`.
+- [x] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
+- [ ] A real supported screening produces an eligible package and independently observed reviewed promotion; missing interfaces remain explicit. ⚑ by hand: owner approves the exact allowance and approver policy only after the missing interfaces are implemented; conductor observes the actual review package and merge.
 
 ## Real surfaces
 
@@ -37,7 +38,7 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Proof
 
-Planned tests (not implemented by this specification):
+Named implementation proof:
 `npm run check:focused -- tests/lesson-promotion.test.mjs`. The conductor runs
 `npm run check` and `npm run typecheck` on the integrated implementation.
 Record negative controls and original failures in an evidence file. Live model
@@ -53,6 +54,21 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Build allowlisted packages and disabled-until-configured approval/merge verification,
-then prove the offline public CLI package and source-refusal paths. Keep genuine
-readiness and promotion open for missing delivery/provider interfaces and approval.
+Complete exact-head PR review and CI. Resolve phase119's
+owner review-limit decision before landing the stack. Implement live provider/spend,
+per-case environment mapping and verified delivery routing before an exact bounded
+owner-approved screening; then configure approvers separately and observe the actual
+reviewed package. No automatic default or permission change is authorized.
+
+## Trajectory
+
+- 2026-10-24: Public packages bind canonical bytes and actual Git bases without
+  exporting private materials. A binary prior file keeps its measured size but
+  cannot supply an inverse; unavailable reads refuse rather than inventing zero.
+- 2026-10-24: Exact source inclusion uses existing bounded GitHub review reads and
+  verified complete Git objects. Only two-parent merges are supported. Real
+  default-branch policy was absent, so no approval authority was activated.
+- 2026-10-24: Twenty actual offline Docker trials yielded an inconclusive report
+  and useful unready package through 47 public CLI observations. Follow-up keeps
+  unknown exposure distinct from zero recurrence. Genuine supported promotion
+  still needs missing execution, environment and delivery interfaces.
