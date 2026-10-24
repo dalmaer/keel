@@ -11,6 +11,7 @@ import { observation, results } from './helpers/verification.mjs';
 // gh is a stub at the boundary and origin is a local bare repo. Nothing here
 // reads the live world.
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, readFile, rm, cp, chmod, realpath } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -57,7 +58,7 @@ const asRecorded = () => {
   const p = finished();
   return { ...p, items: p.items.map(i => (i.kind === 'build' ? { ...i, status: 'planned', result: null } : i)) };
 };
-const page = (date, bundle) => `# Acme Anvils health, ${date}\n\n| Measure | Value | Bound | State | Detail |\n| --- | --- | --- | --- | --- |\n| \`bundle_bytes\` — the entry chunk | ${bundle} | ≤ 747000 | ${bundle > 747000 ? 'outside' : 'ok'} | |\n| \`slow_tests\` — tests over a second | 4 | ≤ 5 | ok | |\n\n## Tonight's plan\n\nWhat the night recorded.\n\n## Proposal\n\nNone.\n`;
+const page = (date, bundle) => `# Acme Anvils health, ${date}\n\n| Measure | Value | Bound | State | Detail |\n| --- | --- | --- | --- | --- |\n| \`bundle_bytes\` — the entry chunk | ${bundle} | ≤ 747000 | ${bundle > 747000 ? 'outside' : 'ok'} | |\n| \`slow_tests\` — tests over a second | 4 | ≤ 5 | ok | |\n\n${planSection(asRecorded(), { record: `docs/night/${date}.json` }).join('\n')}\n## Proposal\n\nNone.\n`;
 const HEALTH = { before: { date: NIGHT, file: `docs/health/${NIGHT}.md`, rows: [{ id: 'bundle_bytes', value: 760000 }, { id: 'slow_tests', value: 4 }] }, after: { date: '2026-10-06', file: 'docs/health/2026-10-06.md', rows: [{ id: 'bundle_bytes', value: 741000 }] } };
 const LINKS = { canvas: 'https://canvas.acme.test/p/prj_acme', health: `https://github.com/acme/anvils/blob/HEAD/docs/health/${NIGHT}.md` };
 const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils', morning: { assignee: 'acme-owner' }, canvas: { provider: 'isocan', home: 'https://canvas.acme.test', canvasId: 'prj_acme', projectKey: 'acme' } };
@@ -324,7 +325,7 @@ test('plates#137: finalization puts a later build outcome in the night\'s record
   const pageAfter = await readFile(join(p.root, `docs/health/${NIGHT}.md`), 'utf8');
   assert.equal(parseVerifications(pageAfter)[0].attempt,receipt.attempt,'shipped finalization preserves verification bytes');
   assert.match(pageAfter, new RegExp(`\\| perf-bundle: Entry chunk back under 747 kB \\| build \\| climb:perf \\| \`bundle_bytes\` ≤ 747000 \\| done \\| Split the vendor chunk — ${PR.replaceAll('/', '\\/').replaceAll('.', '\\.')} \\|`), 'the page holds the later outcome');
-  assert.doesNotMatch(pageAfter, /What the night recorded\./, 'the old section is replaced');
+  assert.notEqual(pageAfter, pageBefore, 'the recorded plan outcomes are updated');
   assert.equal(pageAfter.split('## Tonight\'s plan')[0], pageBefore.split('## Tonight\'s plan')[0], 'what came before it is kept');
   assert.equal(pageAfter.split('## Proposal')[1], pageBefore.split('## Proposal')[1], 'and what came after it');
   assert.equal(withPlanSection(pageAfter, planSection(record, { record: `docs/night/${NIGHT}.json` })), pageAfter, 'finalizing again changes nothing');
@@ -563,4 +564,49 @@ test('in the brief, "passed since" is the same site\'s pass only, and a preview\
   assert.equal(f.passedSince, true);
   [f] = verifyFailuresFor([r(preview, false, '2026-10-04T20:00:00Z')], NIGHT, { production: prod });
   assert.equal(verifyLine(f), `The preview ${preview} failed its verify for \`a1b2c3d\` at 2026-10-04T20:00:00Z: GET /: expected 200, got 500.`);
+});
+
+
+test('finalize keeps the sections it did not write', async t => {
+  const p = await project(t);
+  const { finalize } = await import('../lib/morning.mjs');
+  const path = join(p.root, `docs/health/${NIGHT}.md`);
+  const trimGenerated = lines => lines.join('\n').replace(/\n+$/, '');
+  const prefix = '# Acme health\n\nOwner notes keep trailing spaces.  \n\n';
+  const suffix = '\n\nProduction monitoring: Acme traffic remains observed.  \n### Production detail\nOwner appendix without a level-two heading.\n\n';
+  const oldBody = prefix + trimGenerated(planSection(asRecorded(), { record: `docs/night/${NIGHT}.json` })) + suffix;
+  const digest = body => createHash('sha256').update(body).digest('hex');
+  const wrap = body => `Owner preface\n<!-- keel:health-report:begin ${digest(body)} -->\n${body}\n<!-- keel:health-report:end -->\nOwner afterword.  \n\n\n`;
+  for (const wrapped of [false, true]) {
+    await writeFile(path, wrapped ? wrap(oldBody) : oldBody);
+    await finalize({ root: p.root, date: NIGHT });
+    const record = JSON.parse(await readFile(join(p.root, `docs/night/${NIGHT}.json`), 'utf8'));
+    const expectedBody = prefix + trimGenerated(planSection(record, { record: `docs/night/${NIGHT}.json` })) + suffix;
+    const expected = wrapped ? wrap(expectedBody) : expectedBody;
+    assert.equal(await readFile(path, 'utf8'), expected, `exact outside bytes, wrapped=${wrapped}`);
+    assert.equal(record.items.find(item => item.id === 'perf-bundle').status, 'done');
+    await finalize({ root: p.root, date: NIGHT });
+    assert.equal(await readFile(path, 'utf8'), expected, 'repeat finalization is byte-identical');
+  }
+  assert.deepEqual(await p.calls(), [], 'local finalize makes no gh calls');
+});
+
+test('plan replacement preserves unknown suffixes and newline bytes and refuses unknown ownership', () => {
+  const before = planSection(asRecorded());
+  const after = planSection(finished());
+  for (const eol of ['\n', '\r\n']) for (const ending of ['', eol, eol + eol + eol]) {
+    const prefix = `# Acme${eol}${eol}Before.  ${eol}${eol}`;
+    const old = before.join(eol).replace(/[\r\n]+$/, '');
+    const next = after.join(eol).replace(/[\r\n]+$/, '');
+    for (const outside of ['', 'Production monitoring: owner text.  ', '### Owner subsection', '## Owner section', '<!-- keel:health-report:end -->', '| Owner | unrelated | table |']) {
+      const suffix = (outside ? eol + eol + outside : '') + ending;
+      const source = prefix + old + suffix;
+      assert.equal(withPlanSection(source, after), prefix + next + suffix);
+      assert.equal(withPlanSection(prefix + next + suffix, after), prefix + next + suffix);
+    }
+  }
+  const source = '# Acme\n\nPreserve all existing ending bytes.  \n\n\n';
+  assert.ok(withPlanSection(source, after).startsWith(source));
+  assert.throws(() => withPlanSection("## Tonight's plan\n\nOwner-authored prose.\n", after), /plan.*boundar|plan.*structure/i);
+  assert.throws(() => withPlanSection(before.join('\n') + '\n' + before.join('\n'), after), /ambiguous/i);
 });

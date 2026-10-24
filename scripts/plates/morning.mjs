@@ -532,14 +532,43 @@ export async function decide({ root, env = process.env, now = new Date(), github
 
 // ---- the final record (plates#137) --------------------------------------------
 
-/** The page with its "## Tonight's plan" section replaced (to the next ## heading), or appended. Pure. */
+/** Replace only the generated plan's structure; all surrounding bytes are opaque. */
 export function withPlanSection(page, section) {
-  const lines = page.replace(/\n+$/, '').split('\n');
-  const at = lines.findIndex(l => l.trim() === '## Tonight\'s plan');
-  if (at < 0) return `${[...lines, '', ...section].join('\n').replace(/\n+$/, '')}\n`;
-  let end = lines.findIndex((l, i) => i > at && /^## /.test(l));
-  if (end < 0) end = lines.length;
-  return `${[...lines.slice(0, at), ...section, ...lines.slice(end)].join('\n').replace(/\n+$/, '')}\n`;
+  const lines = [...page.matchAll(/([^\n]*)(?:\n|$)/g)].map(match => ({
+    text: match[1].replace(/\r$/, ''), start: match.index,
+    end: match.index + match[1].replace(/\r$/, '').length,
+  }));
+  const headings = lines.map((line, index) => line.text.trim() === "## Tonight's plan" ? index : -1).filter(index => index >= 0);
+  if (headings.length > 1) throw new MorningError('ambiguous plan section boundaries; page preserved');
+  const eol = page.includes('\r\n') ? '\r\n' : '\n';
+  const replacement = section.join(eol).replace(/[\r\n]+$/, '');
+  if (!headings.length) {
+    const gap = !page || page.endsWith(eol + eol) ? '' : page.endsWith(eol) ? eol : eol + eol;
+    return page + gap + replacement + eol;
+  }
+  const at = headings[0];
+  let cursor = at + 1;
+  const skipBlank = () => { while (lines[cursor]?.text === '') cursor++; };
+  const refuse = () => { throw new MorningError('plan section structure unavailable; cannot establish owned boundaries, page preserved'); };
+  // Recognize the writer's two attribution forms, table and optional fields.
+  // Do not infer ownership from the absence of another Markdown heading.
+  const shapes = ['owner', 'default'].map(shapedBy => planSection({ shapedBy, items: [], willNotTouch: [], leftOpen: [] }));
+  skipBlank();
+  const intro = lines[cursor]?.text ?? '';
+  if (!shapes.some(shape => intro === shape[2] || (intro.startsWith(shape[2]) && /^ The record: `[^`\r\n]+`\.$/.test(intro.slice(shape[2].length))))) refuse();
+  cursor++; skipBlank();
+  if (lines[cursor]?.text !== shapes[0][4] || lines[cursor + 1]?.text !== shapes[0][5]) refuse();
+  cursor += 2;
+  const firstRow = cursor;
+  while (/^\|(?:(?:\\\||[^|\r\n])*\|){6}$/.test(lines[cursor]?.text ?? '')) cursor++;
+  if (cursor === firstRow) refuse();
+  let last = cursor - 1;
+  for (const field of ['Will not touch: ', 'Left open: ']) {
+    skipBlank();
+    if (lines[cursor]?.text.startsWith(field) && lines[cursor].text.endsWith('.')) last = cursor++;
+  }
+  // Keep the original separator, suffix and final newline(s), even at EOF.
+  return page.slice(0, lines[at].start) + replacement + page.slice(lines[last].end);
 }
 
 /**
