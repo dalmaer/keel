@@ -1,12 +1,12 @@
 ---
-status: designed
+status: built
 since: 2026-10-23
 goal: G5
 spec: 2
 depends: [117]
 review: wait
-note: "Specified only; production implementation and paid evaluation have not started."
-evidence: []
+note: "Offline isolated execution, historical compatibility verdicts and adversarial boundary proved; no paid agent efficacy claim."
+evidence: ["evidence/2026-10-23-evaluation-isolation.md"]
 ---
 
 # Evaluate one historical artifact behind an independent boundary
@@ -23,9 +23,9 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Acceptance
 
-- [ ] Adversarial probes cannot read checks, forge verdicts, escape mounts or contaminate another trial; failed setup remains separate: `tests/evaluation-isolation.test.mjs`.
-- [ ] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluation-isolation.test.mjs`.
-- [ ] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
+- [x] Adversarial probes cannot read checks, forge verdicts, escape mounts or contaminate another trial; failed setup remains separate: `tests/evaluation-isolation.test.mjs`.
+- [x] CLI JSON/help, compatibility, bounds and failure paths are covered: `npm run check:focused -- tests/evaluation-isolation.test.mjs`.
+- [x] Integrated gates and selected contracts pass: `npm run check`; `npm run typecheck`.
 
 ## Real surfaces
 
@@ -33,7 +33,7 @@ introduce a second scheduler, evidence authority or automatic production default
 
 ## Proof
 
-Planned tests (not implemented by this specification):
+Implemented proof:
 `npm run check:focused -- tests/evaluation-isolation.test.mjs`. The conductor runs
 `npm run check` and `npm run typecheck` on the integrated implementation.
 Record negative controls and original failures in an evidence file. Live model
@@ -49,4 +49,13 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Implement the foreground adapter and external evaluator boundary, proving it with offline adversarial fixtures before provider execution.
+None for the offline boundary. Phase 119 adds paired comparison and recovery;
+paid screening still requires an approved provider and exact allowance.
+
+## Trajectory
+
+- **2026-10-23** — Real Docker proof found that `docker cp` silently omitted tmpfs files. Use an explicitly submitted, bounded regular-file envelope and independently evaluate its bytes after termination; do not claim filesystem-snapshot attestation or weaken isolation. The spec records the withdrawn transport.
+
+- **2026-10-23** — A host-only deadline could leave an orphaned container running. A different non-root supervisor UID now bounds lifetime independently; real tests prove executor signals refuse and expiry stops the container without a host kill.
+- **2026-10-23** — Declared harness metadata does not identify the code actually executing. Bind observed controller source hashes and Node to approval and verdict while preserving the declaration and explicit coverage limits.
+- **2026-10-23** — Cross-review found incomplete execution writes could hide the intact frozen receipt. Read-only inspection now exposes uncertain partial records; admission refuses before external effects, with no automatic reset or lock reclamation. A red-without-fix regression covers eight interrupted-write shapes.

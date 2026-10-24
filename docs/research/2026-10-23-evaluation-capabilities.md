@@ -57,3 +57,16 @@ external workspace ownership and shared session-ledger I/O. Its
 only. Agent execution, independent task acceptance, paired outcome comparison and
 measured lesson promotion remain future work; no provider availability or spend
 is inferred from a declared configuration.
+
+## Implementation follow-up: phase 118
+
+Offline `retro evaluations run` extends the same private experiment with explicit
+submission, separate Docker execution/evaluation, existing host-coordinator
+container leases and immutable artifact-bound verdicts. An independently bounded
+non-root supervisor covers controller loss. Observed execution-source hashes are
+separate from declared harness metadata. The retained
+[owner-machine walk](../evidence/2026-10-23-evaluation-isolation-walk.mjs) replays
+known broken and corrected historical artifacts through clean synthetic package
+consumers. This tests machinery and acceptance sensitivity, not whether a model
+using candidate instructions improves. No paid provider, comparison runner,
+held-out generalization or lesson promotion is activated.

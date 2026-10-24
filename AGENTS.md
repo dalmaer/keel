@@ -222,11 +222,15 @@ A person merges its PRs. See [the robot guide](docs/guide/the-robot.md).
 
 ## Harness evaluation records
 
-`plates retro evaluations plan|freeze|inspect` validates and freezes explicit
+`plates retro evaluations plan|freeze|inspect|run` validates and freezes explicit
 inputs in an initialized private external workspace. Freeze needs the exact
 preview digest; it neither reserves spend nor starts a trial. Keep private
 acceptance material out of builder context and retain original receipts after
-uncertainty. See [the record guide](docs/guide/harness-evaluations.md).
+uncertainty. Offline run previews an explicit descriptor, then requires its exact
+approval digest. Use shared host admission, `pinned-image-tools`, no network or
+host mounts, bounded stdout submission and externally controlled acceptance.
+Uncertain container termination retains its lease; never redispatch an original
+slot. Unknown currency remains null. See [the record guide](docs/guide/harness-evaluations.md).
 
 ## Session handoff trials
 

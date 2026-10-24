@@ -410,12 +410,14 @@ fresh observations. The [contract](specs/plate-verification.md) and phase 116
 keep session activity unknown where it cannot be observed. Corrections, claim
 cleanup and acceptance remain separate from detection.
 
-## Measured harness improvement (23 October 2026, designed)
+## Measured harness improvement (23 October 2026)
 
 Phases 117–123 specify task-level baseline/candidate evaluation and review lessons
 promoted through evidence. These extend the experiment ledger, bounded execution,
 learn inbox and reviewed delivery. Phase 117 implements the local record
-foundation; execution, comparison and measured promotion remain designed.
+foundation; phase 118 adds offline scripted execution with independent artifact
+verdicts. Paired comparison, live agent screening and measured promotion remain
+designed. The offline boundary does not establish model efficacy.
 Builders submit artifacts to independently controlled acceptance, comparisons keep
 all attempts and unknown costs, and no result activates a production rule.
 See [harness evaluation](specs/harness-regression-evaluation.md),

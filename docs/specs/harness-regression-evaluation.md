@@ -1,8 +1,9 @@
 # Harness regression evaluation
 
 Design, 23 October 2026. Phase 117 implements local plan/freeze/inspect records;
-execution, independent scoring and comparison remain designed. No agent evaluation
-has been executed or funded by this specification. Source baseline:
+phase 118 adds offline scripted execution and independent artifact verdicts.
+Paired comparison, recovery and measured agent improvement remain designed. No
+paid agent evaluation has been executed or funded by this specification. Source baseline:
 `8f218d7e138edda2c86fc5055c97a59b9df8427a`.
 See the [capability map](../research/2026-10-23-evaluation-capabilities.md),
 [research decisions](../research/2026-10-23-evaluation-patterns.md) and
@@ -45,8 +46,9 @@ candidate overlay outside the task's authority. `prove` and validation planning
 supply useful checks, not independent acceptance by themselves.
 
 The CLI surface is `plates retro evaluations <operation> --json`. Phase 117
-implements plan, freeze and inspect; run, resume, cancel, compare and rescore
-remain planned and refuse invocation. Each shipped operation has agent help. Plan/inspect/compare are
+implements plan, freeze and inspect; phase 118 adds offline run. Resume, cancel,
+compare and rescore remain planned and refuse invocation. Each shipped operation
+has agent help. Plan/inspect and the future compare operation are
 read-only. Run/resume/rescore preview the exact input digest, missing slots,
 authority, maximum additional spend and environment; execution requires `--yes
 --digest <preview>`. Resume approval cannot enlarge the frozen ceiling.
@@ -61,10 +63,73 @@ claims acceptance. Freeze approval also pins the canonical bundle path; moving
 identical bytes does not authorize recovery at a different path. Inspect preserves
 access to the original receipt. The record guard rejects byte-identical acceptance
 material in context, not semantic or reformatted copies; it is not the independent
-isolation boundary required in phase 118. Run/resume/cancel/compare/rescore remain unavailable until
-their later phases; unsupported operations must refuse rather than simulate
-execution. This local freeze operation lets the record foundation be proven
+isolation boundary required in phase 118. At phase 117 completion, execution
+operations were unavailable; phase 118 supplies the offline run described below.
+Other unsupported operations still refuse rather than simulate execution. This local freeze operation lets the record foundation be proven
 without borrowing the future execution command's authority.
+
+### Phase 118 offline execution contract (23 October 2026)
+
+The first execution adapter is explicitly offline. `run --experiment <id>
+--execution <absolute-json>` previews a single frozen pair/arm and exits 3;
+`--yes --digest <preview>` approves only those exact bytes, source export,
+private destination and resource limits. The offline capability is explicitly
+`pinned-image-tools`: all executables in the approved read-only image, with no
+network, host tools or sockets. Narrower executable allowlists refuse because a
+Node program can spawn other image programs; merely checking its initial argv
+would not enforce them. Builder/check argv begins with Node and names a delivered
+public file, with no host shell interpolation. Its strict execution request identifies
+schema version, pair, arm, canonical local repository, regular source paths,
+builder argv and explicit host admission configuration. Export each source from
+the case's pinned commit; reject symlinks, submodules and Git history. The preview
+binds the delivered export and ordered context/overlays. Private provenance,
+acceptance material and other trials are never delivered. An offline scripted
+builder tests execution machinery, not model efficacy or generalization.
+
+Private acceptance material uses the versioned `stdio-v1` driver: a bounded list
+of check IDs, argv, input, expected stdout and exit code. The trusted host owns
+comparisons; expected outputs never enter a container. Each check invokes the
+submitted behavior in a fresh hardened container. Public probe programs are
+frozen input files rather than hidden tests imported into untrusted code. This
+small driver establishes the initial compatibility boundary, not support for
+all future integration oracles. Evaluator errors remain unknown.
+
+Use the existing host validation coordinator for admission, extending its lease
+shape to retain external container operation identities. Preserve foreground
+lease semantics. A container lease releases only after confirmed termination;
+a dead client or expired lease is insufficient. The explicit coordinator policy
+and managed repository identity are bound into the run preview. A private
+workspace lock alone is not host-wide admission. Reserve the frozen comparison
+allowance before its first slot and refuse unplanned, repeated or oversubscribed
+slots. No provider inference or currency entitlement is granted.
+
+Keep phase 117's original frozen receipt and attachments unchanged. Execution
+records are an extension beneath the same experiment: immutable reservation,
+slot intent, captured artifact, stage observations and artifact-bound verdict.
+Persist original unique container operation names before dispatch. The offline
+builder submits one bounded JSON regular-file envelope on stdout; stderr is
+bounded diagnostic output. The envelope, not a claim about its working directory,
+is the submitted artifact. Validate its exact bytes, paths, modes, allowlisted
+changes and preserved controller-owned public files, then confirm builder
+termination before evaluation. Construct each evaluator from the pinned base
+and that validated submission. Traversal, links, special files, forged pass
+messages and changes to acceptance authority refuse. No submitted outcome field
+can create a verdict; only independently observed artifact behavior can.
+
+**Transport correction, 23 October 2026:** a real restricted-container probe
+executed an existing file but `docker cp` returned an empty archive from tmpfs.
+[Docker documents this limitation](https://docs.docker.com/reference/cli/docker/container/cp/#corner-cases).
+The initial pause/copy transport is withdrawn. An explicit immutable submission
+avoids both the unsupported capture and races with surviving builder processes;
+no writable host mounts, unbounded volumes or privileged collector are added.
+It proves the behavior of the submitted bytes, not an attested snapshot of the
+builder's final filesystem. Builder tools must serialize their chosen artifact;
+invalid/missing submission is separate from infrastructure failure.
+Identical retries recover original terminal evidence. Uncertain dispatch,
+termination or storage remains reserved and inspectable, never automatically
+rerun. Phase 119 adds comparison recovery; until then unsupported resume,
+cancel, compare and rescore operations explicitly refuse. Failure evidence and
+unknown costs remain visible, and no result changes a production default.
 
 ## Data contracts
 
