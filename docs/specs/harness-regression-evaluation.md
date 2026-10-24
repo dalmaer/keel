@@ -1,8 +1,9 @@
 # Harness regression evaluation
 
 Design, 23 October 2026. Phase 117 implements local plan/freeze/inspect records;
-execution, independent scoring and comparison remain designed. No agent evaluation
-has been executed or funded by this specification. Source baseline:
+phase 118 adds offline scripted execution and independent artifact verdicts.
+Paired comparison, recovery and measured agent improvement remain designed. No
+paid agent evaluation has been executed or funded by this specification. Source baseline:
 `8f218d7e138edda2c86fc5055c97a59b9df8427a`.
 See the [capability map](../research/2026-10-23-evaluation-capabilities.md),
 [research decisions](../research/2026-10-23-evaluation-patterns.md) and
@@ -45,8 +46,9 @@ candidate overlay outside the task's authority. `prove` and validation planning
 supply useful checks, not independent acceptance by themselves.
 
 The CLI surface is `plates retro evaluations <operation> --json`. Phase 117
-implements plan, freeze and inspect; run, resume, cancel, compare and rescore
-remain planned and refuse invocation. Each shipped operation has agent help. Plan/inspect/compare are
+implements plan, freeze and inspect; phase 118 adds offline run. Resume, cancel,
+compare and rescore remain planned and refuse invocation. Each shipped operation
+has agent help. Plan/inspect and the future compare operation are
 read-only. Run/resume/rescore preview the exact input digest, missing slots,
 authority, maximum additional spend and environment; execution requires `--yes
 --digest <preview>`. Resume approval cannot enlarge the frozen ceiling.
@@ -61,9 +63,9 @@ claims acceptance. Freeze approval also pins the canonical bundle path; moving
 identical bytes does not authorize recovery at a different path. Inspect preserves
 access to the original receipt. The record guard rejects byte-identical acceptance
 material in context, not semantic or reformatted copies; it is not the independent
-isolation boundary required in phase 118. Run/resume/cancel/compare/rescore remain unavailable until
-their later phases; unsupported operations must refuse rather than simulate
-execution. This local freeze operation lets the record foundation be proven
+isolation boundary required in phase 118. At phase 117 completion, execution
+operations were unavailable; phase 118 supplies the offline run described below.
+Other unsupported operations still refuse rather than simulate execution. This local freeze operation lets the record foundation be proven
 without borrowing the future execution command's authority.
 
 ### Phase 118 offline execution contract (23 October 2026)
