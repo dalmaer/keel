@@ -30,6 +30,8 @@ async function fixture(t,{robot={on:true,budgetMinutes:60}}={}) {
   const requests=[];
   const github=async r=>{
     requests.push({method:r.method,path:r.path});
+    if(r.method==='GET'&&r.path===`/repos/${repo}`)return {status:200,data:{id:7,full_name:repo}};
+    if(r.method==='GET'&&r.path===`/repos/${repo}/labels?per_page=100&page=1`)return {status:200,data:[{id:11,name:'keel:agent'}]};
     assert.ok(r.path.startsWith('/repos/acme/anvils/'));
     if(r.method==='POST'){
       posts++;assert.equal(parseHygieneProposal(await readFile(join(root,path),'utf8')).proposal.lifecycle.state,'accepting');
@@ -167,12 +169,14 @@ test('CLI accepts hygiene --instance with synthetic GitHub and resumes without a
   await writeFile(state,JSON.stringify({posts:0,issue:null,contentsReads:0}));
   await writeFile(gh,`#!${process.execPath}
 const fs=require('node:fs'),args=process.argv.slice(2),i=args.indexOf('--method'),method=args[i+1],path=args[i+2];
-if(i<0||!path.startsWith('/repos/acme/anvils/'))throw Error('unexpected synthetic API');
+if(i<0||!(path==='/repos/acme/anvils'||path.startsWith('/repos/acme/anvils/')))throw Error('unexpected synthetic API');
 const file=${JSON.stringify(state)},s=JSON.parse(fs.readFileSync(file,'utf8'));let status=200,data;
 if(method==='POST'){
   if(!fs.readFileSync(${JSON.stringify(join(f.root,path))},'utf8').includes('"state":"accepting"'))throw Error('missing local intent');
   const b=JSON.parse(fs.readFileSync(0,'utf8'));s.posts++;s.issue={number:7,state:'open',body:b.body,labels:b.labels,html_url:'https://github.com/acme/anvils/issues/7',url:'https://api.github.com/repos/acme/anvils/issues/7'};status=201;data=s.issue;
 }else if(method==='GET'&&path==='/repos/acme/anvils/contents/src/acme.mjs'){s.contentsReads++;data={type:'file',path:'src/acme.mjs',sha:${JSON.stringify(f.proposal.blob)}};}
+else if(method==='GET'&&path==='/repos/acme/anvils')data={id:7,full_name:'acme/anvils'};
+else if(method==='GET'&&path==='/repos/acme/anvils/labels?per_page=100&page=1')data=[{id:11,name:'keel:agent'}];
 else if(method==='GET')data=path.includes('/issues?')?(s.issue?[s.issue]:[]):s.issue;
 else throw Error('unsupported synthetic method');
 fs.writeFileSync(file,JSON.stringify(s));process.stdout.write('HTTP/2.0 '+status+' OK\\r\\nContent-Type: application/json\\r\\n\\r\\n'+JSON.stringify(data));

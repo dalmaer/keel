@@ -1,5 +1,6 @@
 import { normalizeFences } from './names.mjs';
-// Read-only reconciliation. Ships standalone: no runtime dependencies or writes.
+// Read-only standalone runtime: reconcile.mjs + canonical names.mjs.
+// No third-party dependencies, CLI/night activation or writes.
 // Receipts: keel-proof JSON fences, version 1, in the referenced evidence section.
 // Research/design decisions require an explicit <a id="…"></a> section anchor.
 // Impact unchanged reasons: {unchanged: {"docs/phases/01-example.md": "reason"}}.

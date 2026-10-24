@@ -20,6 +20,8 @@ async function fixture(t,on=false){
  await writeHealthReport({root,path,generated:'# Acme health\n\n## Proposal\n\n'+formatTimeProposal(proposal)});
  let issue=null,posts=0,failRead=false,dropLabels=false;
  const github=async r=>{
+   if(r.method==='GET'&&r.path===`/repos/${repo}`)return {status:200,data:{id:7,full_name:repo}};
+   if(r.method==='GET'&&r.path===`/repos/${repo}/labels?per_page=100&page=1`)return {status:200,data:[{id:11,name:'keel:agent'}]};
    assert.ok(r.path.startsWith(`/repos/${repo}/`));
    if(r.method==='POST'){
      assert.equal(r.path,`/repos/${repo}/issues`);posts++;

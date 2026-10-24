@@ -22,7 +22,7 @@ async function world(t) {
  return {home,root};
 }
 const cli=(bin,root,args)=>{const r=run(process.execPath,[bin,...args,'--json'],{cwd:root});assert.ok(r.stdout,r.stderr);return {code:r.status,data:JSON.parse(r.stdout)};};
-test('packed CLI and adopted runtime expose the guide contract; standalone reconcile still runs alone',async t=>{
+test('packed CLI and adopted runtime expose the guide contract; standalone reconciliation runtime runs without CLI or night activation',async t=>{
  const {home,root}=await world(t);
  const pack=run('npm',['pack','--ignore-scripts','--json','--pack-destination',home]);assert.equal(pack.status,0,pack.stderr);
  const packed=JSON.parse(pack.stdout)[0];
@@ -78,7 +78,9 @@ test('packed CLI and adopted runtime expose the guide contract; standalone recon
  const runtime=await import(pathToFileURL(join(root,'scripts/plates/decision-context.mjs')));
  assert.equal((await runtime.decisionContext({root,phase:'0'})).digest,out.data.digest);
  assert.match(await readFile(join(root,'docs/reconciliation.md'),'utf8'),/before dispatch and resume/);
- const alone=join(home,'standalone.mjs');await cp(join(root,'scripts/plates/reconcile.mjs'),alone);
+ const standaloneDir=join(home,'standalone');await mkdir(standaloneDir);
+ const alone=join(standaloneDir,'reconcile.mjs');
+ for(const name of ['reconcile.mjs','names.mjs'])await cp(join(root,'scripts/plates',name),join(standaloneDir,name));
  const standalone=run(process.execPath,[alone,'--root',root,'--json'],{});assert.ok([0,1].includes(standalone.status),standalone.stderr+standalone.stdout);
  await writeFile(join(root,'docs/decisions/store.md'),record('Acme revised owner'));
  const changed=cli(bin,root,['decision','context','--phase','0']);assert.notEqual(changed.data.digest,out.data.digest);
@@ -93,7 +95,7 @@ test('conductor and robot separate choices from proposals and require digest in 
 });
 test('workflow shell refresh binds the pre-agent immutable plan and brief to current bytes',async t=>{
  const {home,root}=await world(t);const temp=join(home,'runner');const trusted=join(temp,'trusted');await mkdir(trusted,{recursive:true});
- for(const practice of ['night','climb','reconciliation'])for(const name of await readdir(`practices/${practice}/files/scripts/plates`))if(name.endsWith('.mjs'))await cp(`practices/${practice}/files/scripts/plates/${name}`,join(trusted,name));
+ for(const practice of ['night','climb','reconciliation'])for(const name of await readdir(`practices/${practice}/files/scripts/plates`))if(name.endsWith('.mjs')&&(name!=='names.mjs'||practice==='night'))await cp(`practices/${practice}/files/scripts/plates/${name}`,join(trusted,name));
  const body=formatRobotRubric({version:1,problem:'Acme failure',reproduction:'node --test',acceptance:'Acme passes',change:'Repair Acme',prerequisites:[],ownerBlockers:[],decisions:['docs/decisions/store.md#store']});
  const bundle=await decisionContext({root,issue:'acme/app#1',issueBody:body});
  await writeFile(join(temp,'robot-plan.json'),JSON.stringify({state:'ready',repo:'acme/app',issueNumber:1,issueHash:hash(body),decisionBundle:bundle,decisionDigest:bundle.digest}));

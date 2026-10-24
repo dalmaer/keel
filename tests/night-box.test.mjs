@@ -146,6 +146,8 @@ async function box(t, { broken = null } = {}) {
   }, null, 2)}\n`);
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
   for (const p of ['night', 'climb', 'personas']) await cp(join(PLATES, 'practices', p, 'files', 'scripts', 'plates'), join(root, 'scripts', 'plates'), { recursive: true });
+  // Installed runtimes use the canonical module, not a source-tree doorway.
+  await cp(join(PLATES, 'practices/night/files/scripts/plates/names.mjs'), join(root, 'scripts/plates/names.mjs'));
   for (const [path, text] of Object.entries({
     '.gitignore': '.plates/canvas/\n.isocan/\n',
     '.agents/personas/perf.md': PERSONA,
