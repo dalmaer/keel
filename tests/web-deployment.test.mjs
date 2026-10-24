@@ -81,7 +81,8 @@ test("missing or malformed deployment revision stays unavailable and never refle
     "c".repeat(40),
   );
   const canonical = {
-    ...env,
+    SUPABASE_URL: h.secrets.storageUrl,
+    SUPABASE_SERVICE_ROLE_KEY: h.secrets.storageKey,
     PLATES_WEB_CONFIG: JSON.stringify({ ...h.input, recovery }),
     PLATES_GITHUB_CLIENT_SECRET: h.secrets.clientSecret,
     PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
@@ -90,6 +91,25 @@ test("missing or malformed deployment revision stays unavailable and never refle
   const configured = configFromEnv(canonical);
   assert.deepEqual(configured.recovery, recovery);
   assert.equal(configured.deploymentRevision, "c".repeat(40));
+  const equalAliases = {
+    ...env,
+    ...canonical,
+    KEEL_WEB_CONFIG: canonical.PLATES_WEB_CONFIG,
+  };
+  assert.deepEqual(configFromEnv(equalAliases), configured);
+  for (const [current, legacy] of [
+    ["PLATES_WEB_CONFIG", "KEEL_WEB_CONFIG"],
+    ["PLATES_GITHUB_CLIENT_SECRET", "KEEL_GITHUB_CLIENT_SECRET"],
+    ["PLATES_SESSION_ENCRYPTION_KEY", "KEEL_SESSION_ENCRYPTION_KEY"],
+  ]) {
+    assert.throws(
+      () => configFromEnv({ ...equalAliases, [legacy]: "different" }),
+      { code: `conflicting_names:${current}:${legacy}` },
+    );
+  }
+  assert.throws(() => configFromEnv({ ...env, ...canonical }), {
+    code: "conflicting_names:PLATES_WEB_CONFIG:KEEL_WEB_CONFIG",
+  });
   for (const key of ["PLATES_WEB_CONFIG", "PLATES_GITHUB_CLIENT_SECRET", "PLATES_SESSION_ENCRYPTION_KEY"]) {
     assert.throws(() => configFromEnv({ ...canonical, [key]: "" }), { code: "invalid_service_configuration" });
   }
