@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "date": "2026-10-23",
+  "date": "2026-10-24",
   "shapedBy": "default",
   "readyBy": null,
   "willNotTouch": [],
@@ -9,25 +9,25 @@
   "items": [
     {
       "id": "measures",
-      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-22: long_files, phases_without_issue, lessons_without_guard, inbox_waiting, issues_unnamed, reviews_unanswered, dependency_age",
+      "title": "Measure the practice: 39 measures; outside or broken on 2026-10-23: long_files, phases_without_issue, lessons_without_guard, inbox_waiting, issues_unnamed, reviews_unanswered, dependency_age",
       "kind": "measure",
       "source": "default",
       "number": null,
       "lane": "night",
       "budget": null,
-      "status": "done",
+      "status": "failed",
       "result": {
-        "note": "15 ok, 7 outside, 17 n/a, 0 broken",
-        "link": "docs/health/2026-10-23.md"
+        "note": "12 ok, 9 outside, 17 n/a, 1 broken (record_contradictions)",
+        "link": "docs/health/2026-10-24.md"
       }
     },
     {
-      "id": "health-issues-unnamed",
-      "title": "Proposal from 2026-10-22: Name issues #35, #61, #62, #66, #72, #73 and 14 more in the doc whose work they follow, or close them on dalmaer/keel.",
+      "id": "health-phases-without-issue",
+      "title": "Proposal from 2026-10-23: Open issues on dalmaer/plates for phases 50, 88, 94, 97, 98, 99, 100, 101, 102, 103 and 10 more and set `issue:` in each one's front matter.",
       "kind": "review",
-      "source": "health:issues_unnamed",
+      "source": "health:phases_without_issue",
       "number": {
-        "measure": "issues_unnamed",
+        "measure": "phases_without_issue",
         "bound": 0,
         "better": "lower"
       },
@@ -50,11 +50,8 @@
       "budget": {
         "minutes": 45
       },
-      "status": "failed",
-      "result": {
-        "note": "no pull request: climb test-time 2026-10-23: kept nothing; nothing was tried; 2 min",
-        "link": "https://github.com/dalmaer/plates/actions/runs/39939173199"
-      }
+      "status": "planned",
+      "result": null
     },
     {
       "id": "robot-60",
@@ -71,7 +68,7 @@
     },
     {
       "id": "persona-performance--published-package",
-      "title": "published package: back to at most 1000kB (measured 1745kB)",
+      "title": "published package: back to at most 1000kB (measured 1779kB)",
       "kind": "triage",
       "source": "persona:performance",
       "number": {
