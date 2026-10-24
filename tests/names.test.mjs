@@ -154,16 +154,18 @@ test('a keel name the table does not list fails, naming where', async t => {
   }
 });
 
-test('name lookups are explicit, phase125 dual only, and state transitions are read/write contracts', () => {
+test('name lookups preserve phase125 branches and reviewed phase127 env compatibility', () => {
   assert.equal(new Set(NAMES.map(row => row.id)).size, NAMES.length);
   const surfaces = new Set(['git ref','local Git path','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const hostedEnv = new Set(['web:KEEL_WEB_ORIGIN', 'web:KEEL_WEB_OPERATION', 'web:KEEL_WEB_CONFIG', 'web:KEEL_CONNECTION_ENCRYPTION_KEY', 'web:KEEL_GITHUB_CLIENT_SECRET', 'web:KEEL_SESSION_ENCRYPTION_KEY']);
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    assert.equal(row.state, row.phase === 125 ? 'dual' : 'held');
+    const dual = row.phase === 125 || hostedEnv.has(row.id);
+    assert.equal(row.state, dual ? 'dual' : 'held', row.id);
     assert.equal(nameRow(row.id), row);
-    assert.equal(writeName(row.id), row.phase === 125 ? row.plates : row.keel);
-    assert.deepEqual(readNames(row.id), row.phase === 125 ? [row.plates, row.keel] : [row.keel]);
+    assert.equal(writeName(row.id), dual ? row.plates : row.keel);
+    assert.deepEqual(readNames(row.id), dual ? [row.plates, row.keel] : [row.keel]);
     for (const state of ['dual', 'retired']) {
       const rows = [{ ...row, state }];
       assert.equal(writeName(row.id, rows), row.plates);

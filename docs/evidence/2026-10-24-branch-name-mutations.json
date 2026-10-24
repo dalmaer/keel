@@ -2258,5 +2258,64 @@
         "logSha256": "e5dd2195d8df1633175df6004881d1792da31492b4f497552d2c26be5e3dfd4b"
       }
     ]
+  },
+  "mergedHostedBaseRetryRevalidation": {
+    "scratch": "/var/folders/63/4k_ydj554mz6_56j2hpg7jcr0000gn/T/acme125-retry-pin-942mvu6b",
+    "sourceSha256": "d114b27d220ad731a889b46ee174cb2dbfdc2b1a3b9aa88f1a891bc378b8aa3a",
+    "observations": [
+      {
+        "omitted": null,
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 0,
+        "failedTests": [],
+        "log": "/tmp/plates125-retry-integrated-None.log",
+        "logSha256": "ae6f921485503a397bff16c845d88c93cb412ead954db0ac2982850a28795717"
+      },
+      {
+        "omitted": "keel",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 1 - real canonical night profile previews exact effects and sends one native rerun with original actor semantics",
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-integrated-keel.log",
+        "logSha256": "bcb55791c44b8433a6ab22a2ab94ab55314f2823b32057353576b67300aa699a"
+      },
+      {
+        "omitted": "plates",
+        "command": [
+          "/opt/homebrew/bin/node",
+          "--import",
+          "./tests/helpers/hermetic.mjs",
+          "--test",
+          "--test-reporter=tap",
+          "--test-name-pattern=real canonical night profile|current Plates night retry",
+          "tests/web-night-retry.test.mjs"
+        ],
+        "exit": 1,
+        "failedTests": [
+          "not ok 2 - current Plates night retry has a separate exact closure and requires its own reviewed profile"
+        ],
+        "log": "/tmp/plates125-retry-integrated-plates.log",
+        "logSha256": "3949310d65dbacb844e551ad94ea8eaae54beb8d0be7f25aad2e98a7d9c6d7dd"
+      }
+    ]
   }
 }
