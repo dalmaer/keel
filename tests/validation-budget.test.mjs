@@ -153,26 +153,81 @@ test('shared state enforces contention across separate repositories and Git work
   assert.equal((await inspectBudget({ stateDir: f.stateDir, capacity: 1 })).history.length, 2);
 });
 
-test('two fresh competing writers admit at most capacity and never overwrite another reservation', async t => {
+test('two fresh competing writers admit at most capacity and never overwrite another reservation', { timeout: 45000 }, async t => {
   const f = await fixture(t), ready = join(f.dir, 'ready'), release = join(f.dir, 'release');
   const argv = [process.execPath, '-e', `const fs=require('fs');fs.appendFileSync(${JSON.stringify(ready)},'Acme\\n');const timer=setInterval(()=>{if(fs.existsSync(${JSON.stringify(release)}))clearInterval(timer)},10)`];
-  const a = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], argv));
-  const b = runAsync(process.execPath, f.args('run', 1, ['--timeout-ms', '30000'], argv));
+  const a = runAsync(process.execPath, f.args('run', 0, ['--timeout-ms', '30000'], argv), { timeout: 35000 });
+  const b = runAsync(process.execPath, f.args('run', 1, ['--timeout-ms', '30000'], argv), { timeout: 35000 });
   try {
     // A held winner cannot exit normally until released: the first result is a
     // bounded admission refusal, never an assumed startup sleep.
     const first = await Promise.race([a, b]); assert.equal(first.status, 2, first.stderr);
-    await until(async () => (await inspectBudget({ stateDir: f.stateDir })).initialized);
-    const state = await inspectBudget({ stateDir: f.stateDir, capacity: 1 });
-    assert.ok(state.used <= 1); assert.ok(state.leases.length <= 1);
+    await waitForText(ready, 'Acme\n');
+    // Ready precedes running-state bookkeeping. Inspect only after both
+    // wrappers settle: atomic publication may legitimately unlink an open reader.
   } finally { await writeFile(release, 'go'); await Promise.allSettled([a, b]); }
   const results = await Promise.all([a, b]);
   assert.deepEqual(results.map(result => result.status).sort(), [0, 2]);
-  const runs = await exists(ready) ? (await readFile(ready, 'utf8')).trim().split('\n').length : 0;
-  assert.ok(runs <= 1, 'at most one competing workload executes');
+  assert.equal(await readFile(ready, 'utf8'), 'Acme\n', 'exactly one competing workload executes');
+  const winner = results.findIndex(result => result.status === 0);
+  const report = JSON.parse(results[winner].stdout);
+  assert.equal(report.released, true); assert.equal(report.childStatus, 0);
   const state = await inspectBudget({ stateDir: f.stateDir, capacity: 1 });
-  assert.ok(state.leases.length + state.history.filter(row => row.released).length <= 1);
-  assert.equal(state.used, 0);
+  assert.equal(state.capacity, 1); assert.equal(state.used, 0);
+  assert.equal(state.coordinationBusy, false); assert.deepEqual(state.leases, []);
+  assert.equal(state.history.length, 1, 'the sole reservation survives as one completion receipt');
+  const receipt = state.history[0];
+  assert.equal(receipt.id, report.id); assert.equal(receipt.repo, f.repos[winner]);
+  assert.equal(receipt.root, f.roots[winner]); assert.equal(receipt.released, true);
+  assert.equal(receipt.childStatus, 0);
+});
+
+
+test('state inspection refuses an inode replaced by an actual writer; settled inspection retains both receipts', { timeout: 15000 }, async t => {
+  const f = await fixture(t), target = await inspectBudgetTarget(f.options(0));
+  const marker = join(f.dir, 'executions');
+  const options = { stateDir: f.stateDir, capacity: 1, target, argv: [process.execPath, '-e', `require('fs').appendFileSync(${JSON.stringify(marker)}, 'Acme\\n')`], foreground: true, json: true, timeoutMs: 5000 };
+  const initial = await runBudget(options); assert.equal(initial.status, 0);
+  const path = join(f.stateDir, 'state.json'), before = await stat(path);
+  const originalOpen = fileOperations.open, readerRelease = Promise.withResolvers();
+  let intercepted = false, readerWaiting = false, detached;
+  const observer = t.mock.method(fileOperations, 'open', async (...args) => {
+    const file = await Reflect.apply(originalOpen, fileOperations, args);
+    if (args[0] === path && !(args[1] & constants.O_CREAT) && !intercepted) {
+      intercepted = true; const actualStat = file.stat.bind(file);
+      t.mock.method(file, 'stat', async (...values) => {
+        readerWaiting = true; await readerRelease.promise;
+        detached = await actualStat(...values); return detached;
+      });
+    }
+    return file;
+  });
+  syncBuiltinESMExports();
+  let reading, writing, completed;
+  try {
+    reading = inspectBudget({ stateDir: f.stateDir, capacity: 1 });
+    await until(() => readerWaiting, 5000);
+    // The open is real. Let the real writer publish via storeState's atomic
+    // rename before the reader obtains its real stat; no verdict is mocked.
+    writing = runBudget(options); completed = await writing;
+    assert.equal(completed.status, 0); assert.equal(completed.released, true);
+    const published = await stat(path);
+    assert.notDeepEqual([published.dev, published.ino], [before.dev, before.ino]);
+    const refused = assert.rejects(reading, { code: 'unsafe_input_file' });
+    readerRelease.resolve(); await refused;
+    assert.deepEqual([detached.dev, detached.ino], [before.dev, before.ino]);
+    assert.equal(detached.nlink, 0, 'atomic replacement unlinked the opened state inode');
+    assert.equal(published.nlink, 1, 'the newly published state remains singly linked');
+  } finally {
+    readerRelease.resolve(); await Promise.allSettled([reading, writing]);
+    observer.mock.restore(); syncBuiltinESMExports();
+  }
+  const after = await inspectBudget({ stateDir: f.stateDir, capacity: 1 });
+  assert.equal(after.used, 0); assert.equal(after.coordinationBusy, false);
+  assert.deepEqual(after.leases, []);
+  assert.deepEqual(after.history.map(receipt => receipt.id), [initial.id, completed.id]);
+  assert.ok(after.history.every(receipt => receipt.released && receipt.childStatus === 0));
+  assert.equal(await readFile(marker, 'utf8'), 'Acme\nAcme\n', 'inspection never retries a workload');
 });
 
 test('weighted admission keeps spare capacity usable and refuses only excess work', async t => {
