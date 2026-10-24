@@ -52,8 +52,9 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Complete review. Keep held-out coverage zero and the dependent
-branch unmerged until phase 119’s owner review decision is resolved.
+Keep held-out coverage zero and the dependent branch unmerged until phase 119’s
+owner review decision is resolved. Exact-head review and CI passed as recorded
+in the evidence; revalidate both against the final head before landing.
 
 ## Trajectory
 
