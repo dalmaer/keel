@@ -69,6 +69,8 @@ By hand: ⚑ the owner's run on plates. The listing before and after goes into t
 
 ## Deliberately open
 
+- **2026-10-24 — Private claim token paths included.** The stable table identity `git ref:keel-claims/phase-` names local Git-directory ownership state, not a branch. Its writer remains held until the owner-machine transition; implement dual reads with unchanged provider/session ownership checks, and preserve existing tokens rather than rewriting historical claims. The shared remote ref `claims/phase-<n>` does not change.
+
 - **Saved searches and notification filters** under `label:keel:…` are the owner's, and plates can't see them. The listing reminds the owner of them, once.
 
 ## Next action

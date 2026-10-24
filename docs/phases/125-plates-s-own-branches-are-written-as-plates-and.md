@@ -60,6 +60,8 @@ By hand: phase 129's dispatched nights.
 
 ## Deliberately open
 
+- **2026-10-24 — Claim token storage is local ownership state.** Inspection of `lib/claim.mjs:tokenPaths` confirms the table identity `git ref:keel-claims/phase-` is a private Git-directory token path, not a remote branch. Preserve its stable table ID, correct its surface and defer its held writer to phase 128’s owner-machine transition. Do not move existing ownership tokens in phase 125; phase 128 must preserve dual reads and session attribution before selecting new writes. The shared remote claim remains `claims/phase-<n>`.
+
 - **Robot branches** `keel/robot-*` include an issue number. A robot PR open across the switch keeps its branch, and a new attempt on the same issue opens `plates/robot-*`. The robot's subject reservation (#216's open finding, robot-issue.mjs:273) must count both, or the issue is held forever.
 
 ## Next action
