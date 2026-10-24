@@ -405,3 +405,60 @@ claiming a public benchmark establishes Plates reliability.
 - Owner sets practical cost/latency and regression tolerances in the frozen plan.
   Until then no comparison is eligible for promotion. Defaults cannot invent
   acceptable spending or trade correctness for speed.
+
+## Phase 119 implementation contract — 23 October 2026
+
+The next implementation extends the frozen offline experiment, not provider
+activation. `retro evaluations compare --experiment <id>` reads a comparison in
+JSON or Markdown. `resume --experiment <id> --execution <absolute-json>` takes a
+schema-1 descriptor with an ordered `executions` array of existing slot requests.
+`reconcile --experiment <id>` inspects original operations without dispatch;
+`cancel --experiment <id>` closes admission and requests original-operation
+termination. Existing manifest/state arguments apply. Every mutation previews
+without writes, exits 3, and requires its exact `--yes --digest`; stale inputs
+refuse. Rescoring is a separate future extension and remains explicitly unsupported.
+
+Resume binds the frozen order, missing requests, source exports, actual controller
+identity, evidence snapshot, remaining allowance and host admission. It executes
+serially in AB/BA order. Completed and failed attempts stay immutable; the frozen
+zero-replacement policy does not permit retries. Unresolved earlier operations
+block dispatch. Comparison and per-trial budgets include recovery reservations;
+unknown usage cannot create new capacity. Existing single-case plans remain
+readable but cannot establish screening coverage: screening needs an affected
+case and an unrelated `taskClass: control`, each with five or more pairs.
+
+Keep the 1 MiB input and 4 MiB individual-record limits. A newly frozen comparison
+may explicitly declare total retention up to 64 MiB. Existing ceilings never
+increase. Admission checks conservative remaining-slot and recovery storage
+before execution, refuses insufficient capacity, and never prunes evidence.
+
+Recovery appends immutable records referencing original intents, operations,
+leases and evidence. A missing result may be reconstructed only from a verified
+artifact/verdict/operation/settlement chain. Missing containers or outputs remain
+unknown. Cancellation requested is separate from confirmed termination and never
+implies task acceptance. Only confirmed original-operation termination permits
+host-slot release; unknown cost stays unavailable or reserved.
+
+New harness controllers require durable lock ownership and exact lock identity
+so a positively verified dead original writer can be recovered under a separately
+previewed, serialized recovery operation. Elapsed time is not authority. Legacy
+empty, partially written, foreign-host or unverifiable ownership remains blocked
+for owner resolution; no automatic lock deletion. Concurrent recovery, live
+writers and replaced locks must refuse safely. Prove real controller termination
+and recovery with retained completed trials, not merely a caught exception whose
+finally block releases the lock normally. This extends the existing ledger lock;
+legacy handoff behavior and task authority do not change.
+
+Reports retain all planned pairs and every attempted slot, failure, invalid or
+missing observation; show raw acceptance counts, discordant pairs, comparable
+cohorts, duration distributions and resource coverage. Missing cost stays null.
+Controller/environment drift, unresolved model aliases and missing outcomes are
+comparability limits, not zeroes. Unset promotion thresholds mean an inconclusive
+recommendation. Offline scripted outcomes never establish agent efficacy or
+activate a candidate.
+
+The real Docker walk exercises twenty slots plus interrupted recovery. Live
+provider execution and an enforced spending gateway are still implementation
+and activation gaps, not merely an unpaid acceptance walk. Later corpus and
+learning work may use the offline contracts independently; measured live
+screening and promotion remain blocked until their own requirements are met.
