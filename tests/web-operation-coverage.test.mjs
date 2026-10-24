@@ -190,9 +190,20 @@ test('migration catalogue matches the shared approval parser without enabling we
 test('harness evaluation forms describe only local records and never enable hosted execution', () => {
   const row = catalogue(enabled).rows.find(row => row.id === 'cli.retro');
   const forms = row.cli[0].forms.filter(form => form.subcommand?.startsWith('evaluations '));
-  assert.deepEqual(forms.map(form => form.subcommand), ['evaluations plan', 'evaluations freeze', 'evaluations inspect', 'evaluations run']);
-  assert.ok(cliData.find(entry => entry.command === 'retro').forms.filter(form => form.subcommand?.startsWith('evaluations ')).every(form => form.parserSource === 'lib/evaluation-ledger.mjs'));
+  assert.deepEqual(forms.map(form => form.subcommand), ['evaluations plan', 'evaluations freeze', 'evaluations inspect', 'evaluations run', 'evaluations resume', 'evaluations reconcile', 'evaluations cancel', 'evaluations compare']);
+  const comparisonActions = ['evaluations resume', 'evaluations reconcile', 'evaluations cancel', 'evaluations compare'];
+  for (const form of cliData.find(entry => entry.command === 'retro').forms.filter(form => form.subcommand?.startsWith('evaluations '))) {
+    assert.equal(form.parserSource, comparisonActions.includes(form.subcommand) ? 'lib/evaluation-comparison.mjs' : 'lib/evaluation-ledger.mjs');
+  }
+  for (const action of comparisonActions) {
+    const form = forms.find(form => form.subcommand === action);
+    const flags = form.arguments.map(arg => arg.token);
+    assert.equal(flags.includes('--yes'), action !== 'evaluations compare');
+    assert.equal(flags.includes('--digest'), action !== 'evaluations compare');
+    assert.equal(flags.includes('--execution'), action === 'evaluations resume');
+    assert.match(form.constraints, /no hosted or live-provider activation/);
+  }
   assert.ok(forms.every(form => form.arguments.every(arg => ['limited', 'presentation-only'].includes(arg.treatment))));
   const paths = reviewedOperationSources().files.map(file => file.path);
-  for (const path of ['lib/evaluation-ledger.mjs', 'lib/evaluation-records.mjs', 'lib/session-ledger-io.mjs']) assert.ok(paths.includes(path));
+  for (const path of ['lib/evaluation-ledger.mjs', 'lib/evaluation-records.mjs', 'lib/evaluation-comparison.mjs', 'lib/evaluation-comparison-report.mjs', 'lib/session-ledger-io.mjs']) assert.ok(paths.includes(path));
 });

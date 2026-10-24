@@ -3,15 +3,21 @@ import { mkdtemp, realpath, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { run } from './run.mjs';
+import { run, cleanEnv } from './run.mjs';
+import { spawn } from 'node:child_process';
+// Child handle is needed to prove real controller death, with the shared env isolation.
+export function evaluationController(source) {
+  return spawn(process.execPath, ['--input-type=module', '-e', source], { env: cleanEnv(), stdio: ['ignore', 'pipe', 'pipe'] });
+}
 import { acmeEvaluationPlan } from './evaluation-plan.mjs';
 import { sealRecord } from '../../lib/evaluation-records.mjs';
 import { initializeWorkspace } from '../../lib/web/workspace.mjs';
 import { evaluations } from '../../lib/evaluation-ledger.mjs';
 export const IMAGE = 'sha256:6449e19d8184d84062525b6a7524def03146c2cb04a7f08b076680d0e8e4240a';
-export async function evaluationWorld(t, { builder, expected = 'Acme\n', timeoutSeconds = 20 } = {}) {
+export async function evaluationWorld(t, { builder, expected = 'Acme\n', timeoutSeconds = 20, allowanceMinutes = 28, retentionBytes = 64 * 1024 * 1024, maxEvents = 1000 } = {}) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'acme-isolation-')));
-  t.after(() => rm(root, { recursive: true, force: true }));
+  if (process.env.PLATES_EVALUATION_RETAIN === '1') t.diagnostic(JSON.stringify({ retainedPrivateWorkspace: root, authority: 'synthetic-test-evidence-only' }));
+  else t.after(() => rm(root, { recursive: true, force: true }));
   const repository = join(root, 'repository'); await mkdir(join(repository, '.plates'), { recursive: true });
   const git = args => { const r = run('git', ['-c', 'core.fsmonitor=false', '-C', repository, ...args]); if (r.status !== 0) throw Error(r.stderr); return r.stdout.trim(); };
   await writeFile(join(repository, '.plates/plates.json'), JSON.stringify({ repo: 'Acme/widget' }));
@@ -30,7 +36,7 @@ export async function evaluationWorld(t, { builder, expected = 'Acme\n', timeout
   b.materials.push(build, probe);
   b.cases[0] = sealRecord({ ...b.cases[0], startingCommit: revision, environment: { ...b.cases[0].environment, image: IMAGE }, acceptanceManifest: ref(b.materials[0]), allowlist: { tools: ['pinned-image-tools'], network: [], paths: ['answer.mjs'] }, limits: { timeoutSeconds, minutes: 2, currencyUsd: null } });
   b.configurations = b.configurations.map(c => sealRecord({ ...c, provider: 'offline', runtime: { ...c.runtime, name: 'scripted-node-v1' }, routing: { ...c.routing, provider: 'offline' }, environment: b.cases[0].environment, overlays: [{ path: 'build.mjs', material: ref(build) }, { path: 'probe.mjs', material: ref(probe) }] }));
-  b.comparison = sealRecord({ ...b.comparison, baseline: ref(b.configurations[0]), candidate: ref(b.configurations[1]), cases: b.cases.map(ref), pairs: b.comparison.pairs.map(p => ({ ...p, case: ref(b.cases[0]) })), retention: { ...b.comparison.retention, maxBytes: 4 * 1024 * 1024 } });
+  b.comparison = sealRecord({ ...b.comparison, baseline: ref(b.configurations[0]), candidate: ref(b.configurations[1]), cases: b.cases.map(ref), pairs: b.comparison.pairs.map(p => ({ ...p, case: ref(b.cases[0]) })), allowance: { ...b.comparison.allowance, minutes: allowanceMinutes }, retention: { ...b.comparison.retention, maxBytes: retentionBytes, maxEvents } });
   await writeFile(bundle, JSON.stringify(b));
   const admission = { stateDir: join(root, 'host-budget'), manifest: managed, capacity: 1, weight: 1, repo: 'Acme/widget' };
   const request = { schemaVersion: 1, pairId: 'acme-pair-0', arm: 'baseline', repository, sourcePaths: ['answer.mjs'], builderArgv: ['node', '/work/build.mjs'], admission };

@@ -416,8 +416,10 @@ Phases 117–123 specify task-level baseline/candidate evaluation and review les
 promoted through evidence. These extend the experiment ledger, bounded execution,
 learn inbox and reviewed delivery. Phase 117 implements the local record
 foundation; phase 118 adds offline scripted execution with independent artifact
-verdicts. Paired comparison, live agent screening and measured promotion remain
-designed. The offline boundary does not establish model efficacy.
+verdicts. Phase 119 implements offline paired comparison and original-operation
+recovery, preserving completed attempts and unknown outcomes. Live provider
+execution, enforced provider spending and measured promotion remain pending.
+The offline boundary does not establish model efficacy.
 Builders submit artifacts to independently controlled acceptance, comparisons keep
 all attempts and unknown costs, and no result activates a production rule.
 See [harness evaluation](specs/harness-regression-evaluation.md),

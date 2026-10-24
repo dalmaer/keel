@@ -70,3 +70,20 @@ known broken and corrected historical artifacts through clean synthetic package
 consumers. This tests machinery and acceptance sensitivity, not whether a model
 using candidate instructions improves. No paid provider, comparison runner,
 held-out generalization or lesson promotion is activated.
+
+
+## Implementation follow-up: phase 119
+
+The offline experiment now supports ordered missing-slot resume, compare,
+explicit original-operation reconciliation and cancellation. It extends the
+existing host coordinator and session ledger rather than adding a scheduler.
+New harness locks retain verifiable ownership; legacy ambiguous locks remain
+blocked. Stage authorization and immutable reconciliation preserve failed or
+unknown attempts and completed verdicts. The
+[phase evidence](../evidence/2026-10-23-evaluation-comparison.md) records the real
+twenty-slot CLI walk and actual controller termination/resume.
+
+This is implemented offline machinery, not a live provider adapter. Enforced
+provider spending, paid screening, held-out generalization and measured
+promotion remain gaps. Phase 119 stays partial; its remaining live requirements
+do not prevent independent corpus and lesson-record implementation.

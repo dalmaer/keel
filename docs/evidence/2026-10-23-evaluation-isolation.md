@@ -120,3 +120,19 @@ The same run reported a climb-guard failure under stalls (seed 1942849892),
 retained for investigation. This failed run is not replaced by an earlier green
 run. The correction's nine focused regression checks and typecheck passed.
 Log: `/tmp/plates-phase118-fix-check.log`.
+
+### Final reviewed revision and integration
+
+On 23 October 2026 (America/Denver), [CI check 40062036874](https://github.com/dalmaer/plates/actions/runs/40062036874)
+passed on exact revision `586d9b2bf56314b637d9703b989f72ea447a4a8f`:
+2,915 passed, zero failed, eight skipped. Typecheck and impact also passed.
+This is remote CI evidence, not a passing replacement for the failed local run.
+The real Docker checks above were run separately; skipped CI tests are not Docker
+proof. Both local subprocess failures and the inconclusive isolated diagnostics
+remain in [#248](https://github.com/dalmaer/plates/issues/248).
+
+The required current-head review gate exited 0 after all findings were answered.
+[PR #239](https://github.com/dalmaer/plates/pull/239) merged as
+`d8cbf3bb5bfdf7fbc224a94f78aea971d2ca23f3`; its tree matched the reviewed head.
+The phase claim was released. Merge is recorded separately from the independent
+artifact acceptance and supplies no evidence of live agent improvement.

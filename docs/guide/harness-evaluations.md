@@ -1,6 +1,6 @@
 # Freeze harness evaluation records
 
-`plates retro evaluations plan|freeze|inspect|run` is the available CLI surface.
+`plates retro evaluations plan|freeze|inspect|run|resume|reconcile|cancel|compare` is the available CLI surface.
 Plan/freeze/inspect preserve private records. Run is an explicitly approved offline
 Docker trial; no model request or production promotion occurs. Schema-1 `retro sessions` is unchanged.
 
@@ -86,7 +86,7 @@ execution reservations and interrupted slot records appear as explicit uncertain
 metadata; inspect never repairs or deletes their bytes. Run refuses these states
 before preflight/admission. Recovery remains deferred. Identical approved retries
 return the original record; uncertain or partial operations never start again.
-Resume, cancel, compare and rescore remain unavailable.
+Resume, reconcile, cancel and compare extend the same frozen experiment. Rescore remains unavailable.
 
 The strict execution descriptor is:
 
@@ -189,3 +189,67 @@ PLATES_EVALUATION_DOCKER=1 node --import ./tests/helpers/hermetic.mjs --test tes
 
 Normal focused tests leave Docker tests skipped. This opt-in validates machinery
 and adversarial boundaries; it is not a paid agent evaluation or phase acceptance.
+
+
+## Paired comparison and recovery
+
+`compare --experiment <id> --json` returns `{action, preview:false, report, markdown}`;
+omit JSON for Markdown. Every planned slot remains in the report, including
+failed, invalid, cancelled and missing work. Only an explicit `taskClass: control`
+provides control coverage. Offline scripted results are machinery observations.
+
+`resume --experiment <id> --execution <absolute-json>` previews a descriptor with
+`schemaVersion: 1` and `executions`, an array of the existing single-slot request
+objects for **every missing slot**, ordered by the frozen pairs and their AB/BA
+arm order. Approve its returned digest with `--yes --digest`. Completed or failed
+slots are never repeated. Inputs, controller bytes and retained evidence are bound
+to the preview. New plans can explicitly retain up to 64 MiB total; individual
+input/record caps remain 1/4 MiB. Resume reserves conservative storage for all
+remaining trials and recovery, plus 20 seconds per planned slot for recovery.
+Frozen ceilings never grow; insufficient old plans remain inspectable.
+
+`reconcile --experiment <id>` previews original-operation recovery. New harness
+locks record host, UID, PID, random identity and durable bytes. Recovery requires
+the exact previewed inode/bytes and a same-host, same-UID ESRCH observation, under
+an exclusive lock-mutation fence. Active/PID-reused, legacy empty, partial and
+foreign locks refuse. A crash in the short mutation fence remains blocked for
+owner resolution; it is never automatically stolen. Old lock bytes are archived.
+
+New stage authorization receipts are durable before Docker create. Recovery
+validates their ordered chain; missing Docker objects for an authorized stage
+remain unknown. Future stages without authorization can be classified not-dispatched
+only through this versioned protocol, never from container absence. A malformed
+receipt blocks terminal recovery. Original artifacts, verdicts and partial bytes
+remain unchanged; validated reconciliation receipts carry derived result evidence.
+A verified original verdict survives result recovery. Otherwise acceptance is
+unknown even after termination is confirmed.
+
+`cancel --experiment <id>` previews admission closure and bounded stop requests.
+Requested cancellation is not confirmed termination. Each comparison permits one
+reconcile and one cancel attempt, reserved durably before effects; each operation
+has a one-second total Docker deadline. An interrupted reservation consumes its
+worst-case allowance. Repeat the original approved digest only to inspect its
+receipt; it does not repeat effects. Uncertain termination blocks further dispatch
+and retains the host lease. Rescore and paid provider execution remain unsupported.
+
+
+### Minute coverage
+
+Each frozen trial minute ceiling includes its measured input preparation and
+admitted execution. Host Git inspection/export and Docker image inspection share
+a preparation deadline. Before each new slot, the controller rechecks the current
+admission manifest hash and repository authorization/identity under the remaining
+slot deadline; capacity is reserved atomically by the existing coordinator.
+The approved invocation reuses the captured source and image;
+resume does not repeat image preflight or source export for each slot after
+approval. Preparation time and controller admission time reduce the remaining
+slot deadline. Builder/evaluator deadlines reserve cleanup time and cleanup is
+also capped by that slot's total deadline. An exhausted deadline refuses new
+dispatch; a started or uncertain attempt retains its full reservation.
+
+Receipts retain `approvedExecution` timing bounds. `resources.wallMs` keeps the
+older dispatch-through-cleanup measurement; `approvedWallMs` and `preparationMs`
+name the broader measured coverage. Earlier read-only preview calls, human review
+waiting, and arbitrary stalls in host filesystem/kernel I/O are not billed agent
+work or claimed hard wall-time coverage. No provider currency entitlement is
+implemented. Whole-plan reservation is conservative; unknown usage is not refunded.
