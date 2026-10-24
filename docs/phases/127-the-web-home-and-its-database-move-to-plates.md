@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-23
+status: partial
+since: 2026-10-24
+owes: walk
 goal: G2
 spec: 2
 depends: [124]
-note: "Specified 2026-10-23 (docs/specs/name-transition.md). The hosted home's cookies, env, headers and database functions move to plates names with forwarding for the old ones, so no session ends and no deployed build loses a function it calls."
-evidence: []
+note: "Compatibility baseline and tested cutover source complete; 20 cookie, operation-marker and public RPC writer rows remain held. Owner-verified deployment, database migration and separately reviewed row activation still required."
+evidence: ["evidence/2026-10-24-hosted-name-transition.md"]
 issue: 243
 ---
 
@@ -34,10 +35,11 @@ The design is [Name transition](../specs/name-transition.md), "Hazards".
 
 ## Acceptance
 
-- [ ] A session from a keel cookie is still signed in after the upgrade and leaves with a plates cookie. One request carrying both is read once. `tests/web-auth.test.mjs`: "a keel session survives, and leaves as a plates one"
-- [ ] An upgrade to new cookie writers followed by rollback to the pinned compatibility baseline preserves the authenticated session, login CSRF and an in-flight OAuth callback without renewing expiry; revocation/logout cannot revive an old alias. A legacy-only rollback target refuses writer activation. tests/web-auth.test.mjs: "cookie cutover survives rollback to the compatibility baseline"
-- [ ] With only `KEEL_WEB_*` set the home starts; with both set and different it refuses, naming both. `tests/web-config.test.mjs`: "web env under both names"
-- [ ] After the migration, a build calling `keel_*_rpc` and one calling `plates_*_rpc` get the same rows, and re-running the migration changes nothing. `tests/web-migrations.test.mjs` (pglite): "renamed functions with forwarders"
+- [x] A session from a keel cookie is still signed in after the upgrade and leaves with a plates cookie. One request carrying both is read once. `tests/web-auth.test.mjs`: "a keel session survives, and leaves as a plates one"
+- [x] The local new-writer source candidate followed by rollback to the source-pinned compatibility baseline preserves the authenticated session, login CSRF and an in-flight OAuth callback without additional expiry renewal; revocation/logout cannot revive an old alias. Legacy-only rollback reader mutations fail compatibility validation, and shipped writer rows remain held pending a separate reviewed activation. `tests/web-auth.test.mjs`: "cookie cutover survives rollback to the compatibility baseline". This checks source compatibility, not a deployed rollback pin.
+- [x] With only `KEEL_WEB_*` set the home starts; with both set and different it refuses, naming both. `tests/web-config.test.mjs`: "web env under both names"
+- [x] After the migration, a build calling `keel_*_rpc` and one calling `plates_*_rpc` get the same rows, and re-running the migration changes nothing. `tests/web-migrations.test.mjs` (pglite): "renamed functions with forwarders"
+- [ ] The owner verifies and pins the deployed compatibility baseline, then verifies the real browser session/login/OAuth upgrade and rollback before writer activation. ⚑ by hand: the owner
 - [ ] The owner applies the migration to the hosted database. A build on the old names and one on the new both serve, and the evidence shows both answers. ⚑ by hand: the owner
 
 ## Your part
@@ -68,6 +70,10 @@ By hand: ⚑ the owner applies the migration, and checks both builds and their o
 
 ## Next action
 
-List every `keel_*_rpc` and its grants from `lib/web/migrations/`, and draft the forwarding migration against pglite.
+Owner: deploy and verify the compatibility-reader baseline, pin its revision as the rollback target, measure the hosted schema/grants/dependency impact, then approve/apply migration 014 and verify both hosted callers. Only after those observations may a separate reviewed source change move the exact 20 held cookie/operation-marker/public-RPC writer rows to dual. Complete the real browser upgrade/rollback walk and record the observed revisions. Do not infer hosted acceptance from the source PR or its merge.
 
-Cookie activation prerequisite: prepare the compatibility-reader baseline and its session/login/OAuth rollback tests first. Do not activate new cookie writers before the owner verifies that baseline as the rollback target.
+## Trajectory
+
+- **2026-10-24** — In-flight login/OAuth cookies do not return browser expiry. Preserve and consume their original flows through dual readers; only authenticated session aliases can use the recorded absolute expiry. Fresh flows clear the alternate alias consistently.
+- **2026-10-24** — Recovery markers need the same rollback boundary as cookies. Cookie, operation-marker and public RPC writer rows stay held in the compatibility baseline; candidate source copies exercise the later exact-row transition without creating runtime activation authority.
+- **2026-10-24** — The forwarding migration is exercised in real PostgreSQL via development-only PGlite. Production callers remain on old RPC names before migration; no failed or uncertain mutation is retried under another alias.

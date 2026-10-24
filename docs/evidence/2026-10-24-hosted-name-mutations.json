@@ -1,0 +1,889 @@
+{
+  "date": "2026-10-24",
+  "scope": "Builder disposable source copies; conductor inspected runner and logs. Baseline plus 57 isolated mutations; no hosted activation.",
+  "runnerSha256": "fef213d4575f37d497e334b5a228fb45f18f10314eaa651e688306f416498940",
+  "observations": [
+    {
+      "name": "baseline",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs",
+        "tests/web-migrations.test.mjs",
+        "tests/web-operations.test.mjs",
+        "tests/web-fleet-updates.test.mjs"
+      ],
+      "exit": 0,
+      "expected": 0,
+      "logSha256": "17ef43d44538ab578b463e36fc19e8d026b4c55bfc84202ff457fd20e7399c32",
+      "assertionFailure": false
+    },
+    {
+      "name": "web___Host-keel-session-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "b14d88936c5b800325b1a2e8da8f8f91485e7ab345f54e448fe9662272d32f80",
+      "assertionFailure": true
+    },
+    {
+      "name": "web___Host-keel-session-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "44544cf131627e18e85b6aeb05df476b82d90834c22c5bb725baef55788c1615",
+      "assertionFailure": true
+    },
+    {
+      "name": "web___Host-keel-login-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "1f1bc90b2c04281df126f9f56a2adfc0324be9cdbed46ec5906e085672536208",
+      "assertionFailure": true
+    },
+    {
+      "name": "web___Host-keel-login-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "56405c3b65f68a8763e4c00c8abb86a93f7159d10579766199d8ede6ee64db31",
+      "assertionFailure": true
+    },
+    {
+      "name": "web___Host-keel-oauth-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "92698cf8e2599da0da8cabcb92895e7945c2cb1f47198a0b6a1f26f7f1391478",
+      "assertionFailure": true
+    },
+    {
+      "name": "web___Host-keel-oauth-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "d4d4f39ffb90dcd9f36dfcf46b6fab5b4a0ea2b6e83b0b173152ca8c919089c2",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_ORIGIN-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "5d223e1b43f984ed7f5e2ea759e7a3f0d213df6047bfe3cb2a3c7abcb5cdda86",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_ORIGIN-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "424aae735b7a43f9b54a87fe737709796a709e9f71bbc9a75fe0ad2215e7f630",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_OPERATION-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "782d1fc7d4e48d591f29367d2dc497aea13b72a8c671a324da74312f616a5e19",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_OPERATION-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "cc1d66efcfdc62e90c1cc802e8d0f906fb92adf7dddfa3b2a4caa814353da082",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_CONFIG-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "084d342791d7dc54356fab11d0501fe0c23065425f897078842272e96071da2c",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_WEB_CONFIG-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "7721c7135a2aab8f3ad364f796a8e94fce7110ef3b272277b2e20916b30694f3",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_CONNECTION_ENCRYPTION_KEY-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "331964c8ab637c7dee196506456210fe3a604f3c954101b9c66eaf44d02ba58f",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_CONNECTION_ENCRYPTION_KEY-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "cb9d82aaf14ae75d9c59984c2dd6300487754264e10ca17d140eab2a7c4324e9",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_GITHUB_CLIENT_SECRET-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "7a3bb4a47020f8b4eec2e8470cc42933b0751cc85bd8c1c35ba226c1534eed1f",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_GITHUB_CLIENT_SECRET-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "73f2f5532ef5d6bb247e2d683464386eaa24e016e435fdfd81cbea6212c30a79",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_SESSION_ENCRYPTION_KEY-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "8b88a5444eca2329a733955374358644f40b22e8694cd0c3c5a74c0f2df88adc",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_KEEL_SESSION_ENCRYPTION_KEY-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "6f0fca14131baa6f5679785a47055672f0d81a96dd8a1d0c275772c284317d7f",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_Keel-Operation-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "70eae3d3f0e1a7690281fa586f92a2f4e6e4305300b0c28fed0ca2818e89712c",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_Keel-Operation-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "7d908dfdc1807c0f12a0020031b5d3cfae7906e7220c71f53cd5216a78337abe",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_Keel-Update-Operation-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "6259188fd12927d19fff84652f972b951f27a03cb6cc184958dfb6a170db4759",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_Keel-Update-Operation-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "2bdc3d1f18ad2dec434c219069f94f86152985224802012b38333f7ada828660",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_trusted-keel-without-plates",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "b2eff844ce2852d43216d6fa3b04f3da8b29e00d673d91fcd0a813407bffec9a",
+      "assertionFailure": true
+    },
+    {
+      "name": "web_trusted-keel-without-keel",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=compatibility baseline|identical cookie|web env|service starts|operation aliases|trusted checkout|HTTP entrances",
+        "tests/web-auth.test.mjs",
+        "tests/web-config.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "15eccca96f0613ba6b92df3c72ee7cf29440c6bf23b0f03f1ea179a1aa614a92",
+      "assertionFailure": true
+    },
+    {
+      "name": "writer-login-ignores-candidate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "436b749841e239f90488adec50de25cf3292e851fa905ce64e7052ba7b0624d5",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-login-keel-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "af9f0ea8c117b3a308a600e9ca643442226ae80d742f55c3e9d1ca14d4f9e824",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-login-plates-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "338de10b7818435902dfc57e5532ff0ca48b239009bca030c82309872b83466c",
+      "assertionFailure": true
+    },
+    {
+      "name": "writer-oauth-ignores-candidate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "93330dda4c68fca07a21017a05efe5d50b15fb6f4db1db858c4be9aeea6bcd11",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-oauth-keel-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "5aaedb1f80cd163b4d075515bf1efab8fbdaeaf48fbac554a56275ef15941641",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-oauth-plates-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "710f676fb6b6920b296ba9ee137afea240a987cabe9d0b1d251df4797c4adeba",
+      "assertionFailure": true
+    },
+    {
+      "name": "writer-session-ignores-candidate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "bc6ad15aab80772e83b43e1b2aeaff6c0a53c31678a41265dc8ed4e503f62542",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-session-keel-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "8dc274904207da84018745ec4e93cfdf95537e7a38eaf254824550a42671f43f",
+      "assertionFailure": true
+    },
+    {
+      "name": "fresh-session-plates-leaves-alternate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=candidate fresh|rollback browser replaces",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "a6a8c6c677790e442fc24c4f64a6716f4b807be3544f24f1f7a416bb4ece07a5",
+      "assertionFailure": true
+    },
+    {
+      "name": "missing-server-propagation",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "e02311c7a69edce375ca90f083fa0852a612e2c384f684077fba1784f10d6f39",
+      "assertionFailure": true
+    },
+    {
+      "name": "migration-resets-lifetime",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=a keel session survives|pending candidate alias",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "3ba32a8d435f5e336bab6a20a7380cf03bc8e8fe42eb0ca23b624ce432676a39",
+      "assertionFailure": true
+    },
+    {
+      "name": "migration-emits-expired-cookie",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=pending candidate alias",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "25b627b9c1b2c38aa6551bbeea4057c146d9ace17f7808f268e256d91f4ae819",
+      "assertionFailure": true
+    },
+    {
+      "name": "migration-ignores-epoch",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=pending candidate alias",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "ff13bc7c8608e6cc6c10b8ec139971aadfb1439dcb252a7b24fbda2a84e01c6c",
+      "assertionFailure": true
+    },
+    {
+      "name": "ordinary-read-reissues-cookie",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "baf835285b424e0159a26fb59ddcf8cbafed5b2f9ad1c33b7c23fb3545fcbe22",
+      "assertionFailure": true
+    },
+    {
+      "name": "login-replay-under-other-alias",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=login CSRF consumes once",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "55b9773dca626f188a88c9378b66b5f17ecc6b9f5d0997b1f24a1a9cdd95b365",
+      "assertionFailure": true
+    },
+    {
+      "name": "migration-adds-idle-renewal",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=a keel session survives",
+        "tests/web-auth.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "92c679db7032dfa31e746e81f73c299f32e0c5ccff7466ca72225da3e2c1f353",
+      "assertionFailure": true
+    },
+    {
+      "name": "marker-Keel-Operation-ignores-candidate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=held and candidate",
+        "tests/web-operations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "22cd8a56fca76d01b92d6b3122f2ade6d453a624381cd52922324bf84c60b15b",
+      "assertionFailure": true
+    },
+    {
+      "name": "marker-Keel-Update-Operation-ignores-candidate",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "--test-name-pattern=held and candidate",
+        "tests/web-fleet-updates.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "14e276113fe8d26b316baec288ba21caf521dfddb5f29785eec303f73038a21b",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_model_credential_read",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "e68bab1cd89484afb8364761d62ea24bc2baf413ba1e27da38b3c92f0f699ba2",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_web_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "b10eb6576f2650823ca28b7e3d98df4f6b090756dbe228e4aabb41a4abfca43b",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_home_cache_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "86017aed6931512b61f55c9e8f22e8ff64552588c2f2d6c9aad1129a4bc84b40",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_home_quota_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "b3805b5745d114d0898d9b72b6115befac441a0afb4dd8dd81c36dc0f0de380e",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_home_cursor_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "674cb9fc96b143f935dcefcb5b1a33423e67539fe88967dbde2b66b9870bfdd6",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_decision_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "01de19d924ee732fe6dcc45c9580d55144b602aa271f8aea61b12265a69f2e3b",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_walk_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "5b2f2e250ddae917721438ce4bbfce3f4f5bf005ade3cb2668f00924089b22f7",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_media_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "a62ab6dbe22bae21ce0205aa1d86afa74cc9e55e18f9b53742d7ca39eace34ba",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_connection_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "f012b77daf5aee537adf010e928542503b7e97d5a4c1f9678a107e4909d33f90",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_job_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "d951709e9d11e3521dc7150aef2e9625e79095fd37601ebeb28603a2fbfab160",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_fleet_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "7dbd71edd0eb33340cc05775f495de8e43a6a4275d2986819c420358f25a844d",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_model_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "a1d6c17ee38db4ab93217c9adadc6016b30d42a492d3be96b6891af8a1f632d2",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_editor_draft_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "3b77d2c3c4e098717430dae1732036e428f77f2ea870f1a532e44c1417b718c5",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_night_retry_rpc",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "baf7a7a5e9c3f62063d12a5acc55fafe7057c1ae65bfdc149f9aeaeff5039086",
+      "assertionFailure": true
+    },
+    {
+      "name": "database-missing-plates_run_history",
+      "command": [
+        "/opt/homebrew/bin/node",
+        "--import",
+        "./tests/helpers/hermetic.mjs",
+        "--test",
+        "tests/web-migrations.test.mjs"
+      ],
+      "exit": 1,
+      "expected": 1,
+      "logSha256": "12df5297865b778724566cf04ec566cb0df3fecf81f67e6daeda407e123014b1",
+      "assertionFailure": true
+    }
+  ]
+}

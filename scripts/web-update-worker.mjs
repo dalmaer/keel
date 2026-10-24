@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { webEnv } from '../lib/web/name-transition.mjs';
+import { trustedCheckout } from '../lib/web/trusted-checkout.mjs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runUpdateWorker, prepareUpdateTree } from '../lib/web/update-worker.mjs';
@@ -12,12 +14,12 @@ try {
     const result = await prepareUpdateTree(root, targetRoot, version, JSON.parse(await readFile(manifest, 'utf8')));
     process.stdout.write(JSON.stringify(result));
   } else {
-    const result = await runUpdateWorker({ origin: process.env.PLATES_WEB_ORIGIN ?? process.env.KEEL_WEB_ORIGIN,
-      operationId: process.env.PLATES_WEB_OPERATION ?? process.env.KEEL_WEB_OPERATION, oidcUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
+    const result = await runUpdateWorker({ origin: webEnv(process.env, 'KEEL_WEB_ORIGIN'),
+      operationId: webEnv(process.env, 'KEEL_WEB_OPERATION'), oidcUrl: process.env.ACTIONS_ID_TOKEN_REQUEST_URL,
       oidcToken: process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN, sha: process.env.GITHUB_SHA,
       workflowSha: process.env.GITHUB_WORKFLOW_SHA, runAttempt: process.env.GITHUB_RUN_ATTEMPT,
       projectRoot: join(process.env.GITHUB_WORKSPACE, 'project-source'),
-      targetRoot: join(process.env.GITHUB_WORKSPACE, 'trusted-keel') }, { signal: abort.signal });
+      targetRoot: await trustedCheckout(process.env.GITHUB_WORKSPACE) }, { signal: abort.signal });
     process.stdout.write(`${JSON.stringify({ worker: 'update-preparation-v1', ...result })}\n`);
     process.exitCode = result.state === 'succeeded' ? 0 : 1;
   }

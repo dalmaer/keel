@@ -1,3 +1,4 @@
+import { nameCandidate } from './helpers/web-name-candidate.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decisionHarness,healthTarget,shapingTarget,token } from './helpers/web-decisions.mjs';
@@ -177,4 +178,24 @@ test('missing Ref, wrong immutable identity and unknown changed-file coverage ke
  const {createDecisionGitHub,gitBlob}=await import('../lib/web/decision-github.mjs'),store=createOperationStore(h.config,h.fetcher),row=await store.read(p.operationId,store.scopeFor(1,h.project));
  assert.equal(await createDecisionGitHub(token,options(h)).recover({...row.value.intent,originalBlob:gitBlob(row.value.intent.content)}),null);
  assert.equal((await recover(h,p.operationId)).state,'committed');assert.equal(h.source.writes.length,1);
+});
+
+
+test('held and candidate operation markers recover original uncertain commits across releases', async t => {
+  const candidate = await nameCandidate(t, { cookies: false, markers: true });
+  for (const candidateWrites of [false,true]) {
+    const h = decisionHarness();
+    const writerDecisions = candidateWrites ? candidate.decisions.createDecisions : createDecisions;
+    const writerOperations = candidateWrites ? candidate.operations.createOperations : createOperations;
+    const readerOperations = candidateWrites ? createOperations : candidate.operations.createOperations;
+    const p = await writerDecisions(h.config, options(h)).preview(h.access, token, h.project, { target: healthTarget, choice: 'accept', reason: 'Acme owner decision.' });
+    assert.ok(p.commitMessage.endsWith(`${candidateWrites ? 'Plates' : 'Keel'}-Operation: ${p.operationId}`));
+    h.source.mode = 'lost';
+    const pending = await writerOperations(h.config, options(h)).apply(h.access, token, h.project, p.id, { reauthorize: async () => h.access });
+    assert.equal(pending.state, 'uncertain');
+    const original = h.source.commits[0].commit.message;
+    const recovered = await readerOperations(h.config, options(h)).recover(h.access, token, h.project, p.operationId);
+    assert.equal(recovered.state, 'committed');
+    assert.equal(h.source.writes.length, 1); assert.equal(h.source.commits[0].commit.message, original);
+  }
 });

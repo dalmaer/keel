@@ -652,7 +652,7 @@ test("null mutation responses are malformed and only exact metadata can confirm 
 });
 
 
-test("connection environment rename keeps explicit activation and absent-only legacy fallback", () => {
+test("connection environment rename keeps activation and refuses conflicting aliases", () => {
   const h = connectionsHarness();
   const canonical = Buffer.alloc(32, 103).toString("base64");
   const legacy = Buffer.alloc(32, 104).toString("base64");
@@ -664,8 +664,9 @@ test("connection environment rename keeps explicit activation and absent-only le
     PLATES_SESSION_ENCRYPTION_KEY: h.secrets.encryptionKey,
     KEEL_CONNECTION_ENCRYPTION_KEY: legacy,
   };
-  assert.deepEqual(configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: canonical }).connectionEncryptionKey, Buffer.from(canonical, "base64"));
+  assert.throws(() => configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: canonical }), /conflicting_names/);
+  assert.deepEqual(configFromEnv({ ...env, KEEL_CONNECTION_ENCRYPTION_KEY: undefined, PLATES_CONNECTION_ENCRYPTION_KEY: canonical }).connectionEncryptionKey, Buffer.from(canonical, "base64"));
   assert.deepEqual(configFromEnv(env).connectionEncryptionKey, Buffer.from(legacy, "base64"));
-  assert.throws(() => configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: "" }), { code: "invalid_service_configuration" });
+  assert.throws(() => configFromEnv({ ...env, PLATES_CONNECTION_ENCRYPTION_KEY: "" }), /conflicting_names/);
   assert.equal(configFromEnv({ ...env, PLATES_WEB_CONFIG: JSON.stringify(h.input) }).connections, undefined);
 });
