@@ -204,3 +204,53 @@ the conductor runs the full `npm run check` and `npm run typecheck` on the final
 tree and a retained public-CLI walk. Tests exercise actual frozen receipts and
 negative controls; synthetic arithmetic is labelled machinery, never paid-agent
 evidence. Keep the phase partial while its named real screening remains unavailable.
+
+## Retained arithmetic projection
+
+The pure criteria interface is `validateScreeningCriteria(criteria, caseIds)`,
+`screenComparison(criteria, verifiedReport)` and
+`validateScreeningResult(result)`. It does not authenticate arbitrary caller
+JSON. Only the ledger verifier supplies the projection to a learning mutation.
+
+The exact result envelope is
+`{method,disposition,caseResults,reasons,limitations}`. Each case result contains
+`{caseId,role,plannedPairs,completedPairs,comparablePairs,arms,discordant,criteria}`.
+Roles are target, control, unclassified (legacy null criteria), or unassigned
+(attempts whose case cannot be assigned, with null caseId). The three arm keys
+are baseline, candidate and unassigned, so unattributed attempts retain their
+costs without being silently assigned to a favorable cohort.
+
+Each arm retains planned, attempted, attempts, completed, failed, invalid,
+missing, accepted, denominator and unknown counts, failure-category counts,
+currencyUsd, wallMs, interventions and repairRounds. Currency retains
+knownSubtotal, observed, denominator, complete, total and costPerAcceptedOutcome;
+wall time retains raw nullable values, observed/denominator, median/min/max.
+Intervention and repair declarations retain their recorded subtotal and source
+coverage while actualCount remains null and actualCoverage unknown.
+
+Discordance retains baselineFailCandidatePass and baselinePassCandidateFail.
+The five criterion keys are comparablePairs, targetNetGains,
+controlRegressions, additionalCurrencyUsd and additionalMedianWallMs. Each is
+`{status,observed,threshold}`, with passed, failed, unknown or not-applicable
+status. Applicability follows the case role. Counts, distributions, cost
+arithmetic and criterion statuses must agree; unknown keys and overflowing
+records refuse. The result cannot claim supported while any criterion is
+unknown/failed or an execution/comparability blocker remains. These structural
+checks supplement retained source verification; they do not replace it.
+
+## Real-corpus environment limitation found in the CLI walk
+
+On 24 October 2026 the first conductor walk refused before execution:
+the two synthetic case definitions had different installer fingerprints, while
+one shared configuration named only the first environment. The guard was correct.
+The controlled fixture must use genuinely identical probe/source environment
+inputs when testing this existing single-environment adapter.
+
+This also exposes an implementation gap for the intended historical
+package-entry/control cohort: their independently pinned source/probe environments
+differ. The current configuration has one environment identity. A future explicit
+per-case configuration mapping must preserve both arms' exact case environment,
+freeze those mappings and bind actual deliveries; silently normalizing hashes or
+weakening the runtime equality check is not acceptable. Real screening therefore
+needs that mapping as well as provider/spending integration and owner allowance.
+The offline same-environment walk does not establish heterogeneous-corpus execution.
