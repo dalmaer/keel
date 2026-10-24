@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { PLATES_NIGHT_CANONICAL } from '../lib/web/night-retry-current.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -495,7 +497,26 @@ test("renamed Plates night source refuses legacy retry authority even after inve
   await repin(h);
   await assert.rejects(preview(h), { code: "night_canonical_source_required" });
   h.profile.workflow.path = ".github/workflows/plates-night.yml";
-  assert.throws(() => validateNightProfile(h.profile), { code: "invalid_night_profile" });
+  assert.equal(validateNightProfile(h.profile).workflow.path, ".github/workflows/plates-night.yml");
+  await repin(h);
+  await assert.rejects(preview(h), { code: "night_canonical_source_required" });
   assert.equal(h.nightState.posts.length, 0);
   assert.equal(h.nightDb.rows.size, 0);
+});
+
+test('current Plates night retry has a separate exact closure and requires its own reviewed profile', async () => {
+  const h=await nightRetryHarness();
+  for(const path of Object.keys(NIGHT_CANONICAL))delete h.source.files[path];
+  for(const [path,blob] of Object.entries(PLATES_NIGHT_CANONICAL)) {
+    const text=await readFile(new URL('../'+path,import.meta.url),'utf8');
+    assert.equal(createHash('sha1').update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest('hex'),blob,path);
+    h.source.files[path]=text;
+  }
+  h.source.files['.plates/plates.json']=h.source.files['.keel/keel.json'];delete h.source.files['.keel/keel.json'];
+  // Changing the snapshot alone cannot reuse the legacy profile.
+  await repin(h);await assert.rejects(preview(h),{code:'night_canonical_source_required'});
+  h.profile.workflow.path='.github/workflows/plates-night.yml';await repin(h);
+  const p=await preview(h);assert.ok(p);assert.equal(h.nightState.posts.length,0);
+  h.source.files['scripts/plates/names.mjs']+='\n// Acme unreviewed edit\n';await repin(h);
+  await assert.rejects(preview(h),{code:'night_canonical_source_required'});
 });

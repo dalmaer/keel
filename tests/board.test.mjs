@@ -1144,7 +1144,7 @@ test('a failed verify of production is the owner\'s item on the board; a passed 
   assert.match(data.sources.at(-1).why, /passed$/);
   // Unreadable: n/a with why.
   data = await board({ root }, { ...deps(root), verify: async () => ({ results: [], unread: 'git ls-remote exited 128' }) });
-  assert.deepEqual(data.sources.at(-1), { source: 'verify', state: 'n/a', why: 'the verify record (keel-verify) could not be read: git ls-remote exited 128' });
+  assert.deepEqual(data.sources.at(-1), { source: 'verify', state: 'n/a', why: 'the verify record (plates-verify) could not be read: git ls-remote exited 128' });
   // The real read: origin's keel-verify branch, as verify.mjs --record leaves it.
   const g = (args, input) => execFileSync('git', ['-C', root, ...args], { input, encoding: 'utf8' }).trim();
   execFileSync('git', ['clone', '-q', '--bare', root, origin]);
@@ -1154,6 +1154,12 @@ test('a failed verify of production is the owner\'s item on the board; a passed 
   g(['push', '-q', 'origin', `${g(['commit-tree', tree, '-m', 'plates verify: failed'])}:refs/heads/keel-verify`]);
   data = await board({ root }, { ...deps(root), env: { ...process.env, PLATES_CACHE: join(root, '.cache-test') }, fresh: true });
   assert.deepEqual(verifyOf(data).map(i => i.title), ['production failed its verify for a1b2c3d']);
+  const passedBlob=g(['hash-object','-w','--stdin'],JSON.stringify({results:[passed]}));
+  const passedTree=g(['mktree'],`100644 blob ${passedBlob}\tverify.json\n`);
+  g(['push','-q','origin',`${g(['commit-tree',passedTree,'-m','Acme verify pass'])}:refs/heads/plates-verify`]);
+  data=await board({root},{...deps(root),env:{...process.env,PLATES_CACHE:join(root,'.cache-test')},fresh:true});
+  assert.deepEqual(verifyOf(data),[], 'newer plates production pass clears the old failed verify');
+
 });
 
 // PR #182 review: a passing preview (verify.mjs --site … --record) after a production failure cleared production's item.
@@ -1169,4 +1175,13 @@ test('a preview\'s pass never clears production\'s failed verify on the board; o
   assert.deepEqual((await verifyOf([r(preview, true, '2026-10-07T22:00:00Z'), failed])).map(i => i.title), ['production failed its verify for a1b2c3d'], 'a preview\'s pass is not production\'s');
   assert.deepEqual(await verifyOf([r(prod, true, '2026-10-07T23:00:00Z'), r(preview, true, '2026-10-07T22:00:00Z'), failed]), [], 'production\'s own pass clears it');
   assert.deepEqual(await verifyOf([r(preview, false, '2026-10-07T22:00:00Z')]), [], 'a preview\'s failure is the brief\'s, not a production item');
+});
+
+test('board recognizes each update namespace as one draft repair',async t=>{
+ for(const name of ['plates','keel']) {
+  const root=await acme();t.after(()=>rm(root,{recursive:true,force:true}));
+  const site=fleetData.rows[1], rows=[{...site,machinePrs:{total:1,queues:{},heads:[],drafts:[{number:12,head:`${name}/update-v0.8.21`}]}}];
+  const data=await board({root},{...deps(root),fleet:async()=>({rows})});
+  const items=data.items.filter(i=>i.kind==='update');assert.equal(items.length,1);assert.equal(items[0].waits,'broken');
+ }
 });

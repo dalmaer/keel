@@ -1,3 +1,4 @@
+import { branchSuffix } from './names.mjs';
 // plates cross-review (plates practice `cross-review`; managed: plates render
 // rewrites it). An agent reviews the pull requests another model wrote, and
 // never one its own provider wrote: Claude reviews Codex's, Codex Claude's
@@ -185,7 +186,7 @@ export function shouldReview({ config, event, pr, has, choose = reviewerOf }) {
   if (pr.isDraft) return no(`#${pr.number} is a draft: reviewed when it is ready`);
   const head = String(pr.headRefName ?? '');
   // Robot reviews belong to its serialized workflow and shared build/review allowance.
-  if (head.startsWith('keel/robot-')) return no(`#${pr.number} on ${head}: robot PRs are reviewed only by plates-robot.yml within the shared robot budget`);
+  if (branchSuffix(head, 'git ref:keel/robot-') !== null) return no(`#${pr.number} on ${head}: robot PRs are reviewed only by plates-robot.yml within the shared robot budget`);
   const prefix = c.for.find(p => head.startsWith(p));
   if (!prefix) return no(`#${pr.number}'s branch ${head || '(none)'} matches no "${KEY}".for prefix (${c.for.join(', ')})`);
   if (!/^[0-9a-f]{40}$/.test(String(pr.headRefOid ?? ''))) return no(`#${pr.number} came back without its head commit`);

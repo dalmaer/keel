@@ -27,6 +27,7 @@
 //
 // Exit: 0 done (or nothing to do); 3 actions planned and no --yes, nothing
 // done; 1 a gh call failed; 2 usage. gh is process.env.PLATES_GH || 'gh'.
+import { branchPrefixes, inBranchQueue } from './names.mjs';
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -44,7 +45,7 @@ export const DATA_FILES = ['docs/INBOX.md', '.plates/bounds.json'];
  * night's. keel-loop/ (practice loop) holds Loop's findings and their page.
  */
 export const DATA_BY_PREFIX = {
-  'keel-loop/': { dirs: ['docs/loop/'], files: ['docs/LOOP.md'] },
+  ...Object.fromEntries(branchPrefixes('keel-loop/').map(p => [p, { dirs: ['docs/loop/'], files: ['docs/LOOP.md'] }])),
 };
 export const FIELDS = 'number,headRefName,createdAt,mergeable,files,isCrossRepository';
 export const SUPERSEDED = newest => `Superseded by #${newest} (plates drain). The branch is kept: reopen to recover.`;
@@ -78,7 +79,7 @@ const dataOnly = (pr, prefix, extra) => Array.isArray(pr.files) && pr.files.leng
  * not a plain repo-relative path is dropped, never trusted.
  */
 export function extraData(plates, prefix) {
-  if (prefix === 'keel-loop/') {
+  if (branchPrefixes('keel-loop/').includes(prefix)) {
     const list = plates?.loop?.afterRenderWrites;
     return Array.isArray(list) ? list.filter(isPlainPath) : [];
   }
@@ -107,7 +108,7 @@ export function checkPrefix(prefix) {
  * Returns { queue, newest, actions: [{ number, head, createdAt, action: merge|close|leave, why }] }.
  */
 export function plan(prs, prefix, { gatePassed = false, extra = [] } = {}) {
-  const queue = prs.filter(p => typeof p.headRefName === 'string' && p.headRefName.startsWith(prefix) && !p.isCrossRepository)
+  const queue = prs.filter(p => typeof p.headRefName === 'string' && inBranchQueue(p.headRefName, prefix) && !p.isCrossRepository)
     .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.number - b.number);
   if (!queue.length) return { queue: [], newest: null, actions: [] };
   const newest = queue.at(-1);
@@ -150,7 +151,7 @@ export async function drain({ root, prefix, yes = false, gatePassed = false }, {
   };
 
   let prs = list();
-  const ours = () => prs.filter(p => p.headRefName?.startsWith(prefix) && !p.isCrossRepository);
+  const ours = () => prs.filter(p => inBranchQueue(p.headRefName, prefix) && !p.isCrossRepository);
   if (ours().some(p => p.mergeable === 'UNKNOWN' || p.mergeable === undefined)) {
     // GitHub computes mergeability lazily; the first ask starts it.
     await sleep(Number(env.PLATES_DRAIN_WAIT_MS ?? 5000));

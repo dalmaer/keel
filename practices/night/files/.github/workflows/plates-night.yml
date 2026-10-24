@@ -50,7 +50,7 @@ on:
   workflow_dispatch: {}
 
 concurrency:
-  group: keel-night
+  group: plates-night
   cancel-in-progress: false
 
 permissions:
@@ -168,27 +168,17 @@ jobs:
         run: |
           DAY=$(date -u +%F)
           code=0
-          found=0
-          git ls-remote --exit-code --heads origin keel-night-plan > /dev/null || found=$?
           ARGS=()
-          if [ "$found" = 0 ]; then
-            # The branch is there: a fetch that fails is a plan the night could
-            # not read (red), never "no plan file"; only a fetched branch with no
-            # plan file is the default plan.
-            fetched=0
-            git fetch -q --no-tags origin "+refs/heads/keel-night-plan:refs/remotes/origin/keel-night-plan" || fetched=$?
-            if [ "$fetched" != 0 ]; then
-              echo "::error::git fetch could not read the plan branch keel-night-plan (exit $fetched); tonight runs the default plan."
-              ARGS=(--branch-unread "git fetch exit $fetched")
-              code=2
-            elif git show "refs/remotes/origin/keel-night-plan:.keel/night/plan.json" > "$RUNNER_TEMP/branch-plan.json" 2> /dev/null; then
-              ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json")
-            else
-              echo "plan: keel-night-plan holds no .keel/night/plan.json"
-            fi
-          elif [ "$found" != 2 ]; then
-            echo "::error::git ls-remote could not read the plan branch keel-night-plan (exit $found); tonight runs the default plan."
-            ARGS=(--branch-unread "git ls-remote exit $found")
+          if node --input-type=module -e '
+            import {readRemoteNightPlan} from "./scripts/plates/night-plan.mjs";
+            import {writeFileSync} from "node:fs";
+            const selected=readRemoteNightPlan({root:process.cwd(),date:process.argv[1]});
+            if(selected.plan) writeFileSync(process.argv[2],JSON.stringify(selected.plan));
+            console.log(JSON.stringify({branch:selected.branch,skipped:selected.skipped,sources:selected.sources}));
+          ' "$DAY" "$RUNNER_TEMP/branch-plan.json"; then
+            if [ -f "$RUNNER_TEMP/branch-plan.json" ]; then ARGS=(--branch-plan "$RUNNER_TEMP/branch-plan.json"); fi
+          else
+            ARGS=(--branch-unread "dual plan read failed")
             code=2
           fi
           node scripts/plates/night-plan.mjs tonight --date "$DAY" "${ARGS[@]}" || code=$?
@@ -340,7 +330,7 @@ jobs:
           # Recovery must have succeeded before any publication, including plan publication.
           EXPECTED=$(node -e '
             const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).nightRecovery;
-            if(!r || r.branch!==`keel-night/${process.env.DAY}` || !/^(?:[a-f0-9]{40})?$/.test(r.head) || !Number.isSafeInteger(r.attempts)) throw new Error("missing night recovery lease");
+            if(!r || ![`plates-night/${process.env.DAY}`,`keel-night/${process.env.DAY}`].includes(r.branch) || !/^(?:[a-f0-9]{40})?$/.test(r.head) || !Number.isSafeInteger(r.attempts)) throw new Error("missing night recovery lease");
             process.stdout.write(r.head);
           ' "$RUNNER_TEMP/improve.json")
           published=0
@@ -421,7 +411,7 @@ jobs:
             echo "Nothing changed."
             exit 0
           fi
-          BRANCH="keel-night/$DAY"
+          BRANCH=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).nightRecovery.branch)' "$RUNNER_TEMP/improve.json")
           git config user.name "plates-night"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q -b "$BRANCH"
@@ -430,7 +420,7 @@ jobs:
           git show --name-only --format= HEAD > "$RUNNER_TEMP/files.txt"
           node scripts/plates/pr-body.mjs --input "$RUNNER_TEMP/pr.json" --files "$RUNNER_TEMP/files.txt" > "$RUNNER_TEMP/body.md"
           # Retained attempts came from exactly EXPECTED; a changed branch refuses publication.
-          git push --force-with-lease="refs/heads/keel-night/$DAY:$EXPECTED" origin "HEAD:refs/heads/keel-night/$DAY"
+          git push --force-with-lease="refs/heads/$BRANCH:$EXPECTED" origin "HEAD:refs/heads/$BRANCH"
           PR=$(gh pr list --state open --head "$BRANCH" --json number --jq '.[0].number')
           if [ -n "$PR" ]; then
             gh pr edit "$PR" --body-file "$RUNNER_TEMP/body.md"
@@ -518,9 +508,9 @@ jobs:
           GATE: ${{ steps.improve.outputs.gate }}
         run: |
           if [ "$GATE" = ok ]; then
-            node scripts/plates/drain.mjs keel-night/ --yes --gate-passed
+            node scripts/plates/drain.mjs plates-night/ --yes --gate-passed
           else
-            node scripts/plates/drain.mjs keel-night/ --yes
+            node scripts/plates/drain.mjs plates-night/ --yes
           fi
 
       - name: Verdict
@@ -546,7 +536,7 @@ jobs:
             exit 1
           fi
           if [ -n "$PUBLISH" ] && [ "$PUBLISH" != 0 ]; then
-            echo "::error::Tonight's default plan could not be written to keel-night-plan (night-plan.mjs publish exit $PUBLISH); the passes will not tick it. The PR step says why."
+            echo "::error::Tonight's default plan could not be written to plates-night-plan (night-plan.mjs publish exit $PUBLISH); the passes will not tick it. The PR step says why."
             exit 1
           fi
           if [ "$CODE" = 2 ] || [ -z "$CODE" ]; then

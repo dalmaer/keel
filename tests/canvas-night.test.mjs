@@ -95,7 +95,7 @@ async function workflow(t, { enabled = true, creds = true, missing = false, mism
   const bin = join(root, 'bin'); await mkdir(bin);
   // The step's recovery is the night practice's managed script, as a project has it.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['canvas-recovery.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/plates', f), await readFile(resolve('practices/night/files/scripts/plates', f), 'utf8'));
+  for (const f of ['canvas-recovery.mjs', 'names.mjs', 'lib.mjs']) await writeFile(join(root, 'scripts/plates', f), await readFile(resolve('practices/night/files/scripts/plates', f), 'utf8'));
   const log = join(root, 'calls.jsonl');
   for (const tool of ['plates', 'isocan']) {
     if (missing && tool === 'isocan') continue;
@@ -607,4 +607,22 @@ test('canvas recovery keeps old repository provenance only after matching numeri
   assert.equal(accepted.status,0,accepted.out);
   const wrong = await workflow(t,{runs:[prior],artifacts:[artifact],bundle:{provenance},local:false,repositories:{...repositories,'repos/Acme/old-app':{id:78,full_name:old}}});
   assert.notEqual(wrong.status,0,'an unrelated repository cannot supply recovery');
+});
+
+test('canvas recovery retains either night workflow identity and its held artifact name',async t=>{
+ for(const name of ['plates','keel']) {
+  const latest=trustedRun({id:150,path:`.github/workflows/${name}-night.yml`});
+  const out=await workflow(t,{runs:[latest],local:false,artifacts:[artifactFor(latest)],bundle:{provenance:provenanceFor(latest)}});
+  assert.equal(out.status,0,out.stderr);
+  assert.equal(out.ghCalls.filter(a=>a[0]==='run'&&a[1]==='download').length,1);
+ }
+});
+
+test('canvas recovery retains either morning workflow identity and its held artifact name',async t=>{
+ for(const name of ['plates','keel']) {
+  const latest=trustedRun({id:150,path:`.github/workflows/${name}-morning.yml`});
+  const out=await workflow(t,{runs:[latest],local:false,artifacts:[{...artifactFor(latest),name:'keel-canvas-card-1'}],bundle:{provenance:provenanceFor(latest)}});
+  assert.equal(out.status,0,out.stderr);
+  assert.equal(out.ghCalls.filter(a=>a[0]==='run'&&a[1]==='download').length,1);
+ }
 });

@@ -1,3 +1,4 @@
+import { planSection } from '../scripts/plates/night-plan.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
@@ -71,7 +72,8 @@ test('same-day failed and passing attempts survive writer and morning body final
   const root=await scratch(t),path='docs/health/2026-10-23.md';
   const a=verificationReceipt(observation(),[{id:'gate',state:'outside',facts:{source:'local-command',status:1}}]);
   const b=verificationReceipt(observation(),results());b.observedAt='2026-10-23T12:01:00.000Z';
-  const page=r=>`# Acme\n\n## Tonight's plan\n\nPending.\n\n## Verification\n\n${formatVerification(r)}\n`;
+  const section=planSection({shapedBy:'default',items:[],willNotTouch:[],leftOpen:[]}).join('\n');
+  const page=r=>`# Acme\n\n${section}\n## Verification\n\n${formatVerification(r)}\n`;
   await writeHealthReport({root,path,generated:page(a)});
   await writeHealthReport({root,path,generated:page(b)});
   const before=await readFile(join(root,path),'utf8');
@@ -145,12 +147,12 @@ test('two fresh night checkouts retain an unmerged failing attempt and lease pub
     assert.equal(result.data.nightRecovery.attempts,i);
     const page=await readFile(join(root,path),'utf8');assert.equal(parseVerifications(page).length,i+1);
     git(root,['checkout','-b',`keel-night/${date}`]);git(root,['add','--',path,'.plates/bounds.json']);git(root,['commit','-m',`Acme attempt ${i}`]);
-    const pushed=run('bash',['-e','-c',push],{cwd:root,env:{...process.env,DAY:date,EXPECTED:result.data.nightRecovery.head}});assert.equal(pushed.status,0,pushed.stderr);
+    const pushed=run('bash',['-e','-c',push],{cwd:root,env:{...process.env,DAY:date,BRANCH:`keel-night/${date}`,EXPECTED:result.data.nightRecovery.head}});assert.equal(pushed.status,0,pushed.stderr);
   }
   const retained=await recoverNightVerification({root:clones[1],config,date});
   assert.deepEqual(new Set(parseVerifications(retained.report).map(r=>r.attempt)),new Set(attempts));
   const old=git(clones[0],['rev-parse','HEAD']);
-  const refused=run('bash',['-e','-c',push],{cwd:clones[0],env:{...process.env,DAY:date,EXPECTED:old}});assert.notEqual(refused.status,0,'an advanced remote branch cannot be blindly overwritten');
+  const refused=run('bash',['-e','-c',push],{cwd:clones[0],env:{...process.env,DAY:date,BRANCH:`keel-night/${date}`,EXPECTED:old}});assert.notEqual(refused.status,0,'an advanced remote branch cannot be blindly overwritten');
   const fresh=join(seed,'conflict');git(seed,['clone','--branch','main',origin,fresh]);await mkdir(join(fresh,'docs/health'),{recursive:true});
   await writeFile(join(fresh,path),'Acme owner text\n');
   await assert.rejects(writeHealthReport({root:fresh,path,generated:'new',recovered:retained.report}),/differ/);

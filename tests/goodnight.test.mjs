@@ -282,18 +282,18 @@ test('--yes writes the plan with shapedBy owner and pushes it to the plan branch
   const tip = f.git(['rev-parse', `refs/heads/${PLAN_BRANCH}`], f.origin);
   assert.equal(tip, r.data.pushed.commit);
   assert.equal(f.git(['rev-list', '--count', tip], f.origin), '1', 'no history: never merged, never based on main');
-  assert.equal(f.git(['ls-tree', '-r', '--name-only', tip], f.origin), '.keel/night/plan.json');
-  assert.equal(`${f.git(['show', `${tip}:.keel/night/plan.json`], f.origin)}\n`, await readFile(join(f.root, PLAN), 'utf8'));
+  assert.equal(f.git(['ls-tree', '-r', '--name-only', tip], f.origin), '.plates/night/plan.json');
+  assert.equal(`${f.git(['show', `${tip}:.plates/night/plan.json`], f.origin)}\n`, await readFile(join(f.root, PLAN), 'utf8'));
   // main is untouched, on the origin and here; the working tree and index too.
   assert.equal(f.git(['rev-parse', 'refs/heads/main'], f.origin), mainBefore);
   assert.equal(f.git(['rev-parse', 'HEAD']), head);
   assert.equal(f.git(['symbolic-ref', '--short', 'HEAD']), 'main');
   assert.equal(f.git(['status', '--porcelain']), status, 'the working tree and index are as they were (the plan ignores itself)');
-  assert.match(r.text, /That's the plan for the night of .*pushed to origin\/keel-night-plan/);
+  assert.match(r.text, /That's the plan for the night of .*pushed to origin\/plates-night-plan/);
 
   // The night reads it: phase 73's step takes the branch's plan, shaped by the owner.
   const branchPlan = join(f.base, 'branch-plan.json');
-  await writeFile(branchPlan, f.git(['show', `${tip}:.keel/night/plan.json`], f.origin));
+  await writeFile(branchPlan, f.git(['show', `${tip}:.plates/night/plan.json`], f.origin));
   const night = await tonight({ root: f.root, date: plan.date, env: f.env, branchPlan });
   assert.equal(night.data.from, 'branch');
   assert.match(night.data.why, /shaped by owner/);
@@ -304,7 +304,7 @@ test('--yes writes the plan with shapedBy owner and pushes it to the plan branch
   const tip2 = f.git(['rev-parse', `refs/heads/${PLAN_BRANCH}`], f.origin);
   assert.equal(tip2, again.data.pushed.commit);
   assert.equal(f.git(['rev-list', '--count', tip2], f.origin), '1');
-  assert.match((await goodnight({ root: f.root, args: [], env: f.env }, { board })).data.since.from, /the last plan \(keel-night-plan\)/);
+  assert.match((await goodnight({ root: f.root, args: [], env: f.env }, { board })).data.since.from, /the last plan \(plates-night-plan\)/);
 
   // A refused plan is never written or pushed: with no remote, nothing is written.
   f.git(['remote', 'remove', 'origin']);
@@ -480,7 +480,7 @@ test('goodnight add for an accepted Loop finding that names a number drafts a ro
   assert.deepEqual([planned.kind, planned.lane, planned.source], ['build', 'robot:#7', 'loop:lighter-anvils']);
   assert.deepEqual(yes.issues.map(i => [i.id, i.number, i.state]), [['loop-lighter-anvils', 7, 'created']]);
   assert.deepEqual(validatePlan(yes.plan).problems, []);
-  const pushed = JSON.parse(f.git(['show', `refs/heads/${PLAN_BRANCH}:.keel/night/plan.json`], f.origin));
+  const pushed = JSON.parse(f.git(['show', `refs/heads/${PLAN_BRANCH}:.plates/night/plan.json`], f.origin));
   assert.equal(pushed.items.find(i => i.id === 'loop-lighter-anvils').lane, 'robot:#7');
 
   // Said again: the same issue, recovered, never a second (ensureRobotIssue's durable intent).

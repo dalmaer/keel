@@ -66,7 +66,7 @@ const CONFIG = { name: 'Acme Anvils', practices: ['night'], repo: 'acme/anvils',
 /**
  * A project with an origin: its default branch holds the night's record as
  * the night wrote it (builds planned) and the night's health page; the plan
- * branch keel-night-plan holds the builds' ticks; the next night's page is
+ * branch plates-night-plan holds the builds' ticks; the next night's page is
  * the "after". gh is a stub with a state file.
  */
 async function project(t, { config = CONFIG, issues = [], failCreate = false, branch = finished() } = {}) {
@@ -85,16 +85,16 @@ async function project(t, { config = CONFIG, issues = [], failCreate = false, br
   await writeFile(join(root, 'docs/health/2026-10-06.md'), page('2026-10-06', 741000));
   // The night practice's scripts, as a project carries them.
   await mkdir(join(root, 'scripts/plates'), { recursive: true });
-  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
+  for (const f of ['verification.mjs', 'time-proposals.mjs', 'morning.mjs', 'night-plan.mjs', 'names.mjs', 'lib.mjs', 'production.mjs', 'production-store.mjs', 'production-collectors.mjs']) await cp(join(PLATES, 'practices/night/files/scripts/plates', f), join(root, 'scripts/plates', f));
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'Acme: the night');
   git(root, 'push', '-q', 'origin', 'main');
   if (branch) {
-    git(root, 'checkout', '-q', '--orphan', 'keel-night-plan');
+    git(root, 'checkout', '-q', '--orphan', 'plates-night-plan');
     git(root, 'rm', '-q', '-rf', '--cached', '.');
-    await mkdir(join(root, '.keel/night'), { recursive: true });
+    await mkdir(join(root, '.plates/night'), { recursive: true });
     await writeFile(join(root, REMOTE_PLAN), `${JSON.stringify(branch, null, 2)}\n`);
     git(root, 'add', '-f', REMOTE_PLAN); git(root, 'commit', '-q', '-m', 'Acme: the plan, ticked');
-    git(root, 'push', '-q', 'origin', 'keel-night-plan');
+    git(root, 'push', '-q', 'origin', 'plates-night-plan');
     git(root, 'checkout', '-q', '-f', 'main');
     await rm(join(root, '.plates/night'), { recursive: true, force: true });
   }
@@ -197,7 +197,10 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   const found = await finalPlan({ root: p.root, date: NIGHT });
   assert.equal(found.from, `docs/night/${NIGHT}.json`);
   assert.deepEqual(found.sources.map(s => [s.from, s.state]), [
-    ['keel-night-plan:.keel/night/plan.json', 'read'],
+    ['plates-night-plan:.plates/night/plan.json', 'read'],
+    ['keel-night-plan:.keel/night/plan.json', 'absent'],
+    [`plates-night/${NIGHT}-final:docs/night/${NIGHT}.json`, 'absent'],
+    [`plates-night/${NIGHT}:docs/night/${NIGHT}.json`, 'absent'],
     [`keel-night/${NIGHT}-final:docs/night/${NIGHT}.json`, 'absent'],
     [`keel-night/${NIGHT}:docs/night/${NIGHT}.json`, 'absent'],
     [`docs/night/${NIGHT}.json`, 'read'],
@@ -232,7 +235,7 @@ test('the brief reads tonight\'s plan as it finished: the night\'s record from o
   // No plan for the night: exit 2, naming where it looked.
   const none = plates(['morning', '--date', '2026-09-01', '--json'], p.root, { PLATES_GH: p.gh });
   assert.equal(none.code, 2);
-  assert.match(none.json().error, /^no plan for the night of 2026-09-01: keel-night-plan:\.keel\/night\/plan\.json another night \(2026-10-05\)/);
+  assert.match(none.json().error, /^no plan for the night of 2026-09-01: plates-night-plan:\.plates\/night\/plan\.json another night \(2026-10-05\)/);
   assert.equal(plates(['morning', '--date', '5/10/2026', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
   assert.equal(plates(['morning', '--send', '--card', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
   assert.equal(plates(['morning', '--yes', '--json'], p.root, { PLATES_GH: p.gh }).code, 2);
@@ -529,7 +532,7 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   assert.equal(b.next[0], line, 'production first, under Your next');
   assert.match(b.markdown, new RegExp(`## Your next\\n\\n- ${line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\n`));
   assert.equal(renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS, verify: { failed: [], unread: null } }).markdown, renderBrief({ plan: finished(), now: AFTER, health: HEALTH, links: LINKS }).markdown, 'nothing failed: the brief is as before');
-  assert.match(renderBrief({ plan: finished(), now: AFTER, verify: { failed: [], unread: 'git ls-remote exited 128' } }).next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: git ls-remote exited 128\. Whether production passed is unknown\.$/);
+  assert.match(renderBrief({ plan: finished(), now: AFTER, verify: { failed: [], unread: 'git ls-remote exited 128' } }).next[0], /^The verify record \(plates-verify:verify\.json\) could not be read: git ls-remote exited 128\. Whether production passed is unknown\.$/);
 
   // End to end: with delivery on, the brief reads origin's keel-verify branch.
   const p = await project(t, { config: { ...CONFIG, practices: ['night', 'delivery'] } });
@@ -548,7 +551,7 @@ test('a failed verify is a line in the next morning brief: each failure of the d
   const bad = write(['hash-object', '-w', '--stdin'], '{"results": "Acme"}');
   const badTree = write(['mktree'], `100644 blob ${bad}\tverify.json\n`);
   write(['push', '-q', '--force', 'origin', `${write(['commit-tree', badTree, '-m', 'not a record'])}:refs/heads/keel-verify`]);
-  assert.match(plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().next[0], /^The verify record \(keel-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
+  assert.match(plates(['morning', '--date', NIGHT, '--json'], p.root, { PLATES_GH: p.gh }).json().next[0], /^The verify record \(plates-verify:verify\.json\) could not be read: verify\.json holds no "results" list\./);
 });
 
 // PR #182 review: a preview's pass counted as production having passed since.

@@ -154,22 +154,25 @@ test('a keel name the table does not list fails, naming where', async t => {
   }
 });
 
-test('name lookups are explicit, held initially, and state transitions are read/write contracts', () => {
+test('name lookups are explicit, phase125 dual only, and state transitions are read/write contracts', () => {
   assert.equal(new Set(NAMES.map(row => row.id)).size, NAMES.length);
-  const surfaces = new Set(['git ref','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
+  const surfaces = new Set(['git ref','local Git path','concurrency group','artifact','marker','label','fence','variable','web','database','machine']);
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    assert.equal(row.state, 'held');
+    assert.equal(row.state, row.phase === 125 ? 'dual' : 'held');
     assert.equal(nameRow(row.id), row);
-    assert.equal(writeName(row.id), row.keel);
-    assert.deepEqual(readNames(row.id), [row.keel]);
+    assert.equal(writeName(row.id), row.phase === 125 ? row.plates : row.keel);
+    assert.deepEqual(readNames(row.id), row.phase === 125 ? [row.plates, row.keel] : [row.keel]);
     for (const state of ['dual', 'retired']) {
       const rows = [{ ...row, state }];
       assert.equal(writeName(row.id, rows), row.plates);
       assert.deepEqual(readNames(row.id, rows), state === 'dual' ? [row.plates, row.keel] : [row.plates]);
     }
   }
+  const token = nameRow('git ref:keel-claims/phase-');
+  assert.deepEqual([token.surface, token.phase, token.state, token.keel, token.plates],
+    ['local Git path', 128, 'held', 'keel-claims/phase-', 'plates-claims/phase-']);
   for (const lookup of [nameRow, writeName, readNames]) assert.throws(() => lookup('unknown'), /Unknown name identity/);
   assert.throws(() => writeName('acme', [{ id: 'acme', state: 'unexpected' }]), /Invalid name state/);
 });

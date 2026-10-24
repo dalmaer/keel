@@ -8,7 +8,7 @@ on:
     types: [created]
 permissions: {}
 concurrency:
-  group: keel-robot-route-${{ github.run_id }}-${{ github.run_attempt }}
+  group: plates-robot-route-${{ github.run_id }}-${{ github.run_attempt }}
   cancel-in-progress: false
 jobs:
   route:

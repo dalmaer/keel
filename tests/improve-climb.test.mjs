@@ -85,7 +85,7 @@ test('the health page says when a climb job proposes its own retirement: its las
     return { data: r.data, text: await readFile(join(dir, 'docs/health/2026-10-07.md'), 'utf8') };
   };
   const three = await at([pr(1, 'test-time'), pr(2, 'test-time'), pr(3, 'test-time'), pr(4, 'hygiene', true)]);
-  assert.match(three.text, /^Climb: `test-time` proposes its own retirement: its last 3 keel-climb\/test-time\/ PRs \(#3, #2, #1\) were closed unmerged\. Remove it from "climb"\.jobs, or reopen one; until then climb nights skip it\.$/m);
+  assert.match(three.text, /^Climb: `test-time` proposes its own retirement: its last 3 plates-climb\/test-time\/ PRs \(#3, #2, #1\) were closed unmerged\. Remove it from "climb"\.jobs, or reopen one; until then climb nights skip it\.$/m);
   assert.doesNotMatch(three.text, /`hygiene` proposes/);
   assert.equal(three.data.retire.length, 1);
   assert.doesNotMatch((await at([pr(1, 'test-time'), pr(2, 'test-time', true), pr(3, 'test-time')])).text, /proposes its own retirement/, 'one merged: no retirement');

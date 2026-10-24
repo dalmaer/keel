@@ -57,10 +57,12 @@ if (a[0] === 'issue' && a[1] === 'list') {
   if (!p) fail(`no pull request #${a[2]}`);
   p.body = input;
   save();
-} else if (a[0] === 'api' && /^repos\/[^/]+\/[^/]+\/contents\/\.keel\/night\/plan\.json\?ref=keel-night-plan$/.test(a.at(-1))) {
+} else if (a[0] === 'api' && /^repos\/[^/]+\/[^/]+\/contents\/\.(?:plates|keel)\/night\/plan\.json\?ref=(?:plates|keel)-night-plan$/.test(a.at(-1))) {
   // The contents API on the plan branch: the bare origin's own bytes, or GitHub's 404.
   let text;
-  try { text = execFileSync('git', ['--git-dir', ORIGIN, 'show', 'refs/heads/keel-night-plan:.keel/night/plan.json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
+  const url=new URL(a.at(-1),'https://api.github.com');
+  const path=url.pathname.split('/contents/')[1], branch=url.searchParams.get('ref');
+  try { text = execFileSync('git', ['--git-dir', ORIGIN, 'show', `refs/heads/${branch}:${path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
   catch { fail('gh: Not Found (HTTP 404)'); }
   process.stdout.write(text);
 } else {

@@ -228,7 +228,7 @@ test('workflow separates ordinary CI, web OIDC, fixed source, trusted callback a
   const source = await readFile(new URL('../.github/workflows/typecheck.yml', import.meta.url), 'utf8');
   const [ordinary, worker] = source.split('  web-worker:');
   assert.match(ordinary, /github.event_name != 'workflow_dispatch' \|\| inputs.keel_operation == ''/);
-  assert.match(ordinary, /format\('keel-web-typecheck-\{0\}', inputs.keel_operation\) \|\| format\('typecheck-\{0\}', github.ref\)/);
+  assert.match(ordinary, /format\('plates-web-typecheck-\{0\}', inputs.keel_operation\) \|\| format\('typecheck-\{0\}', github.ref\)/);
   assert.match(ordinary, /cancel-in-progress: \$\{\{ github.event_name != 'workflow_dispatch' \|\| inputs.keel_operation == '' \}\}/);
   assert.doesNotMatch(ordinary, /id-token: write/);
   assert.match(ordinary, /npm ci --ignore-scripts/);

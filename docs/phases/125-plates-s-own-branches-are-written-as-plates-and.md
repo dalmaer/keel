@@ -1,11 +1,12 @@
 ---
-status: planned
-since: 2026-10-23
+status: partial
+since: 2026-10-24
+owes: walk
 goal: G2
 spec: 2
 depends: [124]
-note: "Specified 2026-10-23 (docs/specs/name-transition.md). Branches and concurrency groups: plates writes plates-night/ and friends and reads both prefixes as one queue, so in-flight keel-night/ PRs and tonight's keel-night-plan keep working. #218 (finalize drops what it did not write) is fixed first, in the same code."
-evidence: []
+note: "Branch and concurrency source implemented with dual readers; #218 fixed first. Owner disable/drain/install barrier required before merging active workflows; phase 129 supplies dispatched-night and fleet proof."
+evidence: ["evidence/2026-10-24-branch-name-transition.md"]
 issue: 241
 ---
 
@@ -39,14 +40,16 @@ The design is [Name transition](../specs/name-transition.md), "Hazards".
 
 ## Acceptance
 
-- [ ] #218 is fixed: a health page's lines outside the plan table survive finalize byte for byte. `tests/morning.test.mjs`: "finalize keeps the sections it did not write"
-- [ ] A fresh project's night, final, plan, climb, tend, loop, robot, update and verify writes use only plates names. `tests/night-box.test.mjs`: "a new project's whole night writes no keel name"
-- [ ] An upgraded project with an open `keel-night/<date>` PR and a `keel-night-plan` dated tonight runs that plan. Its `-final` lands on `keel-night/<date>-final`, and drain merges both prefixes' PRs as one queue. `tests/night-box.test.mjs`: "a night started under keel's names finishes under them, and drains with plates's"
-- [ ] Both plan branches dated tonight: the plates plan runs, and the record names the one it skipped. `tests/night-plan.test.mjs`: "two plans for one night: plates wins, and says so"
-- [ ] The board and morning show a failed verify from `keel-verify` until a newer result on `plates-verify` passes. `tests/board.test.mjs` and `tests/morning.test.mjs`: "verify history across both branches"
-- [ ] Every workflow's concurrency group is `plates-…`. `tests/workflows.test.mjs`: "no workflow groups under a keel name"
+- [x] #218 is fixed: a health page's lines outside the plan table survive finalize byte for byte. `tests/morning.test.mjs`: "finalize keeps the sections it did not write"
+- [x] A fresh project's night, final, plan, climb, tend, loop, robot, update and verify writes use only plates names. `tests/night-box.test.mjs`: "a new project's whole night writes no keel name"
+- [x] An upgraded project with an open `keel-night/<date>` PR and a `keel-night-plan` dated tonight runs that plan. Its `-final` lands on `keel-night/<date>-final`, and drain merges both prefixes' PRs as one queue. `tests/night-box.test.mjs`: "a night started under keel's names finishes under them, and drains with plates's"
+- [x] Both plan branches dated tonight: the plates plan runs, and the record names the one it skipped. `tests/night-plan.test.mjs`: "two plans for one night: plates wins, and says so"
+- [x] The board and morning show a failed verify from `keel-verify` until a newer result on `plates-verify` passes. `tests/board.test.mjs` and `tests/morning.test.mjs`: "verify history across both branches"
+- [x] Every workflow's concurrency group is `plates-…`. `tests/workflows.test.mjs`: "no workflow groups under a keel name"
 
-- [ ] A live old-group run blocks a concurrency-name switch across both branch prefixes; completed cancellation permits it, requested cancellation and incomplete run coverage do not. `tests/workflows.test.mjs`: "old-group runs block the concurrency transition"
+- [x] A live old-group run blocks a concurrency-name switch across both branch prefixes; completed cancellation permits it, requested cancellation and incomplete run coverage do not. `tests/workflows.test.mjs`: "old-group runs block the concurrency transition"
+
+- [ ] Owner-approved disable/drain/install barrier is held through merging the active workflows; phase 129 records the real dispatched-night and fleet walk. ⚑ by hand: the owner
 
 ## Real surfaces
 
@@ -66,4 +69,10 @@ By hand: phase 129's dispatched nights.
 
 ## Next action
 
-Fix #218 with its regression test, then switch the night and final rows in the phase-124 table to `dual`. Before merging changed active workflows into plates itself, obtain the owner-approved disable/drain barrier: merging the self-rendered workflow is already an installation, not a step that can wait until phase 129. If that approval is pending, retain the reviewed PR; do not bypass the barrier to cut a release.
+Complete exact-head review and the required integrated gate, then obtain the owner's approval to disable the exact affected workflows, drain active runs or observe completed cancellation, install this change while the barrier remains held, and re-enable. Keep this PR unmerged until that barrier is established: merging self-rendered workflows is installation. After release, phase 129 performs the owner-led dispatched-night and fleet verification. Phase 128 handles the held private claim-token path.
+
+## Trajectory
+
+- **2026-10-24** — First canonical plan creation must lease an absent ref with an empty expected SHA, not literal null. A real bare-origin regression now exercises legacy plan adoption and late ticks while retaining the original legacy bytes.
+- **2026-10-24** — The claim-token inventory row is private Git-directory ownership state, not a remote branch. Its stable identity is retained and its held writer belongs to phase 128's owner-machine boundary.
+- **2026-10-24** — Current retry eligibility uses a separate exact source closure; historical retry pins remain unchanged. Neither closure is approval to dispatch or install renamed concurrency groups.

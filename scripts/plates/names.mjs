@@ -7,28 +7,28 @@
 // IDs remain stable when a row transitions. The bare git namespace is also
 // read by machine queue bounds; its open owner protection stays in rename.
 export const NAMES = Object.freeze([
-  Object.freeze({"id": "git ref:keel/", "surface": "git ref", "keel": "keel/", "plates": "plates/", "phase": 125, "state": "held"}),
-  Object.freeze({"id": "git ref:keel-night/","surface": "git ref","keel": "keel-night/","plates": "plates-night/","phase": 125,"state": "held","migrationHold": "keel-night\\\\?\\/"}),
-  Object.freeze({"id": "git ref:keel-night-plan","surface": "git ref","keel": "keel-night-plan","plates": "plates-night-plan","phase": 125,"state": "held","migrationHold": "keel-night-plan\\b"}),
-  Object.freeze({"id": "git ref:keel-climb/","surface": "git ref","keel": "keel-climb/","plates": "plates-climb/","phase": 125,"state": "held","migrationHold": "keel-climb\\\\?\\/"}),
-  Object.freeze({"id": "git ref:keel-tend/","surface": "git ref","keel": "keel-tend/","plates": "plates-tend/","phase": 125,"state": "held","migrationHold": "keel-tend\\\\?\\/"}),
-  Object.freeze({"id": "git ref:keel-loop/","surface": "git ref","keel": "keel-loop/","plates": "plates-loop/","phase": 125,"state": "held","migrationHold": "keel-loop\\\\?\\/"}),
-  Object.freeze({"id": "git ref:keel/robot-","surface": "git ref","keel": "keel/robot-","plates": "plates/robot-","phase": 125,"state": "held","migrationHold": "keel\\\\?\\/(?:robot-)"}),
-  Object.freeze({"id": "git ref:keel/update-","surface": "git ref","keel": "keel/update-","plates": "plates/update-","phase": 125,"state": "held","migrationHold": "keel\\\\?\\/(?:update-)"}),
-  Object.freeze({"id": "git ref:keel/web-update-","surface": "git ref","keel": "keel/web-update-","plates": "plates/web-update-","phase": 125,"state": "held","migrationHold": "keel\\/web-update-"}),
-  Object.freeze({"id": "git ref:keel-verify","surface": "git ref","keel": "keel-verify","plates": "plates-verify","phase": 125,"state": "held","migrationHold": "keel-verify\\b"}),
-  Object.freeze({"id": "git ref:keel-claims/phase-","surface": "git ref","keel": "keel-claims/phase-","plates": "plates-claims/phase-","phase": 125,"state": "held","migrationHold": "keel-claims\\b"}),
-  Object.freeze({"id": "concurrency group:keel-night","surface": "concurrency group","keel": "keel-night","plates": "plates-night","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-morning","surface": "concurrency group","keel": "keel-morning","plates": "plates-morning","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-climb","surface": "concurrency group","keel": "keel-climb","plates": "plates-climb","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-tend","surface": "concurrency group","keel": "keel-tend","plates": "plates-tend","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-loop","surface": "concurrency group","keel": "keel-loop","plates": "plates-loop","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-robot","surface": "concurrency group","keel": "keel-robot","plates": "plates-robot","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-robot-route-","surface": "concurrency group","keel": "keel-robot-route-","plates": "plates-robot-route-","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-cross-review-","surface": "concurrency group","keel": "keel-cross-review-","plates": "plates-cross-review-","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-impact-","surface": "concurrency group","keel": "keel-impact-","plates": "plates-impact-","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-web-typecheck-","surface": "concurrency group","keel": "keel-web-typecheck-","plates": "plates-web-typecheck-","phase": 125,"state": "held"}),
-  Object.freeze({"id": "concurrency group:keel-web-update-","surface": "concurrency group","keel": "keel-web-update-","plates": "plates-web-update-","phase": 125,"state": "held"}),
+  Object.freeze({"id": "git ref:keel/", "surface": "git ref", "keel": "keel/", "plates": "plates/", "phase": 125, "state": "dual"}),
+  Object.freeze({"id": "git ref:keel-night/","surface": "git ref","keel": "keel-night/","plates": "plates-night/","phase": 125,"state": "dual","migrationHold": "keel-night\\\\?\\/"}),
+  Object.freeze({"id": "git ref:keel-night-plan","surface": "git ref","keel": "keel-night-plan","plates": "plates-night-plan","phase": 125,"state": "dual","migrationHold": "keel-night-plan\\b"}),
+  Object.freeze({"id": "git ref:keel-climb/","surface": "git ref","keel": "keel-climb/","plates": "plates-climb/","phase": 125,"state": "dual","migrationHold": "keel-climb\\\\?\\/"}),
+  Object.freeze({"id": "git ref:keel-tend/","surface": "git ref","keel": "keel-tend/","plates": "plates-tend/","phase": 125,"state": "dual","migrationHold": "keel-tend\\\\?\\/"}),
+  Object.freeze({"id": "git ref:keel-loop/","surface": "git ref","keel": "keel-loop/","plates": "plates-loop/","phase": 125,"state": "dual","migrationHold": "keel-loop\\\\?\\/"}),
+  Object.freeze({"id": "git ref:keel/robot-","surface": "git ref","keel": "keel/robot-","plates": "plates/robot-","phase": 125,"state": "dual","migrationHold": "keel\\\\?\\/(?:robot-)"}),
+  Object.freeze({"id": "git ref:keel/update-","surface": "git ref","keel": "keel/update-","plates": "plates/update-","phase": 125,"state": "dual","migrationHold": "keel\\\\?\\/(?:update-)"}),
+  Object.freeze({"id": "git ref:keel/web-update-","surface": "git ref","keel": "keel/web-update-","plates": "plates/web-update-","phase": 125,"state": "dual","migrationHold": "keel\\/web-update-"}),
+  Object.freeze({"id": "git ref:keel-verify","surface": "git ref","keel": "keel-verify","plates": "plates-verify","phase": 125,"state": "dual","migrationHold": "keel-verify\\b"}),
+  Object.freeze({"id": "git ref:keel-claims/phase-","surface": "local Git path","keel": "keel-claims/phase-","plates": "plates-claims/phase-","phase": 128,"state": "held","migrationHold": "keel-claims\\b"}),
+  Object.freeze({"id": "concurrency group:keel-night","surface": "concurrency group","keel": "keel-night","plates": "plates-night","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-morning","surface": "concurrency group","keel": "keel-morning","plates": "plates-morning","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-climb","surface": "concurrency group","keel": "keel-climb","plates": "plates-climb","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-tend","surface": "concurrency group","keel": "keel-tend","plates": "plates-tend","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-loop","surface": "concurrency group","keel": "keel-loop","plates": "plates-loop","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-robot","surface": "concurrency group","keel": "keel-robot","plates": "plates-robot","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-robot-route-","surface": "concurrency group","keel": "keel-robot-route-","plates": "plates-robot-route-","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-cross-review-","surface": "concurrency group","keel": "keel-cross-review-","plates": "plates-cross-review-","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-impact-","surface": "concurrency group","keel": "keel-impact-","plates": "plates-impact-","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-web-typecheck-","surface": "concurrency group","keel": "keel-web-typecheck-","plates": "plates-web-typecheck-","phase": 125,"state": "dual"}),
+  Object.freeze({"id": "concurrency group:keel-web-update-","surface": "concurrency group","keel": "keel-web-update-","plates": "plates-web-update-","phase": 125,"state": "dual"}),
   Object.freeze({"id": "artifact:keel-test-runs","surface": "artifact","keel": "keel-test-runs","plates": "plates-test-runs","phase": 126,"state": "held","migrationHold": "keel-test-runs\\b"}),
   Object.freeze({"id": "artifact:keel-production-","surface": "artifact","keel": "keel-production-","plates": "plates-production-","phase": 126,"state": "held","migrationHold": "keel-production-(?=\\d|\\$\\{|['\"`]|$)"}),
   Object.freeze({"id": "artifact:keel-canvas-night","surface": "artifact","keel": "keel-canvas-night","plates": "plates-canvas-night","phase": 126,"state": "held","migrationHold": "keel\\-canvas\\-night\\b"}),
@@ -166,4 +166,24 @@ export function readNames(id, rows = NAMES) {
 export function durableNames(rows = NAMES) {
   const patterns = rows.filter(row => ['held', 'dual'].includes(row.state) && row.migrationHold).map(row => row.migrationHold);
   return new RegExp(patterns.length ? patterns.join('|') : '(?!)', 'g');
+}
+
+/** Only explicit table families share a queue; unknown owner prefixes stay exact. */
+export function branchPrefixes(prefix) {
+  const row = NAMES.find(row => row.surface === 'git ref' && [row.keel, row.plates].includes(prefix));
+  return row ? readNames(row.id) : [prefix];
+}
+export const inBranchQueue = (branch, prefix) => typeof branch === 'string' && branchPrefixes(prefix).some(p => branch.startsWith(p));
+export function branchSuffix(branch, id) {
+  const prefix = readNames(id).find(p => typeof branch === 'string' && branch.startsWith(p));
+  return prefix === undefined ? null : branch.slice(prefix.length);
+}
+export const robotIssueOf = branch => {
+  const suffix = branchSuffix(branch, 'git ref:keel/robot-');
+  return /^[1-9]\d*$/.test(suffix ?? '') ? Number(suffix) : null;
+};
+export const nightBranches = date => readNames('git ref:keel-night/').map(p => `${p}${date}`);
+export function finalNightBranch(date, branch = null) {
+  const night = nightBranches(date).find(n => branch === n || branch === `${n}-final`);
+  return `${night ?? writeName('git ref:keel-night/') + date}-final`;
 }
