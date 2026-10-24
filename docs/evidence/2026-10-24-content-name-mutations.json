@@ -33042,5 +33042,129 @@
       "path": "/Users/dionalmaer/code/plates/.plates/name-transition/phase126-review1-20261024/observations.tar.gz",
       "sha256": "31caa3671dce74c3a9ac149513a15325ccf80759ca02190bc7e2598446c8757a"
     }
+  },
+  "review2Correction": {
+    "baseRevision": "3ad472f781acaadf5267c67a791f0668aa37eebc",
+    "finding": "https://github.com/dalmaer/plates/pull/262#discussion_r4368134567",
+    "files": {
+      "lib/names.mjs": {
+        "before": "b134bde8f7006f8956454e82d609a5dd747895336815b5b5fd8fcf8f633b3616",
+        "after": "ebb8f9aacc73ede8ecb7785707e0690b215681003a837649793e4ff711c18c04"
+      },
+      "practices/climb/files/scripts/plates/names.mjs": {
+        "before": "95a1c8d8e1b7616004983e97752b540d15e8992f981d1cf058ec7268207062a0",
+        "after": "22a446c61b7b864cee79c4f5dc8f7f238971a7c0f1c3c9b8b1a9e13fd7962ad7"
+      },
+      "practices/reconciliation/files/scripts/plates/names.mjs": {
+        "before": "d630d3484b51ec0cf0f073d8c022347c9354c80ca5eaa3adaa053bb3b1b4e527",
+        "after": "587c4cf39e9ea8e49206d5e59894681b2939cf138b61fdd56ffc9e7945c7d93a"
+      },
+      "tests/names-doorways.test.mjs": {
+        "before": null,
+        "after": "a6a4ef7e8e165b375492a8b6906a4b9e232af980f15a1d465b2e97abbd1807b7"
+      }
+    },
+    "mutationApplicability": {
+      "reports": [
+        {
+          "report": "/tmp/plates126-mutation-red-proof.json",
+          "proofs": 144,
+          "changedDirectConsumerOrFixtureHits": []
+        },
+        {
+          "report": "/tmp/plates126-mutation-orchestration-proof.json",
+          "proofs": 24,
+          "changedDirectConsumerOrFixtureHits": []
+        },
+        {
+          "report": "/tmp/plates126-integrated-mutation-proof.json",
+          "proofs": 116,
+          "changedDirectConsumerOrFixtureHits": []
+        },
+        {
+          "report": "/tmp/plates126-final8-handoff.json",
+          "proofs": 14,
+          "changedDirectConsumerOrFixtureHits": []
+        },
+        {
+          "report": "/tmp/plates126-review1-handoff.json",
+          "proofs": 6,
+          "changedDirectConsumerOrFixtureHits": []
+        }
+      ],
+      "unchangedSinceBase": {
+        "lib/canvas-snapshot.mjs": "6f2f17b59f21b4c8adf7439c423941d48c9272b3bacf62bcfc6c72d3e42ea0d9",
+        "lib/evidence.mjs": "7b5bde6632b0b619a830abe0adf4a00a9c0e01bd6d42544b7e215802a33db954",
+        "lib/review.mjs": "279111fa3dbd6d12a2cfd7fc4a2dd09bac9c188aefc6e80a92a1a8cc528641d3",
+        "lib/robot-issue.mjs": "1062ffe859d238de77542da0ef386aba479aa5859d0b20d698276fb0b6cad1e9",
+        "practices/climb/files/scripts/plates/robot-rubric.mjs": "3e14fc202531a46f0ff407f82b77f73690e075e95d9d1af92851bb4f8f3a8449",
+        "practices/climb/files/scripts/plates/robot.mjs": "980d2937494a2a1bad253c232a6f4bedb7d2aab8bd947f7cfbf263ae084db1f0",
+        "practices/climb/files/scripts/plates/tend.mjs": "68a465b77de8fe082a8a26a6b45f97a697c04430708c7a1453e0c88992dbc8f9",
+        "practices/cross-review/files/.github/workflows/plates-cross-review.yml": "66f8d8affb6cf6920d76ae460b6955456024e6b3b43e02ea28718ee9aea6b385",
+        "practices/cross-review/files/scripts/plates/cross-review.mjs": "5c77d2f851797e6251c32d6b754034be6c2290dc8ce0ad5f2c2a78a062506f43",
+        "practices/night/files/scripts/plates/canvas-recovery.mjs": "f210f789c7fb79659eda6dabad9ab8f840a6fd83a4a28b468ecfc989fe11df58",
+        "practices/night/files/scripts/plates/gate.mjs": "88be464ee3a5a79e6b17994b604185a2465ddce15048a09f75732b599e9d3baf",
+        "practices/night/files/scripts/plates/hygiene-proposals.mjs": "05863d3e102e80009749b6b56a71ad58ffc526a70c27feb14c9456f2db5493ea",
+        "practices/night/files/scripts/plates/improve.mjs": "deb7a755db6d5f1f86ded0d204d11d218edc389567d72ff7766cc3e66fbacddc",
+        "practices/night/files/scripts/plates/lib.mjs": "9d48a2da6a12dd696786e0b327bf6630f963548a2dff110ccb4c59c39efdb0fb",
+        "practices/night/files/scripts/plates/milestones.mjs": "33ecff9885c3cbe95ece1db2220186e61df4bc00e3f71c677b6376d715f9b2ef",
+        "practices/night/files/scripts/plates/morning.mjs": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7",
+        "practices/night/files/scripts/plates/names.mjs": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+        "practices/night/files/scripts/plates/night-plan.mjs": "cddec41deb4b4b3d918a2c706c57d435f6463f7085b677084fbdb1432337f10a",
+        "practices/night/files/scripts/plates/production-night.mjs": "e496379d8d048355c0ffbd63224c0947ebc3fa25d8a84dc83b7348d4515b7b11",
+        "practices/night/files/scripts/plates/robot-delivery.mjs": "fdd3a4bfa8f2d9e487f9ddce6cdbf8411eb524062845dd0b0e7759eb1f305970",
+        "practices/night/files/scripts/plates/test-history.mjs": "56e37b25b37235c91e16b390eb05bcc5522ce695d664ba5322a59431a3943f5c",
+        "practices/night/files/scripts/plates/test-ledger.mjs": "90ebf8155952945bb712c29a9fa12fafe78573be34d86d4dec8176ee0cf754af",
+        "practices/night/files/scripts/plates/time-proposals.mjs": "f28201ff2c8ba3266f9a7c1af32c0e17b49267e8eea8959fd0850a6d15e28245",
+        "practices/reconciliation/files/scripts/plates/decision-context.mjs": "16d09fee3ff52e64665d57582cf3fa90a932a2b2212620ad99c27e203804c206",
+        "practices/reconciliation/files/scripts/plates/reconcile.mjs": "22fcb26ba51e0fae5cf306c7e3e3284d116868eb623d71ad234331b391e60a44",
+        "scripts/plates/morning.mjs": "1142511490020bcb15fcc6a31ef91d8da7959138b1375fb724e22ae5074b17f7",
+        "scripts/plates/names.mjs": "4901dcf57875350c66175be2218299ce9556e9be5a98d061a4888f13f2c33fc6",
+        "tests/canvas-night.test.mjs": "8878737b50f809f0805480cf0cefff5106fad4eebf0e12e58e0240482289cde5",
+        "tests/canvas-snapshot.test.mjs": "2f7318e063d945529f0c004cd263a4f355b5b2e851e6dea96282496a0513d95f",
+        "tests/cross-review.test.mjs": "c41e944c133569f10b09811c9adb55ac870b10d743361bd838efd2b47661bb6f",
+        "tests/decision-context.test.mjs": "b6423a0b478746898bd3a08772131e6d9f096de193e32f3eaa01c05f51b8a685",
+        "tests/evidence.test.mjs": "c591b81c78de01c9e3d26751017986863e3b7774755ce9ecd5abaa202c133c50",
+        "tests/gate-reuse.test.mjs": "8945a003d79698faf9f50a1ae8c22fb530638ca20350fda243672646d551d479",
+        "tests/hygiene-proposals.test.mjs": "c2f0a50451155b1237b8a037f835cd60d39a734566e03a203133bfa30adc7a6b",
+        "tests/milestones.test.mjs": "e23c13da8b402a66054b20b5c3d595552a4f9c2c860601de3f8454aee0f99c06",
+        "tests/morning.test.mjs": "c5de0d894dd6fc4719012af1c7a60fabc688034e7a796ae90d18cb7920cf57a5",
+        "tests/names-content.test.mjs": "9cef51d996b05ce89a3db0193f2f95526c735b7289cccf33fa238fb721f822d6",
+        "tests/names-label-consumers.test.mjs": "d5d4f60a0ab461e06e328687106cc04470e2f8a91b911395cd6960da7e5cb030",
+        "tests/names-labels.test.mjs": "85bcc79906c323d0f9bf206778e6ad50a5675a0e056db3b9aa7c977715782e76",
+        "tests/names-review-markers.test.mjs": "cc519ac8544d99f2362d4532d37ad3d8ed56fb2fe7a8be56fe0be46a26882769",
+        "tests/names.test.mjs": "6a12920b3d5ea88fa3b02fdf069bebfa5f1fd1b63d99056fadf9c6d170a1cb04",
+        "tests/production-integration.test.mjs": "b799fb48010a15a0d94996aaa6e38b1348ceced120644dd0721a763a06b26bba",
+        "tests/reconciliation.test.mjs": "6e13106a77bdb8f479ceffd9c9d3b93e8f2ce8a026febbb32ed78390bf63eafd",
+        "tests/review-rounds.test.mjs": "4fe05ae5c7d78e5b377da40cb35e96ae5fa7e6fa2e37afef9914e24b12ac5a9f",
+        "tests/review.test.mjs": "ca77ee16dfc5da2158a5a1548276ac0f703542a46a2af7ab64b36c9951dec175",
+        "tests/robot-delivery.test.mjs": "89f853d9b9874fd098a7e25e4e4c2e3ebf2a5852d857cb582f9a6f79a52b3e2e",
+        "tests/robot-issue.test.mjs": "28cb327f88b5df9ef4e6156da469b4c021503b77b1325ff3342a19c9212e61d8",
+        "tests/robot-rubric.test.mjs": "a33d8552ca77b3387d6b8fd09e905949c44de3c5e2d07557884ad7f99c205aed",
+        "tests/robot-runtime.test.mjs": "b85781620e68b07ccea18678c31b13239c483b9c652124815344b750746a85f0",
+        "tests/tend.test.mjs": "193fbde396e43aaf76be12d3b9496384a7ecf9c12668ddf26e977bd89259c770",
+        "tests/test-history.test.mjs": "86609122f2ae6750a6bfd64940e60efa5d56f20ddd906d371bb75fc5bdf6e488",
+        "tests/test-ledger.test.mjs": "d84c0c39bc84cd60f8605433be09b69cba2eba4e037e0ed63395de9d59e05e6f",
+        "tests/time-proposals.test.mjs": "e24d27680832128f995214ce9e72444da0bd7e578e0011e1df6dd402b190abee"
+      },
+      "refreshRequired": [],
+      "reason": "Separate new test file leaves every prior mutation fixture and direct consumer byte-identical to clean base. The changed transitive doorway transport exports identical canonical binding objects, verified by actual imports and full export-key parity. No fallback parser implementation or canonical table changed. Prior proof hashes are preserved, not rewritten; these doorway files have their own new source hashes and old-red/new-green regression evidence."
+    },
+    "parentUnchangedHashAudit": {
+      "files": 53,
+      "checkedAgainst": "3ad472f7",
+      "passed": true
+    },
+    "parentFocused": {
+      "tests": 9,
+      "passed": 9,
+      "exit": 0
+    },
+    "regressionTrailer": "Proven-by: tests/names-doorways.test.mjs \u2014 VERIFIED \u2014 \"Expected values to be strictly deep-equal: + actual - expected ... Skipped lines [ 'NAMES', 'artifactNames', 'branchPrefixes', 'branchSuffix', - 'configuredL...\"",
+    "currentPairs": 172,
+    "archive": {
+      "path": "/Users/dionalmaer/code/plates/.plates/name-transition/phase126-review2-20261024/observations.tar.gz",
+      "sha256": "f00dffd4b68c13634651f708dfee61235a0f0b725da0f14c043f0f5f4d6770fa"
+    }
   }
 }
