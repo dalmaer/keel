@@ -17,7 +17,10 @@ All six historical case definitions retain source provenance, independent accept
 
 ## Scope
 
-Implement the corresponding slice of [harness-regression-evaluation](../specs/harness-regression-evaluation.md).
+Implement the corresponding slice of [harness-regression-evaluation](../specs/harness-regression-evaluation.md), including its dated Phase 120 corpus contract.
+Independent corpus preparation uses phase 119’s offline interfaces without its
+missing live-provider activation. While PR #249 waits for the owner’s review-limit
+decision, this dependent branch cannot merge it indirectly.
 Reuse the existing experiment, learn, execution and evidence mechanisms. Do not
 introduce a second scheduler, evidence authority or automatic production default.
 
@@ -49,4 +52,6 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Curate the six pinned historical cases and independently controlled checks; record held-out coverage as zero until privately authored.
+Implement the bounded corpus inspection/export contract and six independently
+checked historical cases. Keep held-out coverage zero and the dependent branch
+unmerged until phase 119’s owner review decision is resolved.
