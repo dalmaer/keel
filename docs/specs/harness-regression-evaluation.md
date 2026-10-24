@@ -71,7 +71,12 @@ without borrowing the future execution command's authority.
 The first execution adapter is explicitly offline. `run --experiment <id>
 --execution <absolute-json>` previews a single frozen pair/arm and exits 3;
 `--yes --digest <preview>` approves only those exact bytes, source export,
-private destination and resource limits. Its strict execution request identifies
+private destination and resource limits. The offline capability is explicitly
+`pinned-image-tools`: all executables in the approved read-only image, with no
+network, host tools or sockets. Narrower executable allowlists refuse because a
+Node program can spawn other image programs; merely checking its initial argv
+would not enforce them. Builder/check argv begins with Node and names a delivered
+public file, with no host shell interpolation. Its strict execution request identifies
 schema version, pair, arm, canonical local repository, regular source paths,
 builder argv and explicit host admission configuration. Export each source from
 the case's pinned commit; reject symlinks, submodules and Git history. The preview
