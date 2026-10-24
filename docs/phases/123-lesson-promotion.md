@@ -54,8 +54,8 @@ experiments, hosted activation and fleet schedules are not changed by this phase
 
 ## Next action
 
-Complete exact-head PR review and CI. Resolve phase119's
-owner review-limit decision before landing the stack. Implement live provider/spend,
+Resolve phase119's owner review-limit decision before landing the stack; require
+current exact-head review and CI for each PR at that point. Implement live provider/spend,
 per-case environment mapping and verified delivery routing before an exact bounded
 owner-approved screening; then configure approvers separately and observe the actual
 reviewed package. No automatic default or permission change is authorized.
