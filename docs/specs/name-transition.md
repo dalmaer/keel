@@ -33,7 +33,9 @@ Every name moves the same way, in three steps, each a release:
    evening, each checked the same way. A project that fails stops the
    rollout. (The owner's call, 2026-10-23: no waiting a week.)
 3. **Retire.** Once nothing live in the fleet uses a keel name, the
-   fallback reads go, in one release.
+   live-state fallback reads go, in one release. Historical metadata readers
+   remain permanently: unchanged old decisions, proofs and reconciliation records
+   must still resolve. Retirement requires the owner to say retire.
 
 A name that cannot be read both ways, such as a database function a deployed
 build calls, gets a forwarding alias for the old name. It is not a hard switch.

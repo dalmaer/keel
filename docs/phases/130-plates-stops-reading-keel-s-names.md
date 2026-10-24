@@ -13,7 +13,7 @@ issue: 246
 
 ## Done when
 
-`plates names` shows no live keel name anywhere in the fleet. In one release, every `dual` row in the name table becomes `retired`: its fallback read is removed, its forwarder dropped, and its old variable deleted with the owner's yes. The name scan in `tests/names.test.mjs` then fails on any keel token outside the allowed compatibility entry points.
+`plates names` shows no live keel name anywhere in the fleet. In one release, each eligible live-state `dual` row becomes `retired`: its live fallback read is removed, its forwarder dropped, and its old variable deleted with the owner's yes. The name scan in `tests/names.test.mjs` then fails on any keel token outside explicitly listed compatibility entry points and historical metadata readers.
 
 ## Scope
 
@@ -23,11 +23,12 @@ The design is [Name transition](../specs/name-transition.md), "The rule".
 - **Code:** remove each fallback read named by a `dual` row:
   - the prefixes in drain, morning and the board;
   - the plan and verify branch fallbacks;
-  - the marker and fence matchers;
+  - live-only marker matchers; historical marker and fence parsers remain;
   - the artifact readers;
   - the cookie, env and header fallbacks.
 
   The rename's `DURABLE` holds shrink to what `plates migrate` still needs for a pre-rename project.
+- **Historical records remain readable:** retain explicitly inventoried parsers for old decision, reconciliation, impact, proof and measurement metadata. These are permanent compatibility readers, not live-name blockers. Never rewrite old records to make retirement pass. Resolve an unchanged pre-transition accepted decision after retirement, including its references and evidence.
 - **The database:** a migration drops the `keel_*_rpc` forwarders (⚑ the owner applies it), and acts on 127's schema decision.
 - **Variables:** `plates names --retire --yes` deletes each `vars.KEEL_*` that has a `PLATES_` copy. Old secrets are listed for the owner to delete.
 - **The compatibility entry points** (`bin/keel.mjs`, the `keel` command, `/conduct`, `.keel/` in `migrate`): the owner decides here whether they stay for good. The table records the decision either way.
@@ -35,8 +36,10 @@ The design is [Name transition](../specs/name-transition.md), "The rule".
 ## Acceptance
 
 - [ ] With no live keel name in a stub fleet, the retirement run lists every `dual` row it retires. With one live name, it refuses, naming it. `tests/names-cli.test.mjs`: "retirement refuses while a keel name is live"
-- [ ] After retirement, the name scan fails on any keel token outside the allowed compatibility entry points. `tests/names.test.mjs`: "after retirement only the entry points say keel"
+- [ ] After retirement, the name scan fails on any keel token outside explicitly listed compatibility entry points and historical metadata readers. `tests/names.test.mjs`: "after retirement only explicit compatibility readers say keel"
 - [ ] The owner applies the forwarder-dropping migration and approves the variable deletions. The next `plates names --fleet` is empty. ⚑ by hand: the owner
+
+- [ ] An unchanged pre-transition accepted decision and its legacy reconciliation references still resolve after live-name retirement. `tests/decision-context.test.mjs`: "historical decisions resolve after live-name retirement"
 
 ## Your part
 
@@ -55,7 +58,7 @@ The design is [Name transition](../specs/name-transition.md), "The rule".
 
 ## Proof
 
-Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/names.test.mjs tests/names-cli.test.mjs`; `npm run check`.
+Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/names.test.mjs tests/names-cli.test.mjs tests/decision-context.test.mjs`; `npm run check`.
 By hand: ⚑ the owner's retirement, and `plates names --fleet` empty, in the evidence.
 
 ## Deliberately open
