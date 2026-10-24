@@ -2001,3 +2001,19 @@ test('command interfaces: unchanged external commands and payloads remain byte-e
   const result = run('sh', ['-c', command], { cwd: root });
   assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), 'https://acme.example/keel/status');
 });
+
+
+test("the durable holds are the name table's held and dual rows", async () => {
+  const { NAMES, durableNames } = await import('../lib/names.mjs');
+  const row = NAMES.find(row => row.id === 'fence:keel-proof');
+  for (const state of ['held', 'dual']) assert.deepEqual('keel-proof'.match(durableNames([{ ...row, state }])), ['keel-proof']);
+  assert.equal('keel-proof'.match(durableNames([{ ...row, state: 'retired' }])), null);
+  assert.equal('keel-proof'.match(durableNames(NAMES.filter(value => value.id !== row.id))), null);
+  assert.equal(renameActiveText('keel-proof'), 'keel-proof');
+  assert.equal(renameActiveText('keel-new-branding'), 'plates-new-branding');
+  const owner = `keel:acme-owner keel%3Aacme-owner 'keel.acme_owner' secrets.KEEL_ACME_TOKEN 'keel/'`;
+  assert.equal(renameActiveText(owner), owner, 'unknown owner namespaces retain the original protection');
+  assert.equal(renameActiveText('KEEL_GH keel.css KEELM1'), 'PLATES_GH plates.css PLATESM1', 'inventory does not broaden existing migration holds');
+  const source = await readFile(new URL('../lib/rename.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const DURABLE = durableNames\(\);/);
+});
