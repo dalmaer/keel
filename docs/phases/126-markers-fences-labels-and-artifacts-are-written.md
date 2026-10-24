@@ -51,6 +51,8 @@ Automated: `node --import ./tests/helpers/hermetic.mjs --test tests/names.test.m
 
 ## Deliberately open
 
+- **2026-10-24 — Label rename evidence travels with the repository.** Phase 128 records confirmed label-ID-preserving rename/readback in tracked `.plates/name-transition/label-renames.json`, so fresh CI checkouts see it. Each entry binds the repository ID and owner/repo, exact name-table row, original label ID, old/new names, original operation and verification timestamp. This is evidence of an approved operation, not permission to rename. Phase 126 validates those bindings before selecting a new writer. Missing evidence keeps the legacy selection only when it cannot create a duplicate; conflicting or uncertain evidence and a current-name label without its verified receipt refuse mutation. A later stale or conflicting provider observation also refuses rather than recreating the old label. Readers continue accepting both exact names.
+
 - **Saved GitHub searches and filters** the owner keeps under `label:keel:…` stop finding new items once labels are renamed. Phase 128 lists them, and plates can't edit them.
 
 ## Next action
