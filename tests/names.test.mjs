@@ -160,10 +160,10 @@ test('name lookups are explicit, held initially, and state transitions are read/
   for (const row of NAMES) {
     assert.ok(surfaces.has(row.surface));
     assert.ok([125,126,127,128].includes(row.phase));
-    assert.equal(row.state, 'held');
+    assert.ok(['held', 'dual', 'retired'].includes(row.state));
     assert.equal(nameRow(row.id), row);
-    assert.equal(writeName(row.id), row.keel);
-    assert.deepEqual(readNames(row.id), [row.keel]);
+    assert.equal(writeName(row.id), row.state === 'held' ? row.keel : row.plates);
+    assert.deepEqual(readNames(row.id), row.state === 'held' ? [row.keel] : row.state === 'dual' ? [row.plates, row.keel] : [row.plates]);
     for (const state of ['dual', 'retired']) {
       const rows = [{ ...row, state }];
       assert.equal(writeName(row.id, rows), row.plates);

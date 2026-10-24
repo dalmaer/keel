@@ -1,3 +1,4 @@
+import { nameCandidate } from './helpers/web-name-candidate.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -639,4 +640,26 @@ test("ejected project-owned targets remain visible in version comparison", async
       (f) => f.path === "docs/custom.md" && f.state === "ejected",
     ),
   );
+});
+
+
+test('held and candidate update markers recover original uncertain PRs across releases', async t => {
+  const candidate = await nameCandidate(t, { cookies: false, markers: true });
+  for (const candidateWrites of [false,true]) {
+    const h = await fleetUpdatesHarness(), baseline = h.fleet;
+    const next = candidate.fleet.createFleetUpdates(h.config, { fetcher: h.fetcher, now: () => h.state.now, resolveInitiator: h.auth.resolveInitiator });
+    h.fleet = candidateWrites ? next : baseline;
+    const s = await prepared(h), p = await publication(h, s);
+    h.remote.lost = 'pulls';
+    let pending = await publish(h, p);
+    for (let i=0; i<30 && pending.state !== 'uncertain'; i++) pending = await h.fleet.continuePublication(h.access, token, pending.id, opts(h));
+    assert.equal(pending.state, 'uncertain'); assert.equal(h.remote.prs.length, 1);
+    const body = h.remote.prs[0].body;
+    assert.ok(body.includes(`${candidateWrites ? 'Plates' : 'Keel'}-Update-Operation: ${p.requestId}`));
+    const count = h.remote.writes.length;
+    h.fleet = candidateWrites ? baseline : next;
+    const recovered = await h.fleet.reconcile(h.access, token, pending.id, opts(h));
+    assert.equal(recovered.state, 'committed'); assert.equal(h.remote.writes.length, count);
+    assert.equal(h.remote.prs.length, 1); assert.equal(h.remote.prs[0].body, body);
+  }
 });
