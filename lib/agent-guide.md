@@ -627,6 +627,9 @@ plates lessons --since v1.2 --json  # practice commits from a ref, not from adop
 plates learn                         # gather: open `lesson` issues + every pinned source; new proposals only
 plates learn propose <slug|issue#> --outcome lesson|practice|decline|link --note "<one line>" --read "<read citing a path or sha>" [--link <n>] [--yes]
 plates learn decide <slug|issue#> accepted|declined [--note "<why>"] [--shape "…" --cost "…" --guard "…"] [--yes]   # the person's verb, never the agent's
+plates learn evaluate inspect <slug> --json
+plates learn evaluate propose|plan|decide <slug> --input <absolute-request.json> [--manifest <absolute-file> --state <absolute-dir>] [--yes --digest <digest>] --json
+plates learn evaluate follow-up <slug> --json # reserved; verification_interface_unavailable
 plates learn render [--check]        # docs/INBOX.md and docs/patterns.md, generated; npm run check runs --check
 plates learn distill                 # the worksheet: rows, families, open proposals, rows since the last pass
 plates learn distill propose --kind family --name "…" --rule "…" --guard "…" --rows 39,40 --read "…"
@@ -636,6 +639,7 @@ plates learn distill propose --kind standardise --family "<name>" --check "<what
 ```
 
 - Runs on plates only (`"plates": "self"`); elsewhere exit 2.
+- Evaluated records use strict versioned requests with explicit local phase `decisionTarget`; capture/propose/revise, plan binding and rejection/supersession preview exact bytes (exit 3), then apply with `--yes --digest`. Inspect is local. Original operations recover by identity; uncertain locks/pending files require inspection. Tagged records refuse legacy mutation. No evaluation, promotion, model call or publication occurs. See `docs/guide/lessons-and-learning.md`.
 - Issues are read from the inbox: config `inbox`, else plates's `repo`.
   Gather reads `gh issue list -R <inbox> --label lesson --state open`
   and each `practices/*/practice.json` `source` against its upstream head. A

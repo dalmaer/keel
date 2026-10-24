@@ -539,7 +539,10 @@ Phase 120 adds bounded inspection/export of six historical development cases
 with separate builder inputs, evaluator data and curator provenance. Use
 `plates retro evaluations corpus inspect --json` to inspect coverage; exports
 require an exact approved preview and a new private destination. Held-out
-coverage remains zero. Live provider execution, enforced spend and measured
+coverage remains zero. Phase 121 adds selected-source verification and immutable
+lesson/proposal versions through `plates learn evaluate`; plan binding verifies
+actual material bytes without running a trial. See the
+[learning guide](docs/guide/lessons-and-learning.md). Live provider execution, enforced spend and measured
 lesson promotion remain unimplemented; offline outcomes do not establish agent improvement. No paid
 evaluations are approved. The
 [capability map](docs/research/2026-10-23-evaluation-capabilities.md) separates
