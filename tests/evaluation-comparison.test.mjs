@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, realpath, rm, writeFile, readFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile, readFile, mkdir, lstat, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
@@ -48,6 +48,23 @@ test('legacy empty and partial locks never acquire recovery authority; handoff s
   await writeFile(join(dir, '.lock'), '{', { mode: 0o600 });
   assert.equal((await inspectHarnessLock(dir)).status, 'blocked');
   await assert.rejects(ledgerLock(dir, { harness: true, recover: await inspectHarnessLock(dir) }), /death unverified/);
+});
+test('structurally invalid JSON lock owners remain blocked without reclaim', async t => {
+  for (const value of [null, false, true, 0, 42, '', 'Acme', [], [null], {}]) {
+    await t.test(JSON.stringify(value), async t => {
+      const dir = await home(t), path = join(dir, '.lock'), bytes = JSON.stringify(value);
+      await writeFile(path, bytes, { mode: 0o600 });
+      const before = await lstat(path);
+      const owner = await inspectHarnessLock(dir);
+      assert.deepEqual(owner, { status: 'blocked', reason: 'unverifiable-lock-owner' });
+      await assert.rejects(ledgerLock(dir, { harness: true }), /storage locked/);
+      await assert.rejects(ledgerLock(dir, { harness: true, recover: owner }), /writer death unverified/);
+      assert.equal(await readFile(path, 'utf8'), bytes);
+      const after = await lstat(path);
+      assert.equal(after.dev, before.dev); assert.equal(after.ino, before.ino);
+      assert.deepEqual(await readdir(dir), ['.lock']);
+    });
+  }
 });
 test('compare retains malformed execution uncertainty and refuses mutation options', async t => {
   const world = await evaluationWorld(t);

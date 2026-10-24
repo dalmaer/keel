@@ -79,10 +79,9 @@ The interrupted trial did not become accepted from termination or recovery.
 
 ## Integrated verification
 
-The final integrated tree must run `npm run check` (tests, roadmap, render and
-inbox) and `npm run typecheck`. Results belong in its commit body. The diagnostic
-observations above precede additional recovery-validation and budget corrections;
-they do not establish those later bytes.
+The diagnostic observations above precede additional recovery-validation and
+budget corrections; they do not establish those later bytes. The final corrected
+tree was verified separately below.
 
 ## Gaps and decision
 
@@ -141,3 +140,29 @@ These observations support the offline acceptance boxes. The phase remains
 partial because live provider integration, enforced provider spending and the
 approved measured screening are still absent. Later corpus and lesson mechanics
 can proceed independently; actual measured promotion cannot.
+
+## Full integrated gate — 23 October 2026
+
+Before committing `2ebd80331d486d89afdb6ae2ae29b018a310e0db`, the conductor ran:
+
+```sh
+PATH=/opt/homebrew/bin:$PATH TZ=UTC npm run check
+```
+
+Exit 0: 2,959 tests, 2,954 passed, zero failed and five opt-in Docker skips.
+Roadmap, render and inbox checks passed. The test ledger reported no flaky or
+slower tests across its retained observations (25 runs, ten busy runs omitted).
+Log: `/tmp/plates-phase119-check.log`. The separate typecheck command above also
+exited 0. These results describe that pre-review tree; subsequent corrections
+require their own verification and do not rewrite this observation.
+
+## Review correction — 23 October 2026
+
+PR #249 identified the omitted full-gate observation above and a JSON `null`
+lock-owner dereference. Structurally invalid lock owners now return blocked;
+acquisition and recovery preserve original bytes and inode rather than reclaiming
+unknown ownership. `plates prove` independently failed without this guard and
+passed with it (VERIFIED); retained log `/tmp/phase119-pr249-lock-prove.log`.
+The source capability fingerprint changes because the audited parser boundary
+changed; no command, permission or authority is added. The correction's integrated
+gate is `npm run check`, with its result retained in the correction commit body.
