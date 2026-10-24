@@ -31,8 +31,14 @@ Preview freeze exits 3; plan and inspect exit 0; refusals exit 2. Plan creates
 nothing. The preview digest binds exact bundle and manifest bytes, canonical
 record hashes, workspace ownership and exact destination. The manifest must
 list the comparison repository as its own repository or an authorized project.
-Identical freeze retries return the original receipt; changed inputs under the
-same identity refuse. Interrupted, locked or corrupt storage requires inspection;
+Identical freeze retries return the original receipt only with the same canonical
+bundle path, bytes, manifest and destination. Moving or copying identical bytes to
+a different path changes the approval identity: the old digest is stale and a
+new preview cannot replace the existing experiment. Inspect the original receipt;
+restore the original input path for retry, or deliberately author a new comparison
+ID for a new plan. Merely spelling the same canonical path relative to another
+working directory does not change its identity. Changed inputs under the same
+identity refuse. Interrupted, locked or corrupt storage requires inspection;
 it is never reset automatically.
 
 The helper is the complete small bundle example. Each record has schemaVersion,
@@ -60,3 +66,9 @@ comparison, and numbers are positive (at most nine digits). Runtime/tool version
 are declared numeric version labels (optional `v`, dotted components and
 prerelease/build suffix); moving labels such as `latest`, `main` and `HEAD` refuse.
 Neither version labels nor hashes verify availability or reproducibility.
+
+The acceptance/context guard detects byte-identical material, including copies
+under different material IDs. It does not detect reserialized JSON, whitespace
+changes, excerpts or semantic equivalents. Do not infer confidentiality from a
+passing record check: the curator must keep private answers out of delivered
+context, and phase 118 must independently enforce the builder/evaluator boundary.

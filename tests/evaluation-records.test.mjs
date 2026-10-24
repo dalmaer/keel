@@ -104,6 +104,36 @@ test('raw input, exact destination and manifest scope bind approval', async t =>
   await assert.rejects(w.call({ action: 'plan' }), /not authorized/);
   assert.deepEqual(await readdir(w.opts.state), ['workspace.json']);
 });
+test('real CLI binds approval and immutable retry to the exact bundle path', async t => {
+  const w = await world(t);
+  const original = w.cli('freeze'); assert.equal(original.status, 3);
+  assert.equal(w.cli('freeze', ['--yes', '--digest', original.data.digest]).status, 0);
+  const statePath = join(w.dir, 'state.json'), stored = await readFile(statePath);
+  const copiedPath = join(w.root, 'inputs/copied-bundle.json');
+  await writeFile(copiedPath, await readFile(w.opts.bundle));
+  assert.equal(await realpath(copiedPath), copiedPath);
+  assert.deepEqual(await readFile(copiedPath), await readFile(w.opts.bundle));
+  const freeze = (bundle, extra = [], cwd = w.root) => {
+    const result = run(process.execPath, [BIN, 'retro', 'evaluations', 'freeze', '--manifest', w.opts.manifest, '--state', w.opts.state, '--bundle', bundle, ...extra, '--json'], { cwd, env: { ...process.env, PLATES_CLAUDE_DIR: join(w.root, 'transcripts') } });
+    return { status: result.status, data: JSON.parse(result.stdout) };
+  };
+  const stale = freeze(copiedPath, ['--yes', '--digest', original.data.digest]);
+  assert.equal(stale.status, 2); assert.match(stale.data.error, /stale/);
+  assert.deepEqual(await readFile(statePath), stored);
+  const copied = freeze(copiedPath); assert.equal(copied.status, 3);
+  assert.equal(copied.data.bundlePath, copiedPath);
+  assert.equal(copied.data.bundleHash, original.data.bundleHash);
+  assert.equal(copied.data.planHash, original.data.planHash);
+  assert.equal(copied.data.destination, original.data.destination);
+  assert.notEqual(copied.data.digest, original.data.digest);
+  const overwrite = freeze(copiedPath, ['--yes', '--digest', copied.data.digest]);
+  assert.equal(overwrite.status, 2); assert.match(overwrite.data.error, /different inputs/);
+  assert.deepEqual(await readFile(statePath), stored);
+  // A different spelling resolving to the same absolute input is still an exact-path retry.
+  const relative = freeze('bundle.json', ['--yes', '--digest', original.data.digest], join(w.root, 'inputs'));
+  assert.equal(relative.status, 0); assert.equal(relative.data.recovered, true);
+  assert.deepEqual(await readFile(statePath), stored);
+});
 test('exact retention refusal is pure, including attachment bytes and binding overhead', async t => {
   const w = await world(t), b = acmeEvaluationPlan();
   b.materials[0].content = 'x'.repeat(50000);

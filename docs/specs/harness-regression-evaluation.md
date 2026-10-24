@@ -57,7 +57,11 @@ case/configuration/comparison bundle without writes. `freeze` previews that exac
 bundle and destination; `--yes --digest <preview>` records the frozen plan in an
 already initialized explicit private workspace. `inspect` reads and validates
 that frozen plan. Freezing never reserves execution budget, starts a trial or
-claims acceptance. Run/resume/cancel/compare/rescore remain unavailable until
+claims acceptance. Freeze approval also pins the canonical bundle path; moving
+identical bytes does not authorize recovery at a different path. Inspect preserves
+access to the original receipt. The record guard rejects byte-identical acceptance
+material in context, not semantic or reformatted copies; it is not the independent
+isolation boundary required in phase 118. Run/resume/cancel/compare/rescore remain unavailable until
 their later phases; unsupported operations must refuse rather than simulate
 execution. This local freeze operation lets the record foundation be proven
 without borrowing the future execution command's authority.

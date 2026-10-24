@@ -1963,8 +1963,9 @@ schema-2 harness input records in an already initialized external workspace.
 Plan reads only. Freeze preview exits 3 and exposes `digest`; approve with
 `--yes --digest <digest>`. Inspect takes `--experiment`; plan/freeze take
 `--bundle`. The manifest must authorize the comparison repository. Exact input
-bytes and destination bind approval; identical retries retain the original
-receipt. No model, runner, reservation or acceptance occurs. Run, resume,
+bytes, canonical input path and destination bind approval; retries at the same
+path retain the original receipt. A moved bundle refuses recovery under that ID;
+inspect the original instead. No model, runner, reservation or acceptance occurs. Run, resume,
 cancel, compare and rescore refuse. Declared image hashes do not verify image
 availability. See the source guide `docs/guide/harness-evaluations.md` for the
 synthetic Acme bundle and exact invocation.

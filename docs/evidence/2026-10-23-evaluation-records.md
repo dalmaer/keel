@@ -77,3 +77,19 @@ Explicit paths must be canonical; the synthetic walk resolves macOS temporary
 path aliases before invocation. Partial writes refuse instead of being reset;
 future execution recovery remains phase 119's responsibility. Hosted capability
 metadata describes these local commands as limited; no web execution is activated.
+
+## Review boundary clarification
+
+PR 238's first review identified two P3 documentation gaps. Identical retry
+includes the canonical input path; relocating identical bytes does not authorize
+replacement of the frozen comparison. The follow-up test exercises both stale
+approval and refusal under a fresh preview while retaining original receipt bytes.
+The acceptance/context guard catches equal bytes, not reformatted or semantically
+equivalent answers. No claim of semantic leakage prevention or container isolation
+is made here; phase 118 still owes that independent boundary.
+
+Conductor follow-up: `TZ=UTC node --import ./tests/helpers/hermetic.mjs --test
+tests/evaluation-records.test.mjs` exited 0, ten tests passed on 23 October 2026.
+The moved-input test also proved a relative spelling of the original absolute
+path recovers the same receipt. Review changes touch documentation and this test
+only; final-head CI supplies the subsequent integrated gate result.

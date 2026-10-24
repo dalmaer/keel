@@ -58,3 +58,5 @@ independently controlled artifact acceptance; this phase grants no model budget.
 
 - **2026-10-23** — The record-only slice needed an explicit local freeze operation; using a future run command would imply authority it did not have. The spec now separates immutable storage from execution and reservations.
 - **2026-10-23** — Conductor inspection found direct acceptance-material reuse in context and a retention check after writes. Reject byte-identical acceptance material in either arm's context and calculate retained size before mutation; dedicated negative checks cover both.
+
+- **2026-10-23** — Cross-review asked what “identical” recovery and acceptance separation prove. Pin the canonical source path and test moved-input refusal; document that the record guard detects equal bytes only, leaving semantic confidentiality and execution isolation outside this slice.
